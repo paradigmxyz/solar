@@ -422,18 +422,19 @@ fn @maybeFail(arg0: i1) -> i256 [pure] {
 ; function breakSkipsTail() external pure returns (uint256 result) [selector 0xa299c6cb]
 fn @breakSkipsTail() -> i256 [selector=0xa299c6cb, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
+    v0 = assign 0
     jump bb1
   bb1:                                            ; preds = bb0
-    v0 = phi [bb0: 0]
     v1 = phi [bb0: 0]
-    v2 = lt v1, 1
-    jumpi v2, bb4, bb5
+    v2 = phi [bb0: v0]
+    v3 = lt v2, 1
+    jumpi v3, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb4:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb4, bb5
-    ret v0
+    ret v1
   bb3:
     invalid
   bb6:
@@ -443,20 +444,21 @@ fn @breakSkipsTail() -> i256 [selector=0xa299c6cb, pure, abi_params=[], abi_retu
 ; function continueSkipsTail() external pure returns (uint256 result) [selector 0xc45ef923]
 fn @continueSkipsTail() -> i256 [selector=0xc45ef923, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
+    v0 = assign 0
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v0 = phi [bb0: 0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v3]
-    v2 = lt v1, 1
-    jumpi v2, bb4, bb5
+    v1 = phi [bb0: 0], [bb3: v1]
+    v2 = phi [bb0: v0], [bb3: v4]
+    v3 = lt v2, 1
+    jumpi v3, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
-    ret v0
+    ret v1
   bb4:                                            ; preds = bb1
     jump bb3
   bb3:                                            ; preds = bb4
-    v3 = checked_add uint256, v1, 1
+    v4 = checked_add uint256, v2, 1
     jump bb1
   bb6:
     invalid

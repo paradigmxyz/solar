@@ -26,6 +26,7 @@
 (type Op extern (enum
   (InsertValue (ty MirType) (aggregate Value) (index u32) (value Value))
   (ExtractValue (ty MirType) (aggregate Value) (index u32))
+  (Assign (a Value))
   (Zext (operand0 Value))
   (Trunc (operand0 Value) (bits u32))
   (Sext (operand0 Value) (from_bits u32) (to_bits u32))

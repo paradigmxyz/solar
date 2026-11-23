@@ -228,6 +228,8 @@ struct FunctionLowerer<'gcx, 'ctx> {
     /// Calldata slices that inline assembly may have built or changed, which ABI decoding did not
     /// range check.
     unchecked_calldata_slices: FxHashSet<ValueId>,
+    /// The number of values the function had when the statement being lowered began.
+    statement_values: usize,
     default_bindings: FxHashSet<VariableId>,
     deferred_bindings: FxHashSet<VariableId>,
     storage_refs: FxHashMap<VariableId, StorageAccess>,
@@ -566,6 +568,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             values: FxHashMap::default(),
             assignments: FxHashMap::default(),
             unchecked_calldata_slices: FxHashSet::default(),
+            statement_values: 0,
             default_bindings: FxHashSet::default(),
             deferred_bindings: FxHashSet::default(),
             storage_refs: FxHashMap::default(),

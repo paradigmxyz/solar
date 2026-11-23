@@ -6,18 +6,22 @@
 ; function shadowedLocal() external pure returns (uint256 r) [selector 0x62e68a7a]
 fn @shadowedLocal() -> i256 [selector=0x62e68a7a, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    ret 6
+    v0 = assign 5
+    v1 = add v0, 1
+    ret v1
 }
 
 ; function shadowedMulti() external pure returns (uint256 r, uint256 s) [selector 0x037bf0df]
 fn @shadowedMulti() -> struct0 [selector=0x037bf0df, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
-    v0 = icall @swap, 10, 20
-    v1 = extract_value struct0, v0, 0
-    v2 = extract_value struct0, v0, 1
-    v3 = insert_value struct0, undef struct0, 0, v1
-    v4 = insert_value struct0, v3, 1, v2
-    ret v4
+    v0 = assign 10
+    v1 = assign 20
+    v2 = icall @swap, v0, v1
+    v3 = extract_value struct0, v2, 0
+    v4 = extract_value struct0, v2, 1
+    v5 = insert_value struct0, undef struct0, 0, v3
+    v6 = insert_value struct0, v5, 1, v4
+    ret v6
 }
 
 ; function nestedBlock() external pure returns (uint256 r) [selector 0x4f1bc74e]

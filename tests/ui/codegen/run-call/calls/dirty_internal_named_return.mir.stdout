@@ -3,8 +3,9 @@
 ; function dispatchAddress(address value) external pure returns (address) [selector 0x58955a9d]
 fn @dispatchAddress(arg0: i256) -> i256 [selector=0x58955a9d, pure, abi_params=[address], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_address_r_address, 1, arg0
-    ret v0
+    v0 = assign 1
+    v1 = icall @internal_dispatcher_p_address_r_address, v0, arg0
+    ret v1
 }
 
 ; function narrowAddress(uint256 bits) external pure returns (address) [selector 0x44c29f35]
@@ -28,13 +29,14 @@ fn @joinAddress(arg0: i1) -> i256 [selector=0xbfc95d7a, pure, abi_params=[bool],
   bb0:
     jumpi arg0, bb1, bb2
   bb2:                                            ; preds = bb0
-    v0 = icall @dirtyAddress, 2
+    v1 = icall @dirtyAddress, 2
     jump bb3
   bb1:                                            ; preds = bb0
+    v0 = assign 2
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v1 = phi [bb1: 2], [bb2: v0]
-    ret v1
+    v2 = phi [bb1: v0], [bb2: v1]
+    ret v2
 }
 
 ; function dirtyAddress(address value) internal pure returns (address result)
@@ -248,9 +250,10 @@ fn @inspectSigned(arg0: i256) -> i256 [pure] {
 ; function signedPointer() external pure returns (int256) [selector 0x9c657eab]
 fn @signedPointer() -> i256 [selector=0x9c657eab, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
-    v0 = sext i8 255 to i256
-    v1 = icall @internal_dispatcher_p_int8_r_int256, 1, v0
-    ret v1
+    v0 = assign 1
+    v1 = sext i8 255 to i256
+    v2 = icall @internal_dispatcher_p_int8_r_int256, v0, v1
+    ret v2
 }
 
 ; function signedOperator() external pure returns (int8) [selector 0x4cad5a4a]
@@ -271,8 +274,9 @@ fn @identity(arg0: i256) -> i256 [pure] {
 ; function throughPointer() external pure returns (uint256 raw) [selector 0xb80d6cd3]
 fn @throughPointer() -> i256 [selector=0xb80d6cd3, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_uint8_r_uint8, 2, 257
-    ret v0
+    v0 = assign 2
+    v1 = icall @internal_dispatcher_p_uint8_r_uint8, v0, 257
+    ret v1
 }
 
 ; function cleanPair() internal pure returns (uint8, uint16)
@@ -286,33 +290,35 @@ fn @cleanPair() -> struct0 [pure] {
 ; function cleanPairDispatch() external pure returns (uint8, uint16) [selector 0xc5500c7d]
 fn @cleanPairDispatch() -> struct0 [selector=0xc5500c7d, pure, abi_params=[], abi_returns=[word<uint8>, word<uint16>], abi_return_params=[uint8, uint16]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_none_r_uint8_uint16, 3
-    v1 = extract_value struct1, v0, 0
-    v2 = extract_value struct1, v0, 1
-    v3 = trunc i256 v1 to i8
-    v4 = insert_value struct0, undef struct0, 0, v3
-    v5 = insert_value struct0, v4, 1, v2
-    ret v5
+    v0 = assign 3
+    v1 = icall @internal_dispatcher_p_none_r_uint8_uint16, v0
+    v2 = extract_value struct1, v1, 0
+    v3 = extract_value struct1, v1, 1
+    v4 = trunc i256 v2 to i8
+    v5 = insert_value struct0, undef struct0, 0, v4
+    v6 = insert_value struct0, v5, 1, v3
+    ret v6
 }
 
 ; function modifierLoop() external pure rawLoop [selector 0x2a9574e8]
 fn @modifierLoop() [selector=0x2a9574e8, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
+    v0 = assign 1
     jump bb2
   bb2:                                            ; preds = bb0, bb4
-    v0 = phi [bb0: 1], [bb4: v3]
-    v1 = phi [bb0: 0], [bb4: v4]
-    v2 = lt v1, 2
-    jumpi v2, bb5, bb6
+    v1 = phi [bb0: v0], [bb4: v4]
+    v2 = phi [bb0: 0], [bb4: v5]
+    v3 = lt v2, 2
+    jumpi v3, bb5, bb6
   bb6:                                            ; preds = bb2
     jump bb3
   bb3:                                            ; preds = bb6
-    v5 = eq v0, 257
-    v6 = zext i1 v5 to i256
-    v7 = eq v6, 0
-    v8 = zext i1 v7 to i256
-    v9 = ne v8, 0
-    jumpi v9, bb8, bb9
+    v6 = eq v1, 257
+    v7 = zext i1 v6 to i256
+    v8 = eq v7, 0
+    v9 = zext i1 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb8, bb9
   bb9:                                            ; preds = bb3
     jump bb10
   bb10:                                           ; preds = bb9
@@ -324,12 +330,12 @@ fn @modifierLoop() [selector=0x2a9574e8, pure, abi_params=[], abi_returns=[], ab
   bb8:                                            ; preds = bb3
     revert 0, 0
   bb5:                                            ; preds = bb2
-    v3 = add v0, 128
+    v4 = add v1, 128
     jump bb7
   bb7:                                            ; preds = bb5
     jump bb4
   bb4:                                            ; preds = bb7
-    v4 = checked_add uint256, v1, 1
+    v5 = checked_add uint256, v2, 1
     jump bb2
 }
 
@@ -343,52 +349,56 @@ fn @negative8() -> i256 [pure] {
 ; function signedJoin(bool choose, int8 input) external pure returns (bool negative) [selector 0x4f3ee4d1]
 fn @signedJoin(arg0: i1, arg1: i256) -> i256 [selector=0x4f3ee4d1, pure, abi_params=[bool, int8], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
+    v0 = assign arg1
     jumpi arg0, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
-    v0 = icall @negative8
+    v1 = icall @negative8
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v1 = phi [bb1: v0], [bb2: arg1]
-    v2 = slt v1, 0
-    v3 = zext i1 v2 to i256
-    ret v3
+    v2 = phi [bb1: v1], [bb2: v0]
+    v3 = assign v2
+    v4 = slt v3, 0
+    v5 = zext i1 v4 to i256
+    ret v5
 }
 
 ; function signedLoop(uint256 count, int8 input) external pure returns (bool negative) [selector 0xd2122ca9]
 fn @signedLoop(arg0: i256, arg1: i256) -> i256 [selector=0xd2122ca9, pure, abi_params=[uint256, int8], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
+    v0 = assign arg1
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: arg1], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v2]
-    v3 = phi [bb0: arg1], [bb3: v7]
-    v4 = phi [bb0: 0], [bb3: v8]
-    v5 = lt v4, v0
-    jumpi v5, bb4, bb5
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: arg1], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: v0], [bb3: v8]
+    v5 = phi [bb0: 0], [bb3: v9]
+    v6 = lt v5, v1
+    jumpi v6, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb4:                                            ; preds = bb1
-    v6 = eq v4, 1
-    jumpi v6, bb7, bb8
+    v7 = eq v5, 1
+    jumpi v7, bb7, bb8
   bb8:                                            ; preds = bb4
     jump bb9
   bb9:                                            ; preds = bb8
-    v7 = icall @negative8
+    v8 = icall @negative8
     jump bb6
   bb6:                                            ; preds = bb9
     jump bb3
   bb3:                                            ; preds = bb6
-    v8 = checked_add uint256, v4, 1
+    v9 = checked_add uint256, v5, 1
     jump bb1
   bb7:                                            ; preds = bb4
     jump bb2
   bb2:                                            ; preds = bb7, bb5
-    v9 = slt v3, 0
-    v10 = zext i1 v9 to i256
-    ret v10
+    v10 = assign v4
+    v11 = slt v10, 0
+    v12 = zext i1 v11 to i256
+    ret v12
 }
 
 ; function signedLocal() external pure returns (int256 raw) [selector 0xbacceb2b]

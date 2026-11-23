@@ -3,12 +3,13 @@
 ; function run() external returns (uint256) [selector 0xc0406226]
 fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    sstore 0, 1 !metadata(storage=slot(0))
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = trunc i256 v0 to i64
-    v2 = zext i64 v1 to i256
-    v3 = icall @internal_dispatcher_p_none_r_uint256, v2
-    ret v3
+    v0 = assign 1
+    sstore 0, v0 !metadata(storage=slot(0))
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = trunc i256 v1 to i64
+    v3 = zext i64 v2 to i256
+    v4 = icall @internal_dispatcher_p_none_r_uint256, v3
+    ret v4
 }
 
 ; function seven() internal pure returns (uint256)

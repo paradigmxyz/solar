@@ -12,8 +12,10 @@ contract C {
 
     // CHECK-LABEL: ; function arms(
     // CHECK: push 3 !metadata(span=
+    // CHECK: sstore
     // CHECK-NEXT: jump [[JOIN:bb[0-9]+]]{{$}}
     // CHECK: push 2 !metadata(span=
+    // CHECK: sstore
     // CHECK-NEXT: jump [[JOIN]]{{$}}
     // CHECK-NEXT: [[JOIN]]:
     // CHECK-NEXT: push 0 !metadata(span=
@@ -32,7 +34,8 @@ contract C {
     // join holds the push of the assignment, which has its origin, and the jump, which has none.
     // CHECK-LABEL: ; function phiArm(
     // CHECK: push 1 !metadata(span={{[0-9]+\.\.[0-9]+}})
-    // CHECK-NEXT: swap 1{{$}}
+    // CHECK-NEXT: swap 2{{$}}
+    // CHECK-NEXT: pop{{$}}
     // CHECK-NEXT: jump {{bb[0-9]+}}{{$}}
     function phiArm(uint256 n) external pure returns (uint256) {
         uint256 state = 0;

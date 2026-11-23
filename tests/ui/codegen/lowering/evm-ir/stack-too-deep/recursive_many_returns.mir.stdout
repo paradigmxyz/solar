@@ -6,54 +6,55 @@
 ; function g(uint256 n) internal pure returns (uint256 r0, uint256 r1, uint256 r2, uint256 r3, uint256 r4, uint256 r5, uint256 r6, uint256 r7, uint256 r8, uint256 r9, uint256 r10, uint256 r11, uint256 r12, uint256 r13, uint256 r14, uint256 r15, uint256 r16, uint256 r17)
 fn @g(arg0: i256) -> struct0 [pure] {
   bb0:
-    v0 = ne arg0, 0
-    jumpi v0, bb1, bb2
+    v0 = assign arg0
+    v1 = ne arg0, 0
+    jumpi v1, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
-    v1 = checked_sub uint256, arg0, 1
-    v2 = icall @g, v1
-    v3 = extract_value struct0, v2, 0
-    v4 = extract_value struct0, v2, 1
-    v5 = extract_value struct0, v2, 2
-    v6 = extract_value struct0, v2, 3
-    v7 = extract_value struct0, v2, 4
-    v8 = extract_value struct0, v2, 5
-    v9 = extract_value struct0, v2, 6
-    v10 = extract_value struct0, v2, 7
-    v11 = extract_value struct0, v2, 8
-    v12 = extract_value struct0, v2, 9
-    v13 = extract_value struct0, v2, 10
-    v14 = extract_value struct0, v2, 11
-    v15 = extract_value struct0, v2, 12
-    v16 = extract_value struct0, v2, 13
-    v17 = extract_value struct0, v2, 14
-    v18 = extract_value struct0, v2, 15
-    v19 = extract_value struct0, v2, 16
-    v20 = extract_value struct0, v2, 17
-    v21 = checked_add uint256, v4, arg0
+    v2 = checked_sub uint256, arg0, 1
+    v3 = icall @g, v2
+    v4 = extract_value struct0, v3, 0
+    v5 = extract_value struct0, v3, 1
+    v6 = extract_value struct0, v3, 2
+    v7 = extract_value struct0, v3, 3
+    v8 = extract_value struct0, v3, 4
+    v9 = extract_value struct0, v3, 5
+    v10 = extract_value struct0, v3, 6
+    v11 = extract_value struct0, v3, 7
+    v12 = extract_value struct0, v3, 8
+    v13 = extract_value struct0, v3, 9
+    v14 = extract_value struct0, v3, 10
+    v15 = extract_value struct0, v3, 11
+    v16 = extract_value struct0, v3, 12
+    v17 = extract_value struct0, v3, 13
+    v18 = extract_value struct0, v3, 14
+    v19 = extract_value struct0, v3, 15
+    v20 = extract_value struct0, v3, 16
+    v21 = extract_value struct0, v3, 17
+    v22 = checked_add uint256, v5, arg0
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v22 = phi [bb1: v21], [bb2: 0]
-    v23 = insert_value struct0, undef struct0, 0, v22
-    v24 = insert_value struct0, v23, 1, arg0
-    v25 = insert_value struct0, v24, 2, 0
-    v26 = insert_value struct0, v25, 3, 0
-    v27 = insert_value struct0, v26, 4, 0
-    v28 = insert_value struct0, v27, 5, 0
-    v29 = insert_value struct0, v28, 6, 0
-    v30 = insert_value struct0, v29, 7, 0
-    v31 = insert_value struct0, v30, 8, 0
-    v32 = insert_value struct0, v31, 9, 0
-    v33 = insert_value struct0, v32, 10, 0
-    v34 = insert_value struct0, v33, 11, 0
-    v35 = insert_value struct0, v34, 12, 0
-    v36 = insert_value struct0, v35, 13, 0
-    v37 = insert_value struct0, v36, 14, 0
-    v38 = insert_value struct0, v37, 15, 0
-    v39 = insert_value struct0, v38, 16, 0
-    v40 = insert_value struct0, v39, 17, 0
-    ret v40
+    v23 = phi [bb1: v22], [bb2: 0]
+    v24 = insert_value struct0, undef struct0, 0, v23
+    v25 = insert_value struct0, v24, 1, v0
+    v26 = insert_value struct0, v25, 2, 0
+    v27 = insert_value struct0, v26, 3, 0
+    v28 = insert_value struct0, v27, 4, 0
+    v29 = insert_value struct0, v28, 5, 0
+    v30 = insert_value struct0, v29, 6, 0
+    v31 = insert_value struct0, v30, 7, 0
+    v32 = insert_value struct0, v31, 8, 0
+    v33 = insert_value struct0, v32, 9, 0
+    v34 = insert_value struct0, v33, 10, 0
+    v35 = insert_value struct0, v34, 11, 0
+    v36 = insert_value struct0, v35, 12, 0
+    v37 = insert_value struct0, v36, 13, 0
+    v38 = insert_value struct0, v37, 14, 0
+    v39 = insert_value struct0, v38, 15, 0
+    v40 = insert_value struct0, v39, 16, 0
+    v41 = insert_value struct0, v40, 17, 0
+    ret v41
 }
 
 ; function f(uint256 n) external pure returns (uint256 r) [selector 0xb3de648b]

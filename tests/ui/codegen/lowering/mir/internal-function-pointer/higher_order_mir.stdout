@@ -27,11 +27,12 @@ fn @higher3() -> i256 [pure] {
 ; function callReturned() public returns (uint256) [selector 0x0ae2f92f]
 fn @callReturned() -> i256 [selector=0x0ae2f92f, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_none_r_function, 4
+    v0 = assign 4
     v1 = icall @internal_dispatcher_p_none_r_function, v0
     v2 = icall @internal_dispatcher_p_none_r_function, v1
-    v3 = icall @internal_dispatcher_p_none_r_uint256, v2
-    ret v3
+    v3 = icall @internal_dispatcher_p_none_r_function, v2
+    v4 = icall @internal_dispatcher_p_none_r_uint256, v3
+    ret v4
 }
 
 fn @internal_dispatcher_p_none_r_function(arg0: i256) -> i256 [function_pointer_dispatcher] {

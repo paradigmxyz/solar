@@ -659,9 +659,10 @@ fn @hashLowObject(arg0: i256) -> struct0 [selector=0x32d84f21, pure, abi_params=
     v1 = ptradd ptr<memory> 32, 32
     v2 = mload ptr<memory> 32 !metadata(memory=scratch)
     v3 = keccak256 v1, v2
-    v4 = insert_value struct0, undef struct0, 0, v3
-    v5 = insert_value struct0, v4, 1, 1
-    ret v5
+    v4 = assign 1
+    v5 = insert_value struct0, undef struct0, 0, v3
+    v6 = insert_value struct0, v5, 1, v4
+    ret v6
 }
 
 ; function byteAtSlot(uint256) external pure returns (uint8 r, uint256 length) [selector 0x73f8071e]
@@ -687,9 +688,10 @@ fn @byteAtSlot(arg0: i256) -> struct1 [selector=0x73f8071e, pure, abi_params=[ui
     v13 = shl v12, 248
     v14 = shr v13, 248
     v15 = trunc i256 v14 to i8
-    v16 = insert_value struct1, undef struct1, 0, v15
-    v17 = insert_value struct1, v16, 1, 1
-    ret v17
+    v16 = assign 1
+    v17 = insert_value struct1, undef struct1, 0, v15
+    v18 = insert_value struct1, v17, 1, v16
+    ret v18
 }
 
 ; function wordAtSlot(uint256) external pure returns (uint256 r, uint256 length) [selector 0xcec0252a]
@@ -713,9 +715,10 @@ fn @wordAtSlot(arg0: i256) -> struct0 [selector=0xcec0252a, pure, abi_params=[ui
     v11 = ptradd v0, v10
     v12 = ptradd v11, 32
     v13 = mload v12
-    v14 = insert_value struct0, undef struct0, 0, v13
-    v15 = insert_value struct0, v14, 1, 1
-    ret v15
+    v14 = assign 1
+    v15 = insert_value struct0, undef struct0, 0, v13
+    v16 = insert_value struct0, v15, 1, v14
+    ret v16
 }
 
 ; function scratchPackedHash(uint256) external pure returns (bytes32) [selector 0x7e6eb03d]
@@ -783,7 +786,8 @@ fn @checkedScaled(arg0: i256) -> i256 [selector=0x0cc852a0, pure, abi_params=[ui
     v1 = mload 64 !metadata(memory=scratch)
     v2 = checked_mul uint256, v1, 0x8000000000000000000000000000000000000000000000000000000000000000
     mstore v2, 1
-    ret v1
+    v3 = assign v1
+    ret v3
 }
 
 ; function hashHelperScratch(uint256 a, uint256 b, uint256) external pure returns (bytes32 h) [selector 0x75fdf974]

@@ -153,7 +153,7 @@ fn @encodings() -> i1 [selector=0x691e101e, view, abi_params=[], abi_returns=[wo
     jump bb1
   bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: 0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v179]
+    v1 = phi [bb0: 0], [bb3: v180]
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = lt v1, v2
     jumpi v3, bb4, bb5
@@ -331,82 +331,83 @@ fn @encodings() -> i1 [selector=0x691e101e, view, abi_params=[], abi_returns=[wo
   bb32:                                           ; preds = bb30
     jump bb33
   bb33:                                           ; preds = bb32
-    v122 = sload 0 !metadata(storage=slot(0))
-    v123 = lt v1, v122
-    v124 = eq v123, false
-    icall panic_if<0x32>, v124
-    v125 = storage_array_data_slot 0
-    v126 = add v125, v1
-    v127 = keccak256_packed (bytes31 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f00, storage_bytes v126)
-    v128 = keccak256_packed (bytes31 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f00, memory_bytes v9)
-    v129 = ne v127, v128
-    jumpi v129, bb34, bb35
+    v122 = assign 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f00
+    v123 = sload 0 !metadata(storage=slot(0))
+    v124 = lt v1, v123
+    v125 = eq v124, false
+    icall panic_if<0x32>, v125
+    v126 = storage_array_data_slot 0
+    v127 = add v126, v1
+    v128 = keccak256_packed (bytes31 v122, storage_bytes v127)
+    v129 = keccak256_packed (bytes31 v122, memory_bytes v9)
+    v130 = ne v128, v129
+    jumpi v130, bb34, bb35
   bb35:                                           ; preds = bb33
     jump bb36
   bb36:                                           ; preds = bb35
-    v130 = sload 0 !metadata(storage=slot(0))
-    v131 = lt v1, v130
-    v132 = eq v131, false
-    icall panic_if<0x32>, v132
-    v133 = storage_array_data_slot 0
-    v134 = add v133, v1
-    v135 = abi_encode_packed (bytes31 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f00, storage_bytes v134)
-    v136 = ptradd v135, 32
-    v137 = mload v135
-    v138 = keccak256 v136, v137
-    v139 = keccak256_packed (bytes31 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f00, memory_bytes v9)
-    v140 = ne v138, v139
-    jumpi v140, bb37, bb38
+    v131 = sload 0 !metadata(storage=slot(0))
+    v132 = lt v1, v131
+    v133 = eq v132, false
+    icall panic_if<0x32>, v133
+    v134 = storage_array_data_slot 0
+    v135 = add v134, v1
+    v136 = abi_encode_packed (bytes31 v122, storage_bytes v135)
+    v137 = ptradd v136, 32
+    v138 = mload v136
+    v139 = keccak256 v137, v138
+    v140 = keccak256_packed (bytes31 v122, memory_bytes v9)
+    v141 = ne v139, v140
+    jumpi v141, bb37, bb38
   bb38:                                           ; preds = bb36
     jump bb39
   bb39:                                           ; preds = bb38
-    v141 = sload 0 !metadata(storage=slot(0))
-    v142 = lt v1, v141
-    v143 = eq v142, false
-    icall panic_if<0x32>, v143
-    v144 = storage_array_data_slot 0
-    v145 = add v144, v1
-    v146 = sload 0 !metadata(storage=slot(0))
-    v147 = lt v1, v146
-    v148 = eq v147, false
-    icall panic_if<0x32>, v148
-    v149 = storage_array_data_slot 0
-    v150 = add v149, v1
-    v151 = abi_encode_packed (storage_bytes v145, data hex"2d", storage_bytes v150)
-    v152 = ptradd v151, 32
-    v153 = mload v151
-    v154 = keccak256 v152, v153
-    v155 = abi_encode_packed (memory_bytes v9, data hex"2d", memory_bytes v9)
-    v156 = ptradd v155, 32
-    v157 = mload v155
-    v158 = keccak256 v156, v157
-    v159 = ne v154, v158
-    jumpi v159, bb40, bb41
+    v142 = sload 0 !metadata(storage=slot(0))
+    v143 = lt v1, v142
+    v144 = eq v143, false
+    icall panic_if<0x32>, v144
+    v145 = storage_array_data_slot 0
+    v146 = add v145, v1
+    v147 = sload 0 !metadata(storage=slot(0))
+    v148 = lt v1, v147
+    v149 = eq v148, false
+    icall panic_if<0x32>, v149
+    v150 = storage_array_data_slot 0
+    v151 = add v150, v1
+    v152 = abi_encode_packed (storage_bytes v146, data hex"2d", storage_bytes v151)
+    v153 = ptradd v152, 32
+    v154 = mload v152
+    v155 = keccak256 v153, v154
+    v156 = abi_encode_packed (memory_bytes v9, data hex"2d", memory_bytes v9)
+    v157 = ptradd v156, 32
+    v158 = mload v156
+    v159 = keccak256 v157, v158
+    v160 = ne v155, v159
+    jumpi v160, bb40, bb41
   bb41:                                           ; preds = bb39
     jump bb42
   bb42:                                           ; preds = bb41
-    v160 = sload 0 !metadata(storage=slot(0))
-    v161 = lt v1, v160
-    v162 = eq v161, false
-    icall panic_if<0x32>, v162
-    v163 = storage_array_data_slot 0
-    v164 = add v163, v1
-    v165 = sload 0 !metadata(storage=slot(0))
-    v166 = lt v1, v165
-    v167 = eq v166, false
-    icall panic_if<0x32>, v167
-    v168 = storage_array_data_slot 0
-    v169 = add v168, v1
-    v170 = abi_encode_packed (storage_bytes v164, data hex"01", storage_bytes v169)
-    v171 = ptradd v170, 32
-    v172 = mload v170
-    v173 = keccak256 v171, v172
-    v174 = abi_encode_packed (memory_bytes v9, data hex"01", memory_bytes v9)
-    v175 = ptradd v174, 32
-    v176 = mload v174
-    v177 = keccak256 v175, v176
-    v178 = ne v173, v177
-    jumpi v178, bb43, bb44
+    v161 = sload 0 !metadata(storage=slot(0))
+    v162 = lt v1, v161
+    v163 = eq v162, false
+    icall panic_if<0x32>, v163
+    v164 = storage_array_data_slot 0
+    v165 = add v164, v1
+    v166 = sload 0 !metadata(storage=slot(0))
+    v167 = lt v1, v166
+    v168 = eq v167, false
+    icall panic_if<0x32>, v168
+    v169 = storage_array_data_slot 0
+    v170 = add v169, v1
+    v171 = abi_encode_packed (storage_bytes v165, data hex"01", storage_bytes v170)
+    v172 = ptradd v171, 32
+    v173 = mload v171
+    v174 = keccak256 v172, v173
+    v175 = abi_encode_packed (memory_bytes v9, data hex"01", memory_bytes v9)
+    v176 = ptradd v175, 32
+    v177 = mload v175
+    v178 = keccak256 v176, v177
+    v179 = ne v174, v178
+    jumpi v179, bb43, bb44
   bb44:                                           ; preds = bb42
     jump bb45
   bb45:                                           ; preds = bb44
@@ -414,7 +415,7 @@ fn @encodings() -> i1 [selector=0x691e101e, view, abi_params=[], abi_returns=[wo
   bb6:                                            ; preds = bb45
     jump bb3
   bb3:                                            ; preds = bb6
-    v179 = checked_add uint256, v1, 1
+    v180 = checked_add uint256, v1, 1
     jump bb1
   bb43:                                           ; preds = bb42
     ret false

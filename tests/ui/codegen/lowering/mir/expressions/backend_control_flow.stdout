@@ -68,15 +68,17 @@ fn @phiAfterBranch() -> i256 [selector=0x3c96aa28, abi_params=[], abi_returns=[w
     v1 = eq v0, 0
     jumpi v1, bb1, bb2
   bb2:                                            ; preds = bb0
+    v3 = assign 2
     jump bb3
   bb1:                                            ; preds = bb0
+    v2 = assign 1
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v2 = phi [bb1: 1], [bb2: 2]
-    v3 = sload 1 !metadata(storage=slot(1))
-    v4 = checked_add uint256, v3, v2
-    sstore 1, v4 !metadata(storage=slot(1))
-    ret v2
+    v4 = phi [bb1: v2], [bb2: v3]
+    v5 = sload 1 !metadata(storage=slot(1))
+    v6 = checked_add uint256, v5, v4
+    sstore 1, v6 !metadata(storage=slot(1))
+    ret v4
 }
 
 ; function phiUsedMultipleTimes() external returns (uint256 result) [selector 0x4e3a23dd]
@@ -86,50 +88,54 @@ fn @phiUsedMultipleTimes() -> i256 [selector=0x4e3a23dd, abi_params=[], abi_retu
     v1 = eq v0, 0
     jumpi v1, bb1, bb2
   bb2:                                            ; preds = bb0
+    v3 = assign 2
     jump bb3
   bb1:                                            ; preds = bb0
+    v2 = assign 1
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v2 = phi [bb1: 1], [bb2: 2]
-    v3 = sload 1 !metadata(storage=slot(1))
-    v4 = checked_add uint256, v3, v2
-    sstore 1, v4 !metadata(storage=slot(1))
-    v5 = checked_mul uint256, v2, 2
-    v6 = checked_add uint256, v5, v2
-    ret v6
+    v4 = phi [bb1: v2], [bb2: v3]
+    v5 = sload 1 !metadata(storage=slot(1))
+    v6 = checked_add uint256, v5, v4
+    sstore 1, v6 !metadata(storage=slot(1))
+    v7 = checked_mul uint256, v4, 2
+    v8 = checked_add uint256, v7, v4
+    ret v8
 }
 
 ; function phiWithTernary() external returns (uint256 liquidity) [selector 0x2318217a]
 fn @phiWithTernary() -> i256 [selector=0x2318217a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = sload 1 !metadata(storage=slot(1))
-    v1 = eq v0, 0
-    jumpi v1, bb1, bb2
+    v0 = assign 100
+    v1 = assign 200
+    v2 = sload 1 !metadata(storage=slot(1))
+    v3 = eq v2, 0
+    jumpi v3, bb1, bb2
   bb2:                                            ; preds = bb0
-    v3 = sload 1 !metadata(storage=slot(1))
-    v4 = checked_mul uint256, 100, v3
-    v5 = sload 2 !metadata(storage=slot(2))
-    v6 = checked_div uint256, v4, v5
-    v7 = sload 1 !metadata(storage=slot(1))
-    v8 = checked_mul uint256, 200, v7
-    v9 = sload 3 !metadata(storage=slot(3))
-    v10 = checked_div uint256, v8, v9
-    v11 = lt v6, v10
-    jumpi v11, bb4, bb5
+    v5 = sload 1 !metadata(storage=slot(1))
+    v6 = checked_mul uint256, v0, v5
+    v7 = sload 2 !metadata(storage=slot(2))
+    v8 = checked_div uint256, v6, v7
+    v9 = sload 1 !metadata(storage=slot(1))
+    v10 = checked_mul uint256, v1, v9
+    v11 = sload 3 !metadata(storage=slot(3))
+    v12 = checked_div uint256, v10, v11
+    v13 = lt v8, v12
+    jumpi v13, bb4, bb5
   bb5:                                            ; preds = bb2
     jump bb6
   bb4:                                            ; preds = bb2
     jump bb6
   bb6:                                            ; preds = bb4, bb5
-    v12 = phi [bb4: v6], [bb5: v10]
+    v14 = phi [bb4: v8], [bb5: v12]
     jump bb3
   bb1:                                            ; preds = bb0
-    v2 = checked_mul uint256, 100, 200
+    v4 = checked_mul uint256, v0, v1
     jump bb3
   bb3:                                            ; preds = bb1, bb6
-    v13 = phi [bb1: v2], [bb6: v12]
-    v14 = sload 1 !metadata(storage=slot(1))
-    v15 = checked_add uint256, v14, v13
-    sstore 1, v15 !metadata(storage=slot(1))
-    ret v13
+    v15 = phi [bb1: v4], [bb6: v14]
+    v16 = sload 1 !metadata(storage=slot(1))
+    v17 = checked_add uint256, v16, v15
+    sstore 1, v17 !metadata(storage=slot(1))
+    ret v15
 }

@@ -13,31 +13,32 @@ fn @_getPool(arg0: i256) -> i256 [view] {
 ; function run() external returns (uint256, uint256) [selector 0xc0406226]
 fn @run() -> struct0 [selector=0xc0406226, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
-    v0 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
-    v1 = sload v0 !metadata(storage=symbolic(v0))
-    v2 = and v1, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v3 = or v2, 96
-    sstore v0, v3 !metadata(storage=symbolic(v0))
-    v4 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
-    v5 = sload v4 !metadata(storage=symbolic(v4))
-    v6 = and v5, 0xffffffffffffffffffff0000ffffffffffffffffffffffffffffffffffffffff
-    v7 = or v6, 0x1e0000000000000000000000000000000000000000
-    sstore v4, v7 !metadata(storage=symbolic(v4))
-    v8 = icall @_getPool, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
-    v9 = sload v8 !metadata(storage=symbolic(v8))
-    v10 = trunc i256 v9 to i160
-    v11 = eq v10, i160 96
-    icall require<short_string>, v11, 16, 0x72656164207468726f7567682072656600000000000000000000000000000000
-    v12 = add v8, 1
-    sstore v12, 7 !metadata(storage=offset(v8, 1))
-    v13 = icall @_getPool, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
-    v14 = sload v13 !metadata(storage=symbolic(v13))
-    v15 = trunc i256 v14 to i160
-    v16 = zext i160 v15 to i256
-    v17 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
-    v18 = add v17, 1
-    v19 = sload v18 !metadata(storage=offset(v17, 1))
-    v20 = insert_value struct0, undef struct0, 0, v16
-    v21 = insert_value struct0, v20, 1, v19
-    ret v21
+    v0 = assign 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
+    v1 = mapping_slot v0, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = and v2, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v4 = or v3, 96
+    sstore v1, v4 !metadata(storage=symbolic(v1))
+    v5 = mapping_slot v0, 0
+    v6 = sload v5 !metadata(storage=symbolic(v5))
+    v7 = and v6, 0xffffffffffffffffffff0000ffffffffffffffffffffffffffffffffffffffff
+    v8 = or v7, 0x1e0000000000000000000000000000000000000000
+    sstore v5, v8 !metadata(storage=symbolic(v5))
+    v9 = icall @_getPool, v0
+    v10 = sload v9 !metadata(storage=symbolic(v9))
+    v11 = trunc i256 v10 to i160
+    v12 = eq v11, i160 96
+    icall require<short_string>, v12, 16, 0x72656164207468726f7567682072656600000000000000000000000000000000
+    v13 = add v9, 1
+    sstore v13, 7 !metadata(storage=offset(v9, 1))
+    v14 = icall @_getPool, v0
+    v15 = sload v14 !metadata(storage=symbolic(v14))
+    v16 = trunc i256 v15 to i160
+    v17 = zext i160 v16 to i256
+    v18 = mapping_slot v0, 0
+    v19 = add v18, 1
+    v20 = sload v19 !metadata(storage=offset(v18, 1))
+    v21 = insert_value struct0, undef struct0, 0, v17
+    v22 = insert_value struct0, v21, 1, v20
+    ret v22
 }

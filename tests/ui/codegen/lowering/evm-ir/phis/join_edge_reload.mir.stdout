@@ -4,31 +4,32 @@
 fn @find(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x867025b4, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
+    v1 = assign 0
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: arg1], [bb3: v2]
-    v3 = phi [bb0: v0], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v17]
-    v5 = extract_value slice<calldata>, v1, 1
-    v6 = lt v4, v5
-    jumpi v6, bb4, bb5
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = phi [bb0: arg1], [bb3: v3]
+    v4 = phi [bb0: v0], [bb3: v4]
+    v5 = phi [bb0: v1], [bb3: v19]
+    v6 = extract_value slice<calldata>, v2, 1
+    v7 = lt v5, v6
+    jumpi v7, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb4:                                            ; preds = bb1
-    v7 = extract_value slice<calldata>, v1, 1
-    v8 = lt v4, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = extract_value slice<calldata>, v1, 0
-    v11 = mul v4, 32
-    v12 = gt v4, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v12
-    v13 = ptrtoint ptr<calldata> v10 to i256
-    v14 = add v13, v11
-    v15 = calldataload v14
-    v16 = eq v15, v2
-    jumpi v16, bb7, bb8
+    v8 = extract_value slice<calldata>, v2, 1
+    v9 = lt v5, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = extract_value slice<calldata>, v2, 0
+    v12 = mul v5, 32
+    v13 = gt v5, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v13
+    v14 = ptrtoint ptr<calldata> v11 to i256
+    v15 = add v14, v12
+    v16 = calldataload v15
+    v17 = eq v16, v3
+    jumpi v17, bb7, bb8
   bb8:                                            ; preds = bb4
     jump bb9
   bb9:                                            ; preds = bb8
@@ -36,11 +37,12 @@ fn @find(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x867025b4, pure, 
   bb6:                                            ; preds = bb9
     jump bb3
   bb3:                                            ; preds = bb6
-    v17 = checked_add uint256, v4, 1
+    v19 = checked_add uint256, v5, 1
     jump bb1
   bb7:                                            ; preds = bb4
+    v18 = assign v5
     jump bb2
   bb2:                                            ; preds = bb7, bb5
-    v18 = phi [bb7: v4], [bb5: v3]
-    ret v18
+    v20 = phi [bb7: v18], [bb5: v4]
+    ret v20
 }

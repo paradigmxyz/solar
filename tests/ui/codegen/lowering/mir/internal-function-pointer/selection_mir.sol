@@ -19,7 +19,8 @@ contract FunctionPointerSelection {
     }
 
     // CHECK-LABEL: fn @callConstant(
-    // CHECK: icall @internal_dispatcher{{.*}}, 1, arg0
+    // CHECK: [[POINTER:v[0-9]+]] = assign 1
+    // CHECK-NEXT: icall @internal_dispatcher{{.*}}, [[POINTER]], arg0
     function callConstant(uint256 value) public returns (uint256) {
         function(uint256) internal returns (uint256) fn = increment;
         return fn(value);

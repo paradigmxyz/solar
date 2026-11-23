@@ -25,35 +25,36 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v7 = lt v6, 10
     jumpi v7, bb2, bb3
   bb3:                                            ; preds = bb1
+    v14 = assign 0
     jump bb7
   bb7:                                            ; preds = bb3, bb9
-    v14 = phi [bb3: 0], [bb9: v26]
     v15 = phi [bb3: 0], [bb9: v27]
-    v16 = phi [bb3: v0], [bb9: v16]
-    v17 = lt 0, 1
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = lt v15, 10
-    jumpi v19, bb10, bb11
+    v16 = phi [bb3: v14], [bb9: v28]
+    v17 = phi [bb3: v0], [bb9: v17]
+    v18 = lt 0, 1
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = lt v16, 10
+    jumpi v20, bb10, bb11
   bb11:                                           ; preds = bb7
     jump bb8
   bb8:                                            ; preds = bb11
-    ret v14
+    ret v15
   bb10:                                           ; preds = bb7
-    v20 = lt 0, 1
-    v21 = eq v20, false
-    icall panic_if<0x32>, v21
-    v22 = lt v15, 10
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = add v16, v15
-    v25 = sload v24 !metadata(storage=symbolic(v24))
-    v26 = checked_add uint256, v14, v25
+    v21 = lt 0, 1
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = lt v16, 10
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = add v17, v16
+    v26 = sload v25 !metadata(storage=symbolic(v25))
+    v27 = checked_add uint256, v15, v26
     jump bb12
   bb12:                                           ; preds = bb10
     jump bb9
   bb9:                                            ; preds = bb12
-    v27 = checked_add uint256, v15, 1
+    v28 = checked_add uint256, v16, 1
     jump bb7
   bb2:                                            ; preds = bb1
     v8 = add v0, v6

@@ -61,25 +61,26 @@ fn @viaReturn() -> i256 [selector=0xefd065cd, pure, abi_params=[], abi_returns=[
 fn @viaLocal() -> i256 [selector=0xf9bef4ed, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @dirtyV
-    v1 = trunc i256 v0 to i8
-    v2 = fmp
-    v3 = ptrtoint ptr<memory> v2 to i256
-    mstore v2, 0x2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
-    v4 = add v3, 32
-    v5 = zext i8 v1 to i256
-    mstore v4, v5
-    v6 = add v3, 64
-    mstore v6, 0xf2fff8620d8ffe97040f8cf72ae476ef8ff4412373929c0324ce8428d3352e7
-    v7 = add v3, 96
-    mstore v7, 0x1845ae4903027667005846f8f0be3e5ed2db5c3826ba83a6e542e080792f9a9d
-    v8 = make_memory_slice v2, 128
-    v9 = extcall static word i160 1, v8
-    jumpi v9, bb2, bb1
+    v1 = assign v0
+    v2 = trunc i256 v1 to i8
+    v3 = fmp
+    v4 = ptrtoint ptr<memory> v3 to i256
+    mstore v3, 0x2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
+    v5 = add v4, 32
+    v6 = zext i8 v2 to i256
+    mstore v5, v6
+    v7 = add v4, 64
+    mstore v7, 0xf2fff8620d8ffe97040f8cf72ae476ef8ff4412373929c0324ce8428d3352e7
+    v8 = add v4, 96
+    mstore v8, 0x1845ae4903027667005846f8f0be3e5ed2db5c3826ba83a6e542e080792f9a9d
+    v9 = make_memory_slice v3, 128
+    v10 = extcall static word i160 1, v9
+    jumpi v10, bb2, bb1
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v10 = mload 0 !metadata(memory=scratch)
-    v11 = trunc i256 v10 to i160
-    v12 = zext i160 v11 to i256
-    ret v12
+    v11 = mload 0 !metadata(memory=scratch)
+    v12 = trunc i256 v11 to i160
+    v13 = zext i160 v12 to i256
+    ret v13
 }

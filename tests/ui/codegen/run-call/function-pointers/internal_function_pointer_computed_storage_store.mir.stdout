@@ -3,16 +3,17 @@
 ; function run() external returns (uint256) [selector 0xc0406226]
 fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    sstore 0, 1 !metadata(storage=slot(0))
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = trunc i256 v0 to i64
-    v2 = zext i64 v1 to i256
-    v3 = alloc 64
-    mstore v3, 3
-    v4 = ptradd v3, 32
-    mstore v4, 4
-    v5 = icall @internal_dispatcher_p_memorystruct_r_uint256, v2, v3
-    ret v5
+    v0 = assign 1
+    sstore 0, v0 !metadata(storage=slot(0))
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = trunc i256 v1 to i64
+    v3 = zext i64 v2 to i256
+    v4 = alloc 64
+    mstore v4, 3
+    v5 = ptradd v4, 32
+    mstore v5, 4
+    v6 = icall @internal_dispatcher_p_memorystruct_r_uint256, v3, v4
+    ret v6
 }
 
 ; function sum(MemoryPointer pointer) internal pure returns (uint256 value)

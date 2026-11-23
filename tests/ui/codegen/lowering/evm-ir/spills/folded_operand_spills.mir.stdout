@@ -648,27 +648,28 @@ fn @twoPointers(arg0: i256, arg1: i256) -> i256 [selector=0x7c9988a0, pure, abi_
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
+    v22 = assign 0
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v22 = phi [bb1: 0], [bb2: v19]
-    v23 = xor v0, v1
-    v24 = xor v23, v2
-    v25 = xor v24, v3
-    v26 = xor v25, v4
-    v27 = xor v26, v5
-    v28 = xor v27, v6
-    v29 = xor v28, v7
-    v30 = xor v29, v8
-    v31 = xor v30, v9
-    v32 = xor v31, v10
-    v33 = xor v32, v11
-    v34 = xor v33, v12
-    v35 = xor v34, v13
-    v36 = xor v35, v14
-    v37 = xor v36, v15
-    v38 = xor v37, v16
-    v39 = xor v38, v22
-    ret v39
+    v23 = phi [bb1: v22], [bb2: v19]
+    v24 = xor v0, v1
+    v25 = xor v24, v2
+    v26 = xor v25, v3
+    v27 = xor v26, v4
+    v28 = xor v27, v5
+    v29 = xor v28, v6
+    v30 = xor v29, v7
+    v31 = xor v30, v8
+    v32 = xor v31, v9
+    v33 = xor v32, v10
+    v34 = xor v33, v11
+    v35 = xor v34, v12
+    v36 = xor v35, v13
+    v37 = xor v36, v14
+    v38 = xor v37, v15
+    v39 = xor v38, v16
+    v40 = xor v39, v23
+    ret v40
 }
 
 ; function nearSpillPointer(uint256 a, uint256 flag) external pure returns (bytes32 result) [selector 0xc2786ba1]

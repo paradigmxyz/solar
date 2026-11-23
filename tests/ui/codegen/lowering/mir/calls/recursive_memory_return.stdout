@@ -51,33 +51,34 @@ fn @mkArr(arg0: i256) -> ptr<memory> [selector=0xfb67dbf3, pure, abi_params=[uin
     icall panic_if<0x41>, v10
     v11 = alloc zeroed checked v9
     mstore v11, arg0
+    v12 = assign 0
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v12 = phi [bb0: arg0], [bb3: v12]
-    v13 = phi [bb0: ptr<memory> 96], [bb3: v13]
-    v14 = phi [bb0: v11], [bb3: v14]
-    v15 = phi [bb0: 0], [bb3: v24]
-    v16 = lt v15, v12
-    jumpi v16, bb4, bb5
+    v13 = phi [bb0: arg0], [bb3: v13]
+    v14 = phi [bb0: ptr<memory> 96], [bb3: v14]
+    v15 = phi [bb0: v11], [bb3: v15]
+    v16 = phi [bb0: v12], [bb3: v25]
+    v17 = lt v16, v13
+    jumpi v17, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
-    ret v14
+    ret v15
   bb4:                                            ; preds = bb1
-    v17 = checked_mul uint256, v15, 10
-    v18 = mload v14
-    v19 = lt v15, v18
-    v20 = eq v19, false
-    icall panic_if<0x32>, v20
-    v21 = shl v15, 5
-    v22 = ptradd v14, v21
-    v23 = ptradd v22, 32
-    mstore v23, v17
+    v18 = checked_mul uint256, v16, 10
+    v19 = mload v15
+    v20 = lt v16, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = shl v16, 5
+    v23 = ptradd v15, v22
+    v24 = ptradd v23, 32
+    mstore v24, v18
     jump bb6
   bb6:                                            ; preds = bb4
     jump bb3
   bb3:                                            ; preds = bb6
-    v24 = checked_add uint256, v15, 1
+    v25 = checked_add uint256, v16, 1
     jump bb1
 }
 

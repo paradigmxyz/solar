@@ -1232,6 +1232,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.merge_value_phi(incoming)
     }
 
+    /// Returns the value an assignment stores in a named local.
+    ///
+    /// At `-O none` an integer that no instruction of the statement defines, such as the `8` of
+    /// `y = 8` or the `x` of `y = x`, becomes a copy with an instruction of its own. Without it the
+    /// assignment leaves no code, and no source location.
+    pub(super) fn assigned_value(&mut self, value: ValueId) -> ValueId {
+        let func = self.builder.func();
+        let defined_here =
+            matches!(func.value(value), Value::Inst(_)) && value.index() >= self.statement_values;
+        if self.in_inline_assembly
+            || !self.cx.module.objective_of(func).is_none()
+            || defined_here
+            || !func.value_ty(value).is_some_and(|ty| ty.integer_bits().is_some())
+        {
+            return value;
+        }
+        self.builder.assign(value)
+    }
+
     /// Binds the local `id` to `value` and records the assignment in the current block.
     pub(super) fn assign_local(&mut self, id: VariableId, value: ValueId) {
         self.values.insert(id, value);

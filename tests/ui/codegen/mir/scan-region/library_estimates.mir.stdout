@@ -3,175 +3,181 @@
 ; function estimate(uint256 x) external pure returns (uint256 result) [selector 0x9c792938]
 fn @estimate(arg0: i256) -> i256 [selector=0x9c792938, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = lt arg0, 0x100000000000000000000000000000000
-    v1 = eq v0, false
-    jumpi v1, bb1, bb2
+    v0 = assign arg0
+    v1 = assign 1
+    v2 = lt v0, 0x100000000000000000000000000000000
+    v3 = eq v2, false
+    jumpi v3, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
-    v2 = shr arg0, 128
+    v4 = shr v0, 128
+    v5 = shl v1, 64
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v3 = phi [bb1: 0x10000000000000000], [bb2: 1]
-    v4 = phi [bb1: v2], [bb2: arg0]
-    v5 = lt v4, 0x10000000000000000
-    v6 = eq v5, false
-    jumpi v6, bb4, bb5
+    v6 = phi [bb1: v5], [bb2: v1]
+    v7 = phi [bb1: v4], [bb2: v0]
+    v8 = lt v7, 0x10000000000000000
+    v9 = eq v8, false
+    jumpi v9, bb4, bb5
   bb5:                                            ; preds = bb3
     jump bb6
   bb4:                                            ; preds = bb3
-    v7 = shr v4, 64
-    v8 = shl v3, 32
+    v10 = shr v7, 64
+    v11 = shl v6, 32
     jump bb6
   bb6:                                            ; preds = bb4, bb5
-    v9 = phi [bb4: v8], [bb5: v3]
-    v10 = phi [bb4: v7], [bb5: v4]
-    v11 = lt v10, 0x100000000
-    v12 = eq v11, false
-    jumpi v12, bb7, bb8
+    v12 = phi [bb4: v11], [bb5: v6]
+    v13 = phi [bb4: v10], [bb5: v7]
+    v14 = lt v13, 0x100000000
+    v15 = eq v14, false
+    jumpi v15, bb7, bb8
   bb8:                                            ; preds = bb6
     jump bb9
   bb7:                                            ; preds = bb6
-    v13 = shr v10, 32
-    v14 = shl v9, 16
+    v16 = shr v13, 32
+    v17 = shl v12, 16
     jump bb9
   bb9:                                            ; preds = bb7, bb8
-    v15 = phi [bb7: v14], [bb8: v9]
-    v16 = phi [bb7: v13], [bb8: v10]
-    v17 = lt v16, 0x10000
-    v18 = eq v17, false
-    jumpi v18, bb10, bb11
+    v18 = phi [bb7: v17], [bb8: v12]
+    v19 = phi [bb7: v16], [bb8: v13]
+    v20 = lt v19, 0x10000
+    v21 = eq v20, false
+    jumpi v21, bb10, bb11
   bb11:                                           ; preds = bb9
     jump bb12
   bb10:                                           ; preds = bb9
-    v19 = shr v16, 16
-    v20 = shl v15, 8
+    v22 = shr v19, 16
+    v23 = shl v18, 8
     jump bb12
   bb12:                                           ; preds = bb10, bb11
-    v21 = phi [bb10: v20], [bb11: v15]
-    v22 = phi [bb10: v19], [bb11: v16]
-    v23 = lt v22, 256
-    v24 = eq v23, false
-    jumpi v24, bb13, bb14
+    v24 = phi [bb10: v23], [bb11: v18]
+    v25 = phi [bb10: v22], [bb11: v19]
+    v26 = lt v25, 256
+    v27 = eq v26, false
+    jumpi v27, bb13, bb14
   bb14:                                           ; preds = bb12
     jump bb15
   bb13:                                           ; preds = bb12
-    v25 = shr v22, 8
-    v26 = shl v21, 4
+    v28 = shr v25, 8
+    v29 = shl v24, 4
     jump bb15
   bb15:                                           ; preds = bb13, bb14
-    v27 = phi [bb13: v26], [bb14: v21]
-    v28 = phi [bb13: v25], [bb14: v22]
-    v29 = lt v28, 16
-    v30 = eq v29, false
-    jumpi v30, bb16, bb17
+    v30 = phi [bb13: v29], [bb14: v24]
+    v31 = phi [bb13: v28], [bb14: v25]
+    v32 = lt v31, 16
+    v33 = eq v32, false
+    jumpi v33, bb16, bb17
   bb17:                                           ; preds = bb15
     jump bb18
   bb16:                                           ; preds = bb15
-    v31 = shr v28, 4
-    v32 = shl v27, 2
+    v34 = shr v31, 4
+    v35 = shl v30, 2
     jump bb18
   bb18:                                           ; preds = bb16, bb17
-    v33 = phi [bb16: v32], [bb17: v27]
-    v34 = phi [bb16: v31], [bb17: v28]
-    v35 = lt v34, 4
-    v36 = eq v35, false
-    jumpi v36, bb19, bb20
+    v36 = phi [bb16: v35], [bb17: v30]
+    v37 = phi [bb16: v34], [bb17: v31]
+    v38 = lt v37, 4
+    v39 = eq v38, false
+    jumpi v39, bb19, bb20
   bb20:                                           ; preds = bb18
     jump bb21
   bb19:                                           ; preds = bb18
-    v37 = shl v33, 1
+    v40 = shl v36, 1
     jump bb21
   bb21:                                           ; preds = bb19, bb20
-    v38 = phi [bb19: v37], [bb20: v33]
-    ret v38
+    v41 = phi [bb19: v40], [bb20: v36]
+    ret v41
 }
 
 ; function wrongEstimate(uint256 x) external pure returns (uint256 result) [selector 0xb5bb5384]
 fn @wrongEstimate(arg0: i256) -> i256 [selector=0xb5bb5384, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = lt arg0, 0x100000000000000000000000000000000
-    v1 = eq v0, false
-    jumpi v1, bb1, bb2
+    v0 = assign arg0
+    v1 = assign 1
+    v2 = lt v0, 0x100000000000000000000000000000000
+    v3 = eq v2, false
+    jumpi v3, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
-    v2 = shr arg0, 128
+    v4 = shr v0, 128
+    v5 = shl v1, 64
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v3 = phi [bb1: 0x10000000000000000], [bb2: 1]
-    v4 = phi [bb1: v2], [bb2: arg0]
-    v5 = lt v4, 0x10000000000000000
-    v6 = eq v5, false
-    jumpi v6, bb4, bb5
+    v6 = phi [bb1: v5], [bb2: v1]
+    v7 = phi [bb1: v4], [bb2: v0]
+    v8 = lt v7, 0x10000000000000000
+    v9 = eq v8, false
+    jumpi v9, bb4, bb5
   bb5:                                            ; preds = bb3
     jump bb6
   bb4:                                            ; preds = bb3
-    v7 = shr v4, 64
-    v8 = shl v3, 32
+    v10 = shr v7, 64
+    v11 = shl v6, 32
     jump bb6
   bb6:                                            ; preds = bb4, bb5
-    v9 = phi [bb4: v8], [bb5: v3]
-    v10 = phi [bb4: v7], [bb5: v4]
-    v11 = lt v10, 0x100000000
-    v12 = eq v11, false
-    jumpi v12, bb7, bb8
+    v12 = phi [bb4: v11], [bb5: v6]
+    v13 = phi [bb4: v10], [bb5: v7]
+    v14 = lt v13, 0x100000000
+    v15 = eq v14, false
+    jumpi v15, bb7, bb8
   bb8:                                            ; preds = bb6
     jump bb9
   bb7:                                            ; preds = bb6
-    v13 = shr v10, 32
-    v14 = shl v9, 16
+    v16 = shr v13, 32
+    v17 = shl v12, 16
     jump bb9
   bb9:                                            ; preds = bb7, bb8
-    v15 = phi [bb7: v14], [bb8: v9]
-    v16 = phi [bb7: v13], [bb8: v10]
-    v17 = lt v16, 0x10000
-    v18 = eq v17, false
-    jumpi v18, bb10, bb11
+    v18 = phi [bb7: v17], [bb8: v12]
+    v19 = phi [bb7: v16], [bb8: v13]
+    v20 = lt v19, 0x10000
+    v21 = eq v20, false
+    jumpi v21, bb10, bb11
   bb11:                                           ; preds = bb9
     jump bb12
   bb10:                                           ; preds = bb9
-    v19 = shr v16, 16
-    v20 = shl v15, 8
+    v22 = shr v19, 16
+    v23 = shl v18, 8
     jump bb12
   bb12:                                           ; preds = bb10, bb11
-    v21 = phi [bb10: v20], [bb11: v15]
-    v22 = phi [bb10: v19], [bb11: v16]
-    v23 = lt v22, 256
-    v24 = eq v23, false
-    jumpi v24, bb13, bb14
+    v24 = phi [bb10: v23], [bb11: v18]
+    v25 = phi [bb10: v22], [bb11: v19]
+    v26 = lt v25, 256
+    v27 = eq v26, false
+    jumpi v27, bb13, bb14
   bb14:                                           ; preds = bb12
     jump bb15
   bb13:                                           ; preds = bb12
-    v25 = shr v22, 8
-    v26 = shl v21, 4
+    v28 = shr v25, 8
+    v29 = shl v24, 4
     jump bb15
   bb15:                                           ; preds = bb13, bb14
-    v27 = phi [bb13: v26], [bb14: v21]
-    v28 = phi [bb13: v25], [bb14: v22]
-    v29 = lt v28, 16
-    v30 = eq v29, false
-    jumpi v30, bb16, bb17
+    v30 = phi [bb13: v29], [bb14: v24]
+    v31 = phi [bb13: v28], [bb14: v25]
+    v32 = lt v31, 16
+    v33 = eq v32, false
+    jumpi v33, bb16, bb17
   bb17:                                           ; preds = bb15
     jump bb18
   bb16:                                           ; preds = bb15
-    v31 = shr v28, 4
-    v32 = shl v27, 2
+    v34 = shr v31, 4
+    v35 = shl v30, 2
     jump bb18
   bb18:                                           ; preds = bb16, bb17
-    v33 = phi [bb16: v32], [bb17: v27]
-    v34 = phi [bb16: v31], [bb17: v28]
-    v35 = lt v34, 8
-    v36 = eq v35, false
-    jumpi v36, bb19, bb20
+    v36 = phi [bb16: v35], [bb17: v30]
+    v37 = phi [bb16: v34], [bb17: v31]
+    v38 = lt v37, 8
+    v39 = eq v38, false
+    jumpi v39, bb19, bb20
   bb20:                                           ; preds = bb18
     jump bb21
   bb19:                                           ; preds = bb18
-    v37 = shl v33, 1
+    v40 = shl v36, 1
     jump bb21
   bb21:                                           ; preds = bb19, bb20
-    v38 = phi [bb19: v37], [bb20: v33]
-    ret v38
+    v41 = phi [bb19: v40], [bb20: v36]
+    ret v41
 }
 
 ; function prbSqrt(uint256 x) external pure returns (uint256 result) [selector 0xf38f423b]
@@ -182,92 +188,92 @@ fn @prbSqrt(arg0: i256) -> i256 [selector=0xf38f423b, pure, abi_params=[uint256]
   bb2:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb2
-    v1 = lt arg0, 0x100000000000000000000000000000000
-    v2 = eq v1, false
-    jumpi v2, bb4, bb5
+    v1 = assign arg0
+    v2 = assign 1
+    v3 = lt v1, 0x100000000000000000000000000000000
+    v4 = eq v3, false
+    jumpi v4, bb4, bb5
   bb5:                                            ; preds = bb3
     jump bb6
   bb4:                                            ; preds = bb3
-    v3 = shr arg0, 128
+    v5 = shr v1, 128
+    v6 = shl v2, 64
     jump bb6
   bb6:                                            ; preds = bb4, bb5
-    v4 = phi [bb4: 0x10000000000000000], [bb5: 1]
-    v5 = phi [bb4: v3], [bb5: arg0]
-    v6 = lt v5, 0x10000000000000000
-    v7 = eq v6, false
-    jumpi v7, bb7, bb8
+    v7 = phi [bb4: v6], [bb5: v2]
+    v8 = phi [bb4: v5], [bb5: v1]
+    v9 = lt v8, 0x10000000000000000
+    v10 = eq v9, false
+    jumpi v10, bb7, bb8
   bb8:                                            ; preds = bb6
     jump bb9
   bb7:                                            ; preds = bb6
-    v8 = shr v5, 64
-    v9 = shl v4, 32
+    v11 = shr v8, 64
+    v12 = shl v7, 32
     jump bb9
   bb9:                                            ; preds = bb7, bb8
-    v10 = phi [bb7: v9], [bb8: v4]
-    v11 = phi [bb7: v8], [bb8: v5]
-    v12 = lt v11, 0x100000000
-    v13 = eq v12, false
-    jumpi v13, bb10, bb11
+    v13 = phi [bb7: v12], [bb8: v7]
+    v14 = phi [bb7: v11], [bb8: v8]
+    v15 = lt v14, 0x100000000
+    v16 = eq v15, false
+    jumpi v16, bb10, bb11
   bb11:                                           ; preds = bb9
     jump bb12
   bb10:                                           ; preds = bb9
-    v14 = shr v11, 32
-    v15 = shl v10, 16
+    v17 = shr v14, 32
+    v18 = shl v13, 16
     jump bb12
   bb12:                                           ; preds = bb10, bb11
-    v16 = phi [bb10: v15], [bb11: v10]
-    v17 = phi [bb10: v14], [bb11: v11]
-    v18 = lt v17, 0x10000
-    v19 = eq v18, false
-    jumpi v19, bb13, bb14
+    v19 = phi [bb10: v18], [bb11: v13]
+    v20 = phi [bb10: v17], [bb11: v14]
+    v21 = lt v20, 0x10000
+    v22 = eq v21, false
+    jumpi v22, bb13, bb14
   bb14:                                           ; preds = bb12
     jump bb15
   bb13:                                           ; preds = bb12
-    v20 = shr v17, 16
-    v21 = shl v16, 8
+    v23 = shr v20, 16
+    v24 = shl v19, 8
     jump bb15
   bb15:                                           ; preds = bb13, bb14
-    v22 = phi [bb13: v21], [bb14: v16]
-    v23 = phi [bb13: v20], [bb14: v17]
-    v24 = lt v23, 256
-    v25 = eq v24, false
-    jumpi v25, bb16, bb17
+    v25 = phi [bb13: v24], [bb14: v19]
+    v26 = phi [bb13: v23], [bb14: v20]
+    v27 = lt v26, 256
+    v28 = eq v27, false
+    jumpi v28, bb16, bb17
   bb17:                                           ; preds = bb15
     jump bb18
   bb16:                                           ; preds = bb15
-    v26 = shr v23, 8
-    v27 = shl v22, 4
+    v29 = shr v26, 8
+    v30 = shl v25, 4
     jump bb18
   bb18:                                           ; preds = bb16, bb17
-    v28 = phi [bb16: v27], [bb17: v22]
-    v29 = phi [bb16: v26], [bb17: v23]
-    v30 = lt v29, 16
-    v31 = eq v30, false
-    jumpi v31, bb19, bb20
+    v31 = phi [bb16: v30], [bb17: v25]
+    v32 = phi [bb16: v29], [bb17: v26]
+    v33 = lt v32, 16
+    v34 = eq v33, false
+    jumpi v34, bb19, bb20
   bb20:                                           ; preds = bb18
     jump bb21
   bb19:                                           ; preds = bb18
-    v32 = shr v29, 4
-    v33 = shl v28, 2
+    v35 = shr v32, 4
+    v36 = shl v31, 2
     jump bb21
   bb21:                                           ; preds = bb19, bb20
-    v34 = phi [bb19: v33], [bb20: v28]
-    v35 = phi [bb19: v32], [bb20: v29]
-    v36 = lt v35, 4
-    v37 = eq v36, false
-    jumpi v37, bb22, bb23
+    v37 = phi [bb19: v36], [bb20: v31]
+    v38 = phi [bb19: v35], [bb20: v32]
+    v39 = lt v38, 4
+    v40 = eq v39, false
+    jumpi v40, bb22, bb23
   bb23:                                           ; preds = bb21
     jump bb24
   bb22:                                           ; preds = bb21
-    v38 = shl v34, 1
+    v41 = shl v37, 1
     jump bb24
   bb24:                                           ; preds = bb22, bb23
-    v39 = phi [bb22: v38], [bb23: v34]
-    v40 = wrapping_div uint256, arg0, v39
-    v41 = add v40, v39
-    v42 = shr v41, 1
+    v42 = phi [bb22: v41], [bb23: v37]
     v43 = wrapping_div uint256, arg0, v42
-    v44 = add v42, v43
+    v44 = add v43, v42
     v45 = shr v44, 1
     v46 = wrapping_div uint256, arg0, v45
     v47 = add v45, v46
@@ -285,16 +291,20 @@ fn @prbSqrt(arg0: i256) -> i256 [selector=0xf38f423b, pure, abi_params=[uint256]
     v59 = add v57, v58
     v60 = shr v59, 1
     v61 = wrapping_div uint256, arg0, v60
-    v62 = lt v60, v61
-    v63 = eq v62, false
-    jumpi v63, bb25, bb26
+    v62 = add v60, v61
+    v63 = shr v62, 1
+    v64 = wrapping_div uint256, arg0, v63
+    v65 = lt v63, v64
+    v66 = eq v65, false
+    jumpi v66, bb25, bb26
   bb26:                                           ; preds = bb24
     jump bb27
   bb25:                                           ; preds = bb24
+    v67 = assign v64
     jump bb27
   bb27:                                           ; preds = bb25, bb26
-    v64 = phi [bb25: v61], [bb26: v60]
-    ret v64
+    v68 = phi [bb25: v67], [bb26: v63]
+    ret v68
   bb1:                                            ; preds = bb0
     ret 0
 }
@@ -308,91 +318,91 @@ fn @ozSqrt(arg0: i256) -> i256 [selector=0x6404524b, pure, abi_params=[uint256],
   bb2:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb2
-    v2 = lt arg0, 0x100000000000000000000000000000000
-    v3 = eq v2, false
-    jumpi v3, bb4, bb5
+    v2 = assign arg0
+    v3 = assign 1
+    v4 = lt v2, 0x100000000000000000000000000000000
+    v5 = eq v4, false
+    jumpi v5, bb4, bb5
   bb5:                                            ; preds = bb3
     jump bb6
   bb4:                                            ; preds = bb3
-    v4 = shr arg0, 128
+    v6 = shr v2, 128
+    v7 = shl v3, 64
     jump bb6
   bb6:                                            ; preds = bb4, bb5
-    v5 = phi [bb4: v4], [bb5: arg0]
-    v6 = phi [bb4: 0x10000000000000000], [bb5: 1]
-    v7 = lt v5, 0x10000000000000000
-    v8 = eq v7, false
-    jumpi v8, bb7, bb8
+    v8 = phi [bb4: v6], [bb5: v2]
+    v9 = phi [bb4: v7], [bb5: v3]
+    v10 = lt v8, 0x10000000000000000
+    v11 = eq v10, false
+    jumpi v11, bb7, bb8
   bb8:                                            ; preds = bb6
     jump bb9
   bb7:                                            ; preds = bb6
-    v9 = shr v5, 64
-    v10 = shl v6, 32
+    v12 = shr v8, 64
+    v13 = shl v9, 32
     jump bb9
   bb9:                                            ; preds = bb7, bb8
-    v11 = phi [bb7: v9], [bb8: v5]
-    v12 = phi [bb7: v10], [bb8: v6]
-    v13 = lt v11, 0x100000000
-    v14 = eq v13, false
-    jumpi v14, bb10, bb11
+    v14 = phi [bb7: v12], [bb8: v8]
+    v15 = phi [bb7: v13], [bb8: v9]
+    v16 = lt v14, 0x100000000
+    v17 = eq v16, false
+    jumpi v17, bb10, bb11
   bb11:                                           ; preds = bb9
     jump bb12
   bb10:                                           ; preds = bb9
-    v15 = shr v11, 32
-    v16 = shl v12, 16
+    v18 = shr v14, 32
+    v19 = shl v15, 16
     jump bb12
   bb12:                                           ; preds = bb10, bb11
-    v17 = phi [bb10: v15], [bb11: v11]
-    v18 = phi [bb10: v16], [bb11: v12]
-    v19 = lt v17, 0x10000
-    v20 = eq v19, false
-    jumpi v20, bb13, bb14
+    v20 = phi [bb10: v18], [bb11: v14]
+    v21 = phi [bb10: v19], [bb11: v15]
+    v22 = lt v20, 0x10000
+    v23 = eq v22, false
+    jumpi v23, bb13, bb14
   bb14:                                           ; preds = bb12
     jump bb15
   bb13:                                           ; preds = bb12
-    v21 = shr v17, 16
-    v22 = shl v18, 8
+    v24 = shr v20, 16
+    v25 = shl v21, 8
     jump bb15
   bb15:                                           ; preds = bb13, bb14
-    v23 = phi [bb13: v21], [bb14: v17]
-    v24 = phi [bb13: v22], [bb14: v18]
-    v25 = lt v23, 256
-    v26 = eq v25, false
-    jumpi v26, bb16, bb17
+    v26 = phi [bb13: v24], [bb14: v20]
+    v27 = phi [bb13: v25], [bb14: v21]
+    v28 = lt v26, 256
+    v29 = eq v28, false
+    jumpi v29, bb16, bb17
   bb17:                                           ; preds = bb15
     jump bb18
   bb16:                                           ; preds = bb15
-    v27 = shr v23, 8
-    v28 = shl v24, 4
+    v30 = shr v26, 8
+    v31 = shl v27, 4
     jump bb18
   bb18:                                           ; preds = bb16, bb17
-    v29 = phi [bb16: v27], [bb17: v23]
-    v30 = phi [bb16: v28], [bb17: v24]
-    v31 = lt v29, 16
-    v32 = eq v31, false
-    jumpi v32, bb19, bb20
+    v32 = phi [bb16: v30], [bb17: v26]
+    v33 = phi [bb16: v31], [bb17: v27]
+    v34 = lt v32, 16
+    v35 = eq v34, false
+    jumpi v35, bb19, bb20
   bb20:                                           ; preds = bb18
     jump bb21
   bb19:                                           ; preds = bb18
-    v33 = shr v29, 4
-    v34 = shl v30, 2
+    v36 = shr v32, 4
+    v37 = shl v33, 2
     jump bb21
   bb21:                                           ; preds = bb19, bb20
-    v35 = phi [bb19: v33], [bb20: v29]
-    v36 = phi [bb19: v34], [bb20: v30]
-    v37 = lt v35, 4
-    v38 = eq v37, false
-    jumpi v38, bb22, bb23
+    v38 = phi [bb19: v36], [bb20: v32]
+    v39 = phi [bb19: v37], [bb20: v33]
+    v40 = lt v38, 4
+    v41 = eq v40, false
+    jumpi v41, bb22, bb23
   bb23:                                           ; preds = bb21
     jump bb24
   bb22:                                           ; preds = bb21
-    v39 = shl v36, 1
+    v42 = shl v39, 1
     jump bb24
   bb24:                                           ; preds = bb22, bb23
-    v40 = phi [bb22: v39], [bb23: v36]
-    v41 = mul v40, 3
-    v42 = shr v41, 1
-    v43 = wrapping_div uint256, arg0, v42
-    v44 = add v42, v43
+    v43 = phi [bb22: v42], [bb23: v39]
+    v44 = mul v43, 3
     v45 = shr v44, 1
     v46 = wrapping_div uint256, arg0, v45
     v47 = add v45, v46
@@ -410,17 +420,20 @@ fn @ozSqrt(arg0: i256) -> i256 [selector=0x6404524b, pure, abi_params=[uint256],
     v59 = add v57, v58
     v60 = shr v59, 1
     v61 = wrapping_div uint256, arg0, v60
-    v62 = lt v61, v60
-    jumpi v62, bb25, bb26
+    v62 = add v60, v61
+    v63 = shr v62, 1
+    v64 = wrapping_div uint256, arg0, v63
+    v65 = lt v64, v63
+    jumpi v65, bb25, bb26
   bb26:                                           ; preds = bb24
     jump bb27
   bb25:                                           ; preds = bb24
     jump bb27
   bb27:                                           ; preds = bb25, bb26
-    v63 = phi [bb25: i8 1], [bb26: i8 0]
-    v64 = zext i8 v63 to i256
-    v65 = sub v60, v64
-    ret v65
+    v66 = phi [bb25: i8 1], [bb26: i8 0]
+    v67 = zext i8 v66 to i256
+    v68 = sub v63, v67
+    ret v68
   bb1:                                            ; preds = bb0
     ret arg0
 }
@@ -435,91 +448,92 @@ fn @msb(arg0: i256) -> i256 [selector=0x7770a018, pure, abi_params=[uint256], ab
     jump bb3
   bb1:                                            ; preds = bb0
     v2 = shr arg0, 128
+    v3 = assign 128
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v3 = phi [bb1: v2], [bb2: arg0]
-    v4 = phi [bb1: 128], [bb2: 0]
-    v5 = lt v3, 0x10000000000000000
-    v6 = eq v5, false
-    jumpi v6, bb4, bb5
+    v4 = phi [bb1: v2], [bb2: arg0]
+    v5 = phi [bb1: v3], [bb2: 0]
+    v6 = lt v4, 0x10000000000000000
+    v7 = eq v6, false
+    jumpi v7, bb4, bb5
   bb5:                                            ; preds = bb3
     jump bb6
   bb4:                                            ; preds = bb3
-    v7 = shr v3, 64
-    v8 = add v4, 64
+    v8 = shr v4, 64
+    v9 = add v5, 64
     jump bb6
   bb6:                                            ; preds = bb4, bb5
-    v9 = phi [bb4: v7], [bb5: v3]
     v10 = phi [bb4: v8], [bb5: v4]
-    v11 = lt v9, 0x100000000
-    v12 = eq v11, false
-    jumpi v12, bb7, bb8
+    v11 = phi [bb4: v9], [bb5: v5]
+    v12 = lt v10, 0x100000000
+    v13 = eq v12, false
+    jumpi v13, bb7, bb8
   bb8:                                            ; preds = bb6
     jump bb9
   bb7:                                            ; preds = bb6
-    v13 = shr v9, 32
-    v14 = add v10, 32
+    v14 = shr v10, 32
+    v15 = add v11, 32
     jump bb9
   bb9:                                            ; preds = bb7, bb8
-    v15 = phi [bb7: v13], [bb8: v9]
     v16 = phi [bb7: v14], [bb8: v10]
-    v17 = lt v15, 0x10000
-    v18 = eq v17, false
-    jumpi v18, bb10, bb11
+    v17 = phi [bb7: v15], [bb8: v11]
+    v18 = lt v16, 0x10000
+    v19 = eq v18, false
+    jumpi v19, bb10, bb11
   bb11:                                           ; preds = bb9
     jump bb12
   bb10:                                           ; preds = bb9
-    v19 = shr v15, 16
-    v20 = add v16, 16
+    v20 = shr v16, 16
+    v21 = add v17, 16
     jump bb12
   bb12:                                           ; preds = bb10, bb11
-    v21 = phi [bb10: v19], [bb11: v15]
     v22 = phi [bb10: v20], [bb11: v16]
-    v23 = lt v21, 256
-    v24 = eq v23, false
-    jumpi v24, bb13, bb14
+    v23 = phi [bb10: v21], [bb11: v17]
+    v24 = lt v22, 256
+    v25 = eq v24, false
+    jumpi v25, bb13, bb14
   bb14:                                           ; preds = bb12
     jump bb15
   bb13:                                           ; preds = bb12
-    v25 = shr v21, 8
-    v26 = add v22, 8
+    v26 = shr v22, 8
+    v27 = add v23, 8
     jump bb15
   bb15:                                           ; preds = bb13, bb14
-    v27 = phi [bb13: v25], [bb14: v21]
     v28 = phi [bb13: v26], [bb14: v22]
-    v29 = lt v27, 16
-    v30 = eq v29, false
-    jumpi v30, bb16, bb17
+    v29 = phi [bb13: v27], [bb14: v23]
+    v30 = lt v28, 16
+    v31 = eq v30, false
+    jumpi v31, bb16, bb17
   bb17:                                           ; preds = bb15
     jump bb18
   bb16:                                           ; preds = bb15
-    v31 = shr v27, 4
-    v32 = add v28, 4
+    v32 = shr v28, 4
+    v33 = add v29, 4
     jump bb18
   bb18:                                           ; preds = bb16, bb17
-    v33 = phi [bb16: v31], [bb17: v27]
     v34 = phi [bb16: v32], [bb17: v28]
-    v35 = lt v33, 4
-    v36 = eq v35, false
-    jumpi v36, bb19, bb20
+    v35 = phi [bb16: v33], [bb17: v29]
+    v36 = lt v34, 4
+    v37 = eq v36, false
+    jumpi v37, bb19, bb20
   bb20:                                           ; preds = bb18
     jump bb21
   bb19:                                           ; preds = bb18
-    v37 = shr v33, 2
-    v38 = add v34, 2
+    v38 = shr v34, 2
+    v39 = add v35, 2
     jump bb21
   bb21:                                           ; preds = bb19, bb20
-    v39 = phi [bb19: v37], [bb20: v33]
     v40 = phi [bb19: v38], [bb20: v34]
-    v41 = lt v39, 2
-    v42 = eq v41, false
-    jumpi v42, bb22, bb23
+    v41 = phi [bb19: v39], [bb20: v35]
+    v42 = lt v40, 2
+    v43 = eq v42, false
+    jumpi v43, bb22, bb23
   bb23:                                           ; preds = bb21
     jump bb24
   bb22:                                           ; preds = bb21
-    v43 = add v40, 1
+    v44 = add v41, 1
     jump bb24
   bb24:                                           ; preds = bb22, bb23
-    v44 = phi [bb22: v43], [bb23: v40]
-    ret v44
+    v45 = phi [bb22: v44], [bb23: v41]
+    ret v45
 }

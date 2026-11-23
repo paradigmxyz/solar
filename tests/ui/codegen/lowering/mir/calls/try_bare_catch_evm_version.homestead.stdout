@@ -83,13 +83,15 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
   bb4 [cold_hint]:                                ; preds = bb2
     jump bb6
   bb6 [cold_hint]:                                ; preds = bb4
+    v19 = assign 7
     jump bb5
   bb3:                                            ; preds = bb2
     v17 = mload v8
+    v18 = assign v17
     jump bb5
   bb5:                                            ; preds = bb3, bb6
-    v18 = phi [bb3: v17], [bb6: 7]
-    ret v18
+    v20 = phi [bb3: v18], [bb6: v19]
+    ret v20
   bb7 [cold_hint]:
     icall revert_if<empty>, true
     invalid
@@ -126,6 +128,7 @@ fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], a
   bb4 [cold_hint]:                                ; preds = bb2
     jump bb6
   bb6 [cold_hint]:                                ; preds = bb4
+    v22 = assign 7
     jump bb5
   bb3:                                            ; preds = bb2
     v17 = mload v8
@@ -135,8 +138,8 @@ fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], a
     v21 = checked_add uint256, v17, v20
     jump bb5
   bb5:                                            ; preds = bb3, bb6
-    v22 = phi [bb3: v21], [bb6: 7]
-    ret v22
+    v23 = phi [bb3: v21], [bb6: v22]
+    ret v23
   bb7 [cold_hint]:
     icall revert_if<empty>, true
     invalid
@@ -174,6 +177,7 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
   bb4 [cold_hint]:                                ; preds = bb2
     jump bb6
   bb6 [cold_hint]:                                ; preds = bb4
+    v28 = assign 7
     jump bb5
   bb3:                                            ; preds = bb2
     mcopy v4, v9, 64
@@ -191,8 +195,8 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
     v27 = checked_add uint256, v22, v26
     jump bb5
   bb5:                                            ; preds = bb3, bb6
-    v28 = phi [bb3: v27], [bb6: 7]
-    ret v28
+    v29 = phi [bb3: v27], [bb6: v28]
+    ret v29
   bb7 [cold_hint]:
     icall revert_if<empty>, true
     invalid
@@ -225,12 +229,14 @@ fn @liveNoReturn() -> i256 [selector=0x0f81fb69, abi_params=[], abi_returns=[wor
   bb4 [cold_hint]:                                ; preds = bb2
     jump bb6
   bb6 [cold_hint]:                                ; preds = bb4
+    v15 = assign 7
     jump bb5
   bb3:                                            ; preds = bb2
+    v14 = assign 1
     jump bb5
   bb5:                                            ; preds = bb3, bb6
-    v14 = phi [bb3: 1], [bb6: 7]
-    ret v14
+    v16 = phi [bb3: v14], [bb6: v15]
+    ret v16
   bb7 [cold_hint]:
     icall revert_if<empty>, true
     invalid
@@ -267,13 +273,15 @@ fn @liveCatch() -> i256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word],
   bb4 [cold_hint]:                                ; preds = bb2
     jump bb6
   bb6 [cold_hint]:                                ; preds = bb4
+    v19 = assign 7
     jump bb5
   bb3:                                            ; preds = bb2
     v17 = mload v8
+    v18 = assign v17
     jump bb5
   bb5:                                            ; preds = bb3, bb6
-    v18 = phi [bb3: v17], [bb6: 7]
-    ret v18
+    v20 = phi [bb3: v18], [bb6: v19]
+    ret v20
   bb7 [cold_hint]:
     icall revert_if<empty>, true
     invalid
@@ -314,13 +322,15 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
   bb4 [cold_hint]:                                ; preds = bb2
     jump bb6
   bb6 [cold_hint]:                                ; preds = bb4
+    v23 = assign 7
     jump bb5
   bb3:                                            ; preds = bb2
     v21 = mload v14
+    v22 = assign v21
     jump bb5
   bb5:                                            ; preds = bb3, bb6
-    v22 = phi [bb3: v21], [bb6: 7]
-    ret v22
+    v24 = phi [bb3: v22], [bb6: v23]
+    ret v24
   bb7 [cold_hint]:
     icall revert_if<empty>, true
     invalid
@@ -338,12 +348,14 @@ fn @liveCreation() -> i256 [selector=0xb217934d, abi_params=[], abi_returns=[wor
   bb2 [cold_hint]:                                ; preds = bb0
     jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
+    v5 = assign 7
     jump bb3
   bb1:                                            ; preds = bb0
+    v4 = assign 1
     jump bb3
   bb3:                                            ; preds = bb1, bb4
-    v4 = phi [bb1: 1], [bb4: 7]
-    ret v4
+    v6 = phi [bb1: v4], [bb4: v5]
+    ret v6
   bb5 [cold_hint]:
     icall revert_if<empty>, true
     invalid
@@ -369,13 +381,15 @@ fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], ab
   bb2 [cold_hint]:                                ; preds = bb0
     jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
+    v13 = assign 7
     jump bb3
   bb1:                                            ; preds = bb0
     v11 = mload v4
+    v12 = assign v11
     jump bb3
   bb3:                                            ; preds = bb1, bb4
-    v12 = phi [bb1: v11], [bb4: 7]
-    ret v12
+    v14 = phi [bb1: v12], [bb4: v13]
+    ret v14
   bb5 [cold_hint]:
     icall revert_if<empty>, true
     invalid
@@ -397,12 +411,14 @@ fn @noCodeNoReturn() -> i256 [selector=0xac1b26c4, abi_params=[], abi_returns=[w
   bb2 [cold_hint]:                                ; preds = bb0
     jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
+    v9 = assign 7
     jump bb3
   bb1:                                            ; preds = bb0
+    v8 = assign 1
     jump bb3
   bb3:                                            ; preds = bb1, bb4
-    v8 = phi [bb1: 1], [bb4: 7]
-    ret v8
+    v10 = phi [bb1: v8], [bb4: v9]
+    ret v10
   bb5 [cold_hint]:
     icall revert_if<empty>, true
     invalid

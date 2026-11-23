@@ -13,13 +13,15 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
   bb3:                                            ; preds = bb0
     jump bb4
   bb2:                                            ; preds = bb0
+    v0 = assign true
     jump bb5
   bb5:                                            ; preds = bb2
+    v1 = zext i1 v0 to i256
     jump bb4
   bb4:                                            ; preds = bb5, bb3
-    v0 = phi [bb5: 1], [bb3: 0]
+    v2 = phi [bb5: v1], [bb3: 0]
     jump bb1
   bb1:                                            ; preds = bb4
-    v1 = ne v0, 0
-    ret v1
+    v3 = ne v2, 0
+    ret v3
 }

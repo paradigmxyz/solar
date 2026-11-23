@@ -98,23 +98,26 @@ fn @mapping_reference() -> struct1 [selector=0xc5744cb1, abi_params=[], abi_retu
   bb0:
     v0 = mapping_slot 1, 2
     sstore v0, 42 !metadata(storage=symbolic(v0))
-    v1 = mapping_slot 2, 3
-    sstore v1, 21 !metadata(storage=symbolic(v1))
-    v2 = mapping_slot 1, 2
-    v3 = sload v2 !metadata(storage=symbolic(v2))
-    v4 = trunc i256 v3 to i8
-    v5 = mapping_slot 2, 2
+    v1 = assign i8 21
+    v2 = mapping_slot 2, 3
+    v3 = zext i8 v1 to i256
+    v4 = and v3, 255
+    sstore v2, v4 !metadata(storage=symbolic(v2))
+    v5 = mapping_slot 1, 2
     v6 = sload v5 !metadata(storage=symbolic(v5))
     v7 = trunc i256 v6 to i8
-    v8 = mapping_slot 1, 3
+    v8 = mapping_slot 2, 2
     v9 = sload v8 !metadata(storage=symbolic(v8))
     v10 = trunc i256 v9 to i8
-    v11 = mapping_slot 2, 3
+    v11 = mapping_slot 1, 3
     v12 = sload v11 !metadata(storage=symbolic(v11))
     v13 = trunc i256 v12 to i8
-    v14 = insert_value struct1, undef struct1, 0, v4
-    v15 = insert_value struct1, v14, 1, v7
-    v16 = insert_value struct1, v15, 2, v10
-    v17 = insert_value struct1, v16, 3, v13
-    ret v17
+    v14 = mapping_slot 2, 3
+    v15 = sload v14 !metadata(storage=symbolic(v14))
+    v16 = trunc i256 v15 to i8
+    v17 = insert_value struct1, undef struct1, 0, v7
+    v18 = insert_value struct1, v17, 1, v10
+    v19 = insert_value struct1, v18, 2, v13
+    v20 = insert_value struct1, v19, 3, v16
+    ret v20
 }

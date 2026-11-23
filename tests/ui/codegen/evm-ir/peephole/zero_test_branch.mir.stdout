@@ -3,40 +3,41 @@
 ; function scale(uint256 x) public pure returns (uint256 r) [selector 0x2bec1547]
 fn @scale(arg0: i256) -> i256 [selector=0x2bec1547, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = and arg0, 0xff00
-    v1 = gt v0, 0
-    jumpi v1, bb1, bb2
+    v0 = assign 0x1000000000000000000
+    v1 = and arg0, 0xff00
+    v2 = gt v1, 0
+    jumpi v2, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
-    v2 = checked_mul uint256, 0x1000000000000000000, 0x1306fe0a31b7152df
-    v3 = shr v2, 64
+    v3 = checked_mul uint256, v0, 0x1306fe0a31b7152df
+    v4 = shr v3, 64
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v4 = phi [bb1: v3], [bb2: 0x1000000000000000000]
-    v5 = and arg0, 255
-    v6 = gt v5, 0
-    jumpi v6, bb4, bb5
+    v5 = phi [bb1: v4], [bb2: v0]
+    v6 = and arg0, 255
+    v7 = gt v6, 0
+    jumpi v7, bb4, bb5
   bb5:                                            ; preds = bb3
     jump bb6
   bb4:                                            ; preds = bb3
-    v7 = checked_mul uint256, v4, 0x1172b83c7d517adce
-    v8 = shr v7, 64
+    v8 = checked_mul uint256, v5, 0x1172b83c7d517adce
+    v9 = shr v8, 64
     jump bb6
   bb6:                                            ; preds = bb4, bb5
-    v9 = phi [bb4: v8], [bb5: v4]
-    v10 = and arg0, 0xf0f0000
-    v11 = gt v10, 0
-    jumpi v11, bb7, bb8
+    v10 = phi [bb4: v9], [bb5: v5]
+    v11 = and arg0, 0xf0f0000
+    v12 = gt v11, 0
+    jumpi v12, bb7, bb8
   bb8:                                            ; preds = bb6
     jump bb9
   bb7:                                            ; preds = bb6
-    v12 = checked_mul uint256, v9, 0x10b5586cf9890f62a
-    v13 = shr v12, 64
+    v13 = checked_mul uint256, v10, 0x10b5586cf9890f62a
+    v14 = shr v13, 64
     jump bb9
   bb9:                                            ; preds = bb7, bb8
-    v14 = phi [bb7: v13], [bb8: v9]
-    ret v14
+    v15 = phi [bb7: v14], [bb8: v10]
+    ret v15
 }
 
 ; function ok(uint256 x) public pure returns (bool) [selector 0x80972a7d]

@@ -39,6 +39,7 @@ fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[uint256], abi_
   bb2 [cold_hint]:                                ; preds = bb0
     jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
+    v8 = assign 7
     jump bb3
   bb1:                                            ; preds = bb0
     v4 = returndatasize
@@ -46,10 +47,11 @@ fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[uint256], abi_
     icall revert_if<tuple_data_too_short>, v5
     v6 = mload 0 !metadata(memory=scratch)
     sstore 0, v6 !metadata(storage=slot(0))
+    v7 = assign v6
     jump bb3
   bb3:                                            ; preds = bb1, bb4
-    v7 = phi [bb1: v6], [bb4: 7]
-    ret v7
+    v9 = phi [bb1: v7], [bb4: v8]
+    ret v9
   bb5 [cold_hint]:
     icall revert_if<empty>, true
     invalid
@@ -72,13 +74,15 @@ fn @libNoReturn(arg0: i256) -> i256 [selector=0x364676bf, abi_params=[uint256], 
   bb2 [cold_hint]:                                ; preds = bb0
     jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
+    v8 = assign 7
     jump bb3
   bb1:                                            ; preds = bb0
     sstore 0, 1 !metadata(storage=slot(0))
+    v7 = assign 1
     jump bb3
   bb3:                                            ; preds = bb1, bb4
-    v7 = phi [bb1: 1], [bb4: 7]
-    ret v7
+    v9 = phi [bb1: v7], [bb4: v8]
+    ret v9
   bb5 [cold_hint]:
     icall revert_if<empty>, true
     invalid

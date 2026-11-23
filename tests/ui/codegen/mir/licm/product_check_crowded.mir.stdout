@@ -3,39 +3,40 @@
 ; function crowded(uint256 x, uint256 y, uint256 a, uint256 b, uint256 c, uint256 n) external pure returns (uint256) [selector 0xf6f9e3a3]
 fn @crowded(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) -> i256 [selector=0xf6f9e3a3, pure, abi_params=[uint256, uint256, uint256, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
+    v0 = assign 0
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v0 = phi [bb0: arg0], [bb3: v11]
-    v1 = phi [bb0: arg1], [bb3: v1]
-    v2 = phi [bb0: arg2], [bb3: v14]
-    v3 = phi [bb0: arg3], [bb3: v15]
-    v4 = phi [bb0: arg4], [bb3: v16]
-    v5 = phi [bb0: arg5], [bb3: v5]
-    v6 = phi [bb0: 0], [bb3: v6]
-    v7 = phi [bb0: 0], [bb3: v13]
-    v8 = phi [bb0: 0], [bb3: v17]
-    v9 = lt v8, v5
-    jumpi v9, bb4, bb5
+    v1 = phi [bb0: arg0], [bb3: v12]
+    v2 = phi [bb0: arg1], [bb3: v2]
+    v3 = phi [bb0: arg2], [bb3: v15]
+    v4 = phi [bb0: arg3], [bb3: v16]
+    v5 = phi [bb0: arg4], [bb3: v17]
+    v6 = phi [bb0: arg5], [bb3: v6]
+    v7 = phi [bb0: 0], [bb3: v7]
+    v8 = phi [bb0: 0], [bb3: v14]
+    v9 = phi [bb0: v0], [bb3: v18]
+    v10 = lt v9, v6
+    jumpi v10, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
-    v18 = checked_add uint256, v0, v7
-    v19 = checked_add uint256, v18, v2
+    v19 = checked_add uint256, v1, v8
     v20 = checked_add uint256, v19, v3
     v21 = checked_add uint256, v20, v4
-    ret v21
+    v22 = checked_add uint256, v21, v5
+    ret v22
   bb4:                                            ; preds = bb1
-    v10 = checked_mul uint256, v0, v1
-    v11 = checked_add uint256, v10, 1
-    v12 = xor v2, v8
-    v13 = checked_add uint256, v7, v12
-    v14 = checked_add uint256, v3, v8
-    v15 = xor v14, v4
-    v16 = checked_add uint256, v13, v15
+    v11 = checked_mul uint256, v1, v2
+    v12 = checked_add uint256, v11, 1
+    v13 = xor v3, v9
+    v14 = checked_add uint256, v8, v13
+    v15 = checked_add uint256, v4, v9
+    v16 = xor v15, v5
+    v17 = checked_add uint256, v14, v16
     jump bb6
   bb6:                                            ; preds = bb4
     jump bb3
   bb3:                                            ; preds = bb6
-    v17 = checked_add uint256, v8, 1
+    v18 = checked_add uint256, v9, 1
     jump bb1
 }

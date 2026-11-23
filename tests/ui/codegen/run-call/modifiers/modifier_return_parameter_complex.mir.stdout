@@ -9,18 +9,21 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add uint256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
+    v2 = assign 16
+    v3 = assign 32
+    v4 = assign 64
     jump bb2
   bb2:                                            ; preds = bb0
-    v2 = eq 0, 0
-    icall require<short_string>, v2, 13, 0x61206973206e6f74207a65726f00000000000000000000000000000000000000
-    v3 = eq 0, 0
-    icall require<short_string>, v3, 13, 0x62206973206e6f74207a65726f00000000000000000000000000000000000000
+    v5 = eq 0, 0
+    icall require<short_string>, v5, 13, 0x61206973206e6f74207a65726f00000000000000000000000000000000000000
+    v6 = eq 0, 0
+    icall require<short_string>, v6, 13, 0x62206973206e6f74207a65726f00000000000000000000000000000000000000
     jump bb1
   bb1:                                            ; preds = bb2
-    v4 = insert_value struct0, undef struct0, 0, 16
-    v5 = insert_value struct0, v4, 1, 32
-    v6 = insert_value struct0, v5, 2, 64
-    ret v6
+    v7 = insert_value struct0, undef struct0, 0, v2
+    v8 = insert_value struct0, v7, 1, v3
+    v9 = insert_value struct0, v8, 2, v4
+    ret v9
 }
 
 ; function g() external alwaysZeros(r, r) alwaysZeros(r, r) alwaysZeros(r + r, r - r) alwaysZeros(r * r, r & r) returns (uint256 r) [selector 0xe2179b8e]

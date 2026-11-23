@@ -1574,6 +1574,8 @@ impl Target {
             }
             // A phi is a stack move at the join.
             InstKind::Phi(_) => self.dup(),
+            // An assignment copies a word.
+            InstKind::Assign(_) => self.dup(),
             // A select runs the generic emitter.
             InstKind::Select(..) => self.select(),
             // Every other operation lowers to one opcode and was priced above.
@@ -2742,6 +2744,7 @@ mod tests {
         assert_eq!(estimate(InstKind::StorageBytesStore(value, value)), (Cost::new(500, 180), 1));
         assert_eq!(estimate(InstKind::Zext(value)), (Cost::ZERO, 0));
         assert_eq!(estimate(InstKind::Phi(vec![])), (target.opcode(op::DUP1), 1));
+        assert_eq!(estimate(InstKind::Assign(value)), (target.opcode(op::DUP1), 1));
         assert_eq!(estimate(InstKind::Select(value, value, value)), (target.select(), 1));
         let jump = target.label_push() + target.opcode(op::JUMP);
         assert_eq!(target.terminator_estimate(&Terminator::Jump(BlockId::ENTRY)), jump);

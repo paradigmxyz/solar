@@ -3,46 +3,51 @@
 ; function latchRevert(uint256 a, uint256 n) external pure returns (uint256 s) [selector 0x76f4ddf4]
 fn @latchRevert(arg0: i256, arg1: i256) -> i256 [selector=0x76f4ddf4, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
+    v0 = assign 0
     jump bb1
   bb1:                                            ; preds = bb0, bb9
-    v0 = phi [bb0: arg0], [bb9: v0]
-    v1 = phi [bb0: arg1], [bb9: v1]
-    v2 = phi [bb0: 0], [bb9: v6]
+    v1 = phi [bb0: arg0], [bb9: v1]
+    v2 = phi [bb0: arg1], [bb9: v2]
     v3 = phi [bb0: 0], [bb9: v7]
-    v4 = phi [bb0: 0], [bb9: v4]
+    v4 = phi [bb0: v0], [bb9: v8]
     v5 = phi [bb0: 0], [bb9: v5]
+    v6 = phi [bb0: 0], [bb9: v6]
     jumpi true, bb3, bb4
   bb4:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb4
-    ret v2
+    ret v3
   bb3:                                            ; preds = bb1
-    v6 = add v2, v3
-    v7 = add v3, 1
-    v8 = lt v7, v1
-    jumpi v8, bb6, bb7
+    v7 = add v3, v4
+    v8 = add v4, 1
+    v9 = lt v8, v2
+    jumpi v9, bb6, bb7
   bb7:                                            ; preds = bb3
-    v11 = lt v0, v6
-    v12 = eq v11, false
-    jumpi v12, bb12, bb13
+    v14 = lt v1, v7
+    v15 = eq v14, false
+    jumpi v15, bb12, bb13
   bb13:                                           ; preds = bb7
     jump bb14
   bb14:                                           ; preds = bb13
+    v16 = assign v8
+    v17 = assign 2
     jump bb8
   bb12:                                           ; preds = bb7
-    ret v6
+    ret v7
   bb6:                                            ; preds = bb3
-    v9 = lt v0, v6
-    v10 = eq v9, false
-    jumpi v10, bb9, bb10
+    v10 = lt v1, v7
+    v11 = eq v10, false
+    jumpi v11, bb9, bb10
   bb10:                                           ; preds = bb6
     jump bb11
   bb11:                                           ; preds = bb10
+    v12 = assign v7
+    v13 = assign 1
     jump bb8
   bb8:                                            ; preds = bb11, bb14
-    v13 = phi [bb11: v6], [bb14: v7]
-    v14 = phi [bb11: 1], [bb14: 2]
-    icall require<custom_error [word, word]>, false, 0xa16662a700000000000000000000000000000000000000000000000000000000, v13, v14
+    v18 = phi [bb11: v12], [bb14: v16]
+    v19 = phi [bb11: v13], [bb14: v17]
+    icall require<custom_error [word, word]>, false, 0xa16662a700000000000000000000000000000000000000000000000000000000, v18, v19
     invalid
   bb9:                                            ; preds = bb6
     jump bb1

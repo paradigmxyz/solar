@@ -51,16 +51,18 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
   bb2 [cold_hint]:                                ; preds = bb0
     jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
+    v9 = assign 9
     jump bb3
   bb1:                                            ; preds = bb0
     v5 = returndatasize
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
     v7 = mload 0 !metadata(memory=scratch)
+    v8 = assign v7
     jump bb3
   bb3:                                            ; preds = bb1, bb4
-    v8 = phi [bb1: v7], [bb4: 9]
-    ret v8
+    v10 = phi [bb1: v8], [bb4: v9]
+    ret v10
   bb5 [cold_hint]:
     icall revert_if<empty>, true
     invalid
@@ -80,16 +82,18 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
   bb2 [cold_hint]:                                ; preds = bb0
     jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
+    v9 = assign 9
     jump bb3
   bb1:                                            ; preds = bb0
     v5 = returndatasize
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
     v7 = mload 0 !metadata(memory=scratch)
+    v8 = assign v7
     jump bb3
   bb3:                                            ; preds = bb1, bb4
-    v8 = phi [bb1: v7], [bb4: 9]
-    ret v8
+    v10 = phi [bb1: v8], [bb4: v9]
+    ret v10
   bb5 [cold_hint]:
     icall revert_if<empty>, true
     invalid

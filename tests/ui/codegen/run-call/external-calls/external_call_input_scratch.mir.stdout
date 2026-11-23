@@ -1318,37 +1318,38 @@ fn @dynamicArgumentCatch() -> struct0 [selector=0x40086014, view, abi_params=[],
   bb2 [cold_hint]:                                ; preds = bb0
     jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
+    v14 = assign 1
     jump bb3
   bb1:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb1, bb4
-    v14 = phi [bb1: 0], [bb4: 1]
-    v15 = icall @fmp
-    v16 = checked_sub uint256, v15, v2
-    v17 = mload v0
-    v18 = gt v17, 0
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = ptradd v0, 32
-    v21 = mload v20
-    v22 = mload v0
-    v23 = gt v22, 1
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = ptradd v0, 64
-    v26 = mload v25
-    v27 = mload v0
-    v28 = gt v27, 2
-    v29 = eq v28, false
-    icall panic_if<0x32>, v29
-    v30 = ptradd v0, 96
-    v31 = mload v30
-    v32 = insert_value struct0, undef struct0, 0, v16
-    v33 = insert_value struct0, v32, 1, v14
-    v34 = insert_value struct0, v33, 2, v21
-    v35 = insert_value struct0, v34, 3, v26
-    v36 = insert_value struct0, v35, 4, v31
-    ret v36
+    v15 = phi [bb1: 0], [bb4: v14]
+    v16 = icall @fmp
+    v17 = checked_sub uint256, v16, v2
+    v18 = mload v0
+    v19 = gt v18, 0
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = ptradd v0, 32
+    v22 = mload v21
+    v23 = mload v0
+    v24 = gt v23, 1
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = ptradd v0, 64
+    v27 = mload v26
+    v28 = mload v0
+    v29 = gt v28, 2
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = ptradd v0, 96
+    v32 = mload v31
+    v33 = insert_value struct0, undef struct0, 0, v17
+    v34 = insert_value struct0, v33, 1, v15
+    v35 = insert_value struct0, v34, 2, v22
+    v36 = insert_value struct0, v35, 3, v27
+    v37 = insert_value struct0, v36, 4, v32
+    ret v37
   bb5 [cold_hint]:
     icall revert_if<empty>, true
     invalid

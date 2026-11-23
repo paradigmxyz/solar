@@ -206,9 +206,10 @@ fn @signedTupleTernary(arg0: i1) -> struct2 [selector=0x534cf359, pure, abi_para
   bb3:                                            ; preds = bb1, bb2
     v1 = phi [bb1: v0], [bb2: 0x1234]
     v2 = phi [bb1: 1], [bb2: 2]
-    v3 = insert_value struct2, undef struct2, 0, v1
-    v4 = insert_value struct2, v3, 1, v2
-    ret v4
+    v3 = assign v2
+    v4 = insert_value struct2, undef struct2, 0, v1
+    v5 = insert_value struct2, v4, 1, v3
+    ret v5
 }
 
 ; function signedUserTernary(bool choose) external pure returns (int256 raw) [selector 0x8a33c453]
@@ -228,14 +229,17 @@ fn @signedUserTernary(arg0: i1) -> i256 [selector=0x8a33c453, pure, abi_params=[
 ; function dirtySigned() external pure returns (uint256 raw) [selector 0x36c3b875]
 fn @dirtySigned() -> i256 [selector=0x36c3b875, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = eq 0, 0
-    jumpi v0, bb1, bb2
+    v0 = assign 0x1234
+    v1 = eq 0, 0
+    jumpi v1, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
+    v2 = assign v0
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    ret 0x1234
+    v3 = phi [bb1: v2], [bb2: 0x1234]
+    ret v3
 }
 
 ; function arithmetic() external pure returns (uint8, uint8, uint8, uint8, uint8, uint8) [selector 0x980a67fd]
@@ -309,10 +313,11 @@ fn @negation() -> i256 [selector=0x336c96f8, pure, abi_params=[], abi_returns=[w
 ; function wideningConversions() external pure returns (uint16 assigned, uint256 called) [selector 0x06a404a3]
 fn @wideningConversions() -> struct5 [selector=0x06a404a3, pure, abi_params=[], abi_returns=[word<uint16>, word], abi_return_params=[uint16, uint256]] {
   bb0:
-    v0 = icall @widen, 120
-    v1 = insert_value struct5, undef struct5, 0, i16 120
-    v2 = insert_value struct5, v1, 1, v0
-    ret v2
+    v0 = assign i16 120
+    v1 = icall @widen, 120
+    v2 = insert_value struct5, undef struct5, 0, v0
+    v3 = insert_value struct5, v2, 1, v1
+    ret v3
 }
 
 ; function explicitWideningReturn() external pure returns (uint256) [selector 0xbd2ce75e]

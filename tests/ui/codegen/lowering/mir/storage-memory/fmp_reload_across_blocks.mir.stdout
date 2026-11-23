@@ -101,27 +101,28 @@ fn @sqrt(arg0: i256) -> i256 [pure] {
 ; function onERC1155Received( address, address, uint256, uint256, bytes calldata ) external view returns (bytes4 magic) [selector 0xf23a6e61]
 fn @onERC1155Received(arg0: i160, arg1: i160, arg2: i256, arg3: i256, arg4: slice<calldata>) -> i256 [selector=0xf23a6e61, view, abi_params=[address, address, uint256, uint256, bytes], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = gt v0, 0
-    jumpi v1, bb1, bb2
+    v0 = assign 0xf23a6e6100000000000000000000000000000000000000000000000000000000
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = gt v1, 0
+    jumpi v2, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb2
-    ret 0xf23a6e6100000000000000000000000000000000000000000000000000000000
+    ret v0
   bb1:                                            ; preds = bb0
-    v2 = gas
-    v3 = icall @ln, v2
-    v4 = checked_mul uint256, 54, v3
-    v5 = checked_add uint256, v4, 0x4b0
-    v6 = gas
-    v7 = checked_sub uint256, v6, v5
-    v8 = checked_mul uint256, 0x800, v7
-    v9 = checked_add uint256, v8, 0x8fe800
-    v10 = icall @sqrt, v9
-    v11 = checked_sub uint256, v10, 0xc00
-    v12 = checked_div uint256, v11, 4
-    v13 = mul v12, 32
-    v14 = mul v12, 32
-    calldatacopy 0, 0, v14 !metadata(memory=scratch)
-    revert 0, v13
+    v3 = gas
+    v4 = icall @ln, v3
+    v5 = checked_mul uint256, 54, v4
+    v6 = checked_add uint256, v5, 0x4b0
+    v7 = gas
+    v8 = checked_sub uint256, v7, v6
+    v9 = checked_mul uint256, 0x800, v8
+    v10 = checked_add uint256, v9, 0x8fe800
+    v11 = icall @sqrt, v10
+    v12 = checked_sub uint256, v11, 0xc00
+    v13 = checked_div uint256, v12, 4
+    v14 = mul v13, 32
+    v15 = mul v13, 32
+    calldatacopy 0, 0, v15 !metadata(memory=scratch)
+    revert 0, v14
 }

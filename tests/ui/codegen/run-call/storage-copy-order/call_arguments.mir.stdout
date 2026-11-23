@@ -198,17 +198,18 @@ fn @mappingValue() -> i256 [selector=0xcca39d9b, abi_params=[], abi_returns=[wor
 ; function ternary() external returns (uint256) [selector 0xf9d3f04e]
 fn @ternary() -> i256 [selector=0xf9d3f04e, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    jumpi true, bb1, bb2
+    v0 = assign true
+    jumpi v0, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v0 = phi [bb1: 0], [bb2: 1]
-    v1 = icall @w
-    v2 = icall @load_storage_word_array, v0
-    v3 = icall @first, v2, v1
-    ret v3
+    v1 = phi [bb1: 0], [bb2: 1]
+    v2 = icall @w
+    v3 = icall @load_storage_word_array, v1
+    v4 = icall @first, v3, v2
+    ret v4
 }
 
 ; function text() external returns (uint256) [selector 0x1f1bd692]
@@ -223,10 +224,11 @@ fn @text() -> i256 [selector=0x1f1bd692, abi_params=[], abi_returns=[word], abi_
 ; function functionPointer() external returns (uint256) [selector 0xbd108928]
 fn @functionPointer() -> i256 [selector=0xbd108928, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = icall @w
-    v1 = icall @load_storage_word_array, 0
-    v2 = icall @internal_dispatcher_p_memoryarray_uint256_r_uint256, 1, v1, v0
-    ret v2
+    v0 = assign 1
+    v1 = icall @w
+    v2 = icall @load_storage_word_array, 0
+    v3 = icall @internal_dispatcher_p_memoryarray_uint256_r_uint256, v0, v2, v1
+    ret v3
 }
 
 ; function libraryCall() external returns (uint256) [selector 0x239b86e9]

@@ -14,10 +14,11 @@ fn @pushLength() -> struct0 [selector=0x755a645b, abi_params=[], abi_returns=[wo
     v4 = mul v0, 3
     v5 = add v3, v4
     sstore 0, v2 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = insert_value struct0, undef struct0, 0, 3
-    v8 = insert_value struct0, v7, 1, v6
-    ret v8
+    v6 = assign 3
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = insert_value struct0, undef struct0, 0, v6
+    v9 = insert_value struct0, v8, 1, v7
+    ret v9
 }
 
 ; function discardLength() external returns (uint256) [selector 0x92a2122d]

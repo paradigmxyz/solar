@@ -39,9 +39,10 @@ fn @chunksAndHash() -> struct0 [pure] {
     v20 = ptrtoint ptr<memory> v15 to i256
     v21 = ptradd v0, 512
     mstore v21, v20
-    v22 = insert_value struct0, undef struct0, 0, v0
-    v23 = insert_value struct0, v22, 1, 7
-    ret v23
+    v22 = assign 7
+    v23 = insert_value struct0, undef struct0, 0, v0
+    v24 = insert_value struct0, v23, 1, v22
+    ret v24
   bb2:                                            ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3

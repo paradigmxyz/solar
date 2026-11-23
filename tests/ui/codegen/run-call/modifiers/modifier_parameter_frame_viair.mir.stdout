@@ -4,12 +4,14 @@
 fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 1
+    v1 = assign arg0
     jump bb2
   bb2:                                            ; preds = bb0
-    v1 = checked_add uint256, arg0, 1
+    v2 = checked_add uint256, arg0, 1
+    v3 = assign arg0
     jump bb3
   bb3:                                            ; preds = bb2
     jump bb1
   bb1:                                            ; preds = bb3
-    ret arg0
+    ret v3
 }

@@ -19,11 +19,13 @@ contract PointerBase {
 // CHECK-LABEL: fn @target.0(
 // CHECK: ret 2
 // CHECK-LABEL: fn @callQualified(
-// CHECK: icall @internal_dispatcher{{.*}}, [[BASE_TARGET:[0-9]+]]
+// CHECK: [[BASE_POINTER:v[0-9]+]] = assign [[BASE_TARGET:[0-9]+]]
+// CHECK-NEXT: icall @internal_dispatcher{{.*}}, [[BASE_POINTER]]
 // CHECK-LABEL: fn @callVirtual(
 // CHECK: icall @callThroughVirtualPointer
 // CHECK-LABEL: fn @callThroughVirtualPointer(
-// CHECK: icall @internal_dispatcher{{.*}}, [[DERIVED_TARGET:[0-9]+]]
+// CHECK: [[DERIVED_POINTER:v[0-9]+]] = assign [[DERIVED_TARGET:[0-9]+]]
+// CHECK-NEXT: icall @internal_dispatcher{{.*}}, [[DERIVED_POINTER]]
 // CHECK-LABEL: fn @internal_dispatcher{{.*}}(
 // CHECK: eq arg0, [[BASE_TARGET]]
 // CHECK: eq arg0, [[DERIVED_TARGET]]

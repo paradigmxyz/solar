@@ -7,7 +7,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> Option<()> {
         let previous = self.builder.replace_source_span(stmt.span);
         let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
+        let previous_values =
+            std::mem::replace(&mut self.statement_values, self.builder.func().num_values());
         let result = self.lower_stmt_inner(stmt);
+        self.statement_values = previous_values;
         self.builder.replace_modifier_depth(previous_modifier_depth);
         self.builder.replace_source_span(previous);
         result
@@ -59,6 +62,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 };
                 let value =
                     self.bind_word(*id, value, initializer.map_or(stmt.span, |expr| expr.span))?;
+                let value = if initializer.is_some() { self.assigned_value(value) } else { value };
                 self.assign_local(*id, value);
             }
             StmtKind::DeclMulti(ids, expr) => {

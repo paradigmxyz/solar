@@ -20,12 +20,14 @@ fn @storeAtDerivedAddress(arg0: i256, arg1: i1) -> i256 [pure] {
     v0 = add arg0, 32
     jumpi arg1, bb1, bb2
   bb2:                                            ; preds = bb0
+    v2 = assign 8
     jump bb3
   bb1:                                            ; preds = bb0
+    v1 = assign 7
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v1 = phi [bb1: 7], [bb2: 8]
-    mstore v0, v1
-    v2 = mload v0
-    ret v2
+    v3 = phi [bb1: v1], [bb2: v2]
+    mstore v0, v3
+    v4 = mload v0
+    ret v4
 }

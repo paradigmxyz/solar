@@ -69,9 +69,10 @@ fn @aliasedArrays() -> struct2 [selector=0xf54f1c28, pure, abi_params=[], abi_re
 fn @scalarThenAlias() -> struct3 [selector=0x69021083, pure, abi_params=[], abi_returns=[word, array<1, word>], abi_return_params=[uint256, array<1, uint256>]] {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)
-    v0 = insert_value struct3, undef struct3, 0, 5
-    v1 = insert_value struct3, v0, 1, ptr<memory> 0
-    ret v1
+    v0 = assign 5
+    v1 = insert_value struct3, undef struct3, 0, v0
+    v2 = insert_value struct3, v1, 1, ptr<memory> 0
+    ret v2
 }
 
 ; function four(uint256 x) external pure returns (uint256, uint256, uint256, uint256) [selector 0xe2595336]
@@ -104,8 +105,9 @@ fn @pointerWords() -> struct4 [selector=0x3b5b734e, pure, abi_params=[], abi_ret
 ; function modified(uint256 x) external pure clobber returns (uint256 a, uint256 b, uint256 c) [selector 0xd492dffb]
 fn @modified(arg0: i256) -> struct1 [selector=0xd492dffb, pure, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
-    v0 = checked_add uint256, arg0, 1
-    v1 = checked_add uint256, arg0, 2
+    v0 = assign arg0
+    v1 = checked_add uint256, arg0, 1
+    v2 = checked_add uint256, arg0, 2
     jump bb2
   bb2:                                            ; preds = bb0
     mstore 0, 1 !metadata(memory=scratch)
@@ -114,10 +116,10 @@ fn @modified(arg0: i256) -> struct1 [selector=0xd492dffb, pure, abi_params=[uint
     mstore 96, 4 !metadata(memory=scratch)
     jump bb1
   bb1:                                            ; preds = bb2
-    v2 = insert_value struct1, undef struct1, 0, arg0
-    v3 = insert_value struct1, v2, 1, v0
-    v4 = insert_value struct1, v3, 2, v1
-    ret v4
+    v3 = insert_value struct1, undef struct1, 0, v0
+    v4 = insert_value struct1, v3, 1, v1
+    v5 = insert_value struct1, v4, 2, v2
+    ret v5
 }
 
 ; function structFields() external pure returns (uint256, uint256, uint256) [selector 0x94c60039]

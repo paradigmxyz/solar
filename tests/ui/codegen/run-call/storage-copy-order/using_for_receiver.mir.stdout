@@ -61,8 +61,10 @@ fn @freeFunction() -> i256 [selector=0x59c72a5d, abi_params=[], abi_returns=[wor
 ; function localValue() external pure returns (uint256) [selector 0xa35f68bc]
 fn @localValue() -> i256 [selector=0xa35f68bc, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = icall @g, 1, 5
-    ret v0
+    v0 = assign 1
+    v1 = assign 5
+    v2 = icall @g, v0, 5
+    ret v2
 }
 
 ; function storageParameter() external returns (uint256) [selector 0x47ac6e30]

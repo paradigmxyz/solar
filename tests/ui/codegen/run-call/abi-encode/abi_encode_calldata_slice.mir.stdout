@@ -213,45 +213,46 @@ fn @compare(arg0: ptr<memory>, arg1: ptr<memory>) [pure] {
     v2 = eq v0, v1
     v3 = eq v2, false
     icall panic_if<0x1>, v3
+    v4 = assign 0
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v4 = phi [bb0: arg0], [bb3: v4]
-    v5 = phi [bb0: arg1], [bb3: v5]
-    v6 = phi [bb0: 0], [bb3: v27]
-    v7 = mload v4
-    v8 = lt v6, v7
-    jumpi v8, bb4, bb5
+    v5 = phi [bb0: arg0], [bb3: v5]
+    v6 = phi [bb0: arg1], [bb3: v6]
+    v7 = phi [bb0: v4], [bb3: v28]
+    v8 = mload v5
+    v9 = lt v7, v8
+    jumpi v9, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
     ret
   bb4:                                            ; preds = bb1
-    v9 = mload v4
-    v10 = lt v6, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = ptradd v4, v6
-    v13 = ptradd v12, 32
-    v14 = mload v13
-    v15 = byte 0, v14
-    v16 = shl v15, 248
-    v17 = mload v5
-    v18 = lt v6, v17
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = ptradd v5, v6
-    v21 = ptradd v20, 32
-    v22 = mload v21
-    v23 = byte 0, v22
-    v24 = shl v23, 248
-    v25 = eq v16, v24
-    v26 = eq v25, false
-    icall panic_if<0x1>, v26
+    v10 = mload v5
+    v11 = lt v7, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = ptradd v5, v7
+    v14 = ptradd v13, 32
+    v15 = mload v14
+    v16 = byte 0, v15
+    v17 = shl v16, 248
+    v18 = mload v6
+    v19 = lt v7, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = ptradd v6, v7
+    v22 = ptradd v21, 32
+    v23 = mload v22
+    v24 = byte 0, v23
+    v25 = shl v24, 248
+    v26 = eq v17, v25
+    v27 = eq v26, false
+    icall panic_if<0x1>, v27
     jump bb6
   bb6:                                            ; preds = bb4
     jump bb3
   bb3:                                            ; preds = bb6
-    v27 = checked_add uint256, v6, 1
+    v28 = checked_add uint256, v7, 1
     jump bb1
 }
 
@@ -281,27 +282,29 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[], abi_r
     v14 = byte 0, 0x4200000000000000000000000000000000000000000000000000000000000000
     v15 = ptradd v0, 34
     mstore8 v15, v14
+    v16 = assign 0
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v16 = phi [bb0: v0], [bb3: v20]
-    v17 = phi [bb0: 0], [bb3: v79]
-    v18 = mload v16
-    v19 = lt v17, v18
-    jumpi v19, bb4, bb5
+    v17 = phi [bb0: v0], [bb3: v22]
+    v18 = phi [bb0: v16], [bb3: v81]
+    v19 = mload v17
+    v20 = lt v18, v19
+    jumpi v20, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
     ret
   bb4:                                            ; preds = bb1
+    v21 = assign v18
     jump bb7
   bb7:                                            ; preds = bb4, bb9
-    v20 = phi [bb4: v16], [bb9: v20]
-    v21 = phi [bb4: v17], [bb9: v21]
-    v22 = phi [bb4: v17], [bb9: v78]
-    v23 = mload v20
-    v24 = lt v23, v22
-    v25 = eq v24, false
-    jumpi v25, bb10, bb11
+    v22 = phi [bb4: v17], [bb9: v22]
+    v23 = phi [bb4: v18], [bb9: v23]
+    v24 = phi [bb4: v21], [bb9: v80]
+    v25 = mload v22
+    v26 = lt v25, v24
+    v27 = eq v26, false
+    jumpi v27, bb10, bb11
   bb11:                                           ; preds = bb7
     jump bb8
   bb8:                                            ; preds = bb11
@@ -309,88 +312,88 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[], abi_r
   bb6:                                            ; preds = bb8
     jump bb3
   bb3:                                            ; preds = bb6
-    v79 = checked_add uint256, v21, 1
+    v81 = checked_add uint256, v23, 1
     jump bb1
   bb10:                                           ; preds = bb7
-    v26 = address
-    v27 = gas
-    v28 = abi_encode [memory_bytes, word, word], scratch, selector 0xe3b899da00000000000000000000000000000000000000000000000000000000, args v20, v21, v22
-    v29 = extract_value slice<memory>, v28, 0
-    v30 = extract_value slice<memory>, v28, 1
-    v31 = zext i160 v26 to i256
-    v32 = staticcall v27, v31, v29, v30, 0, 0
-    jumpi v32, bb14, bb13
+    v28 = address
+    v29 = gas
+    v30 = abi_encode [memory_bytes, word, word], scratch, selector 0xe3b899da00000000000000000000000000000000000000000000000000000000, args v22, v23, v24
+    v31 = extract_value slice<memory>, v30, 0
+    v32 = extract_value slice<memory>, v30, 1
+    v33 = zext i160 v28 to i256
+    v34 = staticcall v29, v33, v31, v32, 0, 0
+    jumpi v34, bb14, bb13
   bb13:                                           ; preds = bb10
     revert_returndata
   bb14:                                           ; preds = bb10
-    v33 = returndatasize
-    v34 = add v33, 31
-    v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v36 = alloc v35
-    returndatacopy v36, 0, v33
-    v37 = make_memory_slice v36, v33
-    v38 = abi_decode [bytes], v37
-    v39 = address
-    v40 = gas
-    v41 = abi_encode [memory_bytes, word, word], scratch, selector 0x31b229fc00000000000000000000000000000000000000000000000000000000, args v20, v21, v22
-    v42 = extract_value slice<memory>, v41, 0
-    v43 = extract_value slice<memory>, v41, 1
-    v44 = zext i160 v39 to i256
-    v45 = staticcall v40, v44, v42, v43, 0, 0
-    jumpi v45, bb16, bb15
+    v35 = returndatasize
+    v36 = add v35, 31
+    v37 = and v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v38 = alloc v37
+    returndatacopy v38, 0, v35
+    v39 = make_memory_slice v38, v35
+    v40 = abi_decode [bytes], v39
+    v41 = address
+    v42 = gas
+    v43 = abi_encode [memory_bytes, word, word], scratch, selector 0x31b229fc00000000000000000000000000000000000000000000000000000000, args v22, v23, v24
+    v44 = extract_value slice<memory>, v43, 0
+    v45 = extract_value slice<memory>, v43, 1
+    v46 = zext i160 v41 to i256
+    v47 = staticcall v42, v46, v44, v45, 0, 0
+    jumpi v47, bb16, bb15
   bb15:                                           ; preds = bb14
     revert_returndata
   bb16:                                           ; preds = bb14
-    v46 = returndatasize
-    v47 = add v46, 31
-    v48 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v49 = alloc v48
-    returndatacopy v49, 0, v46
-    v50 = make_memory_slice v49, v46
-    v51 = abi_decode [bytes], v50
-    icall @compare, v38, v51
-    v52 = address
-    v53 = gas
-    v54 = abi_encode [memory_bytes, word, word], scratch, selector 0x676eb8e500000000000000000000000000000000000000000000000000000000, args v20, v21, v22
-    v55 = extract_value slice<memory>, v54, 0
-    v56 = extract_value slice<memory>, v54, 1
-    v57 = zext i160 v52 to i256
-    v58 = staticcall v53, v57, v55, v56, 0, 0
-    jumpi v58, bb18, bb17
+    v48 = returndatasize
+    v49 = add v48, 31
+    v50 = and v49, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v51 = alloc v50
+    returndatacopy v51, 0, v48
+    v52 = make_memory_slice v51, v48
+    v53 = abi_decode [bytes], v52
+    icall @compare, v40, v53
+    v54 = address
+    v55 = gas
+    v56 = abi_encode [memory_bytes, word, word], scratch, selector 0x676eb8e500000000000000000000000000000000000000000000000000000000, args v22, v23, v24
+    v57 = extract_value slice<memory>, v56, 0
+    v58 = extract_value slice<memory>, v56, 1
+    v59 = zext i160 v54 to i256
+    v60 = staticcall v55, v59, v57, v58, 0, 0
+    jumpi v60, bb18, bb17
   bb17:                                           ; preds = bb16
     revert_returndata
   bb18:                                           ; preds = bb16
-    v59 = returndatasize
-    v60 = add v59, 31
-    v61 = and v60, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v62 = alloc v61
-    returndatacopy v62, 0, v59
-    v63 = make_memory_slice v62, v59
-    v64 = abi_decode [bytes], v63
-    v65 = address
-    v66 = gas
-    v67 = abi_encode [memory_bytes, word, word], scratch, selector 0x94ba4b1300000000000000000000000000000000000000000000000000000000, args v20, v21, v22
-    v68 = extract_value slice<memory>, v67, 0
-    v69 = extract_value slice<memory>, v67, 1
-    v70 = zext i160 v65 to i256
-    v71 = staticcall v66, v70, v68, v69, 0, 0
-    jumpi v71, bb20, bb19
+    v61 = returndatasize
+    v62 = add v61, 31
+    v63 = and v62, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v64 = alloc v63
+    returndatacopy v64, 0, v61
+    v65 = make_memory_slice v64, v61
+    v66 = abi_decode [bytes], v65
+    v67 = address
+    v68 = gas
+    v69 = abi_encode [memory_bytes, word, word], scratch, selector 0x94ba4b1300000000000000000000000000000000000000000000000000000000, args v22, v23, v24
+    v70 = extract_value slice<memory>, v69, 0
+    v71 = extract_value slice<memory>, v69, 1
+    v72 = zext i160 v67 to i256
+    v73 = staticcall v68, v72, v70, v71, 0, 0
+    jumpi v73, bb20, bb19
   bb19:                                           ; preds = bb18
     revert_returndata
   bb20:                                           ; preds = bb18
-    v72 = returndatasize
-    v73 = add v72, 31
-    v74 = and v73, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v75 = alloc v74
-    returndatacopy v75, 0, v72
-    v76 = make_memory_slice v75, v72
-    v77 = abi_decode [bytes], v76
-    icall @compare, v64, v77
+    v74 = returndatasize
+    v75 = add v74, 31
+    v76 = and v75, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v77 = alloc v76
+    returndatacopy v77, 0, v74
+    v78 = make_memory_slice v77, v74
+    v79 = abi_decode [bytes], v78
+    icall @compare, v66, v79
     jump bb12
   bb12:                                           ; preds = bb20
     jump bb9
   bb9:                                            ; preds = bb12
-    v78 = checked_add uint256, v22, 1
+    v80 = checked_add uint256, v24, 1
     jump bb7
 }
 
@@ -417,27 +420,29 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[], abi
     icall panic_if<0x32>, v11
     v12 = ptradd v0, 96
     mstore v12, 66
+    v13 = assign 0
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v13 = phi [bb0: v0], [bb3: v17]
-    v14 = phi [bb0: 0], [bb3: v76]
-    v15 = mload v13
-    v16 = lt v14, v15
-    jumpi v16, bb4, bb5
+    v14 = phi [bb0: v0], [bb3: v19]
+    v15 = phi [bb0: v13], [bb3: v78]
+    v16 = mload v14
+    v17 = lt v15, v16
+    jumpi v17, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
     ret
   bb4:                                            ; preds = bb1
+    v18 = assign v15
     jump bb7
   bb7:                                            ; preds = bb4, bb9
-    v17 = phi [bb4: v13], [bb9: v17]
-    v18 = phi [bb4: v14], [bb9: v18]
-    v19 = phi [bb4: v14], [bb9: v75]
-    v20 = mload v17
-    v21 = lt v20, v19
-    v22 = eq v21, false
-    jumpi v22, bb10, bb11
+    v19 = phi [bb4: v14], [bb9: v19]
+    v20 = phi [bb4: v15], [bb9: v20]
+    v21 = phi [bb4: v18], [bb9: v77]
+    v22 = mload v19
+    v23 = lt v22, v21
+    v24 = eq v23, false
+    jumpi v24, bb10, bb11
   bb11:                                           ; preds = bb7
     jump bb8
   bb8:                                            ; preds = bb11
@@ -445,87 +450,87 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[], abi
   bb6:                                            ; preds = bb8
     jump bb3
   bb3:                                            ; preds = bb6
-    v76 = checked_add uint256, v18, 1
+    v78 = checked_add uint256, v20, 1
     jump bb1
   bb10:                                           ; preds = bb7
-    v23 = address
-    v24 = gas
-    v25 = abi_encode [memory_array<word>, word, word], scratch, selector 0xd7d5d6100000000000000000000000000000000000000000000000000000000, args v17, v18, v19
-    v26 = extract_value slice<memory>, v25, 0
-    v27 = extract_value slice<memory>, v25, 1
-    v28 = zext i160 v23 to i256
-    v29 = staticcall v24, v28, v26, v27, 0, 0
-    jumpi v29, bb14, bb13
+    v25 = address
+    v26 = gas
+    v27 = abi_encode [memory_array<word>, word, word], scratch, selector 0xd7d5d6100000000000000000000000000000000000000000000000000000000, args v19, v20, v21
+    v28 = extract_value slice<memory>, v27, 0
+    v29 = extract_value slice<memory>, v27, 1
+    v30 = zext i160 v25 to i256
+    v31 = staticcall v26, v30, v28, v29, 0, 0
+    jumpi v31, bb14, bb13
   bb13:                                           ; preds = bb10
     revert_returndata
   bb14:                                           ; preds = bb10
-    v30 = returndatasize
-    v31 = add v30, 31
-    v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v33 = alloc v32
-    returndatacopy v33, 0, v30
-    v34 = make_memory_slice v33, v30
-    v35 = abi_decode [bytes], v34
-    v36 = address
-    v37 = gas
-    v38 = abi_encode [memory_array<word>, word, word], scratch, selector 0xf98ab31400000000000000000000000000000000000000000000000000000000, args v17, v18, v19
-    v39 = extract_value slice<memory>, v38, 0
-    v40 = extract_value slice<memory>, v38, 1
-    v41 = zext i160 v36 to i256
-    v42 = staticcall v37, v41, v39, v40, 0, 0
-    jumpi v42, bb16, bb15
+    v32 = returndatasize
+    v33 = add v32, 31
+    v34 = and v33, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v35 = alloc v34
+    returndatacopy v35, 0, v32
+    v36 = make_memory_slice v35, v32
+    v37 = abi_decode [bytes], v36
+    v38 = address
+    v39 = gas
+    v40 = abi_encode [memory_array<word>, word, word], scratch, selector 0xf98ab31400000000000000000000000000000000000000000000000000000000, args v19, v20, v21
+    v41 = extract_value slice<memory>, v40, 0
+    v42 = extract_value slice<memory>, v40, 1
+    v43 = zext i160 v38 to i256
+    v44 = staticcall v39, v43, v41, v42, 0, 0
+    jumpi v44, bb16, bb15
   bb15:                                           ; preds = bb14
     revert_returndata
   bb16:                                           ; preds = bb14
-    v43 = returndatasize
-    v44 = add v43, 31
-    v45 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v46 = alloc v45
-    returndatacopy v46, 0, v43
-    v47 = make_memory_slice v46, v43
-    v48 = abi_decode [bytes], v47
-    icall @compare, v35, v48
-    v49 = address
-    v50 = gas
-    v51 = abi_encode [memory_array<word>, word, word], scratch, selector 0x5f29ad1d00000000000000000000000000000000000000000000000000000000, args v17, v18, v19
-    v52 = extract_value slice<memory>, v51, 0
-    v53 = extract_value slice<memory>, v51, 1
-    v54 = zext i160 v49 to i256
-    v55 = staticcall v50, v54, v52, v53, 0, 0
-    jumpi v55, bb18, bb17
+    v45 = returndatasize
+    v46 = add v45, 31
+    v47 = and v46, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v48 = alloc v47
+    returndatacopy v48, 0, v45
+    v49 = make_memory_slice v48, v45
+    v50 = abi_decode [bytes], v49
+    icall @compare, v37, v50
+    v51 = address
+    v52 = gas
+    v53 = abi_encode [memory_array<word>, word, word], scratch, selector 0x5f29ad1d00000000000000000000000000000000000000000000000000000000, args v19, v20, v21
+    v54 = extract_value slice<memory>, v53, 0
+    v55 = extract_value slice<memory>, v53, 1
+    v56 = zext i160 v51 to i256
+    v57 = staticcall v52, v56, v54, v55, 0, 0
+    jumpi v57, bb18, bb17
   bb17:                                           ; preds = bb16
     revert_returndata
   bb18:                                           ; preds = bb16
-    v56 = returndatasize
-    v57 = add v56, 31
-    v58 = and v57, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v59 = alloc v58
-    returndatacopy v59, 0, v56
-    v60 = make_memory_slice v59, v56
-    v61 = abi_decode [bytes], v60
-    v62 = address
-    v63 = gas
-    v64 = abi_encode [memory_array<word>, word, word], scratch, selector 0xea73d5ef00000000000000000000000000000000000000000000000000000000, args v17, v18, v19
-    v65 = extract_value slice<memory>, v64, 0
-    v66 = extract_value slice<memory>, v64, 1
-    v67 = zext i160 v62 to i256
-    v68 = staticcall v63, v67, v65, v66, 0, 0
-    jumpi v68, bb20, bb19
+    v58 = returndatasize
+    v59 = add v58, 31
+    v60 = and v59, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v61 = alloc v60
+    returndatacopy v61, 0, v58
+    v62 = make_memory_slice v61, v58
+    v63 = abi_decode [bytes], v62
+    v64 = address
+    v65 = gas
+    v66 = abi_encode [memory_array<word>, word, word], scratch, selector 0xea73d5ef00000000000000000000000000000000000000000000000000000000, args v19, v20, v21
+    v67 = extract_value slice<memory>, v66, 0
+    v68 = extract_value slice<memory>, v66, 1
+    v69 = zext i160 v64 to i256
+    v70 = staticcall v65, v69, v67, v68, 0, 0
+    jumpi v70, bb20, bb19
   bb19:                                           ; preds = bb18
     revert_returndata
   bb20:                                           ; preds = bb18
-    v69 = returndatasize
-    v70 = add v69, 31
-    v71 = and v70, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v72 = alloc v71
-    returndatacopy v72, 0, v69
-    v73 = make_memory_slice v72, v69
-    v74 = abi_decode [bytes], v73
-    icall @compare, v61, v74
+    v71 = returndatasize
+    v72 = add v71, 31
+    v73 = and v72, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v74 = alloc v73
+    returndatacopy v74, 0, v71
+    v75 = make_memory_slice v74, v71
+    v76 = abi_decode [bytes], v75
+    icall @compare, v63, v76
     jump bb12
   bb12:                                           ; preds = bb20
     jump bb9
   bb9:                                            ; preds = bb12
-    v75 = checked_add uint256, v19, 1
+    v77 = checked_add uint256, v21, 1
     jump bb7
 }

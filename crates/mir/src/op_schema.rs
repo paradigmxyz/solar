@@ -1255,6 +1255,22 @@ define_mir_ops! {
     })]
     #[operand_types(func => None)]
     ExtractValue { ty: MirType, aggregate: ValueId, index: u32 },
+    /// Copies an integer into a new value.
+    ///
+    /// Lowering emits it only at `-O none`, so that the assignment of a named variable keeps an
+    /// instruction of its own at the assignment.
+    #[mir_op(
+        mnemonic = "assign",
+        result = Integer,
+        phases = PhaseSet::ALL,
+        effect = Pure,
+        traits = OpTraits::NONE,
+        side_effects = false,
+        category = None
+    )]
+    #[operand_types(func => Some(smallvec![typing::integer_type(func, *a); 1]))]
+    #[semantics(word(a))]
+    Assign(a: ValueId),
     #[mir_op(mnemonic = "zext", result = Custom, phases = PhaseSet::ALL,
         effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
     #[operand_types(func => None)]

@@ -573,15 +573,16 @@ fn @enumAssignHole(arg0: i256) -> struct3 [selector=0xb891707d, abi_params=[uint
     v7 = mod v1, 32
     v8 = mul v7, 1
     sstore 4, v3 !metadata(storage=slot(4))
+    v9 = assign 123
     mstore 0, 4 !metadata(memory=scratch)
-    v9 = keccak256 0, 32 !metadata(memory=scratch)
-    v10 = sload v9 !metadata(storage=symbolic(v9))
-    v11 = and v10, 255
-    v12 = sload 4 !metadata(storage=slot(4))
-    v13 = insert_value struct3, undef struct3, 0, 123
-    v14 = insert_value struct3, v13, 1, v11
-    v15 = insert_value struct3, v14, 2, v12
-    ret v15
+    v10 = keccak256 0, 32 !metadata(memory=scratch)
+    v11 = sload v10 !metadata(storage=symbolic(v10))
+    v12 = and v11, 255
+    v13 = sload 4 !metadata(storage=slot(4))
+    v14 = insert_value struct3, undef struct3, 0, v9
+    v15 = insert_value struct3, v14, 1, v12
+    v16 = insert_value struct3, v15, 2, v13
+    ret v16
 }
 
 ; function enumNestedHole(uint256 dirty) external returns (uint256, uint256, uint256) [selector 0xdf286fc3]
@@ -600,15 +601,16 @@ fn @enumNestedHole(arg0: i256) -> struct3 [selector=0xdf286fc3, abi_params=[uint
     v7 = mod v1, 32
     v8 = mul v7, 1
     sstore 4, v3 !metadata(storage=slot(4))
+    v9 = assign 1
     mstore 0, 4 !metadata(memory=scratch)
-    v9 = keccak256 0, 32 !metadata(memory=scratch)
-    v10 = sload v9 !metadata(storage=symbolic(v9))
-    v11 = and v10, 255
-    v12 = sload 4 !metadata(storage=slot(4))
-    v13 = insert_value struct3, undef struct3, 0, 1
-    v14 = insert_value struct3, v13, 1, v11
-    v15 = insert_value struct3, v14, 2, v12
-    ret v15
+    v10 = keccak256 0, 32 !metadata(memory=scratch)
+    v11 = sload v10 !metadata(storage=symbolic(v10))
+    v12 = and v11, 255
+    v13 = sload 4 !metadata(storage=slot(4))
+    v14 = insert_value struct3, undef struct3, 0, v9
+    v15 = insert_value struct3, v14, 1, v12
+    v16 = insert_value struct3, v15, 2, v13
+    ret v16
 }
 
 ; function enumNestedInnerHole(uint256 dirty) external returns (uint256, uint256, uint256) [selector 0x1f0f0670]
@@ -627,16 +629,18 @@ fn @enumNestedInnerHole(arg0: i256) -> struct3 [selector=0x1f0f0670, abi_params=
     v7 = mod v1, 32
     v8 = mul v7, 1
     sstore 4, v3 !metadata(storage=slot(4))
+    v9 = assign 2
+    v10 = assign 1
     mstore 0, 4 !metadata(memory=scratch)
-    v9 = keccak256 0, 32 !metadata(memory=scratch)
-    v10 = sload v9 !metadata(storage=symbolic(v9))
-    v11 = and v10, 255
-    v12 = checked_add uint256, 1, 2
-    v13 = sload 4 !metadata(storage=slot(4))
-    v14 = insert_value struct3, undef struct3, 0, v12
-    v15 = insert_value struct3, v14, 1, v11
-    v16 = insert_value struct3, v15, 2, v13
-    ret v16
+    v11 = keccak256 0, 32 !metadata(memory=scratch)
+    v12 = sload v11 !metadata(storage=symbolic(v11))
+    v13 = and v12, 255
+    v14 = checked_add uint256, v10, v9
+    v15 = sload 4 !metadata(storage=slot(4))
+    v16 = insert_value struct3, undef struct3, 0, v14
+    v17 = insert_value struct3, v16, 1, v13
+    v18 = insert_value struct3, v17, 2, v15
+    ret v18
 }
 
 ; function enumUsedComponent(uint256 dirty) external returns (uint256, uint256) [selector 0x3af411b8]

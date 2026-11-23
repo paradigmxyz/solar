@@ -41,14 +41,19 @@ fn @repeatedSourceJoin(arg0: i1, arg1: i256, arg2: i256) -> struct0 [selector=0x
   bb0:
     jumpi arg0, bb1, bb2
   bb2:                                            ; preds = bb0
+    v2 = assign arg2
+    v3 = assign arg1
     jump bb3
   bb1:                                            ; preds = bb0
+    v0 = assign arg1
+    v1 = assign arg1
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v0 = phi [bb1: arg1], [bb2: arg2]
-    v1 = insert_value struct0, undef struct0, 0, v0
-    v2 = insert_value struct0, v1, 1, arg1
-    ret v2
+    v4 = phi [bb1: v0], [bb2: v2]
+    v5 = phi [bb1: v1], [bb2: v3]
+    v6 = insert_value struct0, undef struct0, 0, v4
+    v7 = insert_value struct0, v6, 1, v5
+    ret v7
 }
 
 ; function loopJoin(uint256 n) external pure returns (uint256 result) [selector 0x136d329b]

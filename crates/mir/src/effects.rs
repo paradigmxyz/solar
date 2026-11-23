@@ -132,6 +132,7 @@ impl InstKind {
             }
             Self::InsertValue { .. }
             | Self::ExtractValue { .. }
+            | Self::Assign(..)
             | Self::Zext(..)
             | Self::Trunc(..)
             | Self::Sext(..)

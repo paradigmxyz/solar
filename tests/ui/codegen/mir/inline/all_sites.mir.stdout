@@ -7,26 +7,27 @@ fn @accumulate(arg0: i256) -> i256 [selector=0xb4e7d02a, abi_params=[uint256], a
     v1 = eq v0, false
     icall @ensure, v1
     v2 = sload 0 !metadata(storage=slot(0))
+    v3 = assign 0
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v3 = phi [bb0: arg0], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v4]
-    v5 = phi [bb0: v2], [bb3: v8]
-    v6 = phi [bb0: 0], [bb3: v9]
-    v7 = lt v6, v3
-    jumpi v7, bb4, bb5
+    v4 = phi [bb0: arg0], [bb3: v4]
+    v5 = phi [bb0: 0], [bb3: v5]
+    v6 = phi [bb0: v2], [bb3: v9]
+    v7 = phi [bb0: v3], [bb3: v10]
+    v8 = lt v7, v4
+    jumpi v8, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
-    sstore 0, v5 !metadata(storage=slot(0))
-    ret v5
+    sstore 0, v6 !metadata(storage=slot(0))
+    ret v6
   bb4:                                            ; preds = bb1
-    v8 = icall @checkedAdd, v5, v6
+    v9 = icall @checkedAdd, v6, v7
     jump bb6
   bb6:                                            ; preds = bb4
     jump bb3
   bb3:                                            ; preds = bb6
-    v9 = icall @checkedAdd, v6, 1
+    v10 = icall @checkedAdd, v7, 1
     jump bb1
 }
 

@@ -12,13 +12,14 @@ fn @receive() [receive, payable] {
 ; function references() external payable returns (uint256, uint256) [selector 0x6d8a3fd9]
 fn @references() -> struct0 [selector=0x6d8a3fd9, payable, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
-    v0 = address
-    v1 = zext i160 v0 to i256
-    v2 = balance v1
-    v3 = sload 0 !metadata(storage=slot(0))
-    v4 = insert_value struct0, undef struct0, 0, v2
-    v5 = insert_value struct0, v4, 1, v3
-    ret v5
+    v0 = assign i160 0xdead
+    v1 = address
+    v2 = zext i160 v1 to i256
+    v3 = balance v2
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = insert_value struct0, undef struct0, 0, v3
+    v6 = insert_value struct0, v5, 1, v4
+    ret v6
 }
 
 ; function receiverEffects() external returns (uint256) [selector 0xdaf5e9a0]

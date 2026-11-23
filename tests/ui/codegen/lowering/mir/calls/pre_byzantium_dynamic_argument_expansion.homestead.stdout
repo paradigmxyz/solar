@@ -137,6 +137,7 @@ fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], a
   bb4 [cold_hint]:                                ; preds = bb2
     jump bb6
   bb6 [cold_hint]:                                ; preds = bb4
+    v35 = assign 7
     jump bb5
   bb3:                                            ; preds = bb2
     v18 = mload v9
@@ -158,8 +159,8 @@ fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], a
     v34 = checked_add uint256, v18, v33
     jump bb5
   bb5:                                            ; preds = bb3, bb6
-    v35 = phi [bb3: v34], [bb6: 7]
-    ret v35
+    v36 = phi [bb3: v34], [bb6: v35]
+    ret v36
   bb7 [cold_hint]:
     icall revert_if<empty>, true
     invalid

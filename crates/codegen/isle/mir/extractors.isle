@@ -12,6 +12,9 @@
 (decl extractvalue (MirType Value u32) Value)
 (extractor (extractvalue ty aggregate index) (inst (Op.ExtractValue ty aggregate index)))
 
+(decl assign (Value) Value)
+(extractor (assign a) (inst (Op.Assign a)))
+
 (decl zext (Value) Value)
 (extractor (zext operand0) (inst (Op.Zext operand0)))
 

@@ -33,143 +33,144 @@ fn @f(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) -> struct0 [sel
     icall revert_if<invalid_calldata_tail_offset>, v20
     v21 = inttoptr i256 v14 to ptr<calldata>
     v22 = make_calldata_slice v21, 2
-    v23 = extract_value slice<calldata>, arg0, 1
-    v24 = lt arg1, v23
-    v25 = eq v24, false
-    icall panic_if<0x32>, v25
-    v26 = extract_value slice<calldata>, arg0, 0
-    v27 = mul arg1, 32
-    v28 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v28
-    v29 = ptrtoint ptr<calldata> v26 to i256
-    v30 = add v29, v27
-    v31 = calldatasize
-    v32 = sub v31, v30
-    v33 = slt v32, 32
-    icall revert_if<calldata_tail_too_short>, v33
-    v34 = calldataload v30
-    v35 = ptrtoint ptr<calldata> v26 to i256
-    v36 = add v35, v34
-    v37 = calldatasize
-    v38 = ptrtoint ptr<calldata> v26 to i256
-    v39 = sub v37, v38
-    v40 = sub v39, 63
-    v41 = slt v34, v40
-    v42 = eq v41, false
-    icall revert_if<invalid_calldata_tail_offset>, v42
-    v43 = inttoptr i256 v36 to ptr<calldata>
-    v44 = make_calldata_slice v43, 2
-    v45 = extract_value slice<calldata>, v44, 1
-    v46 = lt arg2, v45
-    v47 = eq v46, false
-    icall panic_if<0x32>, v47
-    v48 = extract_value slice<calldata>, v44, 0
-    v49 = mul arg2, 32
-    v50 = gt arg2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v50
-    v51 = ptrtoint ptr<calldata> v48 to i256
-    v52 = add v51, v49
-    v53 = calldatasize
-    v54 = sub v53, v52
-    v55 = slt v54, 32
-    icall revert_if<calldata_tail_too_short>, v55
-    v56 = calldataload v52
-    v57 = ptrtoint ptr<calldata> v48 to i256
-    v58 = add v57, v56
-    v59 = calldatasize
-    v60 = ptrtoint ptr<calldata> v48 to i256
-    v61 = sub v59, v60
-    v62 = sub v61, 31
-    v63 = slt v56, v62
-    v64 = eq v63, false
-    icall revert_if<invalid_calldata_tail_offset>, v64
-    v65 = calldataload v58
-    v66 = calldatasize
-    v67 = gt v65, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v67
-    v68 = mul v65, 32
-    v69 = add v58, 32
-    v70 = sub v66, v68
-    v71 = slt v70, v69
-    icall revert_if<calldata_tail_too_short>, v71
-    v72 = inttoptr i256 v69 to ptr<calldata>
-    v73 = make_calldata_slice v72, v65
-    v74 = extract_value slice<calldata>, v73, 1
-    v75 = extract_value slice<calldata>, arg0, 1
-    v76 = lt arg1, v75
-    v77 = eq v76, false
-    icall panic_if<0x32>, v77
-    v78 = extract_value slice<calldata>, arg0, 0
-    v79 = mul arg1, 32
-    v80 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v80
-    v81 = ptrtoint ptr<calldata> v78 to i256
-    v82 = add v81, v79
-    v83 = calldatasize
-    v84 = sub v83, v82
-    v85 = slt v84, 32
-    icall revert_if<calldata_tail_too_short>, v85
-    v86 = calldataload v82
-    v87 = ptrtoint ptr<calldata> v78 to i256
-    v88 = add v87, v86
-    v89 = calldatasize
-    v90 = ptrtoint ptr<calldata> v78 to i256
-    v91 = sub v89, v90
-    v92 = sub v91, 63
-    v93 = slt v86, v92
-    v94 = eq v93, false
-    icall revert_if<invalid_calldata_tail_offset>, v94
-    v95 = inttoptr i256 v88 to ptr<calldata>
-    v96 = make_calldata_slice v95, 2
-    v97 = extract_value slice<calldata>, v96, 1
-    v98 = lt arg2, v97
-    v99 = eq v98, false
-    icall panic_if<0x32>, v99
-    v100 = extract_value slice<calldata>, v96, 0
-    v101 = mul arg2, 32
-    v102 = gt arg2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v102
-    v103 = ptrtoint ptr<calldata> v100 to i256
-    v104 = add v103, v101
-    v105 = calldatasize
-    v106 = sub v105, v104
-    v107 = slt v106, 32
-    icall revert_if<calldata_tail_too_short>, v107
-    v108 = calldataload v104
-    v109 = ptrtoint ptr<calldata> v100 to i256
-    v110 = add v109, v108
-    v111 = calldatasize
-    v112 = ptrtoint ptr<calldata> v100 to i256
-    v113 = sub v111, v112
-    v114 = sub v113, 31
-    v115 = slt v108, v114
-    v116 = eq v115, false
-    icall revert_if<invalid_calldata_tail_offset>, v116
-    v117 = calldataload v110
-    v118 = calldatasize
-    v119 = gt v117, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v119
-    v120 = mul v117, 32
-    v121 = add v110, 32
-    v122 = sub v118, v120
-    v123 = slt v122, v121
-    icall revert_if<calldata_tail_too_short>, v123
-    v124 = inttoptr i256 v121 to ptr<calldata>
-    v125 = make_calldata_slice v124, v117
-    v126 = extract_value slice<calldata>, v125, 1
-    v127 = lt arg3, v126
-    v128 = eq v127, false
-    icall panic_if<0x32>, v128
-    v129 = extract_value slice<calldata>, v125, 0
-    v130 = mul arg3, 32
-    v131 = gt arg3, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v131
-    v132 = ptrtoint ptr<calldata> v129 to i256
-    v133 = add v132, v130
-    v134 = calldataload v133
-    v135 = insert_value struct0, undef struct0, 0, v0
-    v136 = insert_value struct0, v135, 1, 2
-    v137 = insert_value struct0, v136, 2, v74
-    v138 = insert_value struct0, v137, 3, v134
-    ret v138
+    v23 = assign 2
+    v24 = extract_value slice<calldata>, arg0, 1
+    v25 = lt arg1, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = extract_value slice<calldata>, arg0, 0
+    v28 = mul arg1, 32
+    v29 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v29
+    v30 = ptrtoint ptr<calldata> v27 to i256
+    v31 = add v30, v28
+    v32 = calldatasize
+    v33 = sub v32, v31
+    v34 = slt v33, 32
+    icall revert_if<calldata_tail_too_short>, v34
+    v35 = calldataload v31
+    v36 = ptrtoint ptr<calldata> v27 to i256
+    v37 = add v36, v35
+    v38 = calldatasize
+    v39 = ptrtoint ptr<calldata> v27 to i256
+    v40 = sub v38, v39
+    v41 = sub v40, 63
+    v42 = slt v35, v41
+    v43 = eq v42, false
+    icall revert_if<invalid_calldata_tail_offset>, v43
+    v44 = inttoptr i256 v37 to ptr<calldata>
+    v45 = make_calldata_slice v44, 2
+    v46 = extract_value slice<calldata>, v45, 1
+    v47 = lt arg2, v46
+    v48 = eq v47, false
+    icall panic_if<0x32>, v48
+    v49 = extract_value slice<calldata>, v45, 0
+    v50 = mul arg2, 32
+    v51 = gt arg2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v51
+    v52 = ptrtoint ptr<calldata> v49 to i256
+    v53 = add v52, v50
+    v54 = calldatasize
+    v55 = sub v54, v53
+    v56 = slt v55, 32
+    icall revert_if<calldata_tail_too_short>, v56
+    v57 = calldataload v53
+    v58 = ptrtoint ptr<calldata> v49 to i256
+    v59 = add v58, v57
+    v60 = calldatasize
+    v61 = ptrtoint ptr<calldata> v49 to i256
+    v62 = sub v60, v61
+    v63 = sub v62, 31
+    v64 = slt v57, v63
+    v65 = eq v64, false
+    icall revert_if<invalid_calldata_tail_offset>, v65
+    v66 = calldataload v59
+    v67 = calldatasize
+    v68 = gt v66, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v68
+    v69 = mul v66, 32
+    v70 = add v59, 32
+    v71 = sub v67, v69
+    v72 = slt v71, v70
+    icall revert_if<calldata_tail_too_short>, v72
+    v73 = inttoptr i256 v70 to ptr<calldata>
+    v74 = make_calldata_slice v73, v66
+    v75 = extract_value slice<calldata>, v74, 1
+    v76 = extract_value slice<calldata>, arg0, 1
+    v77 = lt arg1, v76
+    v78 = eq v77, false
+    icall panic_if<0x32>, v78
+    v79 = extract_value slice<calldata>, arg0, 0
+    v80 = mul arg1, 32
+    v81 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v81
+    v82 = ptrtoint ptr<calldata> v79 to i256
+    v83 = add v82, v80
+    v84 = calldatasize
+    v85 = sub v84, v83
+    v86 = slt v85, 32
+    icall revert_if<calldata_tail_too_short>, v86
+    v87 = calldataload v83
+    v88 = ptrtoint ptr<calldata> v79 to i256
+    v89 = add v88, v87
+    v90 = calldatasize
+    v91 = ptrtoint ptr<calldata> v79 to i256
+    v92 = sub v90, v91
+    v93 = sub v92, 63
+    v94 = slt v87, v93
+    v95 = eq v94, false
+    icall revert_if<invalid_calldata_tail_offset>, v95
+    v96 = inttoptr i256 v89 to ptr<calldata>
+    v97 = make_calldata_slice v96, 2
+    v98 = extract_value slice<calldata>, v97, 1
+    v99 = lt arg2, v98
+    v100 = eq v99, false
+    icall panic_if<0x32>, v100
+    v101 = extract_value slice<calldata>, v97, 0
+    v102 = mul arg2, 32
+    v103 = gt arg2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v103
+    v104 = ptrtoint ptr<calldata> v101 to i256
+    v105 = add v104, v102
+    v106 = calldatasize
+    v107 = sub v106, v105
+    v108 = slt v107, 32
+    icall revert_if<calldata_tail_too_short>, v108
+    v109 = calldataload v105
+    v110 = ptrtoint ptr<calldata> v101 to i256
+    v111 = add v110, v109
+    v112 = calldatasize
+    v113 = ptrtoint ptr<calldata> v101 to i256
+    v114 = sub v112, v113
+    v115 = sub v114, 31
+    v116 = slt v109, v115
+    v117 = eq v116, false
+    icall revert_if<invalid_calldata_tail_offset>, v117
+    v118 = calldataload v111
+    v119 = calldatasize
+    v120 = gt v118, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v120
+    v121 = mul v118, 32
+    v122 = add v111, 32
+    v123 = sub v119, v121
+    v124 = slt v123, v122
+    icall revert_if<calldata_tail_too_short>, v124
+    v125 = inttoptr i256 v122 to ptr<calldata>
+    v126 = make_calldata_slice v125, v118
+    v127 = extract_value slice<calldata>, v126, 1
+    v128 = lt arg3, v127
+    v129 = eq v128, false
+    icall panic_if<0x32>, v129
+    v130 = extract_value slice<calldata>, v126, 0
+    v131 = mul arg3, 32
+    v132 = gt arg3, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v132
+    v133 = ptrtoint ptr<calldata> v130 to i256
+    v134 = add v133, v131
+    v135 = calldataload v134
+    v136 = insert_value struct0, undef struct0, 0, v0
+    v137 = insert_value struct0, v136, 1, v23
+    v138 = insert_value struct0, v137, 2, v75
+    v139 = insert_value struct0, v138, 3, v135
+    ret v139
 }

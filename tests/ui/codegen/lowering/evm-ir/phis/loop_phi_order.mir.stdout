@@ -37,29 +37,30 @@ fn @packed(arg0: i256, arg1: i256) -> i256 [selector=0xaf080e88, pure, abi_param
 ; function complement(uint256 x, uint256 y, uint256 rounds) public pure returns (uint256 result) [selector 0x82829e9f]
 fn @complement(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x82829e9f, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
+    v0 = assign arg0
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: arg1], [bb3: v9]
-    v2 = phi [bb0: arg2], [bb3: v2]
-    v3 = phi [bb0: arg0], [bb3: v8]
-    v4 = phi [bb0: 0], [bb3: v10]
-    v5 = lt v4, v2
-    v6 = zext i1 v5 to i256
-    v7 = ne v6, 0
-    jumpi v7, bb4, bb5
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: arg1], [bb3: v10]
+    v3 = phi [bb0: arg2], [bb3: v3]
+    v4 = phi [bb0: v0], [bb3: v9]
+    v5 = phi [bb0: 0], [bb3: v11]
+    v6 = lt v5, v3
+    v7 = zext i1 v6 to i256
+    v8 = ne v7, 0
+    jumpi v8, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
-    ret v3
+    ret v4
   bb4:                                            ; preds = bb1
-    v8 = sub v1, v3
-    v9 = add v1, v4
+    v9 = sub v2, v4
+    v10 = add v2, v5
     jump bb6
   bb6:                                            ; preds = bb4
     jump bb3
   bb3:                                            ; preds = bb6
-    v10 = add v4, 1
+    v11 = add v5, 1
     jump bb1
 }
 

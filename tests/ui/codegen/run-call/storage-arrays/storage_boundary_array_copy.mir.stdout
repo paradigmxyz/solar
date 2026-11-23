@@ -66,36 +66,37 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v36 = lt v35, 10
     jumpi v36, bb11, bb12
   bb12:                                           ; preds = bb10
+    v43 = assign 0
     jump bb16
   bb16:                                           ; preds = bb12, bb18
-    v43 = phi [bb12: 0], [bb18: v56]
     v44 = phi [bb12: 0], [bb18: v57]
-    v45 = phi [bb12: v0], [bb18: v45]
-    v46 = phi [bb12: v1], [bb18: v46]
-    v47 = lt 0, 1
-    v48 = eq v47, false
-    icall panic_if<0x32>, v48
-    v49 = lt v44, 10
-    jumpi v49, bb19, bb20
+    v45 = phi [bb12: v43], [bb18: v58]
+    v46 = phi [bb12: v0], [bb18: v46]
+    v47 = phi [bb12: v1], [bb18: v47]
+    v48 = lt 0, 1
+    v49 = eq v48, false
+    icall panic_if<0x32>, v49
+    v50 = lt v45, 10
+    jumpi v50, bb19, bb20
   bb20:                                           ; preds = bb16
     jump bb17
   bb17:                                           ; preds = bb20
-    ret v43
+    ret v44
   bb19:                                           ; preds = bb16
-    v50 = lt 0, 1
-    v51 = eq v50, false
-    icall panic_if<0x32>, v51
-    v52 = lt v44, 10
-    v53 = eq v52, false
-    icall panic_if<0x32>, v53
-    v54 = add v46, v44
-    v55 = sload v54 !metadata(storage=symbolic(v54))
-    v56 = checked_add uint256, v43, v55
+    v51 = lt 0, 1
+    v52 = eq v51, false
+    icall panic_if<0x32>, v52
+    v53 = lt v45, 10
+    v54 = eq v53, false
+    icall panic_if<0x32>, v54
+    v55 = add v47, v45
+    v56 = sload v55 !metadata(storage=symbolic(v55))
+    v57 = checked_add uint256, v44, v56
     jump bb21
   bb21:                                           ; preds = bb19
     jump bb18
   bb18:                                           ; preds = bb21
-    v57 = checked_add uint256, v44, 1
+    v58 = checked_add uint256, v45, 1
     jump bb16
   bb11:                                           ; preds = bb10
     v37 = add v1, v35

@@ -64,8 +64,9 @@ fn @f(arg0: i1, arg1: i1, arg2: i256, arg3: i256) -> i256 [selector=0x96dde50a, 
   bb8:                                            ; preds = bb6
     jump bb9
   bb7:                                            ; preds = bb6
+    v38 = assign v26
     jump bb9
   bb9:                                            ; preds = bb7, bb8
-    v38 = phi [bb7: v26], [bb8: v36]
-    ret v38
+    v39 = phi [bb7: v38], [bb8: v36]
+    ret v39
 }

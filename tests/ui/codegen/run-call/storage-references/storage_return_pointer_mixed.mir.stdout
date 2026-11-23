@@ -94,29 +94,33 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
   bb16:                                           ; preds = bb14
     jump bb17
   bb17:                                           ; preds = bb16
-    v34 = ne v22, 2
-    jumpi v34, bb19, bb18
+    v34 = assign v21
+    v35 = assign v22
+    v36 = ne v35, 2
+    jumpi v36, bb19, bb18
   bb18:                                           ; preds = bb17
-    v35 = ne v21, 1
+    v37 = ne v34, 1
     jump bb20
   bb19:                                           ; preds = bb17
     jump bb20
   bb20:                                           ; preds = bb19, bb18
-    v36 = phi [bb18: v35], [bb19: true]
-    jumpi v36, bb21, bb22
+    v38 = phi [bb18: v37], [bb19: true]
+    jumpi v38, bb21, bb22
   bb22:                                           ; preds = bb20
     jump bb23
   bb23:                                           ; preds = bb22
-    v37 = ne 8, 8
-    jumpi v37, bb25, bb24
+    v39 = assign 10
+    v40 = assign 8
+    v41 = ne v40, 8
+    jumpi v41, bb25, bb24
   bb24:                                           ; preds = bb23
-    v38 = ne 10, 10
+    v42 = ne v39, 10
     jump bb26
   bb25:                                           ; preds = bb23
     jump bb26
   bb26:                                           ; preds = bb25, bb24
-    v39 = phi [bb24: v38], [bb25: true]
-    jumpi v39, bb27, bb28
+    v43 = phi [bb24: v42], [bb25: true]
+    jumpi v43, bb27, bb28
   bb28:                                           ; preds = bb26
     jump bb29
   bb29:                                           ; preds = bb28

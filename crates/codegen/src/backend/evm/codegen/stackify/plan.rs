@@ -2644,6 +2644,13 @@ impl<'a> Planner<'a> {
         }
 
         match kind {
+            InstKind::Assign(value) => {
+                // assign value -> a copy of the operand word under the result identity, which
+                // keeps the instruction even when the operand dies here
+                let result = result.expect("assign has a result");
+                self.prepare(sim, &[*value], &|_| false)?;
+                *sim.stack.last_mut().unwrap() = Slot::Value(result);
+            }
             InstKind::Zext(value) | InstKind::PtrToInt(value, _) | InstKind::IntToPtr(value) => {
                 // cast value -> the operand word under the result identity
                 let result = result.expect("cast has a result");

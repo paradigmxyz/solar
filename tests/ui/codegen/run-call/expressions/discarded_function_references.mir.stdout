@@ -82,9 +82,10 @@ fn @tupleReceiverEffect() -> i256 [selector=0x838a913a, abi_params=[], abi_retur
 fn @tupleAssignmentEffect() -> i256 [selector=0x2e89541f, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @next
-    v1 = sload 0 !metadata(storage=slot(0))
-    v2 = checked_add uint256, v1, 3
-    ret v2
+    v1 = assign 3
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = checked_add uint256, v2, v1
+    ret v3
 }
 
 ; function freeReceiverRevert() external pure [selector 0xe1675ff9]

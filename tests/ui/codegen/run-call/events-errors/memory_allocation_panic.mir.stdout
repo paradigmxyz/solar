@@ -40,22 +40,36 @@ fn @makeArray(arg0: i256) -> i256 [selector=0x9510f212, pure, abi_params=[uint25
 ; function makeArrayTooLarge() external pure returns (uint256) [selector 0x821e5729]
 fn @makeArrayTooLarge() -> i256 [selector=0x821e5729, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    icall panic_if<0x41>, true
-    v0 = alloc zeroed checked 32
-    mstore v0, 0x800000000000000000000000000000000000000000000000000000000000000
-    v1 = mload v0
-    v2 = gt v1, 1
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    v4 = ptradd v0, 64
-    mstore v4, 42
-    v5 = mload v0
-    v6 = gt v5, 1
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = ptradd v0, 64
-    v9 = mload v8
-    ret v9
+    v0 = assign 0x800000000000000000000000000000000000000000000000000000000000000
+    v1 = mul v0, 1
+    v2 = eq 1, 0
+    v3 = div v1, 1
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = zext i1 v5 to i256
+    v7 = eq v6, 0
+    icall panic_if<0x41>, v7
+    v8 = add v1, 1
+    v9 = lt v8, v1
+    icall panic_if<0x41>, v9
+    v10 = mul v8, 32
+    v11 = gt v8, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v11
+    v12 = alloc zeroed checked v10
+    mstore v12, v0
+    v13 = mload v12
+    v14 = gt v13, 1
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = ptradd v12, 64
+    mstore v16, 42
+    v17 = mload v12
+    v18 = gt v17, 1
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = ptradd v12, 64
+    v21 = mload v20
+    ret v21
 }
 
 ; function makeNestedArray(uint256 n) external pure returns (uint256) [selector 0x95572958]

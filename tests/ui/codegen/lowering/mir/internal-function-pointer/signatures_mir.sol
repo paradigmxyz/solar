@@ -8,7 +8,8 @@ contract FunctionPointerSignatures {
     function() internal stateFn = setFlag;
 
     // CHECK-LABEL: fn @callVoid(
-    // CHECK: icall @[[DISPATCHER_0:internal_dispatcher_[A-Za-z0-9_]+]], 1
+    // CHECK: [[POINTER_0:v[0-9]+]] = assign 1
+    // CHECK-NEXT: icall @[[DISPATCHER_0:internal_dispatcher_[A-Za-z0-9_]+]], [[POINTER_0]]
     function callVoid() public returns (bool) {
         function() internal fn = setFlag;
         fn();
@@ -31,7 +32,8 @@ contract FunctionPointerSignatures {
     }
 
     // CHECK-LABEL: fn @callPair(
-    // CHECK: icall @[[DISPATCHER_1:internal_dispatcher_[A-Za-z0-9_]+]], [[PAIR:[0-9]+]], arg0
+    // CHECK: [[POINTER_1:v[0-9]+]] = assign [[PAIR:[0-9]+]]
+    // CHECK-NEXT: icall @[[DISPATCHER_1:internal_dispatcher_[A-Za-z0-9_]+]], [[POINTER_1]], arg0
     function callPair(uint256 value) public returns (uint256, uint256) {
         function(uint256) internal returns (uint256, uint256) fn = pair;
         return fn(value);
@@ -53,7 +55,8 @@ contract FunctionPointerSignatures {
     }
 
     // CHECK-LABEL: fn @callTwoArgs(
-    // CHECK: icall @[[DISPATCHER_2:internal_dispatcher_[A-Za-z0-9_]+]], [[SUM:[0-9]+]], 5, 1
+    // CHECK: [[POINTER_2:v[0-9]+]] = assign [[SUM:[0-9]+]]
+    // CHECK-NEXT: icall @[[DISPATCHER_2:internal_dispatcher_[A-Za-z0-9_]+]], [[POINTER_2]], 5, 1
     function callTwoArgs() public returns (uint256) {
         function(uint256, uint256) internal returns (uint256) sumFn = sum;
         return sumFn(5, 1);

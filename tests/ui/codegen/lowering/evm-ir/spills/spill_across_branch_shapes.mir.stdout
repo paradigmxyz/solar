@@ -48,53 +48,54 @@ fn @singleArmCall(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xe22d2f
     v13 = phi [bb1: v2], [bb2: v11]
     v14 = phi [bb1: v3], [bb2: v12]
     v15 = phi [bb1: v10], [bb2: v7]
+    v16 = assign 0
     jump bb4
   bb4:                                            ; preds = bb3, bb6
-    v16 = phi [bb3: arg0], [bb6: v16]
-    v17 = phi [bb3: arg1], [bb6: v17]
-    v18 = phi [bb3: arg2], [bb6: v18]
-    v19 = phi [bb3: 0], [bb6: v19]
-    v20 = phi [bb3: v0], [bb6: v20]
-    v21 = phi [bb3: v1], [bb6: v21]
-    v22 = phi [bb3: v13], [bb6: v33]
-    v23 = phi [bb3: v14], [bb6: v32]
-    v24 = phi [bb3: v4], [bb6: v24]
-    v25 = phi [bb3: v5], [bb6: v25]
-    v26 = phi [bb3: v6], [bb6: v26]
-    v27 = phi [bb3: v15], [bb6: v34]
-    v28 = phi [bb3: 0], [bb6: v35]
-    v29 = and v24, 3
-    v30 = lt v28, v29
-    jumpi v30, bb7, bb8
+    v17 = phi [bb3: arg0], [bb6: v17]
+    v18 = phi [bb3: arg1], [bb6: v18]
+    v19 = phi [bb3: arg2], [bb6: v19]
+    v20 = phi [bb3: 0], [bb6: v20]
+    v21 = phi [bb3: v0], [bb6: v21]
+    v22 = phi [bb3: v1], [bb6: v22]
+    v23 = phi [bb3: v13], [bb6: v34]
+    v24 = phi [bb3: v14], [bb6: v33]
+    v25 = phi [bb3: v4], [bb6: v25]
+    v26 = phi [bb3: v5], [bb6: v26]
+    v27 = phi [bb3: v6], [bb6: v27]
+    v28 = phi [bb3: v15], [bb6: v35]
+    v29 = phi [bb3: v16], [bb6: v36]
+    v30 = and v25, 3
+    v31 = lt v29, v30
+    jumpi v31, bb7, bb8
   bb8:                                            ; preds = bb4
     jump bb5
   bb5:                                            ; preds = bb8
-    v36 = mul v20, 1
-    v37 = mul v21, 2
-    v38 = xor v36, v37
-    v39 = mul v22, 3
-    v40 = xor v38, v39
-    v41 = mul v23, 4
-    v42 = xor v40, v41
-    v43 = mul v24, 5
-    v44 = xor v42, v43
-    v45 = mul v25, 6
-    v46 = xor v44, v45
-    v47 = mul v26, 7
-    v48 = xor v46, v47
-    v49 = mul v27, 8
-    v50 = xor v48, v49
-    ret v50
+    v37 = mul v21, 1
+    v38 = mul v22, 2
+    v39 = xor v37, v38
+    v40 = mul v23, 3
+    v41 = xor v39, v40
+    v42 = mul v24, 4
+    v43 = xor v41, v42
+    v44 = mul v25, 5
+    v45 = xor v43, v44
+    v46 = mul v26, 6
+    v47 = xor v45, v46
+    v48 = mul v27, 7
+    v49 = xor v47, v48
+    v50 = mul v28, 8
+    v51 = xor v49, v50
+    ret v51
   bb7:                                            ; preds = bb4
-    v31 = icall @step, v21, v22
-    v32 = extract_value struct0, v31, 0
-    v33 = extract_value struct0, v31, 1
-    v34 = xor v27, v28
+    v32 = icall @step, v22, v23
+    v33 = extract_value struct0, v32, 0
+    v34 = extract_value struct0, v32, 1
+    v35 = xor v28, v29
     jump bb9
   bb9:                                            ; preds = bb7
     jump bb6
   bb6:                                            ; preds = bb9
-    v35 = add v28, 1
+    v36 = add v29, 1
     jump bb4
 }
 
@@ -121,64 +122,65 @@ fn @branchInLoop(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xfa97e8d
   bb3:                                            ; preds = bb1, bb2
     v12 = phi [bb1: v2], [bb2: v11]
     v13 = phi [bb1: v10], [bb2: v7]
+    v14 = assign 0
     jump bb4
   bb4:                                            ; preds = bb3, bb6
-    v14 = phi [bb3: arg0], [bb6: v14]
-    v15 = phi [bb3: arg1], [bb6: v15]
-    v16 = phi [bb3: arg2], [bb6: v16]
-    v17 = phi [bb3: 0], [bb6: v17]
-    v18 = phi [bb3: v0], [bb6: v18]
-    v19 = phi [bb3: v1], [bb6: v19]
-    v20 = phi [bb3: v12], [bb6: v35]
-    v21 = phi [bb3: v3], [bb6: v36]
-    v22 = phi [bb3: v4], [bb6: v22]
-    v23 = phi [bb3: v5], [bb6: v37]
-    v24 = phi [bb3: v6], [bb6: v24]
-    v25 = phi [bb3: v13], [bb6: v25]
-    v26 = phi [bb3: 0], [bb6: v38]
-    v27 = and v22, 3
-    v28 = lt v26, v27
-    jumpi v28, bb7, bb8
+    v15 = phi [bb3: arg0], [bb6: v15]
+    v16 = phi [bb3: arg1], [bb6: v16]
+    v17 = phi [bb3: arg2], [bb6: v17]
+    v18 = phi [bb3: 0], [bb6: v18]
+    v19 = phi [bb3: v0], [bb6: v19]
+    v20 = phi [bb3: v1], [bb6: v20]
+    v21 = phi [bb3: v12], [bb6: v36]
+    v22 = phi [bb3: v3], [bb6: v37]
+    v23 = phi [bb3: v4], [bb6: v23]
+    v24 = phi [bb3: v5], [bb6: v38]
+    v25 = phi [bb3: v6], [bb6: v25]
+    v26 = phi [bb3: v13], [bb6: v26]
+    v27 = phi [bb3: v14], [bb6: v39]
+    v28 = and v23, 3
+    v29 = lt v27, v28
+    jumpi v29, bb7, bb8
   bb8:                                            ; preds = bb4
     jump bb5
   bb5:                                            ; preds = bb8
-    v39 = mul v18, 1
-    v40 = mul v19, 2
-    v41 = xor v39, v40
-    v42 = mul v20, 3
-    v43 = xor v41, v42
-    v44 = mul v21, 4
-    v45 = xor v43, v44
-    v46 = mul v22, 5
-    v47 = xor v45, v46
-    v48 = mul v23, 6
-    v49 = xor v47, v48
-    v50 = mul v24, 7
-    v51 = xor v49, v50
-    v52 = mul v25, 8
-    v53 = xor v51, v52
-    ret v53
+    v40 = mul v19, 1
+    v41 = mul v20, 2
+    v42 = xor v40, v41
+    v43 = mul v21, 3
+    v44 = xor v42, v43
+    v45 = mul v22, 4
+    v46 = xor v44, v45
+    v47 = mul v23, 5
+    v48 = xor v46, v47
+    v49 = mul v24, 6
+    v50 = xor v48, v49
+    v51 = mul v25, 7
+    v52 = xor v50, v51
+    v53 = mul v26, 8
+    v54 = xor v52, v53
+    ret v54
   bb7:                                            ; preds = bb4
-    v29 = and v26, 1
-    v30 = eq v29, 0
-    jumpi v30, bb10, bb11
+    v30 = and v27, 1
+    v31 = eq v30, 0
+    jumpi v31, bb10, bb11
   bb11:                                           ; preds = bb7
-    v34 = icall @mix, v21
+    v35 = icall @mix, v22
     jump bb12
   bb10:                                           ; preds = bb7
-    v31 = icall @step, v19, v20
-    v32 = extract_value struct0, v31, 0
-    v33 = extract_value struct0, v31, 1
+    v32 = icall @step, v20, v21
+    v33 = extract_value struct0, v32, 0
+    v34 = extract_value struct0, v32, 1
     jump bb12
   bb12:                                           ; preds = bb10, bb11
-    v35 = phi [bb10: v33], [bb11: v20]
-    v36 = phi [bb10: v32], [bb11: v21]
-    v37 = phi [bb10: v23], [bb11: v34]
+    v36 = phi [bb10: v34], [bb11: v21]
+    v37 = phi [bb10: v33], [bb11: v22]
+    v38 = phi [bb10: v24], [bb11: v35]
     jump bb9
   bb9:                                            ; preds = bb12
     jump bb6
   bb6:                                            ; preds = bb9
-    v38 = add v26, 1
+    v39 = add v27, 1
     jump bb4
 }
 
@@ -205,50 +207,51 @@ fn @earlyReturn(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x07b42de1
   bb3:                                            ; preds = bb1, bb2
     v12 = phi [bb1: v2], [bb2: v11]
     v13 = phi [bb1: v10], [bb2: v7]
+    v14 = assign 0
     jump bb4
   bb4:                                            ; preds = bb3, bb6
-    v14 = phi [bb3: arg0], [bb6: v14]
-    v15 = phi [bb3: arg1], [bb6: v15]
-    v16 = phi [bb3: arg2], [bb6: v16]
-    v17 = phi [bb3: 0], [bb6: v17]
-    v18 = phi [bb3: v0], [bb6: v18]
-    v19 = phi [bb3: v1], [bb6: v19]
-    v20 = phi [bb3: v12], [bb6: v31]
-    v21 = phi [bb3: v3], [bb6: v30]
-    v22 = phi [bb3: v4], [bb6: v22]
-    v23 = phi [bb3: v5], [bb6: v23]
-    v24 = phi [bb3: v6], [bb6: v24]
-    v25 = phi [bb3: v13], [bb6: v25]
-    v26 = phi [bb3: 0], [bb6: v42]
-    v27 = and v22, 7
-    v28 = lt v26, v27
-    jumpi v28, bb7, bb8
+    v15 = phi [bb3: arg0], [bb6: v15]
+    v16 = phi [bb3: arg1], [bb6: v16]
+    v17 = phi [bb3: arg2], [bb6: v17]
+    v18 = phi [bb3: 0], [bb6: v18]
+    v19 = phi [bb3: v0], [bb6: v19]
+    v20 = phi [bb3: v1], [bb6: v20]
+    v21 = phi [bb3: v12], [bb6: v32]
+    v22 = phi [bb3: v3], [bb6: v31]
+    v23 = phi [bb3: v4], [bb6: v23]
+    v24 = phi [bb3: v5], [bb6: v24]
+    v25 = phi [bb3: v6], [bb6: v25]
+    v26 = phi [bb3: v13], [bb6: v26]
+    v27 = phi [bb3: v14], [bb6: v43]
+    v28 = and v23, 7
+    v29 = lt v27, v28
+    jumpi v29, bb7, bb8
   bb8:                                            ; preds = bb4
     jump bb5
   bb5:                                            ; preds = bb8
-    v43 = mul v18, 1
-    v44 = mul v19, 2
-    v45 = xor v43, v44
-    v46 = mul v20, 3
-    v47 = xor v45, v46
-    v48 = mul v21, 4
-    v49 = xor v47, v48
-    v50 = mul v22, 5
-    v51 = xor v49, v50
-    v52 = mul v23, 6
-    v53 = xor v51, v52
-    v54 = mul v24, 7
-    v55 = xor v53, v54
-    v56 = mul v25, 8
-    v57 = xor v55, v56
-    ret v57
+    v44 = mul v19, 1
+    v45 = mul v20, 2
+    v46 = xor v44, v45
+    v47 = mul v21, 3
+    v48 = xor v46, v47
+    v49 = mul v22, 4
+    v50 = xor v48, v49
+    v51 = mul v23, 5
+    v52 = xor v50, v51
+    v53 = mul v24, 6
+    v54 = xor v52, v53
+    v55 = mul v25, 7
+    v56 = xor v54, v55
+    v57 = mul v26, 8
+    v58 = xor v56, v57
+    ret v58
   bb7:                                            ; preds = bb4
-    v29 = icall @step, v19, v20
-    v30 = extract_value struct0, v29, 0
-    v31 = extract_value struct0, v29, 1
-    v32 = and v31, 4
-    v33 = eq v32, 4
-    jumpi v33, bb10, bb11
+    v30 = icall @step, v20, v21
+    v31 = extract_value struct0, v30, 0
+    v32 = extract_value struct0, v30, 1
+    v33 = and v32, 4
+    v34 = eq v33, 4
+    jumpi v34, bb10, bb11
   bb11:                                           ; preds = bb7
     jump bb12
   bb12:                                           ; preds = bb11
@@ -256,18 +259,18 @@ fn @earlyReturn(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x07b42de1
   bb9:                                            ; preds = bb12
     jump bb6
   bb6:                                            ; preds = bb9
-    v42 = add v26, 1
+    v43 = add v27, 1
     jump bb4
   bb10:                                           ; preds = bb7
-    v34 = mul v18, 1
-    v35 = mul v30, 4
-    v36 = xor v34, v35
-    v37 = mul v23, 6
-    v38 = xor v36, v37
-    v39 = mul v25, 8
-    v40 = xor v38, v39
-    v41 = xor v40, v26
-    ret v41
+    v35 = mul v19, 1
+    v36 = mul v31, 4
+    v37 = xor v35, v36
+    v38 = mul v24, 6
+    v39 = xor v37, v38
+    v40 = mul v26, 8
+    v41 = xor v39, v40
+    v42 = xor v41, v27
+    ret v42
 }
 
 ; function twoBranchLoops(uint256 a, uint256 b, uint256 c) external pure returns (uint256) [selector 0x319beeab]
@@ -293,61 +296,187 @@ fn @twoBranchLoops(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x319be
   bb3:                                            ; preds = bb1, bb2
     v12 = phi [bb1: v2], [bb2: v11]
     v13 = phi [bb1: v10], [bb2: v7]
+    v14 = assign 0
     jump bb4
   bb4:                                            ; preds = bb3, bb6
-    v14 = phi [bb3: arg0], [bb6: v14]
-    v15 = phi [bb3: arg1], [bb6: v15]
-    v16 = phi [bb3: arg2], [bb6: v16]
-    v17 = phi [bb3: 0], [bb6: v17]
-    v18 = phi [bb3: v0], [bb6: v18]
-    v19 = phi [bb3: v1], [bb6: v19]
-    v20 = phi [bb3: v12], [bb6: v31]
-    v21 = phi [bb3: v3], [bb6: v30]
-    v22 = phi [bb3: v4], [bb6: v22]
-    v23 = phi [bb3: v5], [bb6: v23]
-    v24 = phi [bb3: v6], [bb6: v24]
-    v25 = phi [bb3: v13], [bb6: v25]
-    v26 = phi [bb3: 0], [bb6: v32]
-    v27 = and v22, 3
-    v28 = lt v26, v27
-    jumpi v28, bb7, bb8
+    v15 = phi [bb3: arg0], [bb6: v15]
+    v16 = phi [bb3: arg1], [bb6: v16]
+    v17 = phi [bb3: arg2], [bb6: v17]
+    v18 = phi [bb3: 0], [bb6: v18]
+    v19 = phi [bb3: v0], [bb6: v19]
+    v20 = phi [bb3: v1], [bb6: v20]
+    v21 = phi [bb3: v12], [bb6: v32]
+    v22 = phi [bb3: v3], [bb6: v31]
+    v23 = phi [bb3: v4], [bb6: v23]
+    v24 = phi [bb3: v5], [bb6: v24]
+    v25 = phi [bb3: v6], [bb6: v25]
+    v26 = phi [bb3: v13], [bb6: v26]
+    v27 = phi [bb3: v14], [bb6: v33]
+    v28 = and v23, 3
+    v29 = lt v27, v28
+    jumpi v29, bb7, bb8
   bb8:                                            ; preds = bb4
     jump bb5
   bb5:                                            ; preds = bb8
-    v33 = and v21, 1
-    v34 = eq v33, 1
-    jumpi v34, bb10, bb11
+    v34 = and v22, 1
+    v35 = eq v34, 1
+    jumpi v35, bb10, bb11
   bb11:                                           ; preds = bb5
-    v36 = icall @mix, v21
+    v37 = icall @mix, v22
     jump bb12
   bb10:                                           ; preds = bb5
-    v35 = mul v25, v20
+    v36 = mul v26, v21
     jump bb12
   bb12:                                           ; preds = bb10, bb11
-    v37 = phi [bb10: v35], [bb11: v23]
-    v38 = phi [bb10: v24], [bb11: v36]
+    v38 = phi [bb10: v36], [bb11: v24]
+    v39 = phi [bb10: v25], [bb11: v37]
+    v40 = assign 0
     jump bb13
   bb13:                                           ; preds = bb12, bb15
-    v39 = phi [bb12: v14], [bb15: v39]
-    v40 = phi [bb12: v15], [bb15: v40]
-    v41 = phi [bb12: v16], [bb15: v41]
-    v42 = phi [bb12: v17], [bb15: v42]
-    v43 = phi [bb12: v18], [bb15: v43]
-    v44 = phi [bb12: v19], [bb15: v44]
-    v45 = phi [bb12: v20], [bb15: v45]
-    v46 = phi [bb12: v21], [bb15: v46]
-    v47 = phi [bb12: v22], [bb15: v47]
-    v48 = phi [bb12: v37], [bb15: v56]
-    v49 = phi [bb12: v38], [bb15: v49]
-    v50 = phi [bb12: v25], [bb15: v57]
-    v51 = phi [bb12: v26], [bb15: v51]
-    v52 = phi [bb12: 0], [bb15: v58]
-    v53 = and v45, 3
-    v54 = lt v52, v53
-    jumpi v54, bb16, bb17
+    v41 = phi [bb12: v15], [bb15: v41]
+    v42 = phi [bb12: v16], [bb15: v42]
+    v43 = phi [bb12: v17], [bb15: v43]
+    v44 = phi [bb12: v18], [bb15: v44]
+    v45 = phi [bb12: v19], [bb15: v45]
+    v46 = phi [bb12: v20], [bb15: v46]
+    v47 = phi [bb12: v21], [bb15: v47]
+    v48 = phi [bb12: v22], [bb15: v48]
+    v49 = phi [bb12: v23], [bb15: v49]
+    v50 = phi [bb12: v38], [bb15: v58]
+    v51 = phi [bb12: v39], [bb15: v51]
+    v52 = phi [bb12: v26], [bb15: v59]
+    v53 = phi [bb12: v27], [bb15: v53]
+    v54 = phi [bb12: v40], [bb15: v60]
+    v55 = and v47, 3
+    v56 = lt v54, v55
+    jumpi v56, bb16, bb17
   bb17:                                           ; preds = bb13
     jump bb14
   bb14:                                           ; preds = bb17
+    v61 = mul v45, 1
+    v62 = mul v46, 2
+    v63 = xor v61, v62
+    v64 = mul v47, 3
+    v65 = xor v63, v64
+    v66 = mul v48, 4
+    v67 = xor v65, v66
+    v68 = mul v49, 5
+    v69 = xor v67, v68
+    v70 = mul v50, 6
+    v71 = xor v69, v70
+    v72 = mul v51, 7
+    v73 = xor v71, v72
+    v74 = mul v52, 8
+    v75 = xor v73, v74
+    ret v75
+  bb16:                                           ; preds = bb13
+    v57 = icall @step, v51, v52
+    v58 = extract_value struct0, v57, 0
+    v59 = extract_value struct0, v57, 1
+    jump bb18
+  bb18:                                           ; preds = bb16
+    jump bb15
+  bb15:                                           ; preds = bb18
+    v60 = add v54, 1
+    jump bb13
+  bb7:                                            ; preds = bb4
+    v30 = icall @step, v20, v21
+    v31 = extract_value struct0, v30, 0
+    v32 = extract_value struct0, v30, 1
+    jump bb9
+  bb9:                                            ; preds = bb7
+    jump bb6
+  bb6:                                            ; preds = bb9
+    v33 = add v27, 1
+    jump bb4
+}
+
+; function whileTrueThenLoop(uint256 a, uint256 b, uint256 c) external pure returns (uint256) [selector 0xd59917de]
+fn @whileTrueThenLoop(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd59917de, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = add arg2, 2
+    v2 = add arg1, 3
+    v3 = sub v1, v2
+    v4 = add v0, v1
+    v5 = xor v1, v2
+    v6 = xor v5, v1
+    v7 = add v3, v6
+    v8 = assign 0
+    v9 = and v2, 1
+    v10 = eq v9, 1
+    jumpi v10, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v12 = icall @mix, v6
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v11 = mul v6, v4
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v13 = phi [bb1: v2], [bb2: v12]
+    v14 = phi [bb1: v11], [bb2: v7]
+    jump bb4
+  bb4:                                            ; preds = bb3, bb8
+    v15 = phi [bb3: arg0], [bb8: v15]
+    v16 = phi [bb3: arg1], [bb8: v16]
+    v17 = phi [bb3: arg2], [bb8: v17]
+    v18 = phi [bb3: 0], [bb8: v18]
+    v19 = phi [bb3: v0], [bb8: v19]
+    v20 = phi [bb3: v1], [bb8: v20]
+    v21 = phi [bb3: v13], [bb8: v30]
+    v22 = phi [bb3: v3], [bb8: v29]
+    v23 = phi [bb3: v4], [bb8: v23]
+    v24 = phi [bb3: v5], [bb8: v34]
+    v25 = phi [bb3: v6], [bb8: v25]
+    v26 = phi [bb3: v14], [bb8: v26]
+    v27 = phi [bb3: v8], [bb8: v31]
+    jumpi true, bb6, bb7
+  bb7:                                            ; preds = bb4
+    jump bb5
+  bb6:                                            ; preds = bb4
+    v28 = icall @step, v20, v21
+    v29 = extract_value struct0, v28, 0
+    v30 = extract_value struct0, v28, 1
+    v31 = add v27, 1
+    v32 = and v23, 3
+    v33 = lt v32, v31
+    jumpi v33, bb9, bb10
+  bb10:                                           ; preds = bb6
+    jump bb11
+  bb11:                                           ; preds = bb10
+    v34 = xor v31, v24
+    jump bb8
+  bb8:                                            ; preds = bb11
+    jump bb4
+  bb9:                                            ; preds = bb6
+    jump bb5
+  bb5:                                            ; preds = bb9, bb7
+    v35 = phi [bb9: v30], [bb7: v21]
+    v36 = phi [bb9: v29], [bb7: v22]
+    v37 = phi [bb9: v31], [bb7: v27]
+    v38 = assign 0
+    jump bb12
+  bb12:                                           ; preds = bb5, bb14
+    v39 = phi [bb5: v15], [bb14: v39]
+    v40 = phi [bb5: v16], [bb14: v40]
+    v41 = phi [bb5: v17], [bb14: v41]
+    v42 = phi [bb5: v18], [bb14: v42]
+    v43 = phi [bb5: v19], [bb14: v43]
+    v44 = phi [bb5: v20], [bb14: v44]
+    v45 = phi [bb5: v35], [bb14: v45]
+    v46 = phi [bb5: v36], [bb14: v46]
+    v47 = phi [bb5: v23], [bb14: v47]
+    v48 = phi [bb5: v24], [bb14: v48]
+    v49 = phi [bb5: v25], [bb14: v56]
+    v50 = phi [bb5: v26], [bb14: v57]
+    v51 = phi [bb5: v37], [bb14: v51]
+    v52 = phi [bb5: v38], [bb14: v58]
+    v53 = and v45, 3
+    v54 = lt v52, v53
+    jumpi v54, bb15, bb16
+  bb16:                                           ; preds = bb12
+    jump bb13
+  bb13:                                           ; preds = bb16
     v59 = mul v43, 1
     v60 = mul v44, 2
     v61 = xor v59, v60
@@ -363,138 +492,16 @@ fn @twoBranchLoops(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x319be
     v71 = xor v69, v70
     v72 = mul v50, 8
     v73 = xor v71, v72
-    ret v73
-  bb16:                                           ; preds = bb13
+    v74 = xor v73, v51
+    ret v74
+  bb15:                                           ; preds = bb12
     v55 = icall @step, v49, v50
     v56 = extract_value struct0, v55, 0
     v57 = extract_value struct0, v55, 1
-    jump bb18
-  bb18:                                           ; preds = bb16
-    jump bb15
-  bb15:                                           ; preds = bb18
-    v58 = add v52, 1
-    jump bb13
-  bb7:                                            ; preds = bb4
-    v29 = icall @step, v19, v20
-    v30 = extract_value struct0, v29, 0
-    v31 = extract_value struct0, v29, 1
-    jump bb9
-  bb9:                                            ; preds = bb7
-    jump bb6
-  bb6:                                            ; preds = bb9
-    v32 = add v26, 1
-    jump bb4
-}
-
-; function whileTrueThenLoop(uint256 a, uint256 b, uint256 c) external pure returns (uint256) [selector 0xd59917de]
-fn @whileTrueThenLoop(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd59917de, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = add arg0, 1
-    v1 = add arg2, 2
-    v2 = add arg1, 3
-    v3 = sub v1, v2
-    v4 = add v0, v1
-    v5 = xor v1, v2
-    v6 = xor v5, v1
-    v7 = add v3, v6
-    v8 = and v2, 1
-    v9 = eq v8, 1
-    jumpi v9, bb1, bb2
-  bb2:                                            ; preds = bb0
-    v11 = icall @mix, v6
-    jump bb3
-  bb1:                                            ; preds = bb0
-    v10 = mul v6, v4
-    jump bb3
-  bb3:                                            ; preds = bb1, bb2
-    v12 = phi [bb1: v2], [bb2: v11]
-    v13 = phi [bb1: v10], [bb2: v7]
-    jump bb4
-  bb4:                                            ; preds = bb3, bb8
-    v14 = phi [bb3: arg0], [bb8: v14]
-    v15 = phi [bb3: arg1], [bb8: v15]
-    v16 = phi [bb3: arg2], [bb8: v16]
-    v17 = phi [bb3: 0], [bb8: v17]
-    v18 = phi [bb3: v0], [bb8: v18]
-    v19 = phi [bb3: v1], [bb8: v19]
-    v20 = phi [bb3: v12], [bb8: v29]
-    v21 = phi [bb3: v3], [bb8: v28]
-    v22 = phi [bb3: v4], [bb8: v22]
-    v23 = phi [bb3: v5], [bb8: v33]
-    v24 = phi [bb3: v6], [bb8: v24]
-    v25 = phi [bb3: v13], [bb8: v25]
-    v26 = phi [bb3: 0], [bb8: v30]
-    jumpi true, bb6, bb7
-  bb7:                                            ; preds = bb4
-    jump bb5
-  bb6:                                            ; preds = bb4
-    v27 = icall @step, v19, v20
-    v28 = extract_value struct0, v27, 0
-    v29 = extract_value struct0, v27, 1
-    v30 = add v26, 1
-    v31 = and v22, 3
-    v32 = lt v31, v30
-    jumpi v32, bb9, bb10
-  bb10:                                           ; preds = bb6
-    jump bb11
-  bb11:                                           ; preds = bb10
-    v33 = xor v30, v23
-    jump bb8
-  bb8:                                            ; preds = bb11
-    jump bb4
-  bb9:                                            ; preds = bb6
-    jump bb5
-  bb5:                                            ; preds = bb9, bb7
-    v34 = phi [bb9: v29], [bb7: v20]
-    v35 = phi [bb9: v28], [bb7: v21]
-    v36 = phi [bb9: v30], [bb7: v26]
-    jump bb12
-  bb12:                                           ; preds = bb5, bb14
-    v37 = phi [bb5: v14], [bb14: v37]
-    v38 = phi [bb5: v15], [bb14: v38]
-    v39 = phi [bb5: v16], [bb14: v39]
-    v40 = phi [bb5: v17], [bb14: v40]
-    v41 = phi [bb5: v18], [bb14: v41]
-    v42 = phi [bb5: v19], [bb14: v42]
-    v43 = phi [bb5: v34], [bb14: v43]
-    v44 = phi [bb5: v35], [bb14: v44]
-    v45 = phi [bb5: v22], [bb14: v45]
-    v46 = phi [bb5: v23], [bb14: v46]
-    v47 = phi [bb5: v24], [bb14: v54]
-    v48 = phi [bb5: v25], [bb14: v55]
-    v49 = phi [bb5: v36], [bb14: v49]
-    v50 = phi [bb5: 0], [bb14: v56]
-    v51 = and v43, 3
-    v52 = lt v50, v51
-    jumpi v52, bb15, bb16
-  bb16:                                           ; preds = bb12
-    jump bb13
-  bb13:                                           ; preds = bb16
-    v57 = mul v41, 1
-    v58 = mul v42, 2
-    v59 = xor v57, v58
-    v60 = mul v43, 3
-    v61 = xor v59, v60
-    v62 = mul v44, 4
-    v63 = xor v61, v62
-    v64 = mul v45, 5
-    v65 = xor v63, v64
-    v66 = mul v46, 6
-    v67 = xor v65, v66
-    v68 = mul v47, 7
-    v69 = xor v67, v68
-    v70 = mul v48, 8
-    v71 = xor v69, v70
-    v72 = xor v71, v49
-    ret v72
-  bb15:                                           ; preds = bb12
-    v53 = icall @step, v47, v48
-    v54 = extract_value struct0, v53, 0
-    v55 = extract_value struct0, v53, 1
     jump bb17
   bb17:                                           ; preds = bb15
     jump bb14
   bb14:                                           ; preds = bb17
-    v56 = add v50, 1
+    v58 = add v52, 1
     jump bb12
 }

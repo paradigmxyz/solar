@@ -14,35 +14,36 @@ fn @f(arg0: ptr<memory>) -> i256 [selector=0x7bc5bbbf, abi_params=[array<_, uint
 ; function reduce( uint256[] memory array, function(uint256, uint256) internal returns (uint256) callback, uint256 init ) internal returns (uint256)
 fn @reduce(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 {
   bb0:
+    v0 = assign 0
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: arg1], [bb3: v1]
-    v2 = phi [bb0: arg2], [bb3: v14]
-    v3 = phi [bb0: 0], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v15]
-    v5 = mload v0
-    v6 = lt v4, v5
-    jumpi v6, bb4, bb5
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: arg1], [bb3: v2]
+    v3 = phi [bb0: arg2], [bb3: v15]
+    v4 = phi [bb0: 0], [bb3: v4]
+    v5 = phi [bb0: v0], [bb3: v16]
+    v6 = mload v1
+    v7 = lt v5, v6
+    jumpi v7, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
-    ret v2
+    ret v3
   bb4:                                            ; preds = bb1
-    v7 = mload v0
-    v8 = lt v4, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = shl v4, 5
-    v11 = ptradd v0, v10
-    v12 = ptradd v11, 32
-    v13 = mload v12
-    v14 = icall @internal_dispatcher_p_uint256_uint256_r_uint256, v1, v13, v2
+    v8 = mload v1
+    v9 = lt v5, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = shl v5, 5
+    v12 = ptradd v1, v11
+    v13 = ptradd v12, 32
+    v14 = mload v13
+    v15 = icall @internal_dispatcher_p_uint256_uint256_r_uint256, v2, v14, v3
     jump bb6
   bb6:                                            ; preds = bb4
     jump bb3
   bb3:                                            ; preds = bb6
-    v15 = checked_add uint256, v4, 1
+    v16 = checked_add uint256, v5, 1
     jump bb1
 }
 

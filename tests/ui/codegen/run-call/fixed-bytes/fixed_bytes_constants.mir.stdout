@@ -15,13 +15,15 @@ fn @constantString() -> i256 [selector=0x8731913b, view, abi_params=[], abi_retu
 ; function localHex() external pure returns (bytes4) [selector 0xb8c33054]
 fn @localHex() -> i256 [selector=0xb8c33054, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
-    ret 0x100000000000000000000000000000000000000000000000000000000000000
+    v0 = assign 0x100000000000000000000000000000000000000000000000000000000000000
+    ret v0
 }
 
 ; function localString() external pure returns (bytes4) [selector 0xafb88da4]
 fn @localString() -> i256 [selector=0xafb88da4, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
-    ret 0x6100000000000000000000000000000000000000000000000000000000000000
+    v0 = assign 0x6100000000000000000000000000000000000000000000000000000000000000
+    ret v0
 }
 
 ; function castHex() external pure returns (bytes4) [selector 0xc15c6f5a]

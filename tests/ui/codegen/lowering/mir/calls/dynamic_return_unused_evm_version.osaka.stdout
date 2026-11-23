@@ -125,6 +125,7 @@ fn @liveTry() -> i256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word], a
   bb4 [cold_hint]:                                ; preds = bb2
     jump bb6
   bb6 [cold_hint]:                                ; preds = bb4
+    v14 = assign 2
     jump bb5
   bb3:                                            ; preds = bb2
     v7 = returndatasize
@@ -134,10 +135,11 @@ fn @liveTry() -> i256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word], a
     returndatacopy v10, 0, v7
     v11 = make_memory_slice v10, v7
     v12 = abi_decode [bytes], v11
+    v13 = assign 1
     jump bb5
   bb5:                                            ; preds = bb3, bb6
-    v13 = phi [bb3: 1], [bb6: 2]
-    ret v13
+    v15 = phi [bb3: v13], [bb6: v14]
+    ret v15
   bb7 [cold_hint]:
     icall revert_if<empty>, true
     invalid
@@ -176,7 +178,8 @@ fn @liveMixed() -> i256 [selector=0xaf1b6bff, abi_params=[], abi_returns=[word],
     v16 = insert_value struct0, v15, 1, v14
     v17 = extract_value struct0, v16, 0
     v18 = extract_value struct0, v16, 1
-    ret v17
+    v19 = assign v17
+    ret v19
 }
 
 ; function liveTuple() external returns (uint256) [selector 0x04e1eee0]
@@ -272,39 +275,40 @@ fn @liveLoop() -> i256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word], 
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
+    v4 = assign 0
     jump bb3
   bb3:                                            ; preds = bb2, bb5
-    v4 = phi [bb2: 0], [bb5: v17]
-    v5 = phi [bb2: v2], [bb5: v5]
-    v6 = phi [bb2: 0], [bb5: v18]
-    v7 = lt v6, 3
-    jumpi v7, bb6, bb7
+    v5 = phi [bb2: 0], [bb5: v18]
+    v6 = phi [bb2: v2], [bb5: v6]
+    v7 = phi [bb2: v4], [bb5: v19]
+    v8 = lt v7, 3
+    jumpi v8, bb6, bb7
   bb7:                                            ; preds = bb3
     jump bb4
   bb4:                                            ; preds = bb7
-    ret v4
+    ret v5
   bb6:                                            ; preds = bb3
-    v8 = gas
+    v9 = gas
     mstore 0, 0x7271bb2c !metadata(memory=scratch)
-    v9 = zext i160 v5 to i256
-    v10 = call v8, v9, 0, 28, 4, 0, 0
-    jumpi v10, bb10, bb9
+    v10 = zext i160 v6 to i256
+    v11 = call v9, v10, 0, 28, 4, 0, 0
+    jumpi v11, bb10, bb9
   bb9:                                            ; preds = bb6
     revert_returndata
   bb10:                                           ; preds = bb6
-    v11 = returndatasize
-    v12 = add v11, 31
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v14 = alloc v13
-    returndatacopy v14, 0, v11
-    v15 = make_memory_slice v14, v11
-    v16 = abi_decode [bytes], v15
-    v17 = checked_add uint256, v4, 1
+    v12 = returndatasize
+    v13 = add v12, 31
+    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = alloc v14
+    returndatacopy v15, 0, v12
+    v16 = make_memory_slice v15, v12
+    v17 = abi_decode [bytes], v16
+    v18 = checked_add uint256, v5, 1
     jump bb8
   bb8:                                            ; preds = bb10
     jump bb5
   bb5:                                            ; preds = bb8
-    v18 = checked_add uint256, v6, 1
+    v19 = checked_add uint256, v7, 1
     jump bb3
 }
 
@@ -338,6 +342,7 @@ fn @noCodeTry() -> i256 [selector=0x1908ad35, abi_params=[], abi_returns=[word],
   bb2 [cold_hint]:                                ; preds = bb0
     jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
+    v9 = assign 2
     jump bb3
   bb1:                                            ; preds = bb0
     v2 = returndatasize
@@ -347,10 +352,11 @@ fn @noCodeTry() -> i256 [selector=0x1908ad35, abi_params=[], abi_returns=[word],
     returndatacopy v5, 0, v2
     v6 = make_memory_slice v5, v2
     v7 = abi_decode [bytes], v6
+    v8 = assign 1
     jump bb3
   bb3:                                            ; preds = bb1, bb4
-    v8 = phi [bb1: 1], [bb4: 2]
-    ret v8
+    v10 = phi [bb1: v8], [bb4: v9]
+    ret v10
   bb5 [cold_hint]:
     icall revert_if<empty>, true
     invalid

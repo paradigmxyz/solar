@@ -87,47 +87,48 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v73 = lt v72, 1
     jumpi v73, bb17, bb18
   bb18:                                           ; preds = bb16
+    v77 = assign 0
     jump bb19
   bb19:                                           ; preds = bb18, bb21
-    v77 = phi [bb18: 0], [bb21: v98]
-    v78 = phi [bb18: 0], [bb21: v78]
-    v79 = phi [bb18: 0], [bb21: v99]
-    v80 = phi [bb18: v0], [bb21: v80]
-    v81 = phi [bb18: v1], [bb21: v81]
-    v82 = lt 0, 1
-    v83 = eq v82, false
-    icall panic_if<0x32>, v83
-    v84 = lt v79, 10
-    jumpi v84, bb22, bb23
+    v78 = phi [bb18: 0], [bb21: v99]
+    v79 = phi [bb18: 0], [bb21: v79]
+    v80 = phi [bb18: v77], [bb21: v100]
+    v81 = phi [bb18: v0], [bb21: v81]
+    v82 = phi [bb18: v1], [bb21: v82]
+    v83 = lt 0, 1
+    v84 = eq v83, false
+    icall panic_if<0x32>, v84
+    v85 = lt v80, 10
+    jumpi v85, bb22, bb23
   bb23:                                           ; preds = bb19
     jump bb20
   bb20:                                           ; preds = bb23
-    v100 = sload v80 !metadata(storage=symbolic(v80))
-    v101 = insert_value struct0, undef struct0, 0, v77
-    v102 = insert_value struct0, v101, 1, v100
-    ret v102
+    v101 = sload v81 !metadata(storage=symbolic(v81))
+    v102 = insert_value struct0, undef struct0, 0, v78
+    v103 = insert_value struct0, v102, 1, v101
+    ret v103
   bb22:                                           ; preds = bb19
-    v85 = lt 0, 1
-    v86 = eq v85, false
-    icall panic_if<0x32>, v86
-    v87 = lt v79, 10
-    v88 = eq v87, false
-    icall panic_if<0x32>, v88
-    v89 = div v79, 4
-    v90 = add v89, v81
-    v91 = mod v79, 4
-    v92 = mul v91, 8
-    v93 = sload v90 !metadata(storage=symbolic(v90))
-    v94 = mul v92, 8
-    v95 = shr v93, v94
-    v96 = trunc i256 v95 to i64
-    v97 = zext i64 v96 to i256
-    v98 = checked_add uint256, v77, v97
+    v86 = lt 0, 1
+    v87 = eq v86, false
+    icall panic_if<0x32>, v87
+    v88 = lt v80, 10
+    v89 = eq v88, false
+    icall panic_if<0x32>, v89
+    v90 = div v80, 4
+    v91 = add v90, v82
+    v92 = mod v80, 4
+    v93 = mul v92, 8
+    v94 = sload v91 !metadata(storage=symbolic(v91))
+    v95 = mul v93, 8
+    v96 = shr v94, v95
+    v97 = trunc i256 v96 to i64
+    v98 = zext i64 v97 to i256
+    v99 = checked_add uint256, v78, v98
     jump bb24
   bb24:                                           ; preds = bb22
     jump bb21
   bb21:                                           ; preds = bb24
-    v99 = checked_add uint256, v79, 1
+    v100 = checked_add uint256, v80, 1
     jump bb19
   bb17:                                           ; preds = bb16
     v74 = add v1, 2

@@ -301,9 +301,17 @@ fn @assign() -> struct5 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[
 ; function swap() external pure returns (uint256, uint256, uint256, uint256) [selector 0x8119c065]
 fn @swap() -> struct6 [selector=0x8119c065, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
-    v0 = insert_value struct6, undef struct6, 0, 2
-    v1 = insert_value struct6, v0, 1, 1
-    v2 = insert_value struct6, v1, 2, 4
-    v3 = insert_value struct6, v2, 3, 3
-    ret v3
+    v0 = assign 1
+    v1 = assign 2
+    v2 = assign 3
+    v3 = assign 4
+    v4 = assign v2
+    v5 = assign v3
+    v6 = assign v0
+    v7 = assign v1
+    v8 = insert_value struct6, undef struct6, 0, v7
+    v9 = insert_value struct6, v8, 1, v6
+    v10 = insert_value struct6, v9, 2, v5
+    v11 = insert_value struct6, v10, 3, v4
+    ret v11
 }

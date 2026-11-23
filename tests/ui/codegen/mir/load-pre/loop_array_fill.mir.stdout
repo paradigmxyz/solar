@@ -19,32 +19,33 @@ fn @fill(arg0: i256) -> ptr<memory> [selector=0x3fda5389, pure, abi_params=[uint
     icall panic_if<0x41>, v10
     v11 = alloc zeroed checked v9
     mstore v11, arg0
+    v12 = assign 0
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v12 = phi [bb0: arg0], [bb3: v12]
-    v13 = phi [bb0: v11], [bb3: v13]
-    v14 = phi [bb0: 0], [bb3: v23]
-    v15 = lt v14, v12
-    jumpi v15, bb4, bb5
+    v13 = phi [bb0: arg0], [bb3: v13]
+    v14 = phi [bb0: v11], [bb3: v14]
+    v15 = phi [bb0: v12], [bb3: v24]
+    v16 = lt v15, v13
+    jumpi v16, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
-    ret v13
+    ret v14
   bb4:                                            ; preds = bb1
-    v16 = checked_mul uint256, v14, v14
-    v17 = mload v13
-    v18 = lt v14, v17
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = shl v14, 5
-    v21 = ptradd v13, v20
-    v22 = ptradd v21, 32
-    mstore v22, v16
+    v17 = checked_mul uint256, v15, v15
+    v18 = mload v14
+    v19 = lt v15, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = shl v15, 5
+    v22 = ptradd v14, v21
+    v23 = ptradd v22, 32
+    mstore v23, v17
     jump bb6
   bb6:                                            ; preds = bb4
     jump bb3
   bb3:                                            ; preds = bb6
-    v23 = checked_add uint256, v14, 1
+    v24 = checked_add uint256, v15, 1
     jump bb1
 }
 
@@ -68,35 +69,36 @@ fn @lanes(arg0: i256) -> ptr<memory> [selector=0x713c311a, pure, abi_params=[uin
     icall panic_if<0x41>, v11
     v12 = alloc zeroed checked v10
     mstore v12, v0
+    v13 = assign 0
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v13 = phi [bb0: arg0], [bb3: v13]
-    v14 = phi [bb0: v12], [bb3: v14]
-    v15 = phi [bb0: v0], [bb3: v15]
-    v16 = phi [bb0: 0], [bb3: v27]
-    v17 = lt v16, v15
-    jumpi v17, bb4, bb5
+    v14 = phi [bb0: arg0], [bb3: v14]
+    v15 = phi [bb0: v12], [bb3: v15]
+    v16 = phi [bb0: v0], [bb3: v16]
+    v17 = phi [bb0: v13], [bb3: v28]
+    v18 = lt v17, v16
+    jumpi v18, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
-    ret v14
+    ret v15
   bb4:                                            ; preds = bb1
-    v18 = checked_mul uint256, v16, 32
-    v19 = shr v13, v18
-    v20 = and v19, 0xffffffff
-    v21 = mload v14
-    v22 = lt v16, v21
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = shl v16, 5
-    v25 = ptradd v14, v24
-    v26 = ptradd v25, 32
-    mstore v26, v20
+    v19 = checked_mul uint256, v17, 32
+    v20 = shr v14, v19
+    v21 = and v20, 0xffffffff
+    v22 = mload v15
+    v23 = lt v17, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = shl v17, 5
+    v26 = ptradd v15, v25
+    v27 = ptradd v26, 32
+    mstore v27, v21
     jump bb6
   bb6:                                            ; preds = bb4
     jump bb3
   bb3:                                            ; preds = bb6
-    v27 = checked_add uint256, v16, 1
+    v28 = checked_add uint256, v17, 1
     jump bb1
 }
 

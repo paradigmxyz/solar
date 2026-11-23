@@ -664,10 +664,12 @@ fn @trace(arg0: i256) -> i256 {
 ; constructor() rawModifier() [creation entry]
 fn @constructor() [constructor] {
   bb0:
-    sstore 1, 0x5678 !metadata(storage=slot(1))
-    v0 = icall @forward, 0x1234
-    v1 = icall @internal_dispatcher_p_uint8_r_uint8, 1, v0
-    sstore 0, v1 !metadata(storage=slot(0))
+    v0 = assign 0x5678
+    sstore 1, v0 !metadata(storage=slot(1))
+    v1 = icall @forward, 0x1234
+    v2 = assign 1
+    v3 = icall @internal_dispatcher_p_uint8_r_uint8, v2, v1
+    sstore 0, v3 !metadata(storage=slot(0))
     jump bb2
   bb2:                                            ; preds = bb0
     jump bb1
@@ -712,10 +714,12 @@ fn @internal_dispatcher_p_uint8_r_uint8(arg0: i256, arg1: i256) -> i256 [functio
 ; creation entry
 fn @constructor() [constructor] {
   bb0:
-    sstore 1, 0x5678 !metadata(storage=slot(1))
-    v0 = icall @forward, 0x1234
-    v1 = icall @internal_dispatcher_p_uint8_r_uint8, 1, v0
-    sstore 0, v1 !metadata(storage=slot(0))
+    v0 = assign 0x5678
+    sstore 1, v0 !metadata(storage=slot(1))
+    v1 = icall @forward, 0x1234
+    v2 = assign 1
+    v3 = icall @internal_dispatcher_p_uint8_r_uint8, v2, v1
+    sstore 0, v3 !metadata(storage=slot(0))
     jump bb3
   bb3:                                            ; preds = bb0
     jump bb2
@@ -762,10 +766,12 @@ fn @internal_dispatcher_p_uint8_r_uint8(arg0: i256, arg1: i256) -> i256 [functio
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
-    sstore 1, 0x5678 !metadata(storage=slot(1))
-    v0 = icall @forward, 0x1234
-    v1 = icall @internal_dispatcher_p_uint8_r_uint8, 1, v0
-    sstore 0, v1 !metadata(storage=slot(0))
+    v0 = assign 0x5678
+    sstore 1, v0 !metadata(storage=slot(1))
+    v1 = icall @forward, 0x1234
+    v2 = assign 1
+    v3 = icall @internal_dispatcher_p_uint8_r_uint8, v2, v1
+    sstore 0, v3 !metadata(storage=slot(0))
     jump bb3
   bb3:                                            ; preds = bb0
     jump bb2

@@ -351,6 +351,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             || self.default_bindings.contains(&id)
             || self.deferred_bindings.contains(&id)
         {
+            let value = self.assigned_value(value);
             self.assign_local(id, value);
             return Some(());
         }

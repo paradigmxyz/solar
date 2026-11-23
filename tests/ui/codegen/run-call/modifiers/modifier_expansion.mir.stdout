@@ -136,6 +136,7 @@ fn @repeatTrue() -> i256 [selector=0x7cf22419, abi_params=[], abi_returns=[word]
 ; function modifierMutates(uint256 value) external mutates(2) returns (uint256) [selector 0x0c3d6b6e]
 fn @modifierMutates(arg0: i256) -> i256 [selector=0x0c3d6b6e, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
+    v0 = assign 7
     jump bb2
   bb2:                                            ; preds = bb0
     jump bb1

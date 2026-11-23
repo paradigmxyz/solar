@@ -3,22 +3,25 @@
 ; function compareBytes32(bytes32 a, bytes32 b) external pure returns (bool) [selector 0x824a2a4e]
 fn @compareBytes32(arg0: i256, arg1: i256) -> i256 [selector=0x824a2a4e, pure, abi_params=[bytes32, bytes32], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_uint256_uint256_r_bool, 1, arg0, arg1
-    ret v0
+    v0 = assign 1
+    v1 = icall @internal_dispatcher_p_uint256_uint256_r_bool, v0, arg0, arg1
+    ret v1
 }
 
 ; function compareAddress(uint256 a, uint256 b) external pure returns (bool) [selector 0xf627b917]
 fn @compareAddress(arg0: i256, arg1: i256) -> i256 [selector=0xf627b917, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_uint256_uint256_r_bool, 2, arg0, arg1
-    ret v0
+    v0 = assign 2
+    v1 = icall @internal_dispatcher_p_uint256_uint256_r_bool, v0, arg0, arg1
+    ret v1
 }
 
 ; function compareInt256(uint256 a, uint256 b) external pure returns (bool) [selector 0x28717b2d]
 fn @compareInt256(arg0: i256, arg1: i256) -> i256 [selector=0x28717b2d, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_uint256_uint256_r_bool, 3, arg0, arg1
-    ret v0
+    v0 = assign 3
+    v1 = icall @internal_dispatcher_p_uint256_uint256_r_bool, v0, arg0, arg1
+    ret v1
 }
 
 ; function _bytes32Greater(bytes32 a, bytes32 b) private pure returns (bool)

@@ -14,25 +14,27 @@ fn @echo(arg0: i256) -> i256 [selector=0x6279e43c, pure, abi_params=[uint256], a
 ; function keepsLocal(uint256 a, uint256 b, uint256 c, uint256 d, uint256 e) external pure returns (uint256 r) [selector 0x0ea6bb92]
 fn @keepsLocal(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i256 [selector=0x0ea6bb92, pure, abi_params=[uint256, uint256, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = gt arg0, 0
-    jumpi v0, bb1, bb2
+    v0 = assign 1
+    v1 = gt arg0, 0
+    jumpi v1, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
+    v2 = assign 42
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v1 = phi [bb1: 42], [bb2: 1]
-    v2 = calldatasize
-    calldatacopy 0, 0, v2 !metadata(memory=scratch)
-    v3 = checked_add uint256, v1, arg1
-    v4 = checked_sub uint256, v3, arg1
-    v5 = checked_add uint256, v4, arg2
-    v6 = checked_sub uint256, v5, arg2
-    v7 = checked_add uint256, v6, arg3
-    v8 = checked_sub uint256, v7, arg3
-    v9 = checked_add uint256, v8, arg4
-    v10 = checked_sub uint256, v9, arg4
-    ret v10
+    v3 = phi [bb1: v2], [bb2: v0]
+    v4 = calldatasize
+    calldatacopy 0, 0, v4 !metadata(memory=scratch)
+    v5 = checked_add uint256, v3, arg1
+    v6 = checked_sub uint256, v5, arg1
+    v7 = checked_add uint256, v6, arg2
+    v8 = checked_sub uint256, v7, arg2
+    v9 = checked_add uint256, v8, arg3
+    v10 = checked_sub uint256, v9, arg3
+    v11 = checked_add uint256, v10, arg4
+    v12 = checked_sub uint256, v11, arg4
+    ret v12
 }
 
 ; function forwards() external returns (uint256) [selector 0xa38e2a32]

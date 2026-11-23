@@ -8,8 +8,8 @@ fn @search(arg0: ptr<memory>, arg1: i160) -> i256 [selector=0xcca1bff1, pure, ab
   bb1:                                            ; preds = bb0, bb5
     v1 = phi [bb0: arg0], [bb5: v1]
     v2 = phi [bb0: arg1], [bb5: v2]
-    v3 = phi [bb0: 0], [bb5: v18]
-    v4 = phi [bb0: v0], [bb5: v19]
+    v3 = phi [bb0: 0], [bb5: v19]
+    v4 = phi [bb0: v0], [bb5: v20]
     v5 = lt v3, v4
     jumpi v5, bb3, bb4
   bb4:                                            ; preds = bb1
@@ -31,13 +31,14 @@ fn @search(arg0: ptr<memory>, arg1: i160) -> i256 [selector=0xcca1bff1, pure, ab
     v16 = lt v15, v2
     jumpi v16, bb6, bb7
   bb7:                                            ; preds = bb3
+    v18 = assign v7
     jump bb8
   bb6:                                            ; preds = bb3
     v17 = checked_add uint256, v7, 1
     jump bb8
   bb8:                                            ; preds = bb6, bb7
-    v18 = phi [bb6: v17], [bb7: v3]
-    v19 = phi [bb6: v4], [bb7: v7]
+    v19 = phi [bb6: v17], [bb7: v3]
+    v20 = phi [bb6: v4], [bb7: v18]
     jump bb5
   bb5:                                            ; preds = bb8
     jump bb1

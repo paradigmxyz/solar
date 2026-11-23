@@ -6,13 +6,14 @@
 ; function checkedDirtyOperands() external pure returns (int256, int256) [selector 0xfef4b418]
 fn @checkedDirtyOperands() -> struct0 [selector=0xfef4b418, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[int256, int256]] {
   bb0:
-    v0 = checked_pow int32, i32 0xfffffffd, 2
-    v1 = sext i32 v0 to i256
-    v2 = checked_pow int32, i32 0xfffffffd, 3
-    v3 = sext i32 v2 to i256
-    v4 = insert_value struct0, undef struct0, 0, v1
-    v5 = insert_value struct0, v4, 1, v3
-    ret v5
+    v0 = assign i32 0xfffffffd
+    v1 = checked_pow int32, v0, 2
+    v2 = sext i32 v1 to i256
+    v3 = checked_pow int32, v0, 3
+    v4 = sext i32 v3 to i256
+    v5 = insert_value struct0, undef struct0, 0, v2
+    v6 = insert_value struct0, v5, 1, v4
+    ret v6
 }
 
 ; function uncheckedDirtyOperands() external pure returns (uint256 result) [selector 0x84faa534]
@@ -27,24 +28,28 @@ fn @uncheckedDirtyOperands() -> i256 [selector=0x84faa534, pure, abi_params=[], 
 ; function copiedDirtyOperand() external pure returns (uint256) [selector 0x2f5133b3]
 fn @copiedDirtyOperand() -> i256 [selector=0x2f5133b3, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_pow uint256, 3, 2
-    ret v0
+    v0 = assign 258
+    v1 = trunc i256 v0 to i8
+    v2 = zext i8 v1 to i256
+    v3 = checked_pow uint256, 3, v2
+    ret v3
 }
 
 ; function branchedDirtyOperand(bool chooseDirty) external pure returns (int256) [selector 0x3d6d96b7]
 fn @branchedDirtyOperand(arg0: i1) -> i256 [selector=0x3d6d96b7, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
+    v0 = assign 2
     jumpi arg0, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v0 = phi [bb1: 259], [bb2: 2]
-    v1 = trunc i256 v0 to i8
-    v2 = zext i8 v1 to i256
-    v3 = checked_pow int256, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd, v2
-    ret v3
+    v1 = phi [bb1: 259], [bb2: v0]
+    v2 = trunc i256 v1 to i8
+    v3 = zext i8 v2 to i256
+    v4 = checked_pow int256, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd, v3
+    ret v4
 }
 
 ; function fullWidthOperands() external pure returns (uint256) [selector 0xd0e127e5]

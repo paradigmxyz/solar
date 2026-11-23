@@ -40,42 +40,43 @@ fn @storageLoopMemory(arg0: i256) -> i256 [selector=0xb09bad66, abi_params=[uint
 fn @rebindLoop(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0x936672d8, abi_params=[bool, uint256, uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = mapping_slot arg1, 0
+    v1 = assign 0
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: arg1], [bb3: v2]
-    v3 = phi [bb0: arg2], [bb3: v3]
-    v4 = phi [bb0: arg3], [bb3: v4]
-    v5 = phi [bb0: 0], [bb3: v5]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = phi [bb0: arg1], [bb3: v3]
+    v4 = phi [bb0: arg2], [bb3: v4]
+    v5 = phi [bb0: arg3], [bb3: v5]
     v6 = phi [bb0: 0], [bb3: v6]
-    v7 = phi [bb0: 0], [bb3: v12]
-    v8 = phi [bb0: v0], [bb3: v11]
-    v9 = lt v7, 1
-    jumpi v9, bb4, bb5
+    v7 = phi [bb0: 0], [bb3: v7]
+    v8 = phi [bb0: v1], [bb3: v13]
+    v9 = phi [bb0: v0], [bb3: v12]
+    v10 = lt v8, 1
+    jumpi v10, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
-    sstore v8, v4 !metadata(storage=symbolic(v8))
-    v13 = mapping_slot v2, 0
-    v14 = sload v13 !metadata(storage=symbolic(v13))
-    v15 = mapping_slot v3, 0
-    v16 = sload v15 !metadata(storage=symbolic(v15))
-    v17 = insert_value struct0, undef struct0, 0, v14
-    v18 = insert_value struct0, v17, 1, v16
-    ret v18
+    sstore v9, v5 !metadata(storage=symbolic(v9))
+    v14 = mapping_slot v3, 0
+    v15 = sload v14 !metadata(storage=symbolic(v14))
+    v16 = mapping_slot v4, 0
+    v17 = sload v16 !metadata(storage=symbolic(v16))
+    v18 = insert_value struct0, undef struct0, 0, v15
+    v19 = insert_value struct0, v18, 1, v17
+    ret v19
   bb4:                                            ; preds = bb1
-    jumpi v1, bb7, bb8
+    jumpi v2, bb7, bb8
   bb8:                                            ; preds = bb4
     jump bb9
   bb7:                                            ; preds = bb4
-    v10 = mapping_slot v3, 0
+    v11 = mapping_slot v4, 0
     jump bb9
   bb9:                                            ; preds = bb7, bb8
-    v11 = phi [bb7: v10], [bb8: v8]
+    v12 = phi [bb7: v11], [bb8: v9]
     jump bb6
   bb6:                                            ; preds = bb9
     jump bb3
   bb3:                                            ; preds = bb6
-    v12 = checked_add uint256, v7, 1
+    v13 = checked_add uint256, v8, 1
     jump bb1
 }

@@ -98,6 +98,12 @@ nonzero truth conversion. Pointer casts establish no validity or ownership. Phi
 inputs, struct fields, arguments, and results must match their declared types;
 equal storage width does not permit an implicit conversion.
 
+`assign value` copies an integer into a new value of the same type. Lowering
+emits it only at `-O none`, for the assignment to a named variable of a value
+that no instruction of the statement defines, such as the `8` of `y = 8`. It is
+the instruction that keeps the assignment's source location. Optimized builds
+never emit it.
+
 Every operation declares its operand contract in the operation schema. The validator
 checks those contracts, dependent result types, builtin and function signatures,
 aggregate layouts, and terminators. Phase transitions and the backend boundary run

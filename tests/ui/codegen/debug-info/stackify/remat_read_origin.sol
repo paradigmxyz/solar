@@ -15,7 +15,7 @@
 // NONE: [loop] !metadata(
 // NONE-NEXT: push 4 !metadata(span=[[COND:[0-9]+..[0-9]+]])
 // NONE-NEXT: calldataload !metadata(span=[[COND]])
-// NONE-NEXT: dup 2 !metadata(span=[[COND]])
+// NONE-NEXT: dup 3 !metadata(span=[[COND]])
 // NONE-NEXT: lt !metadata(span=[[COND]])
 
 // An unoptimized build keeps the definition of a read that is an item of its own, such as the

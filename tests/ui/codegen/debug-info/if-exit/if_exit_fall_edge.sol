@@ -15,7 +15,8 @@
 contract C {
     // NONE-LABEL: ; function states(
     // NONE: push 33 !metadata(span=
-    // NONE-NEXT: swap 1{{$}}
+    // NONE-NEXT: swap 2{{$}}
+    // NONE-NEXT: pop{{$}}
     // NONE-NEXT: jump {{bb[0-9]+}}{{$}}
     function states(uint256 n) external pure returns (uint256) {
         uint256 state = 0;

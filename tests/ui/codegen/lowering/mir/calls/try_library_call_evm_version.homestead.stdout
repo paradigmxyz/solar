@@ -49,14 +49,16 @@ fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[uint256], abi_
   bb2 [cold_hint]:                                ; preds = bb0
     jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
+    v16 = assign 7
     jump bb3
   bb1:                                            ; preds = bb0
     v14 = mload v5
     sstore 0, v14 !metadata(storage=slot(0))
+    v15 = assign v14
     jump bb3
   bb3:                                            ; preds = bb1, bb4
-    v15 = phi [bb1: v14], [bb4: 7]
-    ret v15
+    v17 = phi [bb1: v15], [bb4: v16]
+    ret v17
   bb5 [cold_hint]:
     icall revert_if<empty>, true
     invalid
@@ -81,13 +83,15 @@ fn @libNoReturn(arg0: i256) -> i256 [selector=0x364676bf, abi_params=[uint256], 
   bb2 [cold_hint]:                                ; preds = bb0
     jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
+    v12 = assign 7
     jump bb3
   bb1:                                            ; preds = bb0
     sstore 0, 1 !metadata(storage=slot(0))
+    v11 = assign 1
     jump bb3
   bb3:                                            ; preds = bb1, bb4
-    v11 = phi [bb1: 1], [bb4: 7]
-    ret v11
+    v13 = phi [bb1: v11], [bb4: v12]
+    ret v13
   bb5 [cold_hint]:
     icall revert_if<empty>, true
     invalid

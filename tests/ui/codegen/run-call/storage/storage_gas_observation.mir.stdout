@@ -34,10 +34,11 @@ fn @forwardedLoad() -> i256 [selector=0x7cfab297, abi_params=[], abi_returns=[wo
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
+    v6 = assign 99
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v6 = phi [bb1: 99], [bb2: v1]
-    ret v6
+    v7 = phi [bb1: v6], [bb2: v1]
+    ret v7
 }
 
 ; === ROOT/tests/ui/codegen/run-call/storage/storage_gas_observation.sol:StorageGasCfgObservation ===

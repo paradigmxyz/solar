@@ -22,33 +22,35 @@ fn @foo() -> i256 [selector=0xc2985578, pure, abi_params=[], abi_returns=[word],
 ; function test() public returns (uint256) [selector 0xf8a8fd6d]
 fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = address
-    v1 = zext i160 v0 to i256
-    v2 = shl v1, 32
-    v3 = or v2, 0xc2985578
-    v4 = address
-    v5 = zext i160 v4 to i256
-    v6 = shl v5, 32
-    v7 = or v6, 0xc2985578
-    v8 = icall @internal_dispatcher_p_function_function_r_function, 2, v3, v7
-    v9 = and v8, 0xffffffff
-    v10 = shl v9, 224
-    v11 = shr v8, 32
-    v12 = gas
-    v13 = shr v10, 224
-    mstore 0, v13 !metadata(memory=scratch)
-    v14 = call v12, v11, 0, 28, 4, 0, 32
-    jumpi v14, bb2, bb1
+    v0 = assign 1
+    v1 = assign 2
+    v2 = address
+    v3 = zext i160 v2 to i256
+    v4 = shl v3, 32
+    v5 = or v4, 0xc2985578
+    v6 = address
+    v7 = zext i160 v6 to i256
+    v8 = shl v7, 32
+    v9 = or v8, 0xc2985578
+    v10 = icall @internal_dispatcher_p_function_function_r_function, v1, v5, v9
+    v11 = and v10, 0xffffffff
+    v12 = shl v11, 224
+    v13 = shr v10, 32
+    v14 = gas
+    v15 = shr v12, 224
+    mstore 0, v15 !metadata(memory=scratch)
+    v16 = call v14, v13, 0, 28, 4, 0, 32
+    jumpi v16, bb2, bb1
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v15 = returndatasize
-    v16 = lt v15, 32
-    icall revert_if<tuple_data_too_short>, v16
-    v17 = mload 0 !metadata(memory=scratch)
-    v18 = icall @internal_dispatcher_p_uint256_uint256_r_uint256, 1, 5, 1
-    v19 = checked_add uint256, v17, v18
-    ret v19
+    v17 = returndatasize
+    v18 = lt v17, 32
+    icall revert_if<tuple_data_too_short>, v18
+    v19 = mload 0 !metadata(memory=scratch)
+    v20 = icall @internal_dispatcher_p_uint256_uint256_r_uint256, v0, 5, 1
+    v21 = checked_add uint256, v19, v20
+    ret v21
 }
 
 fn @internal_dispatcher_p_function_function_r_function(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {

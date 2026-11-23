@@ -41,7 +41,8 @@ contract HigherOrderFunctionPointer {
     }
 
     // CHECK-LABEL: fn @callReturned(
-    // CHECK: icall @[[DISPATCHER:internal_dispatcher_[A-Za-z0-9_]+]], [[HIGHER3:[0-9]+]]
+    // CHECK: [[POINTER:v[0-9]+]] = assign [[HIGHER3:[0-9]+]]
+    // CHECK-NEXT: icall @[[DISPATCHER:internal_dispatcher_[A-Za-z0-9_]+]], [[POINTER]]
     // CHECK: icall @[[DISPATCHER]], {{v[0-9]+}}
     // CHECK: icall @[[DISPATCHER]], {{v[0-9]+}}
     // CHECK: icall @[[DISPATCHER_1:internal_dispatcher_[A-Za-z0-9_]+]], {{v[0-9]+}}

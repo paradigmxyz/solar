@@ -941,6 +941,13 @@ impl<'a> FunctionBuilder<'a> {
         self.append_instruction(inst).1.unwrap()
     }
 
+    /// Copies the integer `value` into a new value defined by its own instruction.
+    pub fn assign(&mut self, value: ValueId) -> ValueId {
+        let ty = self.func.value_ty(value);
+        // result = assign value
+        self.emit_inst_unfolded(InstKind::Assign(value), ty)
+    }
+
     /// Emits an instruction that produces no value, such as a store or a log.
     ///
     /// No result [`Value`] is allocated: only value-producing instructions get

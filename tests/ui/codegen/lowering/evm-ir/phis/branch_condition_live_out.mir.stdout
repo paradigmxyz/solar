@@ -10,24 +10,26 @@ fn @comparisons(arg0: i256, arg1: i256) -> struct0 [selector=0xb5d0691b, pure, a
     v1 = ne arg1, arg0
     jumpi v0, bb1, bb2
   bb2:                                            ; preds = bb0
+    v3 = assign 2
     jump bb3
   bb1:                                            ; preds = bb0
+    v2 = assign 1
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v2 = phi [bb1: 1], [bb2: 2]
+    v4 = phi [bb1: v2], [bb2: v3]
     jumpi v1, bb4, bb5
   bb5:                                            ; preds = bb3
-    v4 = checked_add uint256, v2, 10
+    v6 = checked_add uint256, v4, 10
     jump bb6
   bb4:                                            ; preds = bb3
-    v3 = checked_add uint256, v2, 20
+    v5 = checked_add uint256, v4, 20
     jump bb6
   bb6:                                            ; preds = bb4, bb5
-    v5 = phi [bb4: v3], [bb5: v4]
-    v6 = insert_value struct0, undef struct0, 0, v0
-    v7 = insert_value struct0, v6, 1, v1
-    v8 = insert_value struct0, v7, 2, v5
-    ret v8
+    v7 = phi [bb4: v5], [bb5: v6]
+    v8 = insert_value struct0, undef struct0, 0, v0
+    v9 = insert_value struct0, v8, 1, v1
+    v10 = insert_value struct0, v9, 2, v7
+    ret v10
 }
 
 ; function zeros(uint256 value) public pure returns (bool equal, bool different, uint256 result) [selector 0xe8295588]
@@ -37,44 +39,49 @@ fn @zeros(arg0: i256) -> struct0 [selector=0xe8295588, pure, abi_params=[uint256
     v1 = ne arg0, 0
     jumpi v0, bb1, bb2
   bb2:                                            ; preds = bb0
+    v3 = assign 2
     jump bb3
   bb1:                                            ; preds = bb0
+    v2 = assign 1
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v2 = phi [bb1: 1], [bb2: 2]
+    v4 = phi [bb1: v2], [bb2: v3]
     jumpi v1, bb4, bb5
   bb5:                                            ; preds = bb3
-    v4 = checked_add uint256, v2, 10
+    v6 = checked_add uint256, v4, 10
     jump bb6
   bb4:                                            ; preds = bb3
-    v3 = checked_add uint256, v2, 20
+    v5 = checked_add uint256, v4, 20
     jump bb6
   bb6:                                            ; preds = bb4, bb5
-    v5 = phi [bb4: v3], [bb5: v4]
-    v6 = insert_value struct0, undef struct0, 0, v0
-    v7 = insert_value struct0, v6, 1, v1
-    v8 = insert_value struct0, v7, 2, v5
-    ret v8
+    v7 = phi [bb4: v5], [bb5: v6]
+    v8 = insert_value struct0, undef struct0, 0, v0
+    v9 = insert_value struct0, v8, 1, v1
+    v10 = insert_value struct0, v9, 2, v7
+    ret v10
 }
 
 ; function pick(uint256 flag, uint256 x) public pure returns (uint256) [selector 0xa62f4550]
 fn @pick(arg0: i256, arg1: i256) -> i256 [selector=0xa62f4550, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = ne arg0, 0
+    v1 = assign 0
     jumpi v0, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
+    v2 = assign arg1
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v1 = phi [bb1: arg1], [bb2: 0]
-    v2 = checked_add uint256, v1, 1
+    v3 = phi [bb1: v2], [bb2: v1]
+    v4 = checked_add uint256, v3, 1
     jumpi v0, bb4, bb5
   bb5:                                            ; preds = bb3
     jump bb6
   bb4:                                            ; preds = bb3
+    v5 = assign v4
     jump bb6
   bb6:                                            ; preds = bb4, bb5
-    v3 = phi [bb4: v2], [bb5: v1]
-    ret v3
+    v6 = phi [bb4: v5], [bb5: v3]
+    ret v6
 }

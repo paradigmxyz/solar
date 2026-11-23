@@ -1027,6 +1027,7 @@ symbols! {
         array,
         asm,
         assert,
+        assign,
         at,
         base,
         block,

@@ -5,7 +5,7 @@ fn @countLoop() -> i256 [selector=0xcf886ab8, pure, abi_params=[], abi_returns=[
   bb0:
     jump bb1
   bb1:                                            ; preds = bb0, bb5
-    v0 = phi [bb0: 0], [bb5: v4]
+    v0 = phi [bb0: 0], [bb5: v5]
     v1 = phi [bb0: 0], [bb5: v3]
     v2 = lt v1, 5
     jumpi v2, bb3, bb4
@@ -15,7 +15,8 @@ fn @countLoop() -> i256 [selector=0xcf886ab8, pure, abi_params=[], abi_returns=[
     ret v0
   bb3:                                            ; preds = bb1
     v3 = checked_add uint256, v1, 1
-    v4 = checked_add uint256, v0, v1
+    v4 = assign v1
+    v5 = checked_add uint256, v0, v4
     jump bb5
   bb5:                                            ; preds = bb3
     jump bb1
@@ -58,9 +59,10 @@ fn @sumIndexed() -> i256 [selector=0x4130978a, pure, abi_params=[], abi_returns=
 ; function multiDecl() external pure returns (uint256) [selector 0x71fe0bed]
 fn @multiDecl() -> i256 [selector=0x71fe0bed, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = checked_add uint256, 3, 1
-    v1 = checked_add uint256, 3, v0
-    ret v1
+    v0 = assign 3
+    v1 = checked_add uint256, v0, 1
+    v2 = checked_add uint256, v0, v1
+    ret v2
 }
 
 ; function asmUse() external pure returns (uint256 r) [selector 0x36f77e40]
@@ -68,7 +70,7 @@ fn @asmUse() -> i256 [selector=0x36f77e40, pure, abi_params=[], abi_returns=[wor
   bb0:
     jump bb1
   bb1:                                            ; preds = bb0, bb5
-    v0 = phi [bb0: 0], [bb5: v5]
+    v0 = phi [bb0: 0], [bb5: v6]
     v1 = phi [bb0: 0], [bb5: v3]
     v2 = lt v1, 4
     jumpi v2, bb3, bb4
@@ -78,8 +80,9 @@ fn @asmUse() -> i256 [selector=0x36f77e40, pure, abi_params=[], abi_returns=[wor
     ret v0
   bb3:                                            ; preds = bb1
     v3 = checked_add uint256, v1, 1
-    v4 = mul v1, 2
-    v5 = add v4, v0
+    v4 = assign v1
+    v5 = mul v4, 2
+    v6 = add v5, v0
     jump bb5
   bb5:                                            ; preds = bb3
     jump bb1
@@ -152,29 +155,33 @@ fn @branchScopeLoop(arg0: i1, arg1: i256) -> i256 [selector=0x4a889218, pure, ab
   bb0:
     jumpi arg0, bb1, bb2
   bb2:                                            ; preds = bb0
+    v2 = assign 2
+    v3 = assign v2
     jump bb3
   bb1:                                            ; preds = bb0
+    v0 = assign 1
+    v1 = assign v0
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v0 = phi [bb1: 1], [bb2: 2]
+    v4 = phi [bb1: v1], [bb2: v3]
     jump bb4
   bb4:                                            ; preds = bb3, bb6
-    v1 = phi [bb3: arg0], [bb6: v1]
-    v2 = phi [bb3: arg1], [bb6: v2]
-    v3 = phi [bb3: v0], [bb6: v6]
-    v4 = phi [bb3: 0], [bb6: v7]
-    v5 = lt v4, v2
-    jumpi v5, bb7, bb8
+    v5 = phi [bb3: arg0], [bb6: v5]
+    v6 = phi [bb3: arg1], [bb6: v6]
+    v7 = phi [bb3: v4], [bb6: v10]
+    v8 = phi [bb3: 0], [bb6: v11]
+    v9 = lt v8, v6
+    jumpi v9, bb7, bb8
   bb8:                                            ; preds = bb4
     jump bb5
   bb5:                                            ; preds = bb8
-    ret v3
+    ret v7
   bb7:                                            ; preds = bb4
-    v6 = checked_add uint256, v3, v4
+    v10 = checked_add uint256, v7, v8
     jump bb9
   bb9:                                            ; preds = bb7
     jump bb6
   bb6:                                            ; preds = bb9
-    v7 = checked_add uint256, v4, 1
+    v11 = checked_add uint256, v8, 1
     jump bb4
 }

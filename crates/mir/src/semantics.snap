@@ -1,5 +1,6 @@
 insert_value: -
 extract_value: -
+assign: word(a)
 zext: word(operand0)
 trunc: low_bits(operand0, bits)
 sext: sign_extend(operand0, from_bits, to_bits)

@@ -464,30 +464,22 @@ fn phi_operand_copies_map_to_their_assignments() {
             let end = start + statement.len();
             entries.iter().any(|&entry| in_statement(entry, 0, start, end))
         };
-        // The copy of each constant on an unconditional edge runs once per run of its assignment:
-        // the loop's entry constants, the constant of an `if` arm, and the value of a `return`
-        // that leaves through the modifier's continuation. So does the `DUP` that copies a value
-        // that stays live, as in `x = s`.
-        // The empty arm of `if (i % 3 == 0)` is bypassed, and `state = 7` stays on the one edge
-        // that the arm left, whose push of the constant runs exactly when the arm does. The same
-        // holds for `x = 11`, whose edge the overflow check of the next statement leaves as the
-        // branch's fall-through, emitted inline after the `JUMPI`.
+        // Every assignment keeps an instruction of its own at `-O none`: the loop's entry
+        // constants, the constants of the `if` arms, the value of a `return` that leaves through
+        // the modifier's continuation, and the copies in `x = s` and `w = s`.
         for statement in [
             "uint256 sum = 0",
             "uint256 i = 0",
             "x = 7",
             "return true",
             "x = s",
+            "w = s",
+            "uint256 r = 5",
             "state = 7",
             "x = 11",
         ] {
             assert!(mapped(statement), "{statement} lost its instruction");
         }
-        // The copy on a conditional edge runs on one path only, so it keeps the origin of the
-        // branch: `r = 5` also ran on the path that took the branch.
-        assert!(!mapped("uint256 r = 5"), "`uint256 r = 5` took the origin of a conditional edge");
-        // Two assignments stored `s`, so the copy on the edge stands for neither of them.
-        assert!(!mapped("w = s"), "`w = s` took a copy that `x = s` shares");
     }
 }
 

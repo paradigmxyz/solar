@@ -75,10 +75,11 @@ fn @unwrapped() -> i1 [selector=0x52e7751f, view, abi_params=[], abi_returns=[wo
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
-    v0 = icall @internal_dispatcher_asm_p_uint256_r_bytes4, 1, 0
-    storeimmutable stored, v0
-    v1 = icall @internal_dispatcher_asm_p_uint256_r_bytes4, 1, 0
-    storeimmutable storedWrapped, v1
+    v0 = assign 1
+    v1 = icall @internal_dispatcher_asm_p_uint256_r_bytes4, v0, 0
+    storeimmutable stored, v1
+    v2 = icall @internal_dispatcher_asm_p_uint256_r_bytes4, v0, 0
+    storeimmutable storedWrapped, v2
     ret
 }
 
@@ -124,29 +125,37 @@ fn @internal_dispatcher_asm_p_uint256_r_bytes4(arg0: i256, arg1: i256) -> i256 [
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
-    v0 = icall @internal_dispatcher_asm_p_uint256_r_bytes4, 1, 0
+    v0 = assign 1
+    v1 = icall @internal_dispatcher_asm_p_uint256_r_bytes4, v0, 0
+    v2 = assign v1
+    v3 = assign v2
+    v4 = assign v3
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v1 = phi [bb0: 1], [bb3: v1]
-    v2 = phi [bb0: 1], [bb3: v2]
-    v3 = phi [bb0: v0], [bb3: v5]
-    v4 = phi [bb0: v0], [bb3: v3]
-    v5 = phi [bb0: v0], [bb3: v4]
-    v6 = phi [bb0: v0], [bb3: v5]
-    v7 = phi [bb0: 0], [bb3: v9]
-    v8 = lt v7, 3
-    jumpi v8, bb4, bb5
+    v5 = phi [bb0: v0], [bb3: v5]
+    v6 = phi [bb0: v0], [bb3: v6]
+    v7 = phi [bb0: v1], [bb3: v16]
+    v8 = phi [bb0: v2], [bb3: v15]
+    v9 = phi [bb0: v3], [bb3: v14]
+    v10 = phi [bb0: v4], [bb3: v13]
+    v11 = phi [bb0: 0], [bb3: v17]
+    v12 = lt v11, 3
+    jumpi v12, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
-    storeimmutable looped, v3
+    storeimmutable looped, v7
     ret
   bb4:                                            ; preds = bb1
+    v13 = assign v9
+    v14 = assign v8
+    v15 = assign v7
+    v16 = assign v13
     jump bb6
   bb6:                                            ; preds = bb4
     jump bb3
   bb3:                                            ; preds = bb6
-    v9 = checked_add uint256, v7, 1
+    v17 = checked_add uint256, v11, 1
     jump bb1
 }
 

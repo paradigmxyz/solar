@@ -103,13 +103,15 @@ fn @retLit() -> i256 [selector=0xad0d29ff, pure, abi_params=[], abi_returns=[wor
 ; function declLit() public pure returns (bytes4) [selector 0xe5489b44]
 fn @declLit() -> i256 [selector=0xe5489b44, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
-    ret 0x5566778800000000000000000000000000000000000000000000000000000000
+    v0 = assign 0x5566778800000000000000000000000000000000000000000000000000000000
+    ret v0
 }
 
 ; function assignLit() public pure returns (bytes4 x) [selector 0xa4d2a382]
 fn @assignLit() -> i256 [selector=0xa4d2a382, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
-    ret 0x6677889900000000000000000000000000000000000000000000000000000000
+    v0 = assign 0x6677889900000000000000000000000000000000000000000000000000000000
+    ret v0
 }
 
 ; function mapKeyCross() public returns (uint256) [selector 0xef866c75]
@@ -117,16 +119,18 @@ fn @mapKeyCross() -> i256 [selector=0xef866c75, abi_params=[], abi_returns=[word
   bb0:
     v0 = mapping_slot 0x3132333400000000000000000000000000000000000000000000000000000000, 0
     sstore v0, 5 !metadata(storage=symbolic(v0))
-    v1 = mapping_slot 0x3132333400000000000000000000000000000000000000000000000000000000, 0
-    v2 = sload v1 !metadata(storage=symbolic(v1))
-    ret v2
+    v1 = assign 0x3132333400000000000000000000000000000000000000000000000000000000
+    v2 = mapping_slot v1, 0
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    ret v3
 }
 
 ; function compareControl() public pure returns (bool) [selector 0x86f1fef0]
 fn @compareControl() -> i1 [selector=0x86f1fef0, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = eq 0x4142434400000000000000000000000000000000000000000000000000000000, 0x4142434400000000000000000000000000000000000000000000000000000000
-    ret v0
+    v0 = assign 0x4142434400000000000000000000000000000000000000000000000000000000
+    v1 = eq v0, 0x4142434400000000000000000000000000000000000000000000000000000000
+    ret v1
 }
 
 ; function bytesObjectCast() public pure returns (bytes4) [selector 0x3edbb59d]

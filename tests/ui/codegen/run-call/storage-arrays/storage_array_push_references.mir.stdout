@@ -282,60 +282,62 @@ fn @bytesPush() -> struct1 [selector=0x52808f21, abi_params=[], abi_returns=[wor
 ; function bytesTransition() external returns (uint256) [selector 0xe0a151c6]
 fn @bytesTransition() -> i256 [selector=0xe0a151c6, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
+    v0 = assign i8 1
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v0 = phi [bb0: 0], [bb3: v0]
-    v1 = phi [bb0: i8 1], [bb3: v87]
-    v2 = lt v1, i8 40
-    jumpi v2, bb4, bb5
+    v1 = phi [bb0: 0], [bb3: v1]
+    v2 = phi [bb0: v0], [bb3: v88]
+    v3 = lt v2, i8 40
+    jumpi v3, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
+    v89 = assign i8 1
     jump bb21
   bb21:                                           ; preds = bb2, bb23
-    v88 = phi [bb2: v0], [bb23: v88]
-    v89 = phi [bb2: v1], [bb23: v89]
-    v90 = phi [bb2: i8 1], [bb23: v119]
-    v91 = lt v90, i8 40
-    jumpi v91, bb24, bb25
+    v90 = phi [bb2: v1], [bb23: v90]
+    v91 = phi [bb2: v2], [bb23: v91]
+    v92 = phi [bb2: v89], [bb23: v121]
+    v93 = lt v92, i8 40
+    jumpi v93, bb24, bb25
   bb25:                                           ; preds = bb21
     jump bb22
   bb22:                                           ; preds = bb25
     ret 0
   bb24:                                           ; preds = bb21
-    v92 = checked_sub uint8, v90, i8 1
-    v93 = zext i8 v92 to i256
-    v94 = sload 2 !metadata(storage=slot(2))
-    validate_storage_bytes v94
-    v95 = and v94, 1
-    v96 = eq v95, 1
-    v97 = sub 0, v95
-    v98 = or v97, 127
-    v99 = shr v94, 1
-    v100 = and v99, v98
-    v101 = lt v93, v100
-    v102 = eq v101, false
-    icall panic_if<0x32>, v102
-    jumpi v96, bb27, bb28
+    v94 = checked_sub uint8, v92, i8 1
+    v95 = zext i8 v94 to i256
+    v96 = sload 2 !metadata(storage=slot(2))
+    validate_storage_bytes v96
+    v97 = and v96, 1
+    v98 = eq v97, 1
+    v99 = sub 0, v97
+    v100 = or v99, 127
+    v101 = shr v96, 1
+    v102 = and v101, v100
+    v103 = lt v95, v102
+    v104 = eq v103, false
+    icall panic_if<0x32>, v104
+    jumpi v98, bb27, bb28
   bb28:                                           ; preds = bb24
     jump bb29
   bb27:                                           ; preds = bb24
-    v103 = storage_array_data_slot 2
-    v104 = shr v93, 5
-    v105 = add v103, v104
+    v105 = storage_array_data_slot 2
+    v106 = shr v95, 5
+    v107 = add v105, v106
     jump bb29
   bb29:                                           ; preds = bb27, bb28
-    v106 = phi [bb27: v105], [bb28: 2]
-    v107 = and v93, 31
-    v108 = sub 31, v107
-    v109 = sload v106 !metadata(storage=symbolic(v106))
-    v110 = mul v108, 8
-    v111 = shr v109, v110
-    v112 = shl v111, 248
-    v113 = zext i8 v90 to i256
+    v108 = phi [bb27: v107], [bb28: 2]
+    v109 = and v95, 31
+    v110 = sub 31, v109
+    v111 = sload v108 !metadata(storage=symbolic(v108))
+    v112 = mul v110, 8
+    v113 = shr v111, v112
     v114 = shl v113, 248
-    v115 = ne v112, v114
-    jumpi v115, bb30, bb31
+    v115 = zext i8 v92 to i256
+    v116 = shl v115, 248
+    v117 = ne v114, v116
+    jumpi v117, bb30, bb31
   bb31:                                           ; preds = bb29
     jump bb32
   bb32:                                           ; preds = bb31
@@ -343,129 +345,129 @@ fn @bytesTransition() -> i256 [selector=0xe0a151c6, abi_params=[], abi_returns=[
   bb26:                                           ; preds = bb32
     jump bb23
   bb23:                                           ; preds = bb26
-    v119 = checked_add uint8, v90, i8 1
+    v121 = checked_add uint8, v92, i8 1
     jump bb21
   bb30:                                           ; preds = bb29
-    v116 = zext i8 v90 to i32
-    v117 = checked_add uint32, i32 0x1000000, v116
-    v118 = zext i32 v117 to i256
-    ret v118
+    v118 = zext i8 v92 to i32
+    v119 = checked_add uint32, i32 0x1000000, v118
+    v120 = zext i32 v119 to i256
+    ret v120
   bb4:                                            ; preds = bb1
-    v3 = zext i8 v1 to i256
-    v4 = shl v3, 248
-    v5 = sload 2 !metadata(storage=slot(2))
-    validate_storage_bytes v5
-    v6 = and v5, 1
-    v7 = eq v6, 1
-    v8 = sub 0, v6
-    v9 = or v8, 127
-    v10 = shr v5, 1
-    v11 = and v10, v9
-    v12 = lt v11, 0x10000000000000000
-    v13 = eq v12, false
-    icall panic_if<0x41>, v13
-    v14 = gt v11, 31
-    jumpi v14, bb8, bb7
+    v4 = zext i8 v2 to i256
+    v5 = shl v4, 248
+    v6 = sload 2 !metadata(storage=slot(2))
+    validate_storage_bytes v6
+    v7 = and v6, 1
+    v8 = eq v7, 1
+    v9 = sub 0, v7
+    v10 = or v9, 127
+    v11 = shr v6, 1
+    v12 = and v11, v10
+    v13 = lt v12, 0x10000000000000000
+    v14 = eq v13, false
+    icall panic_if<0x41>, v14
+    v15 = gt v12, 31
+    jumpi v15, bb8, bb7
   bb7:                                            ; preds = bb4
-    v30 = eq v11, 31
-    jumpi v30, bb9, bb10
+    v31 = eq v12, 31
+    jumpi v31, bb9, bb10
   bb10:                                           ; preds = bb7
-    v35 = add v5, 2
-    v36 = sub 31, v11
-    v37 = mul v36, 8
-    v38 = shl 255, v37
-    v39 = not v38
-    v40 = and v35, v39
-    v41 = byte 0, v4
-    v42 = shl v41, v37
-    v43 = or v40, v42
-    sstore 2, v43 !metadata(storage=slot(2))
+    v36 = add v6, 2
+    v37 = sub 31, v12
+    v38 = mul v37, 8
+    v39 = shl 255, v38
+    v40 = not v39
+    v41 = and v36, v40
+    v42 = byte 0, v5
+    v43 = shl v42, v38
+    v44 = or v41, v43
+    sstore 2, v44 !metadata(storage=slot(2))
     jump bb11
   bb9:                                            ; preds = bb7
-    v31 = storage_array_data_slot 2
-    v32 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v33 = byte 0, v4
-    v34 = or v32, v33
-    sstore v31, v34 !metadata(storage=symbolic(v31))
+    v32 = storage_array_data_slot 2
+    v33 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v34 = byte 0, v5
+    v35 = or v33, v34
+    sstore v32, v35 !metadata(storage=symbolic(v32))
     sstore 2, 65 !metadata(storage=slot(2))
     jump bb11
   bb8:                                            ; preds = bb4
-    v15 = add v5, 2
-    sstore 2, v15 !metadata(storage=slot(2))
-    v16 = storage_array_data_slot 2
-    v17 = shr v11, 5
-    v18 = add v16, v17
-    v19 = and v11, 31
-    v20 = sub 31, v19
-    v21 = mul v20, 8
-    v22 = shl 255, v21
-    v23 = sload v18 !metadata(storage=symbolic(v18))
-    v24 = not v22
-    v25 = and v23, v24
-    v26 = shr v4, 248
-    v27 = and v26, 255
-    v28 = shl v27, v21
-    v29 = or v25, v28
-    sstore v18, v29 !metadata(storage=symbolic(v18))
+    v16 = add v6, 2
+    sstore 2, v16 !metadata(storage=slot(2))
+    v17 = storage_array_data_slot 2
+    v18 = shr v12, 5
+    v19 = add v17, v18
+    v20 = and v12, 31
+    v21 = sub 31, v20
+    v22 = mul v21, 8
+    v23 = shl 255, v22
+    v24 = sload v19 !metadata(storage=symbolic(v19))
+    v25 = not v23
+    v26 = and v24, v25
+    v27 = shr v5, 248
+    v28 = and v27, 255
+    v29 = shl v28, v22
+    v30 = or v26, v29
+    sstore v19, v30 !metadata(storage=symbolic(v19))
     jump bb11
   bb11:                                           ; preds = bb8, bb9, bb10
-    v44 = sload 2 !metadata(storage=slot(2))
-    validate_storage_bytes v44
-    v45 = and v44, 1
-    v46 = eq v45, 1
-    v47 = sub 0, v45
-    v48 = or v47, 127
-    v49 = shr v44, 1
-    v50 = and v49, v48
-    v51 = zext i8 v1 to i256
-    v52 = ne v50, v51
-    jumpi v52, bb13, bb12
+    v45 = sload 2 !metadata(storage=slot(2))
+    validate_storage_bytes v45
+    v46 = and v45, 1
+    v47 = eq v46, 1
+    v48 = sub 0, v46
+    v49 = or v48, 127
+    v50 = shr v45, 1
+    v51 = and v50, v49
+    v52 = zext i8 v2 to i256
+    v53 = ne v51, v52
+    jumpi v53, bb13, bb12
   bb12:                                           ; preds = bb11
-    v53 = sload 2 !metadata(storage=slot(2))
-    validate_storage_bytes v53
-    v54 = and v53, 1
-    v55 = eq v54, 1
-    v56 = sub 0, v54
-    v57 = or v56, 127
-    v58 = shr v53, 1
-    v59 = and v58, v57
-    v60 = checked_sub uint256, v59, 1
-    v61 = sload 2 !metadata(storage=slot(2))
-    validate_storage_bytes v61
-    v62 = and v61, 1
-    v63 = eq v62, 1
-    v64 = sub 0, v62
-    v65 = or v64, 127
-    v66 = shr v61, 1
-    v67 = and v66, v65
-    v68 = lt v60, v67
-    v69 = eq v68, false
-    icall panic_if<0x32>, v69
-    jumpi v63, bb15, bb16
+    v54 = sload 2 !metadata(storage=slot(2))
+    validate_storage_bytes v54
+    v55 = and v54, 1
+    v56 = eq v55, 1
+    v57 = sub 0, v55
+    v58 = or v57, 127
+    v59 = shr v54, 1
+    v60 = and v59, v58
+    v61 = checked_sub uint256, v60, 1
+    v62 = sload 2 !metadata(storage=slot(2))
+    validate_storage_bytes v62
+    v63 = and v62, 1
+    v64 = eq v63, 1
+    v65 = sub 0, v63
+    v66 = or v65, 127
+    v67 = shr v62, 1
+    v68 = and v67, v66
+    v69 = lt v61, v68
+    v70 = eq v69, false
+    icall panic_if<0x32>, v70
+    jumpi v64, bb15, bb16
   bb16:                                           ; preds = bb12
     jump bb17
   bb15:                                           ; preds = bb12
-    v70 = storage_array_data_slot 2
-    v71 = shr v60, 5
-    v72 = add v70, v71
+    v71 = storage_array_data_slot 2
+    v72 = shr v61, 5
+    v73 = add v71, v72
     jump bb17
   bb17:                                           ; preds = bb15, bb16
-    v73 = phi [bb15: v72], [bb16: 2]
-    v74 = and v60, 31
-    v75 = sub 31, v74
-    v76 = sload v73 !metadata(storage=symbolic(v73))
-    v77 = mul v75, 8
-    v78 = shr v76, v77
-    v79 = shl v78, 248
-    v80 = zext i8 v1 to i256
-    v81 = shl v80, 248
-    v82 = ne v79, v81
+    v74 = phi [bb15: v73], [bb16: 2]
+    v75 = and v61, 31
+    v76 = sub 31, v75
+    v77 = sload v74 !metadata(storage=symbolic(v74))
+    v78 = mul v76, 8
+    v79 = shr v77, v78
+    v80 = shl v79, 248
+    v81 = zext i8 v2 to i256
+    v82 = shl v81, 248
+    v83 = ne v80, v82
     jump bb14
   bb13:                                           ; preds = bb11
     jump bb14
   bb14:                                           ; preds = bb13, bb17
-    v83 = phi [bb17: v82], [bb13: true]
-    jumpi v83, bb18, bb19
+    v84 = phi [bb17: v83], [bb13: true]
+    jumpi v84, bb18, bb19
   bb19:                                           ; preds = bb14
     jump bb20
   bb20:                                           ; preds = bb19
@@ -473,13 +475,13 @@ fn @bytesTransition() -> i256 [selector=0xe0a151c6, abi_params=[], abi_returns=[
   bb6:                                            ; preds = bb20
     jump bb3
   bb3:                                            ; preds = bb6
-    v87 = checked_add uint8, v1, i8 1
+    v88 = checked_add uint8, v2, i8 1
     jump bb1
   bb18:                                           ; preds = bb14
-    v84 = zext i8 v1 to i16
-    v85 = checked_add uint16, i16 0x1000, v84
-    v86 = zext i16 v85 to i256
-    ret v86
+    v85 = zext i8 v2 to i16
+    v86 = checked_add uint16, i16 0x1000, v85
+    v87 = zext i16 v86 to i256
+    ret v87
 }
 
 ; function pushPreservesStorage() external returns (uint256) [selector 0x2bc06499]

@@ -127,14 +127,15 @@ fn @maybe(arg0: i1) -> i256 [selector=0xe13e4d4f, pure, abi_params=[bool], abi_r
   bb3:                                            ; preds = bb0
     jump bb4
   bb4:                                            ; preds = bb3
+    v0 = assign 7
     jump bb5
   bb5:                                            ; preds = bb4
     jump bb1
   bb2:                                            ; preds = bb0
     jump bb1
   bb1:                                            ; preds = bb2, bb5
-    v0 = phi [bb2: 0], [bb5: 7]
-    ret v0
+    v1 = phi [bb2: 0], [bb5: v0]
+    ret v1
 }
 
 ; function retMid() public check1001 bump returns (uint256) [selector 0x436126b8]
@@ -165,22 +166,23 @@ fn @lazy(arg0: i1) -> i256 [selector=0x90bca39b, abi_params=[bool], abi_returns=
   bb5:                                            ; preds = bb4
     v0 = icall @rec, 7
     v1 = icall @rec, 11
+    v2 = assign 5
     jump bb7
   bb7:                                            ; preds = bb5
-    v2 = icall @rec, 19
+    v3 = icall @rec, 19
     jump bb6
   bb6:                                            ; preds = bb7
     jump bb2
   bb3:                                            ; preds = bb0
     jump bb2
   bb2:                                            ; preds = bb3, bb6
-    v3 = phi [bb3: 0], [bb6: 5]
-    v4 = sload 0 !metadata(storage=slot(0))
-    v5 = eq v4, 0
-    icall require<short_string>, v5, 4, 0x6c617a7900000000000000000000000000000000000000000000000000000000
+    v4 = phi [bb3: 0], [bb6: v2]
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = eq v5, 0
+    icall require<short_string>, v6, 4, 0x6c617a7900000000000000000000000000000000000000000000000000000000
     jump bb1
   bb1:                                            ; preds = bb2
-    ret v3
+    ret v4
 }
 
 ; function clamped(uint256 x) public clamp(x) returns (uint256) [selector 0x50df8187]
@@ -191,40 +193,43 @@ fn @clamped(arg0: i256) -> i256 [selector=0x50df8187, abi_params=[uint256], abi_
   bb3:                                            ; preds = bb0
     jump bb4
   bb2:                                            ; preds = bb0
+    v1 = assign 5
     jump bb4
   bb4:                                            ; preds = bb2, bb3
-    v1 = phi [bb2: 5], [bb3: arg0]
-    sstore 0, v1 !metadata(storage=slot(0))
-    v2 = sload 0 !metadata(storage=slot(0))
+    v2 = phi [bb2: v1], [bb3: arg0]
+    sstore 0, v2 !metadata(storage=slot(0))
+    v3 = sload 0 !metadata(storage=slot(0))
     jump bb5
   bb5:                                            ; preds = bb4
     jump bb1
   bb1:                                            ; preds = bb5
-    ret v2
+    ret v3
 }
 
 ; function repeatedInner() internal remember(1) remember(2)
 fn @repeatedInner() {
   bb0:
-    v0 = checked_add uint256, 1, 10
-    v1 = checked_add uint256, 2, 10
+    v0 = assign 1
+    v1 = checked_add uint256, 1, 10
+    v2 = assign 2
+    v3 = checked_add uint256, 2, 10
     sstore 0, 0 !metadata(storage=slot(0))
     jump bb3
   bb3:                                            ; preds = bb0
-    v2 = sload 0 !metadata(storage=slot(0))
-    v3 = checked_mul uint256, v2, 0x3e8
-    v4 = checked_mul uint256, 2, 100
-    v5 = checked_add uint256, v3, v4
-    v6 = checked_add uint256, v5, v1
-    sstore 0, v6 !metadata(storage=slot(0))
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = checked_mul uint256, v4, 0x3e8
+    v6 = checked_mul uint256, v2, 100
+    v7 = checked_add uint256, v5, v6
+    v8 = checked_add uint256, v7, v3
+    sstore 0, v8 !metadata(storage=slot(0))
     jump bb2
   bb2:                                            ; preds = bb3
-    v7 = sload 0 !metadata(storage=slot(0))
-    v8 = checked_mul uint256, v7, 0x3e8
-    v9 = checked_mul uint256, 1, 100
-    v10 = checked_add uint256, v8, v9
-    v11 = checked_add uint256, v10, v0
-    sstore 0, v11 !metadata(storage=slot(0))
+    v9 = sload 0 !metadata(storage=slot(0))
+    v10 = checked_mul uint256, v9, 0x3e8
+    v11 = checked_mul uint256, v0, 100
+    v12 = checked_add uint256, v10, v11
+    v13 = checked_add uint256, v12, v1
+    sstore 0, v13 !metadata(storage=slot(0))
     jump bb1
   bb1:                                            ; preds = bb2
     ret

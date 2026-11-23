@@ -3,42 +3,43 @@
 ; function sum(bytes calldata data) external pure returns (uint32 value) [selector 0xa20eed08]
 fn @sum(arg0: slice<calldata>) -> i32 [selector=0xa20eed08, pure, abi_params=[bytes], abi_returns=[word<uint32>], abi_return_params=[uint32]] {
   bb0:
+    v0 = assign 0
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v21]
-    v2 = phi [bb0: 0], [bb3: v20]
-    v3 = lt v2, 4
-    jumpi v3, bb4, bb5
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v22]
+    v3 = phi [bb0: v0], [bb3: v21]
+    v4 = lt v3, 4
+    jumpi v4, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
-    v22 = trunc i256 v1 to i32
-    ret v22
+    v23 = trunc i256 v2 to i32
+    ret v23
   bb4:                                            ; preds = bb1
-    v4 = trunc i256 v1 to i32
-    v5 = shl v4, i32 8
-    v6 = extract_value slice<calldata>, v0, 1
-    v7 = lt v2, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    v9 = extract_value slice<calldata>, v0, 0
-    v10 = extract_value slice<calldata>, v0, 0
-    v11 = ptrtoint ptr<calldata> v10 to i256
-    v12 = add v11, v2
-    v13 = calldataload v12
-    v14 = byte 0, v13
-    v15 = shl v14, 248
-    v16 = shr v15, 248
-    v17 = trunc i256 v16 to i8
-    v18 = zext i8 v17 to i32
-    v19 = or v5, v18
+    v5 = trunc i256 v2 to i32
+    v6 = shl v5, i32 8
+    v7 = extract_value slice<calldata>, v1, 1
+    v8 = lt v3, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = extract_value slice<calldata>, v1, 0
+    v11 = extract_value slice<calldata>, v1, 0
+    v12 = ptrtoint ptr<calldata> v11 to i256
+    v13 = add v12, v3
+    v14 = calldataload v13
+    v15 = byte 0, v14
+    v16 = shl v15, 248
+    v17 = shr v16, 248
+    v18 = trunc i256 v17 to i8
+    v19 = zext i8 v18 to i32
+    v20 = or v6, v19
     jump bb6
   bb6:                                            ; preds = bb4
     jump bb3
   bb3:                                            ; preds = bb6
-    v20 = checked_add uint256, v2, 1
-    v21 = zext i32 v19 to i256
+    v21 = checked_add uint256, v3, 1
+    v22 = zext i32 v20 to i256
     jump bb1
 }
 
@@ -150,50 +151,51 @@ fn @entry() [entry] {
 ; function slow(bytes calldata data) external pure returns (uint32 value) [selector 0xaa8bda2d]
 fn @slow() {
   bb0:
-    v25 = calldatasize
-    v26 = lt v25, 36
+    v26 = calldatasize
+    v27 = lt v26, 36
     jump bb12
   bb12:                                           ; preds = bb0
-    v27 = icall @decode_calldata_slice, 4
-    v28 = calldataload v27
-    v29 = add v27, 32
+    v28 = icall @decode_calldata_slice, 4
+    v29 = calldataload v28
+    v30 = add v28, 32
     jump bb1
   bb1:                                            ; preds = bb12
+    v0 = assign 0
     jump bb2
   bb2:                                            ; preds = bb1, bb11
-    v1 = phi [bb1: 0], [bb11: v39]
-    v2 = phi [bb1: 0], [bb11: v23]
-    v3 = lt v2, 4
-    jumpi v3, bb5, bb6
+    v2 = phi [bb1: 0], [bb11: v40]
+    v3 = phi [bb1: v0], [bb11: v24]
+    v4 = lt v3, 4
+    jumpi v4, bb5, bb6
   bb6:                                            ; preds = bb2
     jump bb3
   bb3:                                            ; preds = bb6
-    v33 = and v1, 0xffffffff
-    mstore 0, v1
+    v34 = and v2, 0xffffffff
+    mstore 0, v2
     returndata 0, 32
   bb5:                                            ; preds = bb2
-    v34 = and v1, 0xffffffff
-    v35 = shl v34, 8
-    v36 = and v35, 0xffffffff
-    v7 = lt v2, v28
-    v8 = eq v7, false
-    jumpi v8, bb8, bb9
+    v35 = and v2, 0xffffffff
+    v36 = shl v35, 8
+    v37 = and v36, 0xffffffff
+    v8 = lt v3, v29
+    v9 = eq v8, false
+    jumpi v9, bb8, bb9
   bb9:                                            ; preds = bb5
-    v12 = add v29, v2
-    v13 = calldataload v12
-    v14 = byte 0, v13
-    v15 = shl v14, 248
-    v16 = shr v15, 248
-    v37 = and v16, 255
-    v38 = or v36, v37
-    v39 = and v38, 0xffffffff
+    v13 = add v30, v3
+    v14 = calldataload v13
+    v15 = byte 0, v14
+    v16 = shl v15, 248
+    v17 = shr v16, 248
+    v38 = and v17, 255
+    v39 = or v37, v38
+    v40 = and v39, 0xffffffff
     jump bb7
   bb7:                                            ; preds = bb9
     jump bb4
   bb4:                                            ; preds = bb7
-    v23 = add v2, 1
-    v24 = lt v23, v2
-    jumpi v24, bb10, bb11
+    v24 = add v3, 1
+    v25 = lt v24, v3
+    jumpi v25, bb10, bb11
   bb11:                                           ; preds = bb4
     jump bb2
   bb10 [cold]:                                    ; preds = bb4
