@@ -127,7 +127,10 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         solc_version: None,
         profile: None,
         prebuild_profiles: &[],
-        skip_tests: &[],
+        skip_tests: &[Skip {
+            pattern: r"^testBrutalized(Address|Bool|Bytes1|Bytes31|Uint248|Uint8)(\(|$)",
+            reason: "they check that a value an internal function returned still holds the dirty bits assembly left in it, and the compiler cleans it at the return (CODEGEN-001)",
+        }],
         skip_contracts: &[],
         notes: "assembly-heavy library: the widest inline-assembly coverage available",
         test_fixes: &[

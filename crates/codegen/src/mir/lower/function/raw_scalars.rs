@@ -1,9 +1,9 @@
-//! Tracks scalar bindings whose raw EVM bits can cross an assembly boundary.
+//! Finds the scalar bindings that inline assembly reads or writes, and the internal functions it
+//! can reach through a retyped pointer.
 //!
-//! Copies and internal calls preserve raw bits, while Solidity operations and
-//! conversions consume typed values. Propagate assembly exposure through the
-//! copy graph before choosing signatures and loop phi types. These carriers
-//! are explicitly i256; ordinary integer values retain their native width.
+//! Assembly reads and writes whole words, so a scalar binding that an assembly block mentions is
+//! a raw carrier: it is an explicit `i256` word, and Solidity cleans it when it reads it. Every
+//! other value keeps its native width and is always clean.
 //!
 //! Internal function pointers are scalars too. Calls through them dispatch
 //! over the functions of the pointer's type, but assembly can retype a
@@ -45,17 +45,13 @@ struct Exposure<'gcx> {
     pointer_edges: FxHashMap<VariableId, Vec<VariableId>>,
     /// Each internal function with a binding its pointer flows into.
     pointer_values: Vec<(hir::FunctionId, VariableId)>,
-    pointer_calls: Vec<PointerCall<'gcx>>,
-    /// Internal function pointer calls whose result a binding receives, with those bindings.
-    pointer_results: Vec<(hir::ExprId, SmallVec<[VariableId; 4]>)>,
-    /// The pointer calls `sources` met in the expression it last walked.
-    result_calls: SmallVec<[hir::ExprId; 1]>,
+    pointer_calls: Vec<PointerCall>,
     returns: &'gcx [VariableId],
     assembly: bool,
 }
 
 /// An internal function pointer call with the pointers it reads.
-struct PointerCall<'gcx> {
+struct PointerCall {
     call: hir::ExprId,
     /// Bindings the callee may read.
     callee: SmallVec<[VariableId; 4]>,
@@ -63,8 +59,6 @@ struct PointerCall<'gcx> {
     arguments: SmallVec<[VariableId; 4]>,
     /// Functions whose pointers the arguments take.
     functions: SmallVec<[hir::FunctionId; 1]>,
-    /// The parameter and return types of the pointer.
-    types: SmallVec<[Ty<'gcx>; 4]>,
 }
 
 impl<'gcx> Exposure<'gcx> {
@@ -119,36 +113,8 @@ impl<'gcx> Exposure<'gcx> {
                 self.sources(yes, out);
                 self.sources(no, out);
             }
-            // An assignment's value is its target, or the copied value when the target is not a
-            // binding, and a bitwise assignment's value reads both operands.
-            ExprKind::Assign(lhs, op, rhs) => {
-                self.sources(lhs, out);
-                if op.is_none_or(|op| {
-                    matches!(op.kind, BinOpKind::BitAnd | BinOpKind::BitOr | BinOpKind::BitXor)
-                }) {
-                    self.sources(rhs, out);
-                }
-            }
-            // These expressions return an operand, raw bits included.
-            ExprKind::Binary(lhs, op, rhs)
-                if matches!(
-                    op.kind,
-                    BinOpKind::BitAnd
-                        | BinOpKind::BitOr
-                        | BinOpKind::BitXor
-                        | BinOpKind::And
-                        | BinOpKind::Or
-                ) =>
-            {
-                self.sources(lhs, out);
-                self.sources(rhs, out);
-            }
-            ExprKind::Unary(op, operand)
-                if matches!(op.kind, UnOpKind::PostInc | UnOpKind::PostDec) =>
-            {
-                self.sources(operand, out);
-            }
-            ExprKind::Payable(operand) => self.sources(operand, out),
+            // An assignment's value is its target.
+            ExprKind::Assign(lhs, None, _) => self.sources(lhs, out),
             // `connect` only links bindings of equal types, so a conversion between them copies.
             ExprKind::Call(callee, args)
                 if let hir::CallArgsKind::Unnamed([argument]) = args.kind
@@ -157,9 +123,6 @@ impl<'gcx> Exposure<'gcx> {
                 self.sources(argument, out);
             }
             ExprKind::Call(callee, _) => {
-                if is_pointer_callee(self.gcx, callee) {
-                    self.result_calls.push(expr.id);
-                }
                 for id in self.callees(callee) {
                     out.extend_from_slice(self.gcx.hir.function(id).returns);
                 }
@@ -170,11 +133,7 @@ impl<'gcx> Exposure<'gcx> {
 
     fn connect(&mut self, destinations: &[VariableId], expr: &'gcx hir::Expr<'gcx>) {
         let mut sources = SmallVec::new();
-        self.result_calls.clear();
         self.sources(expr, &mut sources);
-        for &call in &self.result_calls {
-            self.pointer_results.push((call, destinations.iter().copied().collect()));
-        }
         for &to in destinations {
             let ty = self.gcx.type_of_item(to.into());
             for &from in &sources {
@@ -284,19 +243,6 @@ impl<'gcx> Exposure<'gcx> {
         }
     }
 
-    /// Marks the bindings that copy edges connect to the raw bindings in `pending` as raw.
-    fn close_raw(&mut self, mut pending: Vec<VariableId>) {
-        while let Some(id) = pending.pop() {
-            if let Some(neighbors) = self.edges.get(&id) {
-                for &neighbor in neighbors {
-                    if self.raw.insert(neighbor) {
-                        pending.push(neighbor);
-                    }
-                }
-            }
-        }
-    }
-
     /// Records the internal function pointers an expression may carry into bindings.
     fn connect_pointers(&mut self, destinations: &[VariableId], expr: &'gcx hir::Expr<'gcx>) {
         let destinations = destinations
@@ -362,18 +308,11 @@ impl<'gcx> Exposure<'gcx> {
         for argument in args.exprs() {
             self.pointer_sources(argument, &mut arguments, &mut functions);
         }
-        let types = match self.gcx.type_of_expr(callee.id).map(|ty| ty.kind) {
-            Some(TyKind::Fn(function)) => {
-                function.parameters.iter().chain(function.returns).copied().collect()
-            }
-            _ => SmallVec::new(),
-        };
         self.pointer_calls.push(PointerCall {
             call: call.id,
             callee: bindings,
             arguments,
             functions,
-            types,
         });
     }
 }
@@ -482,19 +421,6 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
                     self.store_roots(lhs, &mut roots);
                     self.connect_pointers(&roots, rhs);
                 }
-                // A bitwise assignment keeps the raw bits of its operands.
-                ExprKind::Assign(
-                    lhs,
-                    Some(hir::BinOp {
-                        kind: BinOpKind::BitAnd | BinOpKind::BitOr | BinOpKind::BitXor,
-                        ..
-                    }),
-                    rhs,
-                ) => {
-                    let mut ids = SmallVec::new();
-                    self.sources(lhs, &mut ids);
-                    self.connect(&ids, rhs);
-                }
                 ExprKind::Call(callee, args) => {
                     self.record_pointer_call(expr, callee, args);
                     if self.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush)
@@ -556,8 +482,6 @@ impl LoweringState {
             pointer_edges: FxHashMap::default(),
             pointer_values: Vec::new(),
             pointer_calls: Vec::new(),
-            pointer_results: Vec::new(),
-            result_calls: SmallVec::new(),
             returns: &[],
             assembly: false,
         };
@@ -578,16 +502,10 @@ impl LoweringState {
                     && let Some(initializer) = variable.initializer
                 {
                     let _ = exposure.visit_expr(initializer);
-                    // An immutable stores the raw bits of its initializer.
-                    if variable.is_immutable() {
-                        exposure.connect(&[id], initializer);
-                    } else {
-                        exposure.connect_pointers(&[id], initializer);
-                    }
+                    exposure.connect_pointers(&[id], initializer);
                 }
             }
         }
-        exposure.close_raw(exposure.raw.iter().copied().collect());
 
         let mut tainted = exposure.raw.clone();
         let mut pending = tainted.iter().copied().collect::<Vec<_>>();
@@ -642,55 +560,12 @@ impl LoweringState {
                 break;
             }
         }
-        // A retyped pointer passes a parameter any word, and solc cleans it, or checks an enum,
-        // where the function reads it, not on entry, so the parameter is a raw carrier.
-        let parameters = exposed
-            .iter()
-            .flat_map(|&function| gcx.hir.function(function).parameters)
-            .copied()
-            .filter(|&id| {
-                types::TypeLowerer::mir_type(gcx.type_of_item(id.into())).integer_bits().is_some()
-            })
-            .collect::<Vec<_>>();
-        exposure.raw.extend(&parameters);
-        exposure.close_raw(parameters);
-        // A retyped pointer returns any word, and a binding that receives it keeps the word
-        // as it is, as via-IR copies it.
-        let results = exposure
-            .pointer_results
-            .iter()
-            .filter(|(call, _)| calls.contains(call))
-            .flat_map(|(_, destinations)| destinations)
-            .copied()
-            .collect::<Vec<_>>();
-        exposure.raw.extend(&results);
-        exposure.close_raw(results);
         self.pointer_registry.assembly_exposed = exposed;
         self.pointer_registry.assembly_calls = calls;
-
-        // Assembly can pass a retyped call any word, and the callee's word comes back unchanged,
-        // so its dispatcher must not truncate the narrow types of the call.
-        self.raw_pointer_types = exposure
-            .raw
-            .iter()
-            .map(|&id| gcx.type_of_item(id.into()))
-            .chain(
-                exposure
-                    .pointer_calls
-                    .iter()
-                    .filter(|call| self.pointer_registry.assembly_calls.contains(&call.call))
-                    .flat_map(|call| call.types.iter().copied()),
-            )
-            .map(types::TypeLowerer::mir_type)
-            .filter(|ty| ty.integer_bits().is_some())
-            .collect();
         self.raw_scalars = exposure.raw;
     }
 
-    pub(super) fn pointer_carrier(&self, ty: MirType) -> MirType {
-        if self.raw_pointer_types.contains(&ty) { MirType::I256 } else { ty }
-    }
-
+    /// Returns the type a binding travels in across a call's return: a raw carrier is a word.
     pub(in crate::mir::lower) fn scalar_carrier(&self, gcx: Gcx<'_>, id: VariableId) -> MirType {
         if self.is_raw_scalar(gcx, id) {
             MirType::I256
@@ -703,23 +578,6 @@ impl LoweringState {
     pub(in crate::mir::lower) fn is_raw_scalar(&self, gcx: Gcx<'_>, id: VariableId) -> bool {
         self.raw_scalars.contains(&id)
             && types::TypeLowerer::mir_type(gcx.type_of_item(id.into())).integer_bits().is_some()
-    }
-
-    /// Returns an immutable's source layout, or a full word for a `bool` or `address` that
-    /// can carry raw bits between inline assembly blocks.
-    pub(in crate::mir::lower) fn immutable_layout(
-        &self,
-        gcx: Gcx<'_>,
-        id: VariableId,
-    ) -> crate::mir::ValueLayout {
-        match types::TypeLowerer::value_layout(gcx.type_of_item(id.into())) {
-            crate::mir::ValueLayout::Bool | crate::mir::ValueLayout::Address
-                if self.raw_scalars.contains(&id) =>
-            {
-                crate::mir::ValueLayout::uint256()
-            }
-            layout => layout,
-        }
     }
 }
 

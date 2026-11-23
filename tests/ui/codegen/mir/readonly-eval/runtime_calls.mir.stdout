@@ -1,23 +1,25 @@
 ; === ROOT/tests/ui/codegen/mir/readonly-eval/runtime_calls.sol:RuntimeCalls ===
 @module RuntimeCalls
 ; function emptyBytes() external pure returns (bool) [selector 0x55c4baff]
-fn @emptyBytes() -> i256 [selector=0x55c4baff, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @emptyBytes() -> i1 [selector=0x55c4baff, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc 32
     mstore v0, 0
     v1 = icall @isEmpty, v0
-    ret v1
+    v2 = ne v1, 0
+    ret v2
 }
 
 ; function nonemptyBytes() external pure returns (bool) [selector 0xe23ba52c]
-fn @nonemptyBytes() -> i256 [selector=0xe23ba52c, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @nonemptyBytes() -> i1 [selector=0xe23ba52c, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 1
     v1 = ptradd v0, 32
     mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
     v2 = icall @isEmpty, v0
-    ret v2
+    v3 = ne v2, 0
+    ret v3
 }
 
 ; function isEmpty(bytes memory data) internal pure returns (bool result)

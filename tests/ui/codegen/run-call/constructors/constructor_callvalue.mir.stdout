@@ -151,13 +151,14 @@ fn @acceptsPayable() -> i1 [selector=0xd6e5da6b, payable, abi_params=[], abi_ret
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
-    v10 = balance v7
-    v11 = callvalue
-    v12 = eq v10, v11
+    v10 = zext i160 v8 to i256
+    v11 = balance v10
+    v12 = callvalue
+    v13 = eq v11, v12
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v13 = phi [bb1: v12], [bb2: false]
-    ret v13
+    v14 = phi [bb1: v13], [bb2: false]
+    ret v14
 }
 
 ; function deploy(bytes memory code) private returns (address deployed)

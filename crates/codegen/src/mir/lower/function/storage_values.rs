@@ -183,7 +183,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value = if let Some(value) = constant {
                     self.coerce_value(value, expr_ty, ty)
                 } else {
-                    self.lower_typed_expr(expr, ty)?.clean(self, ty)
+                    self.lower_typed_expr(expr, ty)?
                 };
                 values.push(value);
                 Some(())
@@ -282,7 +282,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if let TyKind::Mapping(key, value) = ty.kind {
                     let index = self
                         .lower_fixed_bytes_literal(key, index)
-                        .or_else(|| Some(self.lower_typed_expr(index, key)?.clean(self, key)))?;
+                        .or_else(|| self.lower_typed_expr(index, key))?;
                     let slot = self.mapping_slot(index, key, base.slot);
                     if let Some((size, encoding)) = self.cx.storage.packed_encoding(value) {
                         let location = StorageLocation::exclusive_word(size, encoding);
@@ -296,7 +296,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 // The index is checked as a raw word, like via-IR.
                 // bounds_check(index, length)
-                let index = self.lower_expr(index)?.raw_operand();
+                let index = self.lower_expr(index)?;
                 let (element, array_len, length) = match ty.kind {
                     TyKind::Array(element, len) => (element, Some(len), self.builder.imm(len)),
                     TyKind::DynArray(element) => (element, None, self.builder.sload(base.slot)),
@@ -331,7 +331,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let value = self.load_storage_object(memory_ty, source.slot, rhs.span)?;
                     (access, value)
                 } else {
-                    let value = self.lower_typed_expr(rhs, memory_ty)?.clean(self, memory_ty);
+                    let value = self.lower_typed_expr(rhs, memory_ty)?;
                     (self.storage_access(lhs)?, value)
                 };
                 let value = self.materialize_memory_argument(memory_ty, value, rhs.span)?;
@@ -358,7 +358,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // A call that returns a storage reference, directly or through a function pointer,
             // yields its slot.
             ExprKind::Call(callee, ..) if self.call_returns_storage_ref(callee) => {
-                let slot = self.operand(expr)?.id();
+                let slot = self.lower_expr(expr)?;
                 Some(StorageAccess {
                     slot,
                     location: StorageLocation::word(U256::ZERO),
@@ -390,7 +390,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         then_expr: &'gcx hir::Expr<'gcx>,
         else_expr: &'gcx hir::Expr<'gcx>,
     ) -> Option<StorageAccess> {
-        let condition = self.operand(condition)?.id();
+        let condition = self.lower_expr(condition)?;
         let (then_branch, else_branch) = self.lower_branches(
             condition,
             true,
@@ -585,13 +585,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     memory_ty
                 };
                 let source_ty = source_ty.unwrap_or(memory_ty);
-                let value = self.lower_typed_expr(argument, load_ty)?.clean(self, load_ty);
+                let value = self.lower_typed_expr(argument, load_ty)?;
                 // A calldata argument is decoded at the type it is materialized with, so it
                 // has to be the argument's own type as well: reading it at the destination
                 // type would take the element count and the lengths from the destination.
                 (self.materialize_memory_argument(source_ty, value, argument.span)?, source_ty)
             } else {
-                let value = self.lower_typed_expr(argument, element)?.clean(self, element);
+                let value = self.lower_typed_expr(argument, element)?;
                 // `lower_typed_expr` already applies the destination type. Re-coercing
                 // fixed-bytes literals shifts their already aligned value a second time.
                 (value, element)
@@ -650,7 +650,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(CallResult::Void)
             };
         };
-        let value = self.lower_typed_expr(argument, byte_ty)?.clean(self, byte_ty);
+        let value = self.lower_typed_expr(argument, byte_ty)?;
 
         // data = sload(slot)
         // old_length = extract_length(data)

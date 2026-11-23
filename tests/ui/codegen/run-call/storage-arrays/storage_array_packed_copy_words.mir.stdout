@@ -103,25 +103,29 @@ fn @shrink() -> i1 [selector=0x3140873c, abi_params=[], abi_returns=[word<bool>]
     v108 = icall @bytesWords
     v109 = extract_value struct0, v108, 0
     v110 = extract_value struct0, v108, 1
-    v111 = eq v109, 0x90807
-    jumpi v111, bb23, bb24
+    v111 = insert_value struct0, undef struct0, 0, v109
+    v112 = insert_value struct0, v111, 1, v110
+    v113 = extract_value struct0, v112, 0
+    v114 = extract_value struct0, v112, 1
+    v115 = eq v113, 0x90807
+    jumpi v115, bb23, bb24
   bb24:                                           ; preds = bb19
     jump bb25
   bb23:                                           ; preds = bb19
-    v112 = eq v110, 0
+    v116 = eq v114, 0
     jump bb25
   bb25:                                           ; preds = bb23, bb24
-    v113 = phi [bb23: v112], [bb24: false]
-    jumpi v113, bb26, bb27
+    v117 = phi [bb23: v116], [bb24: false]
+    jumpi v117, bb26, bb27
   bb27:                                           ; preds = bb25
     jump bb28
   bb26:                                           ; preds = bb25
-    v114 = sload 0 !metadata(storage=slot(0))
-    v115 = eq v114, 3
+    v118 = sload 0 !metadata(storage=slot(0))
+    v119 = eq v118, 3
     jump bb28
   bb28:                                           ; preds = bb26, bb27
-    v116 = phi [bb26: v115], [bb27: false]
-    ret v116
+    v120 = phi [bb26: v119], [bb27: false]
+    ret v120
   bb18:                                           ; preds = bb17
     v89 = mul v87, 32
     v90 = sub v68, v89
@@ -300,33 +304,37 @@ fn @grow() -> i1 [selector=0x5298948e, abi_params=[], abi_returns=[word<bool>], 
     v102 = icall @bytesWords
     v103 = extract_value struct0, v102, 0
     v104 = extract_value struct0, v102, 1
-    v105 = eq v103, 1
-    jumpi v105, bb17, bb18
+    v105 = insert_value struct0, undef struct0, 0, v103
+    v106 = insert_value struct0, v105, 1, v104
+    v107 = extract_value struct0, v106, 0
+    v108 = extract_value struct0, v106, 1
+    v109 = eq v107, 1
+    jumpi v109, bb17, bb18
   bb18:                                           ; preds = bb13
     jump bb19
   bb17:                                           ; preds = bb13
-    v106 = eq v104, 2
+    v110 = eq v108, 2
     jump bb19
   bb19:                                           ; preds = bb17, bb18
-    v107 = phi [bb17: v106], [bb18: false]
-    jumpi v107, bb20, bb21
+    v111 = phi [bb17: v110], [bb18: false]
+    jumpi v111, bb20, bb21
   bb21:                                           ; preds = bb19
     jump bb22
   bb20:                                           ; preds = bb19
-    v108 = sload 0 !metadata(storage=slot(0))
-    v109 = gt v108, 32
-    v110 = eq v109, false
-    icall panic_if<0x32>, v110
-    v111 = storage_array_data_slot 0
-    v112 = add v111, 1
-    v113 = sload v112 !metadata(storage=offset(v111, 1))
-    v114 = shr v113, 0
-    v115 = trunc i256 v114 to i8
-    v116 = eq v115, i8 2
+    v112 = sload 0 !metadata(storage=slot(0))
+    v113 = gt v112, 32
+    v114 = eq v113, false
+    icall panic_if<0x32>, v114
+    v115 = storage_array_data_slot 0
+    v116 = add v115, 1
+    v117 = sload v116 !metadata(storage=offset(v115, 1))
+    v118 = shr v117, 0
+    v119 = trunc i256 v118 to i8
+    v120 = eq v119, i8 2
     jump bb22
   bb22:                                           ; preds = bb20, bb21
-    v117 = phi [bb20: v116], [bb21: false]
-    ret v117
+    v121 = phi [bb20: v120], [bb21: false]
+    ret v121
   bb12:                                           ; preds = bb11
     v83 = mul v81, 32
     v84 = sub v62, v83
@@ -442,16 +450,20 @@ fn @boundary() -> i1 [selector=0x4515798d, abi_params=[], abi_returns=[word<bool
     v53 = icall @wordsWords
     v54 = extract_value struct0, v53, 0
     v55 = extract_value struct0, v53, 1
-    v56 = eq v54, 0x30000000000000000000000000000000000000001
-    jumpi v56, bb9, bb10
+    v56 = insert_value struct0, undef struct0, 0, v54
+    v57 = insert_value struct0, v56, 1, v55
+    v58 = extract_value struct0, v57, 0
+    v59 = extract_value struct0, v57, 1
+    v60 = eq v58, 0x30000000000000000000000000000000000000001
+    jumpi v60, bb9, bb10
   bb10:                                           ; preds = bb5
     jump bb11
   bb9:                                            ; preds = bb5
-    v57 = eq v55, 0xffffffffffffffffffff
+    v61 = eq v59, 0xffffffffffffffffffff
     jump bb11
   bb11:                                           ; preds = bb9, bb10
-    v58 = phi [bb9: v57], [bb10: false]
-    ret v58
+    v62 = phi [bb9: v61], [bb10: false]
+    ret v62
   bb4:                                            ; preds = bb3
     v34 = mul v32, 3
     v35 = sub v13, v34

@@ -2,19 +2,20 @@
 @module AssemblyDirtyImmutables
 @immutables
   id: bytes4
-  flag: uint256
-  owner: uint256
+  flag: bool
+  owner: address
   small: uint8
   wrapped: bytes4
 
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
-    storeimmutable id, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    storeimmutable flag, 256
-    storeimmutable owner, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    storeimmutable id, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v0 = ne 256, 0
+    storeimmutable flag, v0
+    storeimmutable owner, i160 0xffffffffffffffffffffffffffffffffffffffff
     storeimmutable small, i8 255
-    storeimmutable wrapped, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    storeimmutable wrapped, 0xffffffff00000000000000000000000000000000000000000000000000000000
     ret
 }
 
@@ -22,48 +23,43 @@ fn @constructor() [constructor] {
 fn @id() -> i256 [selector=0xaf640d0f, view, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = loadimmutable id
-    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    ret v1
+    ret v0
 }
 
 ; getter for `bool public immutable flag` [selector 0x890eba68]
-fn @flag() -> i256 [selector=0x890eba68, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @flag() -> i1 [selector=0x890eba68, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = loadimmutable flag
     ret v0
 }
 
 ; getter for `address public immutable owner` [selector 0x8da5cb5b]
-fn @owner() -> i256 [selector=0x8da5cb5b, view, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
+fn @owner() -> i160 [selector=0x8da5cb5b, view, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = loadimmutable owner
     ret v0
 }
 
 ; getter for `uint8 public immutable small` [selector 0x6cf3c25e]
-fn @small() -> i256 [selector=0x6cf3c25e, view, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
+fn @small() -> i8 [selector=0x6cf3c25e, view, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = loadimmutable small
-    v1 = zext i8 v0 to i256
-    ret v1
+    ret v0
 }
 
 ; getter for `Wrapped public immutable wrapped` [selector 0x50e70d48]
 fn @wrapped() -> i256 [selector=0x50e70d48, view, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = loadimmutable wrapped
-    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    ret v1
+    ret v0
 }
 
 ; function unwrapped() external view returns (bool) [selector 0x52e7751f]
 fn @unwrapped() -> i1 [selector=0x52e7751f, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = loadimmutable wrapped
-    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v2 = and v1, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v3 = eq v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    ret v3
+    v1 = eq v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v1
 }
 
 ; === ROOT/tests/ui/codegen/run-call/assembly/assembly_dirty_immutables.sol:Stored ===
@@ -86,16 +82,14 @@ fn @constructor() [constructor] {
 fn @stored() -> i256 [selector=0xe582dd31, view, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = loadimmutable stored
-    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    ret v1
+    ret v0
 }
 
 ; getter for `Wrapped public immutable storedWrapped` [selector 0x5863c7b1]
 fn @storedWrapped() -> i256 [selector=0x5863c7b1, view, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = loadimmutable storedWrapped
-    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    ret v1
+    ret v0
 }
 
 ; function full(uint256) pure returns (bytes32)
@@ -113,7 +107,8 @@ fn @internal_dispatcher_asm_p_uint256_r_bytes4(arg0: i256, arg1: i256) -> i256 [
     invalid
   bb1:                                            ; preds = bb0
     v1 = icall @full, arg1
-    ret v1
+    v2 = and v1, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v2
 }
 
 ; === ROOT/tests/ui/codegen/run-call/assembly/assembly_dirty_immutables.sol:Loop ===
@@ -154,8 +149,7 @@ fn @constructor() [constructor] {
 fn @looped() -> i256 [selector=0x2e6dedb7, view, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = loadimmutable looped
-    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    ret v1
+    ret v0
 }
 
 ; function full(uint256) pure returns (bytes32)
@@ -173,5 +167,6 @@ fn @internal_dispatcher_asm_p_uint256_r_bytes4(arg0: i256, arg1: i256) -> i256 [
     invalid
   bb1:                                            ; preds = bb0
     v1 = icall @full, arg1
-    ret v1
+    v2 = and v1, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v2
 }

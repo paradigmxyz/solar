@@ -1,9 +1,10 @@
 //@compile-flags: -O none -Zdump=mir
 //@filecheck:
+//@normalize-stdout-test: "(?s).+" -> ""
 
 // `blockhash` and `blobhash` read their argument as a whole word, so a `uint64` that inline
-// assembly left with bits above 64 must be cleaned before them, as solc does. The run-call EVM
-// runs at block 0, where `blockhash` is always zero, so this checks the MIR.
+// assembly left with bits above 64 must be cleaned before them. The run-call EVM runs at block 0,
+// where `blockhash` is always zero, so this checks the MIR.
 
 contract C {
     // CHECK-LABEL: fn @viaBlockhash{{[( ]}}

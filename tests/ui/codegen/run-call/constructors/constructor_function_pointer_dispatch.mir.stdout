@@ -31,9 +31,8 @@ fn @applyShift(arg0: i256, arg1: i256) {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shl v0, 208
     v2 = icall @internal_dispatcher_p_bytes6_uint256_r_bytes6, arg0, v1, arg1
-    v3 = and v2, 0xffffffffffff0000000000000000000000000000000000000000000000000000
-    v4 = shr v3, 208
-    sstore 0, v4 !metadata(storage=slot(0))
+    v3 = shr v2, 208
+    sstore 0, v3 !metadata(storage=slot(0))
     ret
 }
 
@@ -53,8 +52,7 @@ fn @internal_dispatcher_p_bytes6_r_none(arg0: i256, arg1: i256) [function_pointe
     icall panic_if<0x51>, true
     invalid
   bb1:                                            ; preds = bb0
-    v1 = and arg1, 0xffffffffffff0000000000000000000000000000000000000000000000000000
-    icall @setName, v1
+    icall @setName, arg1
     ret
 }
 
@@ -66,7 +64,6 @@ fn @internal_dispatcher_p_bytes6_uint256_r_bytes6(arg0: i256, arg1: i256, arg2: 
     icall panic_if<0x51>, true
     invalid
   bb1:                                            ; preds = bb0
-    v1 = and arg1, 0xffffffffffff0000000000000000000000000000000000000000000000000000
-    v2 = icall @leftByteShift, v1, arg2
-    ret v2
+    v1 = icall @leftByteShift, arg1, arg2
+    ret v1
 }
