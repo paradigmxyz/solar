@@ -1312,7 +1312,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         cf: &str,
         seen: &mut FxHashSet<String>,
     ) -> bool {
-        if !seen.insert(format!("{}.{}", c.name, f.name)) {
+        if !seen.insert(format!("{}.{}@{:x}", c.name, f.name, std::ptr::from_ref(f.item).addr())) {
             return false;
         }
         let Some(b) = &f.item.body else { return false };
@@ -2809,7 +2809,14 @@ impl<'p, 'a> Vc<'p, 'a> {
         if f.is_static() {
             return Some(BTreeSet::new());
         }
-        let key = format!("{}.{}/{}", f.contract, f.name, f.params.len());
+        // Overloads of one name and arity are distinct functions: key by the item too.
+        let key = format!(
+            "{}.{}/{}@{:x}",
+            f.contract,
+            f.name,
+            f.params.len(),
+            std::ptr::from_ref(f.item).addr()
+        );
         if !seen.insert(key) {
             return Some(BTreeSet::new());
         }
@@ -5478,7 +5485,13 @@ impl<'p, 'a> Vc<'p, 'a> {
         let c = self.c;
         for n in calls {
             for g in c.funcs.iter().chain(c.overridden.iter()).filter(|g| g.name == n) {
-                let key = format!("{}.{}/{}", g.contract, g.name, g.params.len());
+                let key = format!(
+                    "{}.{}/{}@{:x}",
+                    g.contract,
+                    g.name,
+                    g.params.len(),
+                    std::ptr::from_ref(g.item).addr()
+                );
                 if !seen.insert(key) {
                     continue;
                 }

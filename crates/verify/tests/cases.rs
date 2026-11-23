@@ -1245,3 +1245,8 @@ fn struct_names_alike() {
 fn encode_using_overload() {
     check("tests/cases/encode_using_overload.sol")
 }
+
+#[test]
+fn encode_overload_key() {
+    check("tests/cases/encode_overload_key.sol")
+}
