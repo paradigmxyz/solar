@@ -751,42 +751,16 @@ pub(crate) fn build<'a>(
             }
         }
     }
-    // A name whose declarations read differently stays opaque; the same declaration seen twice
-    // (or two that read alike, which resolve alike) is one datatype.
-    let mut decls: FxHashMap<&str, Vec<String>> = FxHashMap::default();
-    for st in &b.struct_items {
-        let text: Vec<String> = st
-            .fields
-            .iter()
-            .map(|f| {
-                sess.source_map()
-                    .span_to_snippet(f.span)
-                    .unwrap_or_else(|_| format!("{:?}", f.span))
-            })
-            .collect();
-        let text = text.join(";");
-        let seen = decls.entry(st.name.as_str()).or_default();
-        if !seen.contains(&text) {
-            seen.push(text);
-        }
-    }
-    // Invariants are keyed by name too, so two declarations of one name, even alike, would share
-    // the invariants either one states.
+    // A name that several declarations share stays opaque, even when they read alike: types,
+    // overloads and invariants here are keyed by the bare name, so two alike declarations would
+    // make distinct overloads look like overrides and share either one's invariants. The same
+    // declaration seen twice (one file imported by several) is one datatype.
     let mut spans: FxHashMap<&str, FxHashSet<Span>> = FxHashMap::default();
     for st in &b.struct_items {
         spans.entry(st.name.as_str()).or_default().insert(st.name.span);
     }
-    let with_inv: FxHashSet<&str> = b
-        .struct_docs
-        .iter()
-        .filter(|(_, docs)| custom_tags(docs).iter().any(|(tag, _, _)| tag == "invariant"))
-        .map(|(n, _)| n.as_str())
-        .collect();
-    b.ambiguous_structs = decls
-        .into_iter()
-        .filter(|(n, d)| d.len() > 1 || (spans[n].len() > 1 && with_inv.contains(n)))
-        .map(|(n, _)| n.to_string())
-        .collect();
+    b.ambiguous_structs =
+        spans.into_iter().filter(|(_, s)| s.len() > 1).map(|(n, _)| n.to_string()).collect();
     // An ambiguous struct's values are opaque, so overloads, hashes and length writes on them
     // could prove false facts: nothing that reaches one is verified (see `refuse_ambiguous`).
     let (refused, refused_fns) = refuse_ambiguous(sess, units, &b.ambiguous_structs);
@@ -1450,9 +1424,7 @@ fn refuse_ambiguous(
     let mut names: Vec<&str> = ambiguous.iter().map(String::as_str).collect();
     names.sort_unstable();
     let names = names.iter().map(|n| format!("`{n}`")).collect::<Vec<_>>().join(", ");
-    let why = format!(
-        "several structs with different fields or with invariants share the name {names}: structs are keyed by name"
-    );
+    let why = format!("several structs share the name {names}: structs are keyed by name");
     for e in entries.iter().filter(|e| e.hit) {
         match e.kind {
             Kind::Func(a) => {

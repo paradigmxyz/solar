@@ -1223,3 +1223,17 @@ fn encode_modifier_fresh() {
 fn modifier_rebind() {
     check("tests/cases/modifier_rebind.sol")
 }
+
+#[test]
+fn struct_names_alike() {
+    // Refused before any query, so this needs no z3.
+    let run = run_verifier(&["--json", "tests/cases/struct_names_alike.sol"]);
+    let want = "several structs share the name `Item`";
+    assert!(run.stderr.contains(want), "missing `{want}`\n{}", run.stderr);
+    let json = run.stdout.lines().find_map(|l| l.strip_prefix("JSON ")).expect("no JSON line");
+    let rows: Vec<serde_json::Value> = serde_json::from_str(json).expect("bad JSON line");
+    let got: BTreeMap<&str, &str> =
+        rows.iter().map(|r| (r["fn"].as_str().unwrap(), r["status"].as_str().unwrap())).collect();
+    let f = "Child.bad_alike_overload";
+    assert_eq!(got.get(f), Some(&"unsupported"), "{f}\n{}", run.stdout);
+}
