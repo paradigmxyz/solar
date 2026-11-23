@@ -58,7 +58,7 @@ fn @chain(arg0: i256, arg1: i256) -> i256 {
 // pays for both jumps, so every build takes them.
 // CHECK-LABEL: {{^[ +].*}}fn @branch_edge{{[( ]}}
 // CHECK: + jumpi v0, bb1, bb3
-// CHECK: + v5 = phi [bb3: v4], [bb2: v2], [bb1: v1]
+// CHECK: + v5 = phi [bb3: v4], [bb1: v1]
 fn @branch_edge(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 192
@@ -141,12 +141,12 @@ fn @escaping_result(arg0: i256, arg1: i256) -> i256 {
 
 // Threads out of a join and into it share an edge: `bb3`'s true edge skips
 // `bb4`, while `bb1` skips `bb3` into `bb4`. Either order reads the inputs
-// before any edge moves. At 200 runs only the edges into `bb3`, which they
-// leave without predecessors, move.
+// before any edge moves. The edges into `bb3` leave it without predecessors, so
+// it goes, with the edge out of it.
 // CHECK-LABEL: {{^[ +].*}}fn @order{{[( ]}}
-// RUNS200: + v3 = phi [bb3: v1], [bb4: 7], [bb1: 1]
-// RUNS10000: + v3 = phi [bb4: 7], [bb1: 1]
-// RUNS10000: + v5 = phi [bb5: v3], [bb3: v1]
+// CHECK: + v3 = phi [bb4: 7], [bb1: 1]
+// CHECK: bb3 [cold]:
+// CHECK-NEXT: invalid
 fn @order(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 5

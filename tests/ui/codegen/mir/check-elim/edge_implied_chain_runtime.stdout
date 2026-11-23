@@ -1,0 +1,51 @@
+- ; === ROOT/tests/ui/codegen/mir/check-elim/edge_implied_chain_runtime.mir (before check-elim) ===
++ ; === ROOT/tests/ui/codegen/mir/check-elim/edge_implied_chain_runtime.mir (after check-elim) ===
+  @module EdgeImpliedChain
+  @phase lowered
+  ; runtime dispatch entry
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr v0, 224
+      switch v1, default bb2, [0x21603f43 => bb1]
+    bb1:                                            ; preds = bb0
+      tail_call @order
+    bb2 [cold]:                                     ; preds = bb0
+      revert 0, 0
+  }
+  
+  fn @order() {
+    bb0:
+      v0 = calldataload 4
+      v1 = lt v0, 5
+      jumpi v1, bb1, bb2
+    bb2:                                            ; preds = bb0
+-     jump bb3
++     jump bb4
++   bb4:                                            ; preds = bb2
++     jump bb5
+    bb1:                                            ; preds = bb0
+-     jump bb3
+-   bb3:                                            ; preds = bb1, bb2
+-     v2 = phi [bb1: 1], [bb2: 2]
+-     v3 = lt v0, 5
+-     jumpi v3, bb5, bb4
+-   bb4:                                            ; preds = bb3
+      jump bb5
+-   bb5:                                            ; preds = bb3, bb4
+-     v4 = phi [bb3: v2], [bb4: 7]
++   bb5:                                            ; preds = bb4, bb1
++     v4 = phi [bb4: 7], [bb1: 1]
+      v5 = lt v0, 100
+      jumpi v5, bb6, bb7
+    bb7:                                            ; preds = bb5
+      mstore 0, 0
+      returndata 0, 32
+    bb6:                                            ; preds = bb5
+      v6 = phi [bb5: v4]
+      mstore 0, v6
+      returndata 0, 32
++   bb3 [cold]:
++     invalid
+  }
+  

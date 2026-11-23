@@ -3966,6 +3966,10 @@ fn thread_decided_edges(
     for &(pred, join, successor) in &threads {
         redirect_edge(func, pred, join, successor);
     }
+    // A join that lost every edge, and any block only it entered, would keep phis without inputs.
+    if !threads.is_empty() {
+        let _ = invalidate_unreachable_blocks(func, CfgInfo::new(func).reachable());
+    }
     threads.len()
 }
 
