@@ -885,8 +885,19 @@ transfer preserves the incoming stack, and independently bounds the peak
 on both entry graphs. This includes the pushed selector and scratch space
 for the table expansion. The tests exercise real block layout, replay the
 wrong table entry on assembled code, and reject a peak above 1024 words.
-Arbitrary stack-derived table indices and table encoding correspondence
-are separate proof obligations.
+For emitted code, `EncodedTable.correspondence` checks each in-range
+selector against the ordered physical destinations supplied by the caller.
+The kernel decodes the bytes from an instruction boundary and follows valid
+`JUMPDEST` edges, including an outlined stub. The proof lifts each local
+execution to any live stack suffix and records the exact static charge and
+stack peak for that route. Raw-bytecode replays exercise every selector in
+five compiler-generated encodings and test an underfunded path and a corrupt
+packed entry. The `--mask-pc` route derives the selector bound from the
+encoded `PUSH` and `AND`, including their stack and gas costs. Independent
+replay checks high-bit inputs and an altered mask that leaves the table.
+This local bytecode proof takes the destination map as input. The
+pass-manager projection still needs general symbolic selector invariants
+and independently bound destination PCs.
 
 The normalized graph keeps the largest temporary stack
 requirement along each chain of jumps and checks that changed requirements
@@ -1477,7 +1488,7 @@ token revert and a false result.
 | General loop proof support | Cutpoint invariants over typed MIR preserve ordered effects, exits and divergence. Real certificates cover calldata, memory and storage loops, including a runtime-bounded fill. | Apply the framework to more changed CFGs. Automatic recognition currently covers supported shapes. |
 | Arbitrary state and aliases | Automatic universal caller-state proofs within the defined 64 KiB domain; explicit fixtures for broader operation families | Universal account/memory relation with aliasing, reentry, rollback and fresh allocation obligations. |
 | Whole-function MIR interfaces | Automatic typed products/slices, void/multiple results, acyclic calls and recursive direct-call graphs with checked logical bodies | ABI entry, physical frame and allocation correspondence, recursion that needs different logical actions and broader defined memory domains. |
-| EVM entry stacks and indirect transfers | Fixed or symbolic entry stacks, checked physical-entry bounds, stack-carried jump and conditional targets, and literal indexed transfers | Symbolic indexed selectors, table encoding correspondence, more stateful context/window correspondences and physical stack and gas correspondence. |
+| EVM entry stacks and indirect transfers | Fixed or symbolic entry stacks, checked physical-entry bounds, stack-carried jump and conditional targets, literal indexed transfers, and local emitted table proofs with mask producers | General selector invariants, destination-map binding, and broader physical stack, gas and state correspondence. |
 | Importer correctness | Certificates for acyclic EVM regions and acyclic typed scalar MIR | Extend independently checked imports to calls, memory, state, ABI entries and symbolic checked powers; audit the remaining Rust and opcode boundaries. |
 | Physical code and resource correspondence | Explicit layout assumptions and selected priced execution | Backend layout certificates, complete caller work pricing and gas-sensitive transfers; observable code locations and resource failures must agree. |
 | Fork and transaction completeness | Signed set-code authorization processing through Osaka, Amsterdam reservoir initialization, debits and rollback | Other transaction envelopes, fee and block settlement, Amsterdam stateful opcode and nested-frame gas accounting. |

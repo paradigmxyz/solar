@@ -1265,6 +1265,30 @@ full-payload exit under a shared logical continuation, not a resolved target or
 a proved physical return address. Code-image observers and calls remain
 excluded. Changed operations or unsafe transfer growth remain unsupported.
 
+### Indexed jumps in emitted bytecode
+
+Check the emitted table against the ordered destination PCs from the logical
+table. The example uses a two-entry EVM IR fixture, whose destinations in
+the deployed image are at byte offsets 11 and 13.
+
+```sh
+target/debug/solar tests/ui/codegen/evm-ir/none/indexed_jump.evmir \
+  -j1 -Ogas -Zevm-ir-pipeline=none --evm-version=cancun --emit=bin-runtime \
+  | jq -r '.contracts[]["bin-runtime"]' > target/indexed-table.hex
+solar-tv/solar-tv encoded-table target/indexed-table.hex \
+  --pc=2 --targets=11,13 --report target/indexed-table.json
+```
+
+Lean decodes the raw bytes, checks every in-range selector and verifies that
+each transfer consumes only the selector. The report records the stack peak
+and gas charge up to the destination, before executing its `JUMPDEST`. Use
+`--jumps=2` for an outlined table with an intermediate stub. The caller
+supplies the logical-to-physical destination map. If a literal `PUSH` and
+`AND` precede the table, pass the producer's offset as `--mask-pc`. Lean
+checks the mask in the same bytecode and proves the selector is in range
+for every incoming word. Without that producer, the selector range is an
+input obligation.
+
 ### Relocated internal returns
 
 For the captured ERC20Mock runtime `block-layout` pair, validate the

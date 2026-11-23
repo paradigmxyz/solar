@@ -316,6 +316,14 @@ def configuration(
         raise Unsupported(
             "world root must be a bytecode account, not an active precompile"
         )
+    rows = opcode_rows(catalog, version)
+    context = context_expression(fixture)
+    unknown = f"some {fixture['address']}" if root_is_mir else "none"
+    return f"def tvWorldConfig : EVM.State.Config := ⟨.{version}, {rows}, {fixture['address']}, {context}, {unknown}⟩\n"
+
+
+def opcode_rows(catalog, version):
+    """Render the fork-specific raw-byte opcode data shared by world proofs."""
     definitions = {op["opcode"]: op for op in catalog["evmir"]}
     rows = []
     for opcode in range(256):
@@ -328,9 +336,7 @@ def configuration(
         rows.append(
             f"⟨{'true' if fork['available'] else 'false'}, {fork['base_gas']}, {fork['dynamic_gas']}, {inputs}, {outputs}⟩"
         )
-    context = context_expression(fixture)
-    unknown = f"some {fixture['address']}" if root_is_mir else "none"
-    return f"def tvWorldConfig : EVM.State.Config := ⟨.{version}, [{', '.join(rows)}], {fixture['address']}, {context}, {unknown}⟩\n"
+    return "[" + ", ".join(rows) + "]"
 
 
 def context_expression(fixture):
