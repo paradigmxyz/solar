@@ -1928,7 +1928,9 @@ impl<'p, 'a> Vc<'p, 'a> {
             .header
             .modifiers
             .iter()
-            .filter(|m| self.c.modifiers.contains_key(m.name.last().as_str()))
+            .filter(|m| {
+                self.prog.mod_scope(self.c, f).modifiers.contains_key(m.name.last().as_str())
+            })
             .collect();
         if mi == 0 {
             // Memory structs and arrays are values here: refuse writes through shared ones.
@@ -1936,7 +1938,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         }
         if mi < mods.len() {
             let m = mods[mi];
-            let mdef = self.c.modifiers[m.name.last().as_str()];
+            let mdef = self.prog.mod_scope(self.c, f).modifiers[m.name.last().as_str()];
             if let Some(why) = self.prog.refused_item(mdef) {
                 return Err((mdef.header.span, why.clone()));
             }
@@ -2819,7 +2821,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         let mod_args: Vec<&'a Expr<'a>> =
             f.item.header.modifiers.iter().flat_map(|m| m.arguments.exprs()).collect();
         for m in f.item.header.modifiers.iter() {
-            if let Some(md) = self.c.modifiers.get(m.name.last().as_str())
+            if let Some(md) = self.prog.mod_scope(self.c, f).modifiers.get(m.name.last().as_str())
                 && let Some(b) = &md.body
             {
                 stmts.extend(b.stmts.iter());
@@ -2828,7 +2830,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         // calls in these bodies see their pointers, not the caller's
         let mut names = Self::fn_ptr_names(f.item);
         for m in f.item.header.modifiers.iter() {
-            if let Some(md) = self.c.modifiers.get(m.name.last().as_str()) {
+            if let Some(md) = self.prog.mod_scope(self.c, f).modifiers.get(m.name.last().as_str()) {
                 names.extend(Self::fn_ptr_names(md));
             }
         }
@@ -5187,8 +5189,12 @@ impl<'p, 'a> Vc<'p, 'a> {
         // whether its modifier parameter may receive a memory reference (unknown modifiers may).
         let mut mod_args: Vec<(&'a Expr<'a>, bool)> = vec![];
         for m in f.item.header.modifiers.iter() {
-            let params =
-                self.c.modifiers.get(m.name.last().as_str()).map(|md| &md.header.parameters);
+            let params = self
+                .prog
+                .mod_scope(self.c, f)
+                .modifiers
+                .get(m.name.last().as_str())
+                .map(|md| &md.header.parameters);
             for (i, a) in m.arguments.exprs().enumerate() {
                 let by_ref = params.is_none_or(|ps| {
                     ps.get(i).is_none_or(|p| p.data_location == Some(ast::DataLocation::Memory))
@@ -5444,7 +5450,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             stmts.extend(b.stmts.iter());
         }
         for m in f.item.header.modifiers.iter() {
-            if let Some(md) = self.c.modifiers.get(m.name.last().as_str())
+            if let Some(md) = self.prog.mod_scope(self.c, f).modifiers.get(m.name.last().as_str())
                 && let Some(b) = &md.body
             {
                 stmts.extend(b.stmts.iter());

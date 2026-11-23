@@ -1208,3 +1208,8 @@ fn encode_ptr_scope() {
 fn encode_modifier_alias() {
     check("tests/cases/encode_modifier_alias.sol")
 }
+
+#[test]
+fn encode_library_modifier() {
+    check("tests/cases/encode_library_modifier.sol")
+}

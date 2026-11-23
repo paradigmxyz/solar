@@ -215,6 +215,12 @@ impl<'a> Program<'a> {
     pub(crate) fn contract(&self, name: &str) -> Option<&Contract<'a>> {
         self.contracts.iter().find(|c| c.name == name)
     }
+    /// The contract whose modifiers `f`'s header names, when `f` runs for `c`: `c` itself
+    /// for its own and inherited functions (a virtual modifier resolves in the most derived
+    /// contract), else the library that declares `f`.
+    pub(crate) fn mod_scope<'s>(&'s self, c: &'s Contract<'a>, f: &Func<'a>) -> &'s Contract<'a> {
+        if c.lin.contains(&f.contract) { c } else { self.contract(&f.contract).unwrap_or(c) }
+    }
 }
 
 struct Builder<'s, 'a> {

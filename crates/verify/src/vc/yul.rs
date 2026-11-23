@@ -2347,7 +2347,11 @@ impl<'p, 'a> Vc<'p, 'a> {
         let Some(body) = &f.item.body else {
             return not_spec("it has no body");
         };
-        if f.item.header.modifiers.iter().any(|m| c.modifiers.contains_key(m.name.last().as_str()))
+        if f.item
+            .header
+            .modifiers
+            .iter()
+            .any(|m| self.prog.mod_scope(c, f).modifiers.contains_key(m.name.last().as_str()))
         {
             return not_spec("it has modifiers");
         }
