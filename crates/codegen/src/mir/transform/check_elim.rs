@@ -3902,14 +3902,15 @@ fn thread_decided_edges(
         .copied()
         .filter(|&(_, join, successor)| {
             *threadable.entry((join, successor)).or_insert_with(|| {
-                // A fold of `join` can have removed the edge.
+                // A fold of `join` can have removed the edge. A join this pass folded to a jump is
+                // left to CFG cleanup, which forwards it for free; threading would credit its dead
+                // condition.
                 let other = match func.blocks[join].terminator.as_ref() {
                     Some(&Terminator::Branch { then_block, else_block, .. })
                         if successor == then_block || successor == else_block =>
                     {
                         Some(if successor == then_block { else_block } else { then_block })
                     }
-                    Some(&Terminator::Jump(target)) if target == successor => None,
                     _ => return false,
                 };
                 let other = other.filter(|&other| {
@@ -3995,12 +3996,7 @@ fn priced_threads(
     let cyclic = cfg.cyclic_blocks();
     let mut priced = SmallVec::new();
     for (join, edges) in by_join {
-        // A join this pass already folded ends in a jump, not a branch.
-        let exit = match func.blocks[join].terminator {
-            Some(Terminator::Jump(_)) => jump,
-            _ => target.branch(),
-        };
-        let skipped = target.block_instructions_estimate(func, join) + exit;
+        let skipped = target.block_instructions_estimate(func, join) + target.branch();
         let in_loop = |pred| cyclic.contains(pred) && cyclic.contains(join);
         let cold = |pred: BlockId| func.blocks[pred].hotness.is_cold();
         if edges.len() == func.blocks[join].predecessors.len() && !entered.contains(&join) {

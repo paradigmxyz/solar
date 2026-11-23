@@ -182,13 +182,14 @@
 +     invalid
   }
   
-  fn @folded_join(arg0: i1, arg1: i1) -> i256 {
+  fn @folded_join(arg0: i1, arg1: i256) -> i256 {
     bb0:
-      jumpi arg0, bb1, bb5
+      v0 = lt arg1, 5
+      jumpi v0, bb1, bb5
 +   bb5:                                            ; preds = bb0
 +     ret 0
     bb1:                                            ; preds = bb0
-      jumpi arg1, bb2, bb3
+      jumpi arg0, bb2, bb3
     bb3:                                            ; preds = bb1
       sstore 1, 1
       jump bb4
@@ -196,7 +197,8 @@
       sstore 0, 1
       jump bb4
     bb4:                                            ; preds = bb2, bb3
--     jumpi arg0, bb6, bb5
+      v1 = lt arg1, 9
+-     jumpi v1, bb6, bb5
 -   bb5:                                            ; preds = bb0, bb4
 -     ret 0
 +     jump bb6
