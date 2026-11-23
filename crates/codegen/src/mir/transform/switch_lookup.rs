@@ -36,7 +36,9 @@
 //! per call, and a gas build never pays more gas per execution there.
 //!
 //! The pass runs in the lowering pipeline right after `if-convert`, once folded conditions and
-//! empty blocks are gone, and before inlining prices the helpers that hold such switches.
+//! empty blocks are gone, and before inlining prices the helpers that hold such switches. It runs
+//! only on semantic MIR, since lowered MIR rejects `trunc`, and only when `-Zswitch-lowering`
+//! leaves the backend to choose, so a forced strategy still lowers every switch.
 //!
 //! Omissions: tables wider than eight words, key spans over 256 values, and case blocks that pass
 //! a computed value stay switches. The pass is disabled before Constantinople, where
@@ -54,7 +56,7 @@ use crate::{
     backend::evm::op,
     mir::{
         BlockId, EffectKind, Function, FunctionBuilder, Immediate, InstId, InstKind,
-        InstructionMetadata, MirType, Module, Terminator, Value, ValueId,
+        InstructionMetadata, MirPhase, MirType, Module, Terminator, Value, ValueId,
         analysis::{CallGraphInfo, CfgInfo},
         pass::{MirPass, run_function_pass},
         utils::{invalidate_unreachable_block, replace_terminator},
@@ -62,6 +64,7 @@ use crate::{
     target::{Cost, Target},
 };
 use alloy_primitives::U256;
+use solar_config::SwitchLowering;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashSet};
 use solar_evmir::debug::DebugLocKind;
 
@@ -74,7 +77,10 @@ impl MirPass for SwitchLookup {
     }
 
     fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        self.covers(module) && gcx.sess.opts.evm_version.has_bitwise_shifting()
+        self.covers(module)
+            && module.phase() == MirPhase::Semantic
+            && gcx.sess.opts.unstable.switch_lowering == SwitchLowering::Auto
+            && gcx.sess.opts.evm_version.has_bitwise_shifting()
     }
 
     fn run_pass(
