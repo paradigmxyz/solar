@@ -297,7 +297,7 @@ fn @aggregate_arms(arg0: i1, arg1: struct0, arg2: struct0) -> struct0 {
 // CHECK-LABEL: {{^[ +].*}}fn @crc_step{{[( ]}}
 // CHECK: - jumpi
 // CHECK: + [[SCALED:v[0-9]+]] = mul {{v[0-9]+}}, 0xedb88320
-// CHECK-NEXT: + {{v[0-9]+}} = xor {{v[0-9]+}}, [[SCALED]]
+// CHECK-NEXT: + {{v[0-9]+}} = xor v1, [[SCALED]]
 fn @crc_step(arg0: i256) -> i256 {
   bb0:
     v0 = and arg0, 1
