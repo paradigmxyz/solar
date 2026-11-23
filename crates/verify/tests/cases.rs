@@ -520,7 +520,7 @@ fn ctor_calls() {
 fn struct_names() {
     // Refused before any query, so this needs no z3.
     let run = run_verifier(&["--json", "tests/cases/struct_names.sol"]);
-    let want = "struct `Item` names several structs with different fields or with invariants";
+    let want = "this contract's storage or invariants reach `Item`";
     assert!(run.stderr.contains(want), "missing `{want}`\n{}", run.stderr);
     assert!(!run.stdout.contains("\"verified\""), "{}", run.stdout);
     assert_eq!(run.code, Some(1), "{}", run.stderr);
@@ -555,7 +555,7 @@ fn const_unsized_local() {
 fn struct_shared_inv() {
     // Refused before any query, so this needs no z3.
     let run = run_verifier(&["--json", "tests/cases/struct_shared_inv.sol"]);
-    let want = "struct `Item` names several structs with different fields or with invariants";
+    let want = "this contract's storage or invariants reach `Item`";
     assert!(run.stderr.contains(want), "missing `{want}`\n{}", run.stderr);
     assert!(!run.stdout.contains("\"verified\""), "{}", run.stdout);
     assert_eq!(run.code, Some(1), "{}", run.stderr);
@@ -1141,4 +1141,9 @@ fn loop_heads() {
     assert_eq!(code, Some(1), "{err}");
     assert!(err.contains("].slot is \"1\" in the manifest, \"0\""), "{err}");
     let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn struct_names_scoped() {
+    check("tests/cases/struct_names_scoped.sol")
 }

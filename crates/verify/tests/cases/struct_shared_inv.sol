@@ -1,6 +1,6 @@
 pragma solidity ^0.8.20;
-// Two alike declarations of `Item` would share the invariant only one states, so the file is
-// refused.
+// Two alike declarations of `Item` would share the invariant only one states. A state variable
+// holds one, so the file is refused.
 contract A {
     /// @custom:invariant v > 0
     struct Item { uint256 v; }

@@ -163,15 +163,23 @@ pub(crate) struct Program<'a> {
     pub errors: Vec<(Span, String)>,
     /// Ghost code that is not erasable (see `crate::ghost`): a program with any is not verified.
     pub ghost_errors: Vec<crate::ghost::Violation>,
-    /// Struct names that declarations with different fields share: structs are keyed by bare
-    /// name, so no proof about such a file is about the program, and none is attempted.
+    /// Why no proof about the file is attempted: a fixed array size no constant resolves, or a
+    /// contract whose storage or invariants reach an ambiguous struct name.
     pub refused: Vec<(Span, String)>,
+    /// Functions, by address of their item, that reach an ambiguous struct name (see
+    /// `refuse_ambiguous`), with why each is not verified.
+    pub refused_fns: FxHashMap<usize, String>,
     /// Loop invariant candidates the abstract interpreter found, keyed by the loop statement's
     /// span; inference checks them like any other candidate (`vc::infer`).
     pub absint: FxHashMap<Span, Vec<Spec<'a>>>,
 }
 
 impl<'a> Program<'a> {
+    /// Why `f` is not verified, when it reaches an ambiguous struct name.
+    pub(crate) fn refused_fn(&self, f: &Func<'_>) -> Option<&String> {
+        self.refused_fns.get(&std::ptr::from_ref(f.item).addr())
+    }
+
     pub(crate) fn struct_fields(&self, name: &str) -> Option<&Vec<(String, Ty)>> {
         self.structs.iter().find(|(n, _)| n == name).map(|(_, f)| f)
     }
@@ -767,17 +775,9 @@ pub(crate) fn build<'a>(
         .filter(|(n, d)| d.len() > 1 || (spans[n].len() > 1 && with_inv.contains(n)))
         .map(|(n, _)| n.to_string())
         .collect();
-    let mut refused = vec![];
-    let mut named = FxHashSet::default();
-    for st in &b.struct_items {
-        let n = st.name.as_str();
-        if b.ambiguous_structs.contains(n) && named.insert(n) {
-            refused.push((
-                st.name.span,
-                format!("struct `{n}` names several structs with different fields or with invariants: structs are keyed by name, so this file is not verified"),
-            ));
-        }
-    }
+    // An ambiguous struct's values are opaque, so overloads, hashes and length writes on them
+    // could prove false facts: nothing that reaches one is verified (see `refuse_ambiguous`).
+    let (refused, refused_fns) = refuse_ambiguous(sess, units, &b.ambiguous_structs);
     // A size another constant gave may be the conflicting name's other value.
     if !b.const_conflicts.is_empty() {
         for n in b.const_conflicts.iter().chain(&b.const_derived) {
@@ -1268,6 +1268,7 @@ pub(crate) fn build<'a>(
                 )
             }))
             .collect(),
+        refused_fns,
         absint: b.absint,
     };
     let (ghost_errors, lemmas) = crate::ghost::check(&program);
@@ -1335,3 +1336,121 @@ fn builtin_summary(cname: &str, f: &ItemFunction<'_>) -> Option<(&'static str, &
 
 /// Specs parsed in this process, which names each one's source file.
 static SPECS: AtomicUsize = AtomicUsize::new(0);
+
+/// Struct names that stand for several declarations (`ambiguous`) have no datatype, and an
+/// opaque value in their place lets overloads, hashes and length writes prove false facts. This
+/// finds what reaches such a name, by name: an item whose source or doc comments mention a
+/// reached name (struct, event, error, function, modifier, variable) is reached, and its own name
+/// then reaches further, to a fixed point. A name match stands for whatever it names, so this
+/// over-approximates. A contract whose state variables or doc comments are reached cannot be
+/// verified at all (its layout and invariants depend on the opaque value), so the file is
+/// refused; otherwise only the reached functions are, by the address of their item.
+#[allow(clippy::type_complexity)]
+fn refuse_ambiguous(
+    sess: &Session,
+    units: &[&SourceUnit<'_>],
+    ambiguous: &FxHashSet<String>,
+) -> (Vec<(Span, String)>, FxHashMap<usize, String>) {
+    enum Kind {
+        Func(usize),
+        Storage,
+        Other,
+    }
+    struct Entry {
+        name: Option<String>,
+        words: FxHashSet<String>,
+        span: Span,
+        kind: Kind,
+        hit: bool,
+    }
+    let mut refused = vec![];
+    let mut fns = FxHashMap::default();
+    if ambiguous.is_empty() {
+        return (refused, fns);
+    }
+    let words = |text: &str| -> FxHashSet<String> {
+        text.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '$'))
+            .filter(|w| !w.is_empty())
+            .map(str::to_string)
+            .collect()
+    };
+    let docs_text = |docs: &ast::DocComments<'_>| -> String {
+        docs.iter().map(|d| d.symbol.as_str().to_string()).collect::<Vec<_>>().join("\n")
+    };
+    let mut entries = vec![];
+    let entry = |it: &ast::Item<'_>, kind: Kind| {
+        let src = sess.source_map().span_to_snippet(it.span).unwrap_or_default();
+        Entry {
+            name: it.name().map(|n| n.as_str().to_string()),
+            words: words(&format!("{src}\n{}", docs_text(&it.docs))),
+            span: it.name().map_or(it.span, |n| n.span),
+            kind,
+            hit: false,
+        }
+    };
+    for u in units {
+        for it in u.items.iter() {
+            match &it.kind {
+                ItemKind::Contract(c) => {
+                    // The contract's own doc comments (its invariants) and its state variables.
+                    let holds_state = !c.kind.is_interface() && c.kind != ContractKind::Library;
+                    entries.push(Entry {
+                        name: None,
+                        words: words(&docs_text(&it.docs)),
+                        span: c.name.span,
+                        kind: if holds_state { Kind::Storage } else { Kind::Other },
+                        hit: false,
+                    });
+                    for sub in c.body.iter() {
+                        match &sub.kind {
+                            ItemKind::Function(f) => {
+                                entries.push(entry(sub, Kind::Func(std::ptr::from_ref(f).addr())))
+                            }
+                            ItemKind::Variable(v) if v.mutability.is_none() => {
+                                entries.push(entry(sub, Kind::Storage))
+                            }
+                            _ => entries.push(entry(sub, Kind::Other)),
+                        }
+                    }
+                }
+                ItemKind::Function(f) => {
+                    entries.push(entry(it, Kind::Func(std::ptr::from_ref(f).addr())))
+                }
+                _ => entries.push(entry(it, Kind::Other)),
+            }
+        }
+    }
+    let mut reached: FxHashSet<String> = ambiguous.clone();
+    loop {
+        let mut grew = false;
+        for e in entries.iter_mut().filter(|e| !e.hit) {
+            if e.words.iter().any(|w| reached.contains(w)) {
+                e.hit = true;
+                if let Some(n) = &e.name {
+                    grew |= reached.insert(n.clone());
+                }
+            }
+        }
+        if !grew {
+            break;
+        }
+    }
+    let mut names: Vec<&str> = ambiguous.iter().map(String::as_str).collect();
+    names.sort_unstable();
+    let names = names.iter().map(|n| format!("`{n}`")).collect::<Vec<_>>().join(", ");
+    let why = format!(
+        "several structs with different fields or with invariants share the name {names}: structs are keyed by name"
+    );
+    for e in entries.iter().filter(|e| e.hit) {
+        match e.kind {
+            Kind::Func(a) => {
+                fns.insert(a, format!("this function reaches {names}, and {why}"));
+            }
+            Kind::Storage => {
+                refused.push((e.span, format!("this contract's storage or invariants reach {names}, and {why}, so this file is not verified")));
+            }
+            Kind::Other => {}
+        }
+    }
+    (refused, fns)
+}

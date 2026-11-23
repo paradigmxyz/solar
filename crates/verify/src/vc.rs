@@ -1436,6 +1436,18 @@ impl<'p, 'a> Vc<'p, 'a> {
 
     // ---------------------------------------------------------------- function driver
     pub(crate) fn verify_fn(&mut self, f: &'p Func<'a>) -> FnReport {
+        if let Some(why) = self.prog.refused_fn(f) {
+            let span = f.item.header.name.map_or(f.item.header.span, |n| n.span);
+            return FnReport {
+                name: format!("{}.{}", self.c.name, f.name),
+                checks: 0,
+                fails: vec![],
+                unsupported: Some((span, why.clone())),
+                warnings: vec![],
+                inferred: vec![],
+                loop_heads: vec![],
+            };
+        }
         self.horn_hints.clear();
         let at = self.begin_fn(f);
         let mut r = self.verify_fn_inner(f);

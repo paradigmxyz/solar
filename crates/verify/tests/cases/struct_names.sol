@@ -1,6 +1,7 @@
 pragma solidity ^0.8.20;
 // Two declarations of a struct `Item` with different fields: structs are keyed by bare name,
-// so the name stands for no one datatype and nothing in the file is verified.
+// so the name stands for no one datatype. A state variable holds one, so the contract's layout
+// is unknown and nothing in the file is verified.
 interface IOld { struct Item { uint256 amount; } function take(Item calldata it) external; }
 interface INew { struct Item { address owner; uint8 kind; } }
 contract Names {
