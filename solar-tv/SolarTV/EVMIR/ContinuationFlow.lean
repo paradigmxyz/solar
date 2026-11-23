@@ -201,7 +201,7 @@ def pushesLabel (nodes : ProofTable.View Node) (points : ProofTable.View Point)
 
 def projectRow (nodes : ProofTable.View Node) (points : ProofTable.View Point)
     (edges : ProofTable.View ControlFlow.Edges)
-    (index : Nat) : Option SourceGraph.Node := do
+    (index : Nat) (inherited : Bool := false) : Option SourceGraph.Node := do
   let point ← points.get? index
   let find (pc : Nat) (shape : Shape) := resolve points ⟨pc,shape⟩
   match ← nodes.get? point.pc, ← edges.get? index with
@@ -219,16 +219,27 @@ def projectRow (nodes : ProofTable.View Node) (points : ProofTable.View Point)
     if (point.shape.take inputs).all Option.isNone then some (.terminal 0 name) else none
   | .dynamicJump, .next successor =>
     let target ← tagAt point.shape 0
+    if target ≥ nodes.size then none else
     return .operation 0 "pop" (← find target point.shape.tail successor)
+  | .dynamicJump, .terminal =>
+    let target ← tagAt point.shape 0
+    if inherited && nodes.size ≤ target then
+      some (.terminal 0 s!"resume {target - nodes.size}")
+    else none
   | _, _ => none
 
-def projectView (source : Nat) (nodes : ProofTable.View Node) (points : ProofTable.View Point)
+def projectFromView (source : Nat) (nodes : ProofTable.View Node) (points : ProofTable.View Point)
     (edges : ProofTable.View ControlFlow.Edges) :
-    Option (Nat × List SourceGraph.Node) := do
-  let entry ← resolve points ⟨source, []⟩ 0
+    Option Shape → Option (Nat × List SourceGraph.Node) := fun inherited => do
+  let entry ← resolve points ⟨source, inherited.getD []⟩ 0
   if points.size != edges.size then none else
-  let rows ← (List.range points.size).mapM (projectRow nodes points edges)
+  let rows ← (List.range points.size).mapM fun i =>
+    projectRow nodes points edges i inherited.isSome
   return (entry, rows)
+
+def projectView (source : Nat) (nodes : ProofTable.View Node) (points : ProofTable.View Point)
+    (edges : ProofTable.View ControlFlow.Edges) : Option (Nat × List SourceGraph.Node) :=
+  projectFromView source nodes points edges none
 
 def project (program : Program) (points : Array Point) (edges : Array ControlFlow.Edges) :
     Option SourceGraph.Program :=
@@ -248,6 +259,44 @@ theorem project_checked (program : Program) (points : Array Point) (edges : Arra
   rw [project, checked]
   cases result
   rfl
+
+/-- An inherited continuation is identified by its original stack depth.
+Only label pushes introduce local targets, whose indices are below the graph size. -/
+def inheritedShape (size : Nat) (mask : List Bool) : Shape :=
+  mask.zipIdx.map fun (tag, depth) => if tag then some (size + depth) else none
+
+def projectInherited (program : Program) (points : Array Point)
+    (edges : Array ControlFlow.Edges) (mask : List Bool) :
+    Option SourceGraph.Program :=
+  (projectFromView program.entry (ProofTable.ofArray program.nodes) (ProofTable.ofArray points)
+    (ProofTable.ofArray edges) (some (inheritedShape program.nodes.size mask))).map
+    (fun (entry, nodes) => ⟨entry,nodes.toArray⟩)
+
+theorem inherited_checked (program : Program) (points : Array Point)
+    (edges : Array ControlFlow.Edges) (mask : List Bool)
+    (nodesView : ProofTable.View Node) (pointsView : ProofTable.View Point)
+    (edgesView : ProofTable.View ControlFlow.Edges) (result : SourceGraph.Program)
+    (nodesEq : nodesView = ProofTable.ofArray program.nodes)
+    (pointsEq : pointsView = ProofTable.ofArray points)
+    (edgesEq : edgesView = ProofTable.ofArray edges)
+    (checked : projectFromView program.entry nodesView pointsView edgesView
+      (some (inheritedShape nodesView.size mask)) = some (result.entry,result.nodes.toList)) :
+    projectInherited program points edges mask = some result := by
+  rw [nodesEq, pointsEq, edgesEq] at checked
+  rw [projectInherited, ← show (ProofTable.ofArray program.nodes).size = program.nodes.size from rfl,
+    checked]
+  cases result
+  rfl
+
+def callerMaskAt (points : ProofTable.View Point) (pc : Nat) (mask : List Bool) (i : Nat) : Bool :=
+  match points.get? i with
+  | some point => point.pc != pc || point.shape.map Option.isSome == mask
+  | none => false
+
+theorem caller_mask {points : ProofTable.View Point} {pc i : Nat} {shape : Shape}
+    {mask : List Bool} (checked : callerMaskAt points pc mask i = true)
+    (entry : points.get? i = some ⟨pc,shape⟩) : shape.map Option.isSome = mask := by
+  simpa [callerMaskAt, entry] using checked
 
 
 inductive Slot
@@ -322,5 +371,19 @@ theorem return_word (shape : Shape) (slots : List Slot) (target : Nat)
       cases shape with
       | nil => simp at top
       | cons tag tail => simpa using related (depth+1)
+
+/-- At a regional exit, the token selects the caller's original address
+and the actual JUMP removes that address from the live stack. -/
+theorem inherited_return_word (shape : Shape) (slots : List Slot) (size depth : Nat)
+    (localAddress inheritedAddress : Nat → Word) (related : Matches shape slots)
+    (top : tagAt shape 0 = some (size + depth)) :
+    let address := fun tag => if tag < size then localAddress tag else inheritedAddress (tag - size)
+    ∃ rest, slots.map (Slot.encode address) =
+      inheritedAddress depth :: rest.map (Slot.encode address) ∧ Matches shape.tail rest := by
+  dsimp only
+  obtain ⟨rest, words, tail⟩ := return_word shape slots (size + depth)
+    (fun tag => if tag < size then localAddress tag else inheritedAddress (tag - size)) related top
+  have notLocal : ¬size + depth < size := by omega
+  exact ⟨rest, by simpa [notLocal] using words, tail⟩
 
 end SolarTV.EVM.ContinuationFlow

@@ -10,7 +10,7 @@ import hashlib
 import json
 import re
 
-from . import cfg_flow, correspondence, stack_layout
+from . import cfg_flow, code_relocations, correspondence, stack_layout
 from .common import Unsupported, literal
 from .source_identity import INTERACTION_OPS
 
@@ -31,7 +31,9 @@ def instruction_role(
     if operation.startswith("push "):
         literal(operation[5:])
         return ".ordinary 0 1", (0, 1)
-    if from_entry and stack_layout.immutable_push(operation):
+    if from_entry and (
+        stack_layout.immutable_push(operation) or code_relocations.operation(operation)
+    ):
         return ".ordinary 0 1", (0, 1)
     if operation == "pop":
         return ".pop", ("pop", 0)
@@ -57,7 +59,7 @@ def instruction_role(
     return f".ordinary {inputs} {outputs}", (inputs, outputs)
 
 
-def project(model, catalog, version, *, interactions=False, from_entry=False):
+def project(model, catalog, version, *, interactions=False, from_entry=False, mask=()):
     source = []
     roles = {}
     for row in model["nodes"]:
@@ -96,6 +98,7 @@ def project(model, catalog, version, *, interactions=False, from_entry=False):
     indices = {}
     output = []
     returns = 0
+    handoffs = 0
 
     limit = 16384 if from_entry else 2048
 
@@ -114,7 +117,11 @@ def project(model, catalog, version, *, interactions=False, from_entry=False):
         if any(tag is not None for tag in shape[:count]):
             raise Unsupported("continuation label escapes into an observable operand")
 
-    index(model["entry"], ())
+    source_size = len(model["nodes"])
+    index(
+        model["entry"],
+        tuple(source_size + i if tagged else None for i, tagged in enumerate(mask)),
+    )
     for pc, shape in points:
         node = dict(model["nodes"][pc]["node"])
         match node["kind"]:
@@ -152,12 +159,16 @@ def project(model, catalog, version, *, interactions=False, from_entry=False):
                 if node["operation"] == "jump":
                     if not shape or shape[0] is None:
                         raise Unsupported("dynamic return has no resolved stack label")
-                    node = {
-                        "kind": "operation",
-                        "operation": "pop",
-                        "next": index(shape[0], shape[1:]),
-                    }
-                    returns += 1
+                    if shape[0] >= source_size:
+                        node["operation"] = f"resume {shape[0] - source_size}"
+                        handoffs += 1
+                    else:
+                        node = {
+                            "kind": "operation",
+                            "operation": "pop",
+                            "next": index(shape[0], shape[1:]),
+                        }
+                        returns += 1
                 else:
                     check_inputs(shape, roles[pc][0])
         output.append({"id": len(output), "label": 0, "node": node})
@@ -182,6 +193,7 @@ def project(model, catalog, version, *, interactions=False, from_entry=False):
             ).hexdigest(),
             "provenance_states": len(points),
             "resolved_returns": returns,
+            **({"inherited_returns": handoffs} if mask else {}),
         },
     }
 

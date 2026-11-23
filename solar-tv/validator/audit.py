@@ -273,6 +273,14 @@ def record(
             )
         elif program and program.scope == "compact-pushes":
             bound = program.import_evidence["entry_height_bound"]
+            if program.import_evidence.get("code_layout"):
+                assumptions.append(
+                    "constructor reads use the checked sole data suffix and identical appended arguments"
+                )
+            if program.import_evidence.get("caller_return_slots"):
+                assumptions.append(
+                    "verified inherited return slots refer to corresponding logical continuations; a return exposes its slot and live state at the region boundary"
+                )
             if program.import_evidence.get("physical_entry"):
                 assumptions.extend(
                     [

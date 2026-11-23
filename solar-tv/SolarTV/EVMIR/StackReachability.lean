@@ -37,7 +37,7 @@ inductive Reaches (graph : ProofTable.View Node) (signatures : Signatures) :
 over the provenance points. A malformed source edge fails the certificate. -/
 def project (nodes : ProofTable.View ContinuationFlow.Node)
     (points : ProofTable.View ContinuationFlow.Point) (edges : ProofTable.View ControlFlow.Edges) :
-    ProofTable.View Node := ⟨points.size, ContinuationFlow.projectRow nodes points edges⟩
+    ProofTable.View Node := ⟨points.size, fun i => ContinuationFlow.projectRow nodes points edges i⟩
 
 def closedAt (graph : ProofTable.View Node) (signatures : Signatures)
     (bounds : Nat → Nat) (limit pc : Nat) : Bool :=

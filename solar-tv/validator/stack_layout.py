@@ -14,7 +14,7 @@ import tempfile
 from collections import deque
 from pathlib import Path
 
-from . import audit, regions
+from . import audit, code_relocations, regions
 from .common import Program, Unsupported
 
 
@@ -30,7 +30,11 @@ def signatures(model, catalog):
         if node["kind"] != "operation":
             continue
         instruction = name = node["operation"]
-        if instruction.startswith("push ") or immutable_push(instruction):
+        if (
+            instruction.startswith("push ")
+            or immutable_push(instruction)
+            or code_relocations.operation(instruction)
+        ):
             name = "push1"
         elif match := re.fullmatch(r"(dup|swap) (\d+)", instruction):
             name = match[1] + match[2]

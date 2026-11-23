@@ -2060,6 +2060,12 @@ proof then compares executions with equal live-in words and world state at
 the selected block. Omit `--interaction-trace` for regions without calls or
 gas observations.
 
+The checker derives inherited return slots from both entries. A regional
+return exposes the same logical continuation and outgoing state. Address
+folds that read a stack word require a kernel-checked constant invariant on
+every predecessor. For constructors, the entry trace also checks supported
+reads of embedded data and appended arguments against the assembled offsets.
+
 The MIR checker validates block coalescing, jump threading and shared tails
 on typed graphs, including backedges. Each pair of source points tracks the
 local values its path needs. A shared block can therefore match separate

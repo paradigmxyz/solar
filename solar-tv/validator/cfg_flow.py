@@ -111,9 +111,9 @@ theorem {name} : {module}.project {prefix} = some {result} :=
 """
 
 
-def continuation_proof(name, witness, result):
+def continuation_proof(name, witness, result, *, inherited=False):
     """Bind the continuation projection to the independently exported graph."""
-    return (
+    tables = (
         table(f"{name}SourceNodes", "EVM.ContinuationFlow.Node", witness["source"])
         + table(f"{name}Points", "EVM.ContinuationFlow.Point", witness["points"])
         + table(f"{name}Edges", "Edges", witness["edges"])
@@ -121,15 +121,27 @@ def continuation_proof(name, witness, result):
 def {name}Source : EVM.ContinuationFlow.Program :=
   ⟨{witness["entry"]},{name}SourceNodes.rows.toArray⟩
 """
-        + projection_proof(
-            f"{name}Provenance",
-            "EVM.ContinuationFlow",
-            f"{name}Source",
-            f"{name}SourceNodes",
-            f"{name}Points",
-            f"{name}Edges",
-            result,
+    )
+    if inherited:
+        return (
+            tables
+            + f"""
+theorem {name}Provenance :
+    EVM.ContinuationFlow.projectInherited {name}Source {name}Points.rows.toArray
+      {name}Edges.rows.toArray callerMask = some {result} :=
+  EVM.ContinuationFlow.inherited_checked {name}Source {name}Points.rows.toArray
+    {name}Edges.rows.toArray callerMask {name}SourceNodes.view {name}Points.view {name}Edges.view
+    {result} {name}SourceNodesLookup {name}PointsLookup {name}EdgesLookup (by decide +kernel)
+"""
         )
+    return tables + projection_proof(
+        f"{name}Provenance",
+        "EVM.ContinuationFlow",
+        f"{name}Source",
+        f"{name}SourceNodes",
+        f"{name}Points",
+        f"{name}Edges",
+        result,
     )
 
 

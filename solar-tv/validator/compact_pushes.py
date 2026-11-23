@@ -17,12 +17,14 @@ from pathlib import Path
 from . import (
     audit,
     cfg_flow,
+    code_relocations,
     continuation_flow,
     correspondence,
     entry_stack,
     native,
     source_identity,
     stack_layout,
+    stack_words,
 )
 from .common import Program, Unsupported, literal
 
@@ -94,6 +96,22 @@ def replacement(model, pc, expected, catalog, version, protected):
     raise Unsupported("compact PUSH recipe does not produce the literal's word")
 
 
+def address_fold(model, start, protected):
+    push = model["nodes"][start]["node"]
+    duplicate = push["next"]
+    copied = model["nodes"][duplicate]["node"]
+    depth = re.fullmatch(r"dup ([0-9]+)", copied.get("operation", ""))
+    if depth is None or not 2 <= int(depth[1]) <= 16:
+        return None
+    addition = copied["next"]
+    add = model["nodes"][addition]["node"]
+    if add.get("operation") != "add" or protected.intersection(
+        (start, duplicate, addition)
+    ):
+        return None
+    return int(depth[1]) - 2, add["next"]
+
+
 def pair(
     models, catalog, version, protected=(frozenset(), frozenset()), *, from_entry=False
 ):
@@ -101,6 +119,8 @@ def pair(
     witnesses = [[], []]
     nodes, pushes, meters = [[], []], [[], []], [[], []]
     local_edges = [[], []]
+    carried = None
+    folds = []
 
     limit = 16384 if from_entry else 4096
 
@@ -139,7 +159,7 @@ def pair(
                 positions, nodes, witnesses, (left, right), strict=True
             ):
                 rows.append(node)
-                terms.append(f"⟨{pc},[],{edge}⟩")
+                terms.append(f"⟨{pc},[],{edge},none⟩")
             continue
         if (
             positions[0] in protected[0]
@@ -149,11 +169,37 @@ def pair(
             raise Unsupported("compact PUSH pair changes a reachable nonliteral action")
         name = left["operation"]
         term, old_gas, value = instruction(name, catalog, version)
-        recipe, peak, gas, after = replacement(
-            models[1], positions[1], value, catalog, version, protected[1]
-        )
         before = left["next"]
         old_recipe, outputs = [term], [name]
+        address = "none"
+        old_peak = 1
+        try:
+            recipe, peak, gas, after = replacement(
+                models[1], positions[1], value, catalog, version, protected[1]
+            )
+        except Unsupported:
+            folded = address_fold(models[0], positions[0], protected[0])
+            if (
+                folded is None
+                or positions[1] in protected[1]
+                or right["kind"] != "operation"
+                or not right["operation"].startswith("push ")
+            ):
+                raise
+            depth, before = folded
+            new_term, gas, result = instruction(right["operation"], catalog, version)
+            base = (result - value) & WORD_MASK
+            if carried is None:
+                carried = stack_words.Facts(models[0], catalog, protected[0])
+            carried.demand(positions[0], depth, base)
+            folds.append((positions[0], value, depth, base))
+            address = f"some ⟨{value}#256,{depth},{base}#256⟩"
+            old_recipe, old_peak = [], 2
+            old_gas += catalog[f"dup{depth + 2}"]["forks"][version]["base_gas"]
+            old_gas += catalog["add"]["forks"][version]["base_gas"]
+            recipe, peak, after = [new_term], 1, right["next"]
+            outputs = [right["operation"]]
+            value = result
         # Include common literal pushes if they can reach the same stack peak.
         # There is no observation between these pushes and the recipe.
         while len(outputs) < peak and len(recipe) < RECIPE_LIMIT:
@@ -169,6 +215,7 @@ def pair(
             ):
                 break
             outputs.append(next_left["operation"])
+            old_peak = len(outputs)
             term, charge, _ = instruction(outputs[-1], catalog, version)
             old_recipe.append(term)
             recipe.append(term)
@@ -177,7 +224,7 @@ def pair(
             before, after = next_left["next"], next_right["next"]
         successor = index((before, after))
         for side, (steps, growth, charge) in enumerate(
-            ((old_recipe, len(outputs), old_gas), (recipe, peak, gas))
+            ((old_recipe, old_peak, old_gas), (recipe, peak, gas))
         ):
             guard = {"kind": "jump", "growth": growth, "next": len(pushes[side])}
             nodes[side].append(guard)
@@ -193,13 +240,14 @@ def pair(
                 if not last:
                     local_edges[side].append(push)
             witnesses[side].append(
-                f"⟨{positions[side]},[{','.join(steps)}],.next {successor}⟩"
+                f"⟨{positions[side]},[{','.join(steps)}],.next {successor},"
+                f"{address if side == 0 else 'none'}⟩"
             )
             meters[side].append(
                 {
                     "word": str(value),
                     "shared_pushes": len(outputs) - 1,
-                    "operations": len(steps),
+                    "operations": 3 if not steps else len(steps),
                     "peak": growth,
                     "gas": charge,
                 }
@@ -219,7 +267,7 @@ def pair(
         }
         for rows, literals in zip(nodes, pushes, strict=True)
     ]
-    return projected, witnesses, meters
+    return projected, witnesses, meters, carried, folds
 
 
 def check(
@@ -245,15 +293,21 @@ def check(
     texts = source_identity.parse_pair(paths, solar, version, timeout, entry)
     catalog = {row["name"]: row for row in native.catalog(replay, timeout)["evmir"]}
     roots = None
+    mask = ()
     if bound_from_entry:
         roots = [
             entry_stack.propose(text, entry, replay, catalog, version, timeout)
             for text in texts
         ]
-        bound = max(max(bounds) for _, _, bounds in roots)
+        bound = max(max(root.bounds) for root in roots)
+        mask = roots[0].mask()
+        if mask != roots[1].mask():
+            raise Unsupported(
+                "the two physical entries disagree on the region's return slots"
+            )
     witnesses = None
     sources = None
-    if not (from_entry or interactions):
+    if not (from_entry or interactions or mask):
         try:
             sources = [
                 correspondence.export(text, entry, version, replay, timeout)
@@ -277,6 +331,7 @@ def check(
                     version,
                     interactions=interactions,
                     from_entry=from_entry or bound_from_entry,
+                    mask=mask,
                 )
                 for model in sources
             ),
@@ -287,7 +342,10 @@ def check(
         if witnesses
         else (frozenset(), frozenset())
     )
-    projected, points, meters = pair(
+    relocated_code = code_relocations.bind(
+        sources, texts, solar, version, timeout, catalog
+    )
+    projected, points, meters, carried, folds = pair(
         graphs, catalog, version, protected, from_entry=from_entry or bound_from_entry
     )
     signatures = stack_layout.signatures(projected[0], catalog)
@@ -314,11 +372,27 @@ set_option maxHeartbeats 3500000
 """
     )
     code = prelude
+    if mask:
+        bits = ",".join(str(tag).lower() for tag in mask)
+        code += f"\ndef callerMask : List Bool := [{bits}]\n"
     proof_names = [
         "matched",
         "SolarTV.EVM.CompactPushes.exact",
         "SolarTV.EVM.CompactPushes.funded",
     ]
+    if relocated_code:
+        proof_names += [
+            "SolarTV.EVM.CodeRelocations.declared_read",
+            "SolarTV.EVM.CodeRelocations.argument_read",
+            "SolarTV.EVM.CodeRelocations.argument_length",
+        ]
+    if folds:
+        proof_names += [
+            "SolarTV.EVM.StackWords.effect_relates",
+            "SolarTV.EVM.StackWords.literal_relates",
+            "SolarTV.EVM.StackWords.dup_relates",
+            "SolarTV.EVM.StackWords.swap_relates",
+        ]
     for side, name in enumerate(("before", "after")):
         for label, graph, root in (
             (f"{name}Graph", graphs[side], "bb0" if witnesses else entry),
@@ -332,23 +406,36 @@ set_option maxHeartbeats 3500000
                 max_growth=RECIPE_LIMIT,
                 interactions=interactions,
                 from_entry=from_entry or bound_from_entry,
+                inherited=bool(mask),
             )
             code += cfg_flow.table(f"{label}Nodes", "EVM.SourceGraph.Node", rows)
             code += f"def {label} : Program := ⟨{start},{label}Nodes.rows.toArray⟩\n"
         code += cfg_flow.table(f"{name}Recipes", "Point", points[side])
         guard = "fun _ => false"
         if witnesses:
-            code += cfg_flow.continuation_proof(name, witnesses[side], f"{name}Graph")
+            code += cfg_flow.continuation_proof(
+                name, witnesses[side], f"{name}Graph", inherited=bool(mask)
+            )
             guard = f"EVM.ContinuationFlow.pushesLabel {name}SourceNodes.view {name}Points.view"
         prices = ",".join(str(step["gas"]) for step in meters[side])
         code += f"""
 def {name}Protected : Nat → Bool := {guard}
+"""
+        facts = "(fun _ => [])"
+        if side == 0 and carried:
+            code += carried.declarations(name, catalog)
+            facts = "beforeWordFacts.facts"
+            proof_names.append("beforeWordFacts.constantAt")
+            for i, (pc, offset, depth, base) in enumerate(folds):
+                code += stack_words.fold_proof(i, pc, offset, depth, base, version)
+                proof_names.append(f"foldAt{i}")
+        code += f"""
 def {name}RecipeProjection (source : Program) : Option (Program × List Nat) :=
-  project source .{version} {name}Recipes.rows.toArray {name}Protected {str(interactions).lower()}
+  project source .{version} {name}Recipes.rows.toArray {name}Protected {str(interactions).lower()} {facts}
 def {name}Prices : List Nat := [{prices}]
 theorem {name}Checked : {name}RecipeProjection {name}Graph = some ({name},{name}Prices) :=
   project_checked {name}Graph .{version} {name}Recipes.rows.toArray
-    {name}GraphNodes.view {name}Recipes.view {name}Protected {str(interactions).lower()} {name} {name}Prices
+    {name}GraphNodes.view {name}Recipes.view {name}Protected {str(interactions).lower()} {facts} {name} {name}Prices
     {name}GraphNodesLookup {name}RecipesLookup (by decide +kernel)
 """
     code += cfg_flow.table("stackBounds", "Nat", list(map(str, bounds)))
@@ -370,11 +457,13 @@ theorem matchedRecipes {{World Observation : Type}} (handlers : Handlers World O
     beforeChecked afterChecked valid handlers fuel state fits
 """
     if witnesses:
+        projection = "projectInherited" if mask else "project"
+        argument = " callerMask" if mask else ""
         for name in ("before", "after"):
             code += f"""
 def {name}Projected : Option (Program × List Nat) :=
-  (EVM.ContinuationFlow.project {name}Source {name}Points.rows.toArray
-    {name}Edges.rows.toArray).bind {name}RecipeProjection
+  (EVM.ContinuationFlow.{projection} {name}Source {name}Points.rows.toArray
+    {name}Edges.rows.toArray{argument}).bind {name}RecipeProjection
 """
         match_proof = """EVM.ControlFlow.compose beforeProvenance afterProvenance
     beforeRecipeProjection afterRecipeProjection (observe handlers fuel state)
@@ -449,6 +538,11 @@ theorem matchedFromEntryBound {World Observation : Type}
             "AfterFrame.entryFits",
             "matchedFromEntryBound",
         ]
+        if mask:
+            proof_names.append("SolarTV.EVM.ContinuationFlow.inherited_return_word")
+            for name, root in zip(("BeforeFrame", "AfterFrame"), roots, strict=True):
+                code += entry_stack.mask_proof(name, root)
+                proof_names.append(f"{name}.callerLayout")
     code += "".join(f"#print axioms {name}\n" for name in proof_names)
     built = build_model(timeout)
     if built.returncode:
@@ -543,6 +637,13 @@ theorem matchedFromEntryBound {World Observation : Type}
                 **({"interactions": requests} if requests else {}),
                 **(
                     {"caller_stack": entry_stack.evidence(roots[side])} if roots else {}
+                ),
+                **({"code_layout": relocated_code[side]} if relocated_code else {}),
+                **({"address_folds": len(folds)} if folds else {}),
+                **(
+                    {"caller_return_slots": [i for i, tag in enumerate(mask) if tag]}
+                    if mask
+                    else {}
                 ),
                 **(
                     {

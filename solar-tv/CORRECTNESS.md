@@ -594,6 +594,24 @@ return. The local compact PUSH theorem uses that cap with equal live-in
 state. The caller certificates place no equivalence requirement on unrelated
 rewrites in the prefixes.
 
+For inherited returns, `caller_mask` checks the region's tagged stack slots
+in every context reached by each entry projection. The regional projection
+uses the slot depth as its logical identity, so the proof covers callers at
+different physical offsets. At a transfer out of the region,
+`inherited_return_word` recovers the actual address and the remaining stack.
+
+Mixed compact PUSH and address-fold rewrites use `StackWords.invariant` to
+prove the carried base word. A literal establishes the fact, stack shuffles
+and the untouched tail preserve it, and every edge into the use must justify
+it. The funded address-fold theorem checks the actual PUSH, DUP and ADD
+sequence, including its temporary stack peak and charge.
+
+Constructor entry traces match the exact instruction sequences for in-bounds
+reads of a sole declared data suffix or the argument bytes appended after it.
+The checker independently reads the assembled PUSH operands and verifies
+the data suffix. The relocation lemmas derive the same bytes and argument
+length under arbitrary code prefixes and shared arguments.
+
 The pinned WETH `name()` capture checks the return-data path. With its next
 literal push included, the compared Cancun sequences charge 6 and 12 gas and
 both peak at two temporary words. The compiler's existing 1,023-word fixture

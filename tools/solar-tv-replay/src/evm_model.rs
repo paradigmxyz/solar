@@ -4,7 +4,8 @@
 //! recipe. Static label pushes are consumed only by their actual adjacent branch.
 //! The continuation export retains other block-label pushes and their targets
 //! for stack provenance checking. Immutable pushes can be exported as symbolic
-//! deployment slots in an entry trace. Other relocations remain unsupported.
+//! deployment slots in an entry trace. Recognized code reads carry an explicit
+//! stack guard and the declared data suffix.
 
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -20,6 +21,8 @@ use std::{
     io::{self, Read},
     str::FromStr,
 };
+
+mod relocations;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -84,6 +87,9 @@ fn graph(module: &Module, entry: BlockId, labels: bool, from_entry: bool) -> Res
     let mut visited = DenseBitSet::new_empty(total);
     let mut pending = vec![(entry, 0)];
     let mut nodes = Vec::new();
+    let suffix = (labels && from_entry).then(|| relocations::suffix(module)).flatten();
+    let mut reads = BTreeMap::new();
+    let mut read_code = false;
     while let Some((id, offset)) = pending.pop() {
         let block = &module.blocks[id];
         if offset > block.instructions.len() {
@@ -100,7 +106,17 @@ fn graph(module: &Module, entry: BlockId, labels: bool, from_entry: bool) -> Res
             pending.push((target, position));
             bases[target] + position
         };
-        let node = if let Some(inst) = block.instructions.get(offset) {
+        let node = if let Some((name, end)) = reads.remove(&point) {
+            json!({"kind":"operation","operation":name,"next":edge(id,end)})
+        } else if let Some(read) = suffix
+            .and_then(|suffix| relocations::recognize(&block.instructions[offset..], suffix.len()))
+        {
+            // A read spans only ordinary instructions in this block. The second
+            // point represents its effect, after admitting its scratch stack.
+            reads.insert(point + 1, (read.name, offset + read.count));
+            read_code = true;
+            json!({"kind":"jump","growth":read.peak,"next":edge(id,offset+1)})
+        } else if let Some(inst) = block.instructions.get(offset) {
             if let Some(target) = inst.pushed_block() {
                 let next = block.instructions.get(offset + 1).map(|i| i.opcode).or_else(|| {
                     match block.terminator.as_ref()?.kind {
@@ -159,7 +175,11 @@ fn graph(module: &Module, entry: BlockId, labels: bool, from_entry: bool) -> Res
             }
         }
     }
-    Ok(json!({"entry":dense[&(bases[entry] as u64)],"nodes":nodes}))
+    let mut graph = json!({"entry":dense[&(bases[entry] as u64)],"nodes":nodes});
+    if read_code {
+        graph["data_suffix"] = alloy_primitives::hex::encode(suffix.unwrap()).into();
+    }
+    Ok(graph)
 }
 
 fn instruction(inst: &Instruction) -> Result<String, String> {

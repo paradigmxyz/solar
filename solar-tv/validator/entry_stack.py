@@ -1,7 +1,27 @@
 """Certify an EVM stack envelope independently on both sides of a region."""
 
+from dataclasses import dataclass
+
 from . import cfg_flow, continuation_flow, correspondence, stack_layout
 from .common import Unsupported
+
+
+@dataclass
+class Caller:
+    witness: dict
+    signatures: dict
+    bounds: list[int]
+    cut: int
+
+    def mask(self):
+        masks = {
+            tuple(tag is not None for tag in shape)
+            for pc, shape in self.witness["point_data"]
+            if pc == self.cut
+        }
+        if len(masks) != 1:
+            raise Unsupported("region entry has different caller return-slot layouts")
+        return masks.pop()
 
 
 def propose(text, entry, replay, catalog, version, timeout):
@@ -9,24 +29,25 @@ def propose(text, entry, replay, catalog, version, timeout):
     graph, witness = continuation_flow.project(
         source, catalog, version, interactions=True, from_entry=True
     )
-    if int(entry[2:]) not in witness["block_labels"]:
+    cut = next(
+        (row["id"] for row in source["nodes"] if row["label"] == int(entry[2:])), None
+    )
+    if cut is None or not any(pc == cut for pc, _ in witness["point_data"]):
         raise Unsupported(f"{entry} is outside the physical entry projection")
     signatures = stack_layout.signatures(graph, catalog)
     _, bounds, _ = stack_layout.certificate(graph, graph, signatures, entry_bound=0)
-    return witness, signatures, bounds
+    return Caller(witness, signatures, bounds, cut)
 
 
-def ranges(start, count):
+def ranges(start, count, check="check"):
     if count <= 256:
-        return f"(checkedRange check {start} {count} (by decide +kernel))"
+        return f"(checkedRange {check} {start} {count} (by decide +kernel))"
     middle = count // 2
-    return (
-        f"(joinRanges {ranges(start, middle)} {ranges(start + middle, count - middle)})"
-    )
+    return f"(joinRanges {ranges(start, middle, check)} {ranges(start + middle, count - middle, check)})"
 
 
 def certificate(namespace, proposal, catalog, limit):
-    witness, signatures, bounds = proposal
+    witness, signatures, bounds = proposal.witness, proposal.signatures, proposal.bounds
     shapes = {}
     points = []
     for pc, shape in witness["point_data"]:
@@ -71,5 +92,19 @@ end {namespace}
 
 
 def evidence(proposal):
-    witness, _, bounds = proposal
-    return {**witness["evidence"], "max_height": max(bounds)}
+    return {**proposal.witness["evidence"], "max_height": max(proposal.bounds)}
+
+
+def mask_proof(namespace, caller):
+    return f"""
+namespace {namespace}
+open EVM.StackReachability EVM.ContinuationFlow
+def checkMask := callerMaskAt points {caller.cut} callerMask
+theorem checkedMask : CheckedRange checkMask 0 points.size :=
+  {ranges(0, len(caller.bounds), "checkMask")}
+theorem callerLayout (i : Nat) (inside : i < points.size) (shape : Shape)
+    (selected : points.get? i = some ⟨{caller.cut},shape⟩) :
+    shape.map Option.isSome = callerMask :=
+  caller_mask (checkedMask i (Nat.zero_le _) inside) selected
+end {namespace}
+"""

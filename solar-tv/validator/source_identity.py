@@ -13,7 +13,7 @@ import re
 import tempfile
 from pathlib import Path
 
-from . import audit, correspondence, native, regions, stack_layout
+from . import audit, code_relocations, correspondence, native, regions, stack_layout
 from .common import Program, Unsupported, literal
 
 INTERACTION_OPS = frozenset({"gas", "extcodesize", "call", "staticcall"})
@@ -51,6 +51,7 @@ def render_nodes(
     max_growth=1,
     interactions=False,
     from_entry=False,
+    inherited=False,
 ):
     if not isinstance(model, dict) or not isinstance(model.get("nodes"), list):
         raise Unsupported("invalid source-identity graph")
@@ -100,7 +101,10 @@ def render_nodes(
                     and catalog["push0"]["forks"][version]["available"]
                     else "push1"
                 )
-            elif from_entry and stack_layout.immutable_push(operation):
+            elif from_entry and (
+                stack_layout.immutable_push(operation)
+                or code_relocations.operation(operation)
+            ):
                 name = "push1"
             elif match := re.fullmatch(r"(dup|swap) (\d+)", operation):
                 name = match[1] + match[2]
@@ -137,6 +141,8 @@ def render_nodes(
                 node["operation"] in {"stop", "invalid", "return", "revert"}
                 or dynamic_exit
                 and node["operation"] == "jump"
+                or inherited
+                and re.fullmatch(r"resume [0-9]+", node["operation"])
             )
         ):
             nodes.append(f".terminal {label} {json.dumps(node['operation'])}")

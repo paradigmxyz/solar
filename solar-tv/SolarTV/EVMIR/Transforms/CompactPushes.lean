@@ -1,5 +1,6 @@
 import SolarTV.EVMIR.Prefix
 import SolarTV.EVMIR.ControlFlow
+import SolarTV.EVMIR.StackWords
 
 /-! Closed constant recipes. The checker executes the recipe on a private
 stack, counting its peak height. A kernel theorem lifts that execution to any
@@ -183,10 +184,48 @@ def scan (nodes : ProofTable.View Node) (fork : Fork) (relocated : Nat → Bool)
       else none
     | _ => none
 
+structure AddressFold where
+  offset : Word
+  depth : Fin 15
+  base : Word
+
+def AddressFold.ops (fold : AddressFold) : List Op :=
+  [.push fold.offset, .dup ⟨fold.depth.val+1, by have := fold.depth.isLt; omega⟩, .add]
+
+theorem AddressFold.run (fold : AddressFold) (ctx : Context) (stack : Stack)
+    (base : stack[fold.depth.val]? = some fold.base) (room : stack.length + 2 ≤ 1024) :
+    Prefix.run ctx fold.ops stack = some ((fold.base + fold.offset) :: stack) := by
+  have h0 : ¬1024 < stack.length := by omega
+  have h1 : ¬1024 < stack.length + 1 := by omega
+  have h2 : ¬1024 < stack.length + 2 := by omega
+  simp [AddressFold.ops, Prefix.run, stepChecked, step, Evm.add,
+    List.length_cons, Nat.add_assoc, base, h0, h1, h2]
+
+theorem AddressFold.funded (fold : AddressFold) (ctx : Context) (fork : Fork)
+    (stack : Stack) (gas : Nat)
+    (base : stack[fold.depth.val]? = some fold.base) (room : stack.length + 2 ≤ 1024)
+    (paid : Prefix.cost fork fold.ops ≤ gas) :
+    Prefix.charged ctx fork fold.ops stack gas =
+      some ((fold.base + fold.offset) :: stack, gas - Prefix.cost fork fold.ops) := by
+  rw [Prefix.charged_eq_observe, Prefix.observe, fold.run ctx stack base room]
+  simp [paid]
+
+def readAddressFold (nodes : ProofTable.View Node) (relocated : Nat → Bool)
+    (facts : Nat → StackWords.Facts) (pc : Nat) (fold : AddressFold) : Option Nat := do
+  if !(facts pc).contains (fold.depth.val,fold.base) then none else
+  let .operation _ push duplicate ← nodes.get? pc | none
+  let .operation _ dup sum ← nodes.get? duplicate | none
+  let .operation _ add next ← nodes.get? sum | none
+  if relocated pc || relocated duplicate || relocated sum ||
+      push != (Instruction.push fold.offset).text ||
+      dup != s!"dup {fold.depth.val + 2}" || add != "add" then none else
+  return next
+
 structure Point where
   pc : Nat
   recipe : List Instruction
   edges : Edges
+  address : Option AddressFold
 
 def resolve (points : ProofTable.View Point) (pc destination : Nat) : Option Nat := do
   if (← points.get? destination).pc == pc then some destination else none
@@ -197,16 +236,37 @@ private structure Projection where
   prices : List Nat := []
   pushCount : Nat := 0
 
+private def appendRecipe (view : Projection) (size : Nat) (words : Stack)
+    (peak price next : Nat) : Projection :=
+  let start := size + view.pushCount
+  let literals := words.zipIdx |>.map fun (value,index) =>
+    .operation 0 (Instruction.push value).text
+      (if index + 1 = words.length then next else start + index + 1)
+  {
+    nodes := .jump 0 peak start :: view.nodes
+    pushes := literals.reverseAux view.pushes
+    prices := price :: view.prices
+    pushCount := view.pushCount + words.length
+  }
+
 /-- Each recipe becomes a stack guard followed by its literal outputs. Gas
 reads outside recipes are allowed only as explicit shared interactions. -/
 def projectView (source : Nat) (nodes : ProofTable.View Node) (fork : Fork)
-    (points : ProofTable.View Point) (relocated : Nat → Bool) (interactions : Bool) :
+    (points : ProofTable.View Point) (relocated : Nat → Bool) (interactions : Bool)
+    (facts : Nat → StackWords.Facts) :
     Option (Nat × List Node × List Nat) := do
   let entry ← resolve points source 0
   let view ← (List.range points.size).foldlM (init := ({} : Projection))
     fun view index => do
       let point ← points.get? index
       let find (pc destination : Nat) := resolve points pc destination
+      if let some fold := point.address then
+        let .next successor := point.edges | none
+        if !point.recipe.isEmpty then none else
+        let next ← find (← readAddressFold nodes relocated facts point.pc fold) successor
+        return appendRecipe view points.size [fold.base + fold.offset] 2
+          (Prefix.cost fork fold.ops) next
+      else
       match point.recipe with
       | [] =>
         let node ← match ← nodes.get? point.pc, point.edges with
@@ -214,7 +274,7 @@ def projectView (source : Nat) (nodes : ProofTable.View Node) (fork : Fork)
           if name == "gas" && !interactions then none else
           pure (.operation 0 name (← find next destination))
         | .jump _ growth next, .next destination =>
-          if growth > 1 then none else pure (.jump 0 growth (← find next destination))
+          if growth > 4 then none else pure (.jump 0 growth (← find next destination))
         | .branch _ yes no, .branch target other =>
           pure (.branch 0 (← find yes target) (← find no other))
         | .terminal _ name, .terminal =>
@@ -225,34 +285,26 @@ def projectView (source : Nat) (nodes : ProofTable.View Node) (fork : Fork)
         match ← summarize recipe [], point.edges with
         | ⟨word :: rest,peak⟩, .next successor =>
           let next ← find (← scan nodes fork relocated recipe point.pc) successor
-          let start := points.size + view.pushCount
-          let words := (word :: rest).reverse
-          let literals := words.zipIdx |>.map fun (value,index) =>
-            .operation 0 (Instruction.push value).text
-              (if index + 1 = words.length then next else start + index + 1)
-          return {
-            nodes := .jump 0 peak start :: view.nodes
-            pushes := literals.reverseAux view.pushes
-            prices := charge fork recipe :: view.prices
-            pushCount := view.pushCount + words.length
-          }
+          return appendRecipe view points.size (word :: rest).reverse peak (charge fork recipe) next
         | _, _ => none
   return (entry, view.nodes.reverse ++ view.pushes.reverse, view.prices.reverse)
 
 def project (program : Program) (fork : Fork) (points : Array Point)
-    (relocated : Nat → Bool) (interactions : Bool) : Option (Program × List Nat) :=
+    (relocated : Nat → Bool) (interactions : Bool) (facts : Nat → StackWords.Facts) :
+    Option (Program × List Nat) :=
   (projectView program.entry (ProofTable.ofArray program.nodes) fork
-    (ProofTable.ofArray points) relocated interactions).map
+    (ProofTable.ofArray points) relocated interactions facts).map
     (fun (entry, nodes, prices) => (⟨entry,nodes.toArray⟩,prices))
 
 theorem project_checked (program : Program) (fork : Fork) (points : Array Point)
     (nodesView : ProofTable.View Node) (pointsView : ProofTable.View Point)
-    (relocated : Nat → Bool) (interactions : Bool) (result : Program) (prices : List Nat)
+    (relocated : Nat → Bool) (interactions : Bool) (facts : Nat → StackWords.Facts)
+    (result : Program) (prices : List Nat)
     (nodesEq : nodesView = ProofTable.ofArray program.nodes)
     (pointsEq : pointsView = ProofTable.ofArray points)
-    (checked : projectView program.entry nodesView fork pointsView relocated interactions =
+    (checked : projectView program.entry nodesView fork pointsView relocated interactions facts =
       some (result.entry,result.nodes.toList,prices)) :
-    project program fork points relocated interactions = some (result,prices) := by
+    project program fork points relocated interactions facts = some (result,prices) := by
   rw [nodesEq, pointsEq] at checked
   rw [project, checked]
   cases result

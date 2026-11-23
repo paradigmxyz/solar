@@ -11,7 +11,7 @@ from pathlib import Path
 from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
-from validator import compact_pushes, native, prefix
+from validator import compact_pushes, native, prefix, world
 from validator.check import build_model
 from validator.common import Program
 
@@ -206,7 +206,13 @@ example : CompactPushes.scan projected.view .cancun relocated [.push 0] 0 = none
     def test_physical_entry_supplies_stack_bound_and_return(self):
         self.before.write_text(f"""@module EntryRecipe
 bb51:
+  calldatasize
+  push bb52
+  jumpi
   push bb4
+  jump bb3
+bb52:
+  push bb5
   jump bb3
 bb3 [ret=0, inputs=1, outputs=0]:
   push 0x11223344{"00" * 28}
@@ -219,6 +225,10 @@ bb4 [continuation]:
   push 32
   push 0
   return
+bb5 [continuation]:
+  push 0
+  push 0
+  return
 """)
         after = self.compact("cancun")
         result, record = self.check("cancun", "--region=bb3")
@@ -228,10 +238,15 @@ bb4 [continuation]:
         self.assertEqual(record["region"]["kind"], "entry")
         self.assertEqual(record["region"]["name"], "bb51")
         for side in record["import_correspondence"]:
-            self.assertEqual(side["block_labels"], [3, 4, 51])
+            self.assertEqual(side["block_labels"], [3, 4, 5, 51, 52])
             self.assertEqual(side["entry_height_bound"], 0)
-            self.assertEqual(side["resolved_returns"], 1)
+            self.assertEqual(side["resolved_returns"], 2)
             self.assertLess(side["max_projected_stack_bound"], 1024)
+        result, record = self.check("cancun", "--region=bb3", "--entry-stack")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for side in record["import_correspondence"]:
+            self.assertEqual(side["caller_return_slots"], [0])
+            self.assertEqual(side["inherited_returns"], 1)
         wrong = after.replace("push 224\n  shl", "push 223\n  shl")
         self.assertNotEqual(wrong, after)
         self.after.write_text(wrong)
@@ -240,6 +255,16 @@ bb4 [continuation]:
         self.assertIn("--entry-trace", record["diagnostic"])
         world = self.root / "world.json"
         world.write_text('{"version":1}')
+        result, record = self.check("cancun", "--world", world)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+
+        wrong_return = after.replace("  pop\n  jump\n", "  pop\n  pop\n  jump bb4\n")
+        self.assertNotEqual(wrong_return, after)
+        self.after.write_text(wrong_return)
+        result, record = self.check("cancun", "--region=bb3", "--entry-stack")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        world.write_text('{"version":1,"calldata":"0xaa"}')
         result, record = self.check("cancun", "--world", world)
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertEqual(record["evidence"], "kernel-and-rust-replay")
@@ -296,6 +321,127 @@ bb8:
         result, record = self.check("cancun", "--region=bb8", "--entry-stack")
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn("may overflow", record["diagnostic"])
+
+    def test_address_fold_checks_each_reaching_stack_definition(self):
+        source = """@module CarriedAddress
+bb0:
+  calldatasize
+  push bb2
+  jumpi
+  push 128
+  jump bb3
+bb2:
+  push 128
+  jump bb3
+bb3:
+  push 32
+  dup 2
+  add
+  push 0
+  mstore
+  pop
+  push 32
+  push 0
+  return
+"""
+        self.before.write_text(source)
+        folded = source.replace("  push 32\n  dup 2\n  add\n", "  push 160\n")
+        self.after.write_text(folded)
+        result, record = self.check("cancun", "--entry-trace")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(record["import_correspondence"][0]["address_folds"], 1)
+
+        self.after.write_text(folded.replace("  push 160\n", "  push 159\n"))
+        result, record = self.check("cancun", "--entry-trace")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        world = self.root / "world.json"
+        world.write_text('{"version":1}')
+        result, record = self.check("cancun", "--world", world)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+
+        for path, text in ((self.before, source), (self.after, folded)):
+            path.write_text(text.replace("bb2:\n  push 128\n", "bb2:\n  push 129\n"))
+        result, record = self.check("cancun", "--entry-trace")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("unproved stack word", record["diagnostic"])
+
+    def test_constructor_reads_bind_to_relocated_data_and_arguments(self):
+        self.before.write_text(f"""@module ConstructorReads
+@data
+  blob_0: hex"11223344"
+
+bb0:
+  push_data blob_0+4
+  codesize
+  sub
+  dup 1
+  push_data blob_0+4
+  push 64
+  codecopy
+  pop
+  push_data blob_0+4
+  codesize
+  sub
+  pop
+  push {MAX}
+  pop
+  push 4
+  dup 1
+  push_data blob_0
+  push 0
+  codecopy
+  pop
+  push 68
+  push 0
+  return
+""")
+        after = self.compact("cancun")
+        result, record = self.check("cancun", "--entry-trace")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        left, right = [side["code_layout"] for side in record["import_correspondence"]]
+        self.assertEqual(left["declared_data_sha256"], right["declared_data_sha256"])
+        self.assertNotEqual(left["argument_position"], right["argument_position"])
+        self.assertEqual(
+            left["relocated_reads"],
+            ["copy-code-data 0 4 0", "copy-init-tail 64", "size-init-tail"],
+        )
+        fixture_path = self.root / "world.json"
+        fixture_path.write_text('{"version":1}')
+        fixture = world.read(fixture_path, SOLAR, None)
+        arguments = bytes.fromhex("55667788")
+        for text in (self.before.read_text(), after):
+            image = world.runtime(text, "evmir", SOLAR, "cancun", 30)
+            program = Program(
+                ("world-entry", "evmir"),
+                [],
+                "",
+                "",
+                world=world.with_runtime(fixture, image + arguments),
+                evm_version="cancun",
+            )
+            observed = native.replay(
+                program,
+                program,
+                [],
+                executable=self.replay,
+                timeout=30,
+                raw_runtime=True,
+            )
+            self.assertEqual(
+                json.loads(observed["observations"][0])[1],
+                [0x11, 0x22, 0x33, 0x44] + [0] * 60 + list(arguments),
+            )
+        wrong = after.replace(
+            "  push_data blob_0\n  push 0\n", "  push_data blob_0\n  push 1\n"
+        )
+        self.assertNotEqual(wrong, after)
+        self.after.write_text(wrong)
+        result, record = self.check("cancun", "--entry-trace")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        result, record = self.check("cancun", "--world", fixture_path)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(record["evidence"], "kernel-and-rust-replay")
 
     def test_kernel_rejects_an_understated_caller_bound(self):
         checked = build_model(30)
