@@ -40,8 +40,8 @@
 //! loop that already carries many words and for a byte pointer beside its
 //! index, but with the `ISZERO` an equality exit adds. The target then weighs
 //! the operations it saves on each iteration against its setup: its end and
-//! the counter's rebuild after the loop. A loop that runs a literal number of
-//! times keeps its counter countable for complete unrolling. The pointer
+//! the counter's rebuild after the loop. A counter from a literal start to a
+//! literal bound keeps its test, so complete unrolling can count it. The pointer
 //! must not wrap between the start and the bound: its base is a heap address,
 //! bounded by the memory a call can afford, and a loop cannot run
 //! `2^MAX_TRIP_COUNT_BITS` iterations, the trip-count assumption the loop split
@@ -565,6 +565,10 @@ impl IndVarSimplifier {
         } else {
             None
         };
+        // loop-unroll counts the trips of a counter from a literal start to a literal bound, and
+        // only then unrolls the loop completely.
+        let countable = func.value_u256(iv.init).is_some()
+            && exit_test.is_some_and(|test| func.value_u256(test.bound).is_some());
         let reduce_all = test_family.is_some() && {
             let before = families
                 .iter()
@@ -575,7 +579,7 @@ impl IndVarSimplifier {
                 .map(|members| Self::family_cost_after(members, carried))
                 .sum::<usize>();
             before + Self::COUNTER_COST > after
-                || loop_data.trip_count.is_none()
+                || !countable
                     && Self::counter_dies(func, loop_data, &iv, &addresses)
                     && test_family.is_some_and(|(test, exit)| {
                         let setup = Self::pointer_setup_cost(

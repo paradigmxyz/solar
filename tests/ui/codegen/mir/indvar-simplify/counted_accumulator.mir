@@ -1,0 +1,43 @@
+//@ compile-flags: -Zmir-pipeline=indvar-simplify --optimize-runs 10000
+//@ filecheck:
+@module CountedAccumulator
+
+// The byte scan of `deep_byte_scan.mir` over eight bytes, summing them in a second additive
+// phi, which hides the loop's trip count from loop analysis. The counter runs from a literal
+// start to a literal bound, so it keeps its test for loop-unroll to unroll the loop completely.
+// CHECK-LABEL: {{^[ +].*}}fn @scan{{[( ]}}
+// CHECK-NOT: + {{v[0-9]+}} = phi
+// CHECK: = lt {{v[0-9]+}}, 8
+
+fn @scan(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v34 = add arg0, 560
+    jump bb7
+  bb7:
+    v44 = phi [bb0: 0], [bb11: v60]
+    v46 = phi [bb0: 0], [bb11: v61]
+    v70 = phi [bb0: 0], [bb11: v71]
+    v47 = lt v46, 8
+    jumpi v47, bb9, bb8
+  bb8:
+    ret v70
+  bb9:
+    v50 = add v34, v46
+    v51 = mload v50
+    v71 = add v70, v51
+    v52 = shr v51, 248
+    v53 = eq v52, arg1
+    jumpi v53, bb10, bb11
+  bb10:
+    v56 = eq arg2, v44
+    jumpi v56, bb12, bb13
+  bb13:
+    v59 = add v44, 1
+    jump bb11
+  bb11:
+    v60 = phi [bb13: v59], [bb9: v44]
+    v61 = add v46, 1
+    jump bb7
+  bb12:
+    ret v46
+}
