@@ -57,16 +57,19 @@
 //! stopped. Once the pointer takes over the exit test, each such read is rebuilt
 //! from the pointer as `init + (ptr - start) / scale`, a shift for a power-of-two
 //! scale, at the top of the reading block, or at the end of the block a phi reads
-//! it from. Only the equality exit takes over from such a counter: it counts up
-//! and its clamped `end` cannot wrap, while a heap pointer's `ptr < end` would
-//! leave at once for a bound near the word size and return a counter the loop
-//! never reached. A phi reading the counter over a critical edge, from a loop
-//! block or from a block after the loop that also branches elsewhere, needs a
-//! block of its own on that edge, so that only the path into the phi pays for the
-//! rebuild: the pass splits those edges after visiting every loop of the function
-//! and then visits those loops again. Only the counter itself may be read after
-//! the loop; a value the loop derives from it keeps the counter, and so does a
-//! counter narrower than a word, which the rebuild would replace with a word.
+//! it from. A read in another loop, as a search that returns from a scan it starts
+//! after this loop, is rebuilt once in the preheader of the outermost such loop
+//! rather than on each of its iterations. Only the equality exit takes over from
+//! such a counter: it counts up and its clamped `end` cannot wrap, while a heap
+//! pointer's `ptr < end` would leave at once for a bound near the word size and
+//! return a counter the loop never reached. A phi reading the counter over a
+//! critical edge, from a loop block or from a block after the loop that also
+//! branches elsewhere, needs a block of its own on that edge, so that only the
+//! path into the phi pays for the rebuild: the pass splits those edges after
+//! visiting every loop of the function and then visits those loops again. Only
+//! the counter itself may be read after the loop; a value the loop derives from
+//! it keeps the counter, and so does a counter narrower than a word, which the
+//! rebuild would replace with a word.
 //!
 //! A loop that leaves on what it reads, such as a partition's scan
 //! `do ++i; while (a[i] < y)` once its bounds checks are gone, tests no counter
@@ -185,6 +188,8 @@ struct IndVarSimplifier {
     read_by_non_address: DenseBitSet<ValueId>,
     /// Values already counted or visited by one scan.
     seen: DenseBitSet<ValueId>,
+    /// The function's loops, for placing counter rebuilds outside the loops that read them.
+    loops: Vec<Loop>,
 }
 
 /// Reads of a counter phi after its loop, which the counter's pointer rebuilds once the
@@ -275,6 +280,7 @@ impl IndVarSimplifier {
             in_loop: DenseBitSet::new_empty(0),
             read_by_non_address: DenseBitSet::new_empty(0),
             seen: DenseBitSet::new_empty(0),
+            loops: Vec::new(),
         }
     }
 
@@ -282,9 +288,9 @@ impl IndVarSimplifier {
     fn run(&mut self, func: &mut Function, cfg: Rc<CfgInfo>) -> bool {
         let mut analyzer = LoopAnalyzer::new();
         let loop_info = analyzer.analyze_with_cfg(func, Rc::clone(&cfg));
-        let loops: Vec<_> = loop_info.loops.values().cloned().collect();
+        self.loops = loop_info.loops.values().cloned().collect();
 
-        for loop_data in loops {
+        for loop_data in self.loops.clone() {
             self.run_loop(func, &cfg, loop_data);
         }
 
@@ -305,6 +311,7 @@ impl IndVarSimplifier {
             }
             let cfg = Rc::new(CfgInfo::new(func));
             let loop_info = LoopAnalyzer::new().analyze_with_cfg(func, Rc::clone(&cfg));
+            self.loops = loop_info.loops.values().cloned().collect();
             let loops: Vec<_> = loop_info
                 .loops
                 .values()
@@ -651,7 +658,15 @@ impl IndVarSimplifier {
             && let Some(reads) = &exit_reads
             && let Some((pointer, key, _)) = &test_pointer
         {
-            self.rebuild_exit_reads(func, preheader, &iv, *pointer, key.scale, reads);
+            self.rebuild_exit_reads(
+                func,
+                loop_data.header,
+                preheader,
+                &iv,
+                *pointer,
+                key.scale,
+                reads,
+            );
         }
         if test_rewritten {
             self.remove_dead_counter(func, loop_data, iv.value, iv.update_inst);
@@ -1158,9 +1173,14 @@ impl IndVarSimplifier {
     /// test: `init + (ptr - start) / scale`, with `start` the pointer's value on entry. The
     /// pointer moves `scale` bytes for every step of the counter, and the counter travels
     /// below `2^64` steps, so the difference never wraps past the word.
+    ///
+    /// A read inside another loop, such as a search that returns from a loop it enters after
+    /// this one, is rebuilt once in that loop's preheader instead of on every iteration.
+    #[expect(clippy::too_many_arguments)]
     fn rebuild_exit_reads(
         &self,
         func: &mut Function,
+        header: BlockId,
         preheader: BlockId,
         iv: &InductionVariable,
         pointer: ValueId,
@@ -1205,12 +1225,22 @@ impl IndVarSimplifier {
                 }
             }
         }
+        let mut hoisted = FxHashMap::default();
         for &block in &reads.blocks {
-            // block: phis; counter = rebuild; ...reads of counter
             let phis = func.block_phi_count(block);
-            let body = func.blocks[block].instructions.split_off(phis);
-            let counter = rebuild(self, func, block);
-            func.blocks[block].instructions.extend_from_slice(&body);
+            let counter = match self.outer_preheader(header, block) {
+                // preheader: ...; counter = rebuild; jump loop
+                // block: phis; ...reads of counter
+                Some(at) => *hoisted.entry(at).or_insert_with(|| rebuild(self, func, at)),
+                // block: phis; counter = rebuild; ...reads of counter
+                None => {
+                    let body = func.blocks[block].instructions.split_off(phis);
+                    let counter = rebuild(self, func, block);
+                    func.blocks[block].instructions.extend_from_slice(&body);
+                    counter
+                }
+            };
+            let body = func.blocks[block].instructions[phis..].to_vec();
             for &inst_id in &body {
                 func.inst_mut(inst_id).kind.visit_operands_mut(|operand| {
                     if *operand == iv.value {
@@ -1226,6 +1256,17 @@ impl IndVarSimplifier {
                 });
             }
         }
+    }
+
+    /// The preheader of the outermost loop that holds `block` but not `header`, where a value
+    /// that the loop at `header` leaves behind is computed once per entry instead of on every
+    /// iteration of the loop around `block`.
+    fn outer_preheader(&self, header: BlockId, block: BlockId) -> Option<BlockId> {
+        self.loops
+            .iter()
+            .filter(|l| l.blocks.contains(block) && !l.blocks.contains(header))
+            .max_by_key(|l| l.blocks.count())?
+            .preheader
     }
 
     /// Removes the counter phi and its update once nothing else reads either: the plain
