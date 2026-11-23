@@ -2013,6 +2013,57 @@ impl<'p, 'a> Vc<'p, 'a> {
 
     // ---------------------------------------------------------------- statements
     fn exec_block(&mut self, b: &'a ast::Block<'a>) -> R<()> {
+        // The names this block declares go out of scope at its end: each names again what it
+        // named before (a shadowed storage pointer, or nothing), so a storage pointer of an
+        // inner block never stands for a later memory local of its name.
+        let mut declared: Vec<String> = vec![];
+        for s in b.stmts.iter() {
+            match &s.kind {
+                StmtKind::DeclSingle(v) => declared.extend(v.name.map(|n| n.as_str().to_string())),
+                StmtKind::DeclMulti(vs, _) => declared.extend(
+                    vs.iter()
+                        .filter_map(|v| v.as_ref().unspan())
+                        .filter_map(|v| v.name.map(|n| n.as_str().to_string())),
+                ),
+                _ => {}
+            }
+        }
+        let saved: Vec<_> = declared
+            .into_iter()
+            .map(|n| {
+                let sl = self.slocals.contains(&n);
+                let al = self.aliases.get(&n).copied();
+                let ae = self.alias_env.get(&n).cloned();
+                (n, sl, al, ae)
+            })
+            .collect();
+        let r = self.exec_block_stmts(b);
+        for (n, sl, al, ae) in saved {
+            if sl {
+                self.slocals.insert(n.clone());
+            } else {
+                self.slocals.remove(&n);
+            }
+            match al {
+                Some(a) => self.aliases.insert(n.clone(), a),
+                None => self.aliases.remove(&n),
+            };
+            match ae {
+                Some(e) => self.alias_env.insert(n, e),
+                None => self.alias_env.remove(&n),
+            };
+        }
+        r
+    }
+
+    /// A memory or value local of `name` names no storage pointer while it is in scope.
+    fn unalias(&mut self, name: &str) {
+        self.slocals.remove(name);
+        self.aliases.remove(name);
+        self.alias_env.remove(name);
+    }
+
+    fn exec_block_stmts(&mut self, b: &'a ast::Block<'a>) -> R<()> {
         for s in b.stmts.iter() {
             if self.guard == "false" {
                 break;
@@ -2156,6 +2207,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                     None => self.zero_var(&ty),
                 };
                 let name = v.name.map(|n| n.as_str().to_string()).unwrap_or_default();
+                self.unalias(&name);
                 self.bind(&name, ty, val);
             }
             StmtKind::DeclMulti(vars, e) => {
@@ -2164,6 +2216,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                     if let Some(v) = v.as_ref().unspan() {
                         let ty = self.ty_of_decl(&v.ty);
                         let name = v.name.map(|n| n.as_str().to_string()).unwrap_or_default();
+                        self.unalias(&name);
                         self.bind(&name, ty, val);
                     }
                 }

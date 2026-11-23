@@ -1250,3 +1250,8 @@ fn encode_using_overload() {
 fn encode_overload_key() {
     check("tests/cases/encode_overload_key.sol")
 }
+
+#[test]
+fn storage_pointer_scope() {
+    check("tests/cases/storage_pointer_scope.sol")
+}
