@@ -54,11 +54,11 @@ fn @sum() {
   bb0:
     v11 = calldatasize
     v12 = lt v11, 36
-    jumpi v12, bb12, bb13
-  bb13:                                           ; preds = bb0
+    jumpi v12, bb11, bb12
+  bb12:                                           ; preds = bb0
     v13 = calldataload 4
     jump bb1
-  bb1:                                            ; preds = bb13
+  bb1:                                            ; preds = bb12
     jump bb2
   bb2:                                            ; preds = bb1, bb9
     v1 = phi [bb1: 0], [bb9: v9]
@@ -74,10 +74,10 @@ fn @sum() {
   bb5:                                            ; preds = bb2
     v9 = add v1, v2
     v10 = lt v9, v1
-    jumpi v10, bb10, bb11
-  bb11:                                           ; preds = bb5
+    jumpi v10, bb8, bb10
+  bb10:                                           ; preds = bb5
     jump bb7
-  bb7:                                            ; preds = bb11
+  bb7:                                            ; preds = bb10
     jump bb4
   bb4:                                            ; preds = bb7
     v7 = add v2, 1
@@ -85,11 +85,11 @@ fn @sum() {
     jumpi v8, bb8, bb9
   bb9:                                            ; preds = bb4
     jump bb2
-  bb8:                                            ; preds = bb4
-    tail_call @panic_error_0x11
-  bb10:                                           ; preds = bb5
-    tail_call @panic_error_0x11
-  bb12 [cold]:                                    ; preds = bb0
+  bb8 [cold]:                                     ; preds = bb4, bb5
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb11 [cold]:                                    ; preds = bb0
     revert 0, 0
 }
 
@@ -219,13 +219,6 @@ fn @tagged_gas() [optimize=gas] {
     v0 = loadimmutable tag
     mstore 0, v0 !metadata(memory=scratch)
     returndata 0, 32
-}
-
-fn @panic_error_0x11() {
-  bb0 [cold]:
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 ; function small(uint256 n) public pure returns (uint256 total)

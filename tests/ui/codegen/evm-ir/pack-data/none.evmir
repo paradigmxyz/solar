@@ -2,8 +2,7 @@
 //@ filecheck:
 @module None
 
-// At `-O none` no run of stores becomes a copy: each store keeps its own instruction and origin, as
-// in clang's `-O0`.
+// At `-O none` no run of stores becomes a copy.
 // CHECK-NOT: literal_0
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK-NOT: codecopy

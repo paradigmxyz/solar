@@ -1,4 +1,4 @@
-//@compile-flags: -O gas -Zdump=mir -Zmir-pipeline=lower-arithmetic
+//@compile-flags: -O none -Zdump=mir -Zmir-pipeline=lower-arithmetic
 //@filecheck:
 
 // Pins checked exponentiation lowering:

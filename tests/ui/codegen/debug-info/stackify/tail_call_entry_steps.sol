@@ -1,5 +1,6 @@
-//@ revisions: gas size
+//@ revisions: none gas size
 //@ compile-flags: --emit=srcmap-runtime -Zdump=evm-ir-runtime-scheduled
+//@[none] compile-flags: -Onone
 //@[gas] compile-flags: -Ogas
 //@[size] compile-flags: -Osize
 //@ normalize-stdout-test: "(?s).+" -> ""

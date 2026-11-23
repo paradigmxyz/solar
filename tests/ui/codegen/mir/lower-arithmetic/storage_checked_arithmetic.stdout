@@ -13,8 +13,9 @@ fn @storage_sub(arg0: i160, arg1: i256) [selector=0x8af2db43, abi_params=[addres
     sstore v1, v4
     ret
   bb1 [cold]:                                     ; preds = bb0
-    icall @panic_error_0x11
-    invalid
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 ; function storage_binary_sub(address owner, uint256 amount) public [selector 0x816bb6a5]
@@ -32,8 +33,9 @@ fn @storage_binary_sub(arg0: i160, arg1: i256) [selector=0x816bb6a5, abi_params=
     sstore v5, v6
     ret
   bb1 [cold]:                                     ; preds = bb0
-    icall @panic_error_0x11
-    invalid
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 ; function storage_struct_add(address owner, uint128 amount) public [selector 0xb11dd1b8]
@@ -58,8 +60,9 @@ fn @storage_struct_add(arg0: i160, arg1: i128) [selector=0xb11dd1b8, abi_params=
     sstore v1, v9 !metadata(storage=symbolic(v1))
     ret
   bb1 [cold]:                                     ; preds = bb0
-    icall @panic_error_0x11
-    invalid
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 ; function storage_struct_signed_sub(address owner, int8 amount) public [selector 0x14ebfa30]
@@ -100,12 +103,6 @@ fn @storage_struct_signed_sub(arg0: i160, arg1: i8) [selector=0x14ebfa30, abi_pa
     sstore v1, v12 !metadata(storage=symbolic(v1))
     ret
   bb1 [cold]:                                     ; preds = bb0
-    icall @panic_error_0x11
-    invalid
-}
-
-fn @panic_error_0x11() {
-  bb0 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

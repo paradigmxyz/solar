@@ -456,7 +456,14 @@ fn lower_terminator(
                 program.push_op(op::JUMP);
                 return;
             }
-            if module.next_block(block_id) == Some(*target) {
+            // `-O none` keeps the jump of a call, which is the call statement's only instruction.
+            let unoptimized = module.blocks[block_id]
+                .metadata
+                .optimization
+                .unwrap_or(module.optimization)
+                .is_none();
+            let calls = module.blocks[*target].metadata.call_effect.is_some();
+            if !(unoptimized && calls) && module.next_block(block_id) == Some(*target) {
                 // NOTE: Fallthrough emits no instruction for this edge's source span.
                 // If the successor is shared, its unique source location stays unknown.
                 // Do not retain a jump or duplicate code for it, or move the span onto an

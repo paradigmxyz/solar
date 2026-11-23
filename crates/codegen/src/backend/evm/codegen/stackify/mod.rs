@@ -13,8 +13,7 @@
 //! arranges `[result(m-1), ..., result0, return]` and jumps; the caller resumes with the results
 //! in place of its arguments. Words below the arguments belong to the caller, so a value live
 //! across a call simply stays where it is. A call whose results the caller returns unchanged
-//! becomes a tail call: the callee receives the arguments and the inherited return address. At
-//! `-O none` the call stays a call, as in clang's `-O0`, so its jump carries its own location.
+//! becomes a tail call: the callee receives the arguments and the inherited return address.
 //!
 //! A function that never returns and is only entered through `tail_call`, such as a shared
 //! revert helper, takes no return address. External entries and the dispatch entry have none

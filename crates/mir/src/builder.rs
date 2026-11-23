@@ -76,10 +76,6 @@ pub struct FunctionBuilder<'a> {
     current_block: BlockId,
     /// Revert blocks shared within this function.
     revert_blocks: RevertBlocks,
-    /// Whether checks of one failure share a revert block, which merges their origins.
-    share_reverts: bool,
-    /// The functions that revert with a panic code, called instead of an inline payload.
-    panic_helpers: FxHashMap<PanicCode, FunctionId>,
     /// Source context attached to instructions emitted in the current lowering scope.
     current_debug_context: InstructionMetadata,
     /// How compiler-generated reverts with a [`RevertReason`] are encoded.
@@ -110,8 +106,6 @@ impl<'a> FunctionBuilder<'a> {
             func,
             current_block: BlockId::ENTRY,
             revert_blocks: RevertBlocks::default(),
-            share_reverts: true,
-            panic_helpers: FxHashMap::default(),
             current_debug_context: InstructionMetadata::EMPTY,
             revert_strings: RevertStrings::Default,
             semantic: false,
@@ -145,19 +139,6 @@ impl<'a> FunctionBuilder<'a> {
     /// instead of empty data.
     pub fn with_revert_strings(mut self, revert_strings: RevertStrings) -> Self {
         self.revert_strings = revert_strings;
-        self
-    }
-
-    /// Gives every check its own revert block when `share` is false, so each keeps its own origin.
-    pub fn with_shared_reverts(mut self, share: bool) -> Self {
-        self.share_reverts = share;
-        self
-    }
-
-    /// Makes each check that fails with a panic code in `helpers` call the function that reverts
-    /// with it, instead of encoding the payload in its own revert block.
-    pub fn with_panic_helpers(mut self, helpers: FxHashMap<PanicCode, FunctionId>) -> Self {
-        self.panic_helpers = helpers;
         self
     }
 
@@ -551,15 +532,7 @@ impl<'a> FunctionBuilder<'a> {
         if new_revert {
             self.switch_to_block(revert);
             match kind {
-                RevertKind::Panic(code) => {
-                    if let Some(&helper) = self.panic_helpers.get(&code) {
-                        // icall panic_helper; unreachable
-                        self.icall_void(helper, vec![]);
-                        self.invalid();
-                    } else {
-                        self.panic(code);
-                    }
-                }
+                RevertKind::Panic(code) => self.panic(code),
                 RevertKind::Reason(reason) => self.revert_with(reason),
             }
         }
@@ -577,9 +550,6 @@ impl<'a> FunctionBuilder<'a> {
             }
             kind => kind,
         };
-        if !self.share_reverts {
-            return (self.create_block(), true);
-        }
         if let Some(&block) = self.revert_blocks.0.get(&kind) {
             // Shared revert body !metadata(origins of all failed checks, none if one has none)
             for index in 0..self.func.blocks[block].instructions.len() {

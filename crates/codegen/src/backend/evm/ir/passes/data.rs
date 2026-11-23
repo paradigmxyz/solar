@@ -350,7 +350,7 @@ fn find_runs(gcx: Gcx<'_>, module: &Module) -> FxHashMap<Bytes, Vec<Rewrite>> {
             continue;
         };
         let target = block.target(gcx, module.optimization, module.code_follows);
-        // At `-O none` each store keeps its own instruction and origin, as in clang's `-O0`.
+        // At `-O none` no run of stores is replaced.
         if target.optimization().is_none() {
             continue;
         }

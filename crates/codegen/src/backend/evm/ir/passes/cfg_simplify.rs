@@ -16,11 +16,10 @@
 //! instructions are considered; no instructions are duplicated and protected boundaries stay
 //! intact.
 //!
-//! At `-O none` the pass follows clang's `-O0`: it keeps every branch and every block, shares no
-//! equal halting blocks, bypasses no thunk and merges no block, so every source construct keeps its
-//! block and its location. It decides this without reading the locations, since debug information
-//! never changes code. It still truncates code after a terminal, turns `PUSH label; JUMP` into a
-//! jump and removes unreachable blocks; layout turns a jump to the next block into a fall through.
+//! At `-O none` the pass keeps every branch and every block: it shares no equal halting blocks,
+//! bypasses no thunk and merges no block. It still truncates code after a terminal, turns
+//! `PUSH label; JUMP` into a jump and removes unreachable blocks; layout turns a jump to the next
+//! block into a fall through.
 //!
 //! Final cleanup exposes acyclic branch triangles as structural conditional terminators so
 //! layout can place their taken arm before the join. The `jumpi` keeps its origin and the removed

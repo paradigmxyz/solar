@@ -12,10 +12,11 @@
 //! scalar expressions.
 
 use crate::mir::{
-    ArithmeticKind, CheckedOp, FunctionBuilder, InstKind, MirType, Module, PanicCode, ValueId,
+    ArithmeticKind, BlockId, CheckedOp, FunctionBuilder, InstKind, MirType, Module, PanicCode,
+    ValueId,
     analysis::integers::integer_mask,
     pass::{MirPass, run_function_pass},
-    transform::utils::{expand_block, panic_helpers},
+    transform::utils::expand_block,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
@@ -35,33 +36,6 @@ impl MirPass for LowerArithmetic {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        // At `-O none` each check calls the function that reverts with its panic code.
-        let mut codes = Vec::new();
-        for func in &module.functions {
-            if !module.objective_of(func).is_none() {
-                continue;
-            }
-            for id in func.instructions() {
-                let InstKind::CheckedBinary { op, arithmetic, .. } = func.inst(id).kind else {
-                    continue;
-                };
-                let zero = matches!(op, CheckedOp::Div | CheckedOp::WrappingDiv | CheckedOp::Rem);
-                let overflow = match op {
-                    CheckedOp::Add | CheckedOp::Sub | CheckedOp::Mul | CheckedOp::Pow => true,
-                    CheckedOp::Div => matches!(arithmetic, ArithmeticKind::Signed(_)),
-                    CheckedOp::WrappingDiv | CheckedOp::Rem => false,
-                };
-                for (needed, code) in [
-                    (zero, PanicCode::DivisionByZero),
-                    (overflow, PanicCode::ArithmeticOverflowUnderflow),
-                ] {
-                    if needed && !codes.contains(&code) {
-                        codes.push(code);
-                    }
-                }
-            }
-        }
-        let helpers = panic_helpers(module, codes);
         run_function_pass(module, analyses, |func, analyses| {
             if !func
                 .instructions()
@@ -70,23 +44,13 @@ impl MirPass for LowerArithmetic {
                 return false;
             }
             let mut replacements = FxHashMap::default();
-            for block in func.blocks.indices() {
-                if !func.blocks[block]
-                    .instructions
-                    .iter()
-                    .any(|&id| matches!(func.inst(id).kind, InstKind::CheckedBinary { .. }))
-                {
-                    continue;
+            let mut expand = |builder: &mut FunctionBuilder<'_>, block: BlockId| {
+                if !builder.func().blocks[block].instructions.iter().any(|&id| {
+                    matches!(builder.func().inst(id).kind, InstKind::CheckedBinary { .. })
+                }) {
+                    return;
                 }
-                let unoptimized = analyses.optimization().is_none();
-                let mut builder = FunctionBuilder::new(func)
-                    .with_shared_reverts(!unoptimized)
-                    .with_panic_helpers(if unoptimized {
-                        helpers.clone()
-                    } else {
-                        Default::default()
-                    });
-                expand_block(&mut builder, block, |builder, id| {
+                expand_block(builder, block, |builder, id| {
                     let InstKind::CheckedBinary { op, arithmetic, lhs, rhs } =
                         builder.func().inst(id).kind
                     else {
@@ -102,6 +66,18 @@ impl MirPass for LowerArithmetic {
                     );
                     true
                 });
+            };
+            let blocks = func.blocks.indices();
+            if analyses.optimization().is_none() {
+                // One builder for the function, so its checks share one revert block per failure.
+                let mut builder = FunctionBuilder::new(func);
+                for block in blocks {
+                    expand(&mut builder, block);
+                }
+            } else {
+                for block in blocks {
+                    expand(&mut FunctionBuilder::new(func), block);
+                }
             }
             func.replace_uses_canonicalized(&replacements);
             true

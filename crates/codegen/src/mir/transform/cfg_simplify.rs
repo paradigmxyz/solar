@@ -19,10 +19,9 @@
 //! preserve stack lifetimes.
 //!
 //! ## `-O none`
-//! The pass follows clang's `-O0`: it merges no block, forwards no empty block, shares no equal
-//! terminal blocks and folds no branch except on a constant, so each source construct keeps its
-//! block, its branch and its location. It still removes unreachable blocks and trivial phis. It
-//! decides this by the optimization level alone, never by the locations the code carries.
+//! The pass merges no block, forwards no empty block, shares no equal terminal blocks and folds no
+//! branch except on a constant, so each statement keeps its block and its jump. It still removes
+//! unreachable blocks and trivial phis. It decides this by the optimization level alone.
 //!
 //! ## Dead Function Elimination
 //! Remove functions that are never called, starting from entry points
@@ -244,10 +243,8 @@ pub(super) fn remove_unreachable_blocks(func: &mut Function) -> usize {
 
 /// Runs one round of CFG simplification on a function and returns whether it rewrote anything.
 ///
-/// `unoptimized` is the `-O none` mode, which follows clang's `-O0`: every block and branch stays,
-/// so each source construct keeps its block, its branch and its location. Only the branches on a
-/// constant fold, and only the unreachable code and the trivial phis go. The mode depends on the
-/// optimization level alone, never on the locations the code carries.
+/// `unoptimized` is the `-O none` mode: every block and branch stays, except the branches on a
+/// constant, the unreachable code and the trivial phis.
 fn run(func: &mut Function, unoptimized: bool) -> bool {
     let mut changed = simplify_degenerate_terminators(func, unoptimized);
     if unoptimized {

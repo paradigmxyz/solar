@@ -2,8 +2,8 @@
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
 
-// At `-O none` cfg-simplify follows clang's `-O0`: it shares no equal blocks, folds no branch
-// whose arms look alike, and merges or forwards no block, so each `return` keeps its own block.
+// At `-O none` cfg-simplify shares no equal blocks, folds no branch whose arms look alike, and
+// merges or forwards no block, so each `return` keeps its own block.
 contract C {
     // CHECK-LABEL: fn @f(
     // CHECK: eq

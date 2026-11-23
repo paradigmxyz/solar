@@ -130,17 +130,15 @@ fn abi_origins_and_conditional_thunks() {
             "{mode}: the require branch lost its conditional label's origin"
         );
         if mode == "none" {
-            // `-Onone` folds no call into a tail call, so the call keeps its own code.
-            let start = source.find("_set(x)").unwrap();
-            let end = start + "_set(x)".len();
+            let start = source.find("function _set(").unwrap();
+            let end = start + source[start..].find('}').unwrap() + 1;
             assert!(
-                entries.iter().any(|&entry| in_statement(
-                    entry,
-                    source_id("src/Base.sol"),
-                    start,
-                    end
-                )),
-                "the call `_set(x)` must keep an instruction"
+                instructions.iter().enumerate().any(|(index, inst)| {
+                    inst["operation"]["mnemonic"] == "JUMPDEST"
+                        && in_statement(entries[index], source_id("src/Base.sol"), start, end)
+                        && inst["context"]["code"]["range"]["offset"].as_u64() == Some(start as u64)
+                }),
+                "the removed tail jump's callee label must map to its definition"
             );
         }
     }
@@ -416,26 +414,15 @@ fn tail_calls_keep_the_call_location() {
                 })
                 .count()
         };
-        if mode == "none" {
-            // `-Onone` folds no call into a tail call: each call keeps code of its own, whether or
-            // not layout falls through into the callee.
-            for (call, len) in [(update_call, "_update(from, to, value)".len()), (mix_call, 10)] {
-                assert!(
-                    entries.iter().any(|&entry| in_statement(entry, id, call, call + len)),
-                    "{mode}: the call at {call} keeps an instruction"
-                );
-            }
-        } else {
-            // The condition before the call must not keep the tail jump.
-            assert_eq!(
-                call_jumps(update_call, "_update(from, to, value)".len()),
-                1,
-                "{mode}: `_update(from, to, value)` tail jump"
-            );
-            // Layout falls `_forward` through into `_mix` at `-Osize`, leaving no jump to map.
-            if mode != "size" {
-                assert_eq!(call_jumps(mix_call, "_mix(a, b)".len()), 1, "{mode}: `_mix(a, b)`");
-            }
+        // The condition before the call must not keep the tail jump.
+        assert_eq!(
+            call_jumps(update_call, "_update(from, to, value)".len()),
+            1,
+            "{mode}: `_update(from, to, value)` tail jump"
+        );
+        // Layout falls `_forward` through into `_mix` at `-Osize`, leaving no jump to map.
+        if mode != "size" {
+            assert_eq!(call_jumps(mix_call, "_mix(a, b)".len()), 1, "{mode}: `_mix(a, b)`");
         }
         // A function that starts with an assembly block still enters under its definition.
         assert!(

@@ -4,20 +4,18 @@
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
 
-// At `-O none` a call that ends a function stays a call, as in clang's `-O0`: the call pushes its
-// return address and jumps with the origin of the call, so the call statement owns code that runs,
-// and the `require` in front of it keeps its conditional jump to the block that makes the call.
+// A call that ends a function is a tail call, and its jump carries the call's location, so the call
+// statement owns code that runs. The `require` in front of it keeps its conditional jump to the
+// block that makes the call.
 abstract contract Base {
     error ZeroAddress();
     address public a;
 
     // CHECK-LABEL: ; function __Base_init(
-    // CHECK: jumpi !metadata(span=[[#REQUIRE:]]..{{[0-9]+}})
-    // CHECK-NOT: invoke=_set
-    // CHECK: bb[[#CALL:]]:
-    // CHECK-NEXT: swap 1 !metadata(span=[[#SET:]]..{{[0-9]+}})
-    // CHECK-NEXT: push bb[[#RET:]] !metadata(span=[[#SET]]..{{[0-9]+}})
-    // CHECK-NEXT: jump bb{{[0-9]+}} !metadata(span=[[#SET]]..{{[0-9]+}})
+    // CHECK: push [[CALL:bb[0-9]+]] !metadata(span=[[#REQUIRE:]]..{{[0-9]+}})
+    // CHECK-NEXT: jumpi !metadata(span=[[#REQUIRE]]..{{[0-9]+}})
+    // CHECK: [[CALL]]:
+    // CHECK-NEXT: jump bb{{[0-9]+}} !metadata(span=[[#SET:]]..{{[0-9]+}}
     function __Base_init(address x) internal {
         require(x != address(0), ZeroAddress());
         _set(x);

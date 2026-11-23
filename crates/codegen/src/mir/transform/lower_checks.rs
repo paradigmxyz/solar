@@ -1,8 +1,7 @@
 //! Expand semantic conditional checks before revert outlining and arithmetic expansion.
 //!
 //! Each check splits its block at the original execution point and branches to a typed panic or
-//! revert payload. Checks in one optimized function share payload blocks, merging their debug
-//! origins; at `-O none` each keeps its own.
+//! revert payload. Checks in one function share payload blocks, merging their debug origins.
 //! Surviving instructions and the original terminator move to the continuation; successor phi
 //! predecessors update locally. The session's revert-string mode selects debug payloads without
 //! changing when argument evaluation or the check occurs. Require payloads read their evaluated
@@ -21,14 +20,13 @@
 
 use crate::mir::{
     AbiLayout, AbiType, Builtin, Callee, ERROR_SELECTOR, EffectKind, Function, FunctionBuilder,
-    FunctionId, InstKind, InstructionMetadata, MAX_SCRATCH_ERROR_WORDS, MirType, Module, PanicCode,
+    FunctionId, InstKind, InstructionMetadata, MAX_SCRATCH_ERROR_WORDS, MirType, Module,
     PhaseCategory, PtrLocation, RequireKind, RevertKind, RevertPayload,
     lower::{DataDest, copy_data_to_memory},
     pass::MirPass,
-    transform::utils::{expand_block, panic_helpers},
+    transform::utils::expand_block,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::FxHashMap;
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
 use std::sync::Arc;
@@ -71,31 +69,12 @@ impl MirPass for LowerChecks {
             }
         }
         let helper = helper_context.map(|context| create_short_string_helper(module, &context));
-        // At `-O none` each check calls the function that reverts with its panic code.
-        let mut codes = Vec::new();
-        for function in &module.functions {
-            if !module.objective_of(function).is_none() {
-                continue;
-            }
-            for id in function.instructions() {
-                if let InstKind::ICall {
-                    function:
-                        Callee::Builtin(Builtin::Check { failure: RevertKind::Panic(code), .. }),
-                    ..
-                } = &function.inst(id).kind
-                    && !codes.contains(code)
-                {
-                    codes.push(*code);
-                }
-            }
-        }
-        let helpers = panic_helpers(module, codes);
         let mut changed = false;
         // Long strings intern their data in the module while a function is rewritten.
         let mut functions = std::mem::take(&mut module.functions);
         for function in &mut functions {
             let optimized = !module.objective_of(function).is_none();
-            changed |= lower_function(gcx, module, function, helper, optimized, &helpers);
+            changed |= lower_function(gcx, module, function, helper, optimized);
         }
         module.functions = functions;
         changed
@@ -108,16 +87,12 @@ fn lower_function(
     func: &mut Function,
     helper: Option<FunctionId>,
     optimize: bool,
-    helpers: &FxHashMap<PanicCode, FunctionId>,
 ) -> bool {
     if !func.instructions().any(|id| is_check(&func.inst(id).kind)) {
         return false;
     }
     let blocks = func.blocks.indices();
-    let mut builder = FunctionBuilder::new(func)
-        .with_revert_strings(gcx.sess.opts.revert_strings)
-        .with_shared_reverts(optimize)
-        .with_panic_helpers(if optimize { Default::default() } else { helpers.clone() });
+    let mut builder = FunctionBuilder::new(func).with_revert_strings(gcx.sess.opts.revert_strings);
     for block in blocks {
         if !builder.func().blocks[block]
             .instructions

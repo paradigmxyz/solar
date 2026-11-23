@@ -4,9 +4,8 @@
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
 
-// At `-O none` the compiler follows clang's `-O0`: it does not share the two equal returns or
-// fold the branch that chooses between them, so each `return` keeps its own block and its own
-// source location, and a coverage run counts the branch.
+// At `-O none` the two equal returns stay separate blocks and the branch that chooses between them
+// stays, so each `return` keeps its own location and a coverage run counts the branch.
 contract C {
     // CHECK-LABEL: ; function f(
     // CHECK: eq

@@ -1,14 +1,13 @@
 //! Shared utilities for MIR transforms.
 
 use crate::mir::{
-    BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, InstructionMetadata, Module,
-    PanicCode, Terminator, ValueId,
+    BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, InstructionMetadata,
+    Terminator, ValueId,
     memory::EvmMemoryLayout,
     utils::{IndexLists, replace_terminator},
 };
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::bit_set::DenseBitSet;
 use solar_evmir::debug::DebugLocKind;
-use solar_interface::{Ident, Symbol};
 use solar_sema::hir::StateMutability;
 
 /// Whether an external entry must reject nonzero callvalue.
@@ -207,28 +206,4 @@ pub(super) fn terminator_debug_context(
         context.drop_debug_loc(kind);
     }
     context
-}
-
-/// Creates the functions that revert with each of `codes`.
-///
-/// A check at `-O none` calls one of them instead of carrying its own payload: the call site keeps
-/// the check's location, as an overflow check in clang's `-O0` calls one shared panic function.
-/// Each call creates its own, since a name cannot tell them from a user's function.
-pub(super) fn panic_helpers(
-    module: &mut Module,
-    codes: impl IntoIterator<Item = PanicCode>,
-) -> FxHashMap<PanicCode, FunctionId> {
-    let mut helpers = FxHashMap::default();
-    for code in codes {
-        let name = Symbol::intern(&format!("panic_error_{:#04x}", code as u8));
-        let mut function = Function::new(Ident::with_dummy_span(name));
-        let mut builder = FunctionBuilder::new(&mut function);
-        let mut context = InstructionMetadata::EMPTY.clone();
-        context.drop_debug_loc(DebugLocKind::CompilerGenerated);
-        builder.set_debug_context(&context);
-        // revert_scratch(Panic.selector, [code])
-        builder.panic(code);
-        helpers.insert(code, module.add_function(function));
-    }
-    helpers
 }

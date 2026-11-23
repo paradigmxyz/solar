@@ -1,6 +1,6 @@
 //@ revisions: semantic expanded
 //@[semantic] compile-flags: -O none -Zdump=mir
-//@[expanded] compile-flags: -O gas -Zdump=mir -Zmir-pipeline=lower-arithmetic
+//@[expanded] compile-flags: -O none -Zdump=mir -Zmir-pipeline=lower-arithmetic
 //@[semantic] filecheck: --check-prefix=SEM
 //@[expanded] filecheck:
 

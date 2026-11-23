@@ -44,15 +44,10 @@ fn @f() {
   bb3:                                            ; preds = bb1
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb2:                                            ; preds = bb1
-    tail_call @panic_error_0x11
-  bb4 [cold]:                                     ; preds = bb0
-    revert 0, 0
-}
-
-fn @panic_error_0x11() {
-  bb0 [cold]:
+  bb2 [cold]:                                     ; preds = bb1
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
+  bb4 [cold]:                                     ; preds = bb0
+    revert 0, 0
 }
