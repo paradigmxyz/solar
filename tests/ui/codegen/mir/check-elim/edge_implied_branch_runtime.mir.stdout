@@ -1,0 +1,51 @@
+; === ROOT/tests/ui/codegen/mir/check-elim/edge_implied_branch_runtime.sol:EdgeImpliedBranch ===
+@module EdgeImpliedBranch
+; function f(uint256 n, uint256 w) external pure returns (uint256 r) [selector 0x13d1aa2e]
+fn @f(arg0: i256, arg1: i256) -> i256 [selector=0x13d1aa2e, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = lt arg0, 9
+    v1 = zext i1 v0 to i256
+    v2 = ne v1, 0
+    jumpi v2, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v3 = shl 1, arg0
+    v4 = sub v3, 1
+    v5 = and v4, arg1
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v6 = phi [bb1: v5], [bb2: 0]
+    v7 = lt arg0, 17
+    v8 = zext i1 v7 to i256
+    v9 = gt arg0, 8
+    v10 = zext i1 v9 to i256
+    v11 = and v10, v8
+    v12 = ne v11, 0
+    jumpi v12, bb4, bb5
+  bb5:                                            ; preds = bb3
+    jump bb6
+  bb4:                                            ; preds = bb3
+    v13 = shl 1, arg0
+    v14 = sub v13, 1
+    v15 = shr arg1, 3
+    v16 = and v15, v14
+    jump bb6
+  bb6:                                            ; preds = bb4, bb5
+    v17 = phi [bb4: v16], [bb5: v6]
+    v18 = gt arg0, 16
+    v19 = zext i1 v18 to i256
+    v20 = ne v19, 0
+    jumpi v20, bb7, bb8
+  bb8:                                            ; preds = bb6
+    jump bb9
+  bb7:                                            ; preds = bb6
+    v21 = shl 1, arg0
+    v22 = sub v21, 1
+    v23 = shr arg1, 7
+    v24 = and v23, v22
+    jump bb9
+  bb9:                                            ; preds = bb7, bb8
+    v25 = phi [bb7: v24], [bb8: v17]
+    ret v25
+}

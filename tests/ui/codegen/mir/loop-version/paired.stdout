@@ -104,10 +104,10 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory] {
     v232 = add arg0, 64
     v235 = add arg1, 64
     jump bb1
-  bb1:                                            ; preds = bb0, bb18
-    v2 = phi [bb0: 1], [bb18: v77]
-    v233 = phi [bb0: v232], [bb18: v234]
-    v236 = phi [bb0: v235], [bb18: v237]
+  bb1:                                            ; preds = bb0, bb17
+    v2 = phi [bb0: 1], [bb17: v77]
+    v233 = phi [bb0: v232], [bb17: v234]
+    v236 = phi [bb0: v235], [bb17: v237]
     v3 = mload arg0
     v4 = lt v2, v3
     jumpi v4, bb3, bb2
@@ -115,45 +115,45 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory] {
     v11 = mload v233
     v12 = mload arg1
     v13 = lt v2, v12
-    jumpi v13, bb16, bb15
-  bb16:                                           ; preds = bb3
+    jumpi v13, bb15, bb14
+  bb15:                                           ; preds = bb3
     v18 = mload v236
     v238 = shl v2, 5
     v239 = add v238, arg0
     v242 = shl v2, 5
     v243 = add v242, arg1
     jump bb4
-  bb4:                                            ; preds = bb16, bb22
-    v24 = phi [bb16: v2], [bb22: v26]
-    v240 = phi [bb16: v239], [bb22: v241]
-    v244 = phi [bb16: v243], [bb22: v245]
+  bb4:                                            ; preds = bb15, bb21
+    v24 = phi [bb15: v2], [bb21: v26]
+    v240 = phi [bb15: v239], [bb21: v241]
+    v244 = phi [bb15: v243], [bb21: v245]
     v25 = ne v24, 0
     jumpi v25, bb6, bb5
   bb6:                                            ; preds = bb4
     v26 = sub v24, 1
     v27 = mload arg0
     v28 = lt v26, v27
-    jumpi v28, bb19, bb15
-  bb19:                                           ; preds = bb6
+    jumpi v28, bb18, bb14
+  bb18:                                           ; preds = bb6
     v33 = mload v240
     v34 = lt v11, v33
     jumpi v34, bb7, bb5
-  bb5:                                            ; preds = bb4, bb19
+  bb5:                                            ; preds = bb4, bb18
     v65 = mload arg0
     v66 = lt v24, v65
-    jumpi v66, bb17, bb15
-  bb17:                                           ; preds = bb5
+    jumpi v66, bb16, bb14
+  bb16:                                           ; preds = bb5
     v68 = shl v24, 5
-    v202 = add v68, arg0
-    v203 = add v202, 32
-    mstore v203, v11
+    v196 = add v68, arg0
+    v197 = add v196, 32
+    mstore v197, v11
     v71 = mload arg1
     v72 = lt v24, v71
-    jumpi v72, bb18, bb15
-  bb18:                                           ; preds = bb17
-    v205 = add v68, arg1
-    v206 = add v205, 32
-    mstore v206, v18
+    jumpi v72, bb17, bb14
+  bb17:                                           ; preds = bb16
+    v199 = add v68, arg1
+    v200 = add v199, 32
+    mstore v200, v18
     v77 = add v2, 1
     v132 = mload arg0
     v133 = mload arg1
@@ -175,13 +175,13 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory] {
     v255 = zext i1 v172 to i256
     v256 = or v254, v255
     v158 = eq v256, 0
-    jumpi v158, bb14, bb1
-  bb14:                                           ; preds = bb18
+    jumpi v158, bb13, bb1
+  bb13:                                           ; preds = bb17
     v230 = add arg0, 32
     v231 = add arg1, 32
     jump bb8
-  bb8:                                            ; preds = bb11, bb14
-    v78 = phi [bb14: v77], [bb11: v101]
+  bb8:                                            ; preds = bb13, bb23
+    v78 = phi [bb13: v77], [bb23: v101]
     v80 = lt v78, v132
     jumpi v80, bb9, bb2
   bb2:                                            ; preds = bb1, bb8
@@ -191,65 +191,65 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory] {
     v179 = add v230, v81
     v84 = mload v179
     v86 = lt v78, v133
-    jumpi v86, bb23, bb15
-  bb23:                                           ; preds = bb9
-    v221 = add v231, v81
-    v89 = mload v221
+    jumpi v86, bb22, bb14
+  bb22:                                           ; preds = bb9
+    v215 = add v231, v81
+    v89 = mload v215
     v246 = shl v78, 5
     v247 = add v230, v246
     v250 = shl v78, 5
     v251 = add v231, v250
     jump bb10
-  bb10:                                           ; preds = bb13, bb23
-    v90 = phi [bb23: v78], [bb13: v102]
-    v248 = phi [bb23: v247], [bb13: v249]
-    v252 = phi [bb23: v251], [bb13: v253]
+  bb10:                                           ; preds = bb12, bb22
+    v90 = phi [bb22: v78], [bb12: v102]
+    v248 = phi [bb22: v247], [bb12: v249]
+    v252 = phi [bb22: v251], [bb12: v253]
     v91 = ne v90, 0
-    jumpi v91, bb12, bb11
-  bb12:                                           ; preds = bb10
+    jumpi v91, bb11, bb23
+  bb11:                                           ; preds = bb10
     v102 = sub v90, 1
-    v188 = sub v248, 32
-    v108 = mload v188
+    v182 = sub v248, 32
+    v108 = mload v182
     v109 = lt v84, v108
-    jumpi v109, bb13, bb11
-  bb11:                                           ; preds = bb10, bb12
+    jumpi v109, bb12, bb23
+  bb23:                                           ; preds = bb10, bb11
     v94 = shl v90, 5
-    v182 = add v230, v94
-    mstore v182, v84
-    v185 = add v231, v94
-    mstore v185, v89
+    v218 = add v230, v94
+    mstore v218, v84
+    v221 = add v231, v94
+    mstore v221, v89
     v101 = add v78, 1
     jump bb8
-  bb13:                                           ; preds = bb12
-    v116 = mload v188
+  bb12:                                           ; preds = bb11
+    v116 = mload v182
     mstore v248, v116
-    v194 = sub v252, 32
-    v127 = mload v194
+    v188 = sub v252, 32
+    v127 = mload v188
     mstore v252, v127
     v249 = sub v248, 32
     v253 = sub v252, 32
     jump bb10
-  bb7:                                            ; preds = bb19
+  bb7:                                            ; preds = bb18
     v43 = mload v240
     v45 = lt v24, v27
-    jumpi v45, bb20, bb15
-  bb20:                                           ; preds = bb7
-    v212 = add v240, 32
-    mstore v212, v43
+    jumpi v45, bb19, bb14
+  bb19:                                           ; preds = bb7
+    v206 = add v240, 32
+    mstore v206, v43
     v51 = mload arg1
     v52 = lt v26, v51
-    jumpi v52, bb21, bb15
-  bb21:                                           ; preds = bb20
+    jumpi v52, bb20, bb14
+  bb20:                                           ; preds = bb19
     v57 = mload v244
     v59 = lt v24, v51
-    jumpi v59, bb22, bb15
-  bb15 [cold]:                                    ; preds = bb3, bb5, bb6, bb7, bb9, bb17, bb20, bb21
+    jumpi v59, bb21, bb14
+  bb14 [cold]:                                    ; preds = bb3, bb5, bb6, bb7, bb9, bb16, bb19, bb20
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb22:                                           ; preds = bb21
-    v218 = add v244, 32
-    mstore v218, v57
+  bb21:                                           ; preds = bb20
+    v212 = add v244, 32
+    mstore v212, v57
     v241 = sub v240, 32
     v245 = sub v244, 32
     jump bb4
