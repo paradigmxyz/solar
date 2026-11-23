@@ -1703,6 +1703,11 @@ impl<'p, 'a> Vc<'p, 'a> {
                 }
             }
             for (bn, bf) in &c.base_ctors {
+                // A base constructor runs as part of this one: one that reaches an ambiguous
+                // struct name is no more verifiable here than on its own.
+                if let Some(why) = self.prog.refused_item(bf) {
+                    return Err((bf.header.span, why.clone()));
+                }
                 let vals = match argvals.get(bn) {
                     Some(v) if v.len() == bf.header.parameters.len() => v.clone(),
                     // an abstract contract may leave base arguments to its subclasses: any value
@@ -1900,6 +1905,13 @@ impl<'p, 'a> Vc<'p, 'a> {
     }
 
     fn exec_fn_body(&mut self, f: &'p Func<'a>, mi: usize) -> R<()> {
+        // Every body that runs, the function's own and each inlined callee's, must not reach an
+        // ambiguous struct name (see `prog::Program::refused_fns`).
+        if mi == 0
+            && let Some(why) = self.prog.refused_fn(f)
+        {
+            return Err((f.item.header.span, why.clone()));
+        }
         if mi == 0 {
             self.mem_alias_check(f)?;
         }
@@ -1917,6 +1929,9 @@ impl<'p, 'a> Vc<'p, 'a> {
         if mi < mods.len() {
             let m = mods[mi];
             let mdef = self.c.modifiers[m.name.last().as_str()];
+            if let Some(why) = self.prog.refused_item(mdef) {
+                return Err((mdef.header.span, why.clone()));
+            }
             let args: Vec<&'a Expr<'a>> = m.arguments.exprs().collect();
             // Arguments are evaluated in the function's scope; the modifier body then runs in a
             // scope of its own (its parameters and locals never shadow the function's).

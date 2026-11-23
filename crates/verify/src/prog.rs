@@ -177,7 +177,13 @@ pub(crate) struct Program<'a> {
 impl<'a> Program<'a> {
     /// Why `f` is not verified, when it reaches an ambiguous struct name.
     pub(crate) fn refused_fn(&self, f: &Func<'_>) -> Option<&String> {
-        self.refused_fns.get(&std::ptr::from_ref(f.item).addr())
+        self.refused_item(f.item)
+    }
+
+    /// Why the function, modifier or constructor `item` is not verified, when it reaches an
+    /// ambiguous struct name.
+    pub(crate) fn refused_item(&self, item: &ItemFunction<'_>) -> Option<&String> {
+        self.refused_fns.get(&std::ptr::from_ref(item).addr())
     }
 
     pub(crate) fn struct_fields(&self, name: &str) -> Option<&Vec<(String, Ty)>> {
