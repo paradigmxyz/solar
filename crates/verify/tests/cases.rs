@@ -1213,3 +1213,8 @@ fn encode_modifier_alias() {
 fn encode_library_modifier() {
     check("tests/cases/encode_library_modifier.sol")
 }
+
+#[test]
+fn encode_modifier_fresh() {
+    check("tests/cases/encode_modifier_fresh.sol")
+}

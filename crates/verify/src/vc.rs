@@ -5215,6 +5215,43 @@ impl<'p, 'a> Vc<'p, 'a> {
         (direct, calls)
     }
 
+    /// Whether the value of `e` may be a reference to `n`'s object or part of it: through a
+    /// branch, an index or member of it, or anything else that mentions `n`, such as a call that
+    /// may return its argument. Allocating builtins (`abi.encode` and its kin, `new`)
+    /// give a fresh object, and operators compute values, which hold no reference.
+    fn may_alias<'x>(e: &'x Expr<'x>, n: &str) -> bool {
+        let e = e.peel_parens();
+        match &e.kind {
+            ExprKind::Ident(i) => i.as_str() == n,
+            ExprKind::Ternary(_, a, b) => Self::may_alias(a, n) || Self::may_alias(b, n),
+            ExprKind::Index(b, _) | ExprKind::Member(b, _) => Self::may_alias(b, n),
+            ExprKind::Assign(_, None, r) => Self::may_alias(r, n),
+            ExprKind::Tuple(xs) => {
+                xs.iter().filter_map(|x| x.as_ref().unspan()).any(|x| Self::may_alias(x, n))
+            }
+            ExprKind::Binary(..) | ExprKind::Unary(..) | ExprKind::Lit(..) => false,
+            ExprKind::Call(callee, _)
+                if match &callee.peel_parens().kind {
+                    ExprKind::New(_) => true,
+                    ExprKind::Member(b, m) => {
+                        matches!(&b.peel_parens().kind, ExprKind::Ident(i) if i.as_str() == "abi")
+                            && m.as_str().starts_with("encode")
+                    }
+                    _ => false,
+                } =>
+            {
+                false
+            }
+            _ => {
+                let mut m = false;
+                walk::sub_exprs(e, &mut |x| {
+                    m |= matches!(&x.kind, ExprKind::Ident(i) if i.as_str() == n)
+                });
+                m
+            }
+        }
+    }
+
     fn mem_param_written_body(
         &self,
         body: &'a ast::Block<'a>,
@@ -5248,11 +5285,9 @@ impl<'p, 'a> Vc<'p, 'a> {
         // then write it through its own parameter.
         let mut passed = false;
         for &(a, by_ref) in mod_args {
-            // A reference the modifier receives may be `n`'s object or part of it, through any
-            // branch, index or call result that mentions `n`; a value parameter copies it.
-            if by_ref {
-                walk::sub_exprs(a, &mut |x| passed |= is_n(x));
-            }
+            // A reference the modifier receives may be `n`'s object or part of it (see
+            // `may_alias`); a value parameter copies it.
+            passed |= by_ref && Self::may_alias(a, n);
             walk::sub_exprs(a, &mut expr);
         }
         for s in body.stmts.iter() {
