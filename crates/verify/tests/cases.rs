@@ -1280,3 +1280,8 @@ fn modifier_pointer_scope() {
 fn modifier_storage_return() {
     check("tests/cases/modifier_storage_return.sol")
 }
+
+#[test]
+fn modifier_return_name() {
+    check("tests/cases/modifier_return_name.sol")
+}

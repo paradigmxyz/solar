@@ -136,6 +136,10 @@ pub(crate) struct Vc<'p, 'a> {
     /// `note_decl`), put back when the block ends.
     #[allow(clippy::type_complexity)]
     decl_scopes: Vec<Vec<(String, bool, Option<&'a Expr<'a>>, Option<Env>, Option<Var>)>>,
+    /// For each call whose body runs, innermost last: the storage returns its body bound,
+    /// once a modifier's `_` held them apart from the modifier's own names.
+    #[allow(clippy::type_complexity)]
+    ret_ptr_stash: Vec<Option<Vec<(String, bool, Option<&'a Expr<'a>>, Option<Env>)>>>,
     /// Calls `loop_targets` found writing a memory reference argument: (callee, argument root).
     mem_call_writes: std::cell::RefCell<Vec<(String, String)>>,
     /// `mem_param_written` answers, by function item address and parameter (see there).
@@ -297,6 +301,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             lock_modset: std::cell::Cell::new(false),
             effect_frames: Default::default(),
             decl_scopes: vec![],
+            ret_ptr_stash: vec![],
             mem_call_writes: Default::default(),
             mem_written: Default::default(),
             mem_walk: Default::default(),
@@ -1924,7 +1929,27 @@ impl<'p, 'a> Vc<'p, 'a> {
     /// an inlined callee or a modifier's `_` never put back or drop the caller's names.
     fn exec_fn_body(&mut self, f: &'p Func<'a>, mi: usize) -> R<()> {
         let outer = std::mem::take(&mut self.decl_scopes);
+        if mi == 0 {
+            self.ret_ptr_stash.push(None);
+        }
         let r = self.exec_fn_body_inner(f, mi);
+        // Once every modifier has ended, the storage returns the body bound (and a modifier's
+        // `_` held apart) are the call's, which its caller reads.
+        if mi == 0
+            && let Some(Some(rets)) = self.ret_ptr_stash.pop()
+        {
+            for (n, sl, al, ae) in rets {
+                if sl {
+                    self.slocals.insert(n.clone());
+                }
+                if let Some(a) = al {
+                    self.aliases.insert(n.clone(), a);
+                }
+                if let Some(e) = ae {
+                    self.alias_env.insert(n, e);
+                }
+            }
+        }
         self.decl_scopes = outer;
         r
     }
@@ -2368,16 +2393,10 @@ impl<'p, 'a> Vc<'p, 'a> {
                     })
                     .collect();
                 (self.slocals, self.aliases, self.alias_env) = ptrs;
-                for (n, sl, al, ae) in rets {
-                    if sl {
-                        self.slocals.insert(n.clone());
-                    }
-                    if let Some(a) = al {
-                        self.aliases.insert(n.clone(), a);
-                    }
-                    if let Some(e) = ae {
-                        self.alias_env.insert(n, e);
-                    }
+                // Held apart until the whole call returns: the modifier's own names after `_`
+                // never see them (see `exec_fn_body`).
+                if let Some(top) = self.ret_ptr_stash.last_mut() {
+                    *top = Some(rets);
                 }
                 r?;
                 let fr = self.frames.pop().unwrap();
