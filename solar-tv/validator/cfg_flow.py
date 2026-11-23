@@ -79,7 +79,9 @@ def projections(models):
     return (list(left), list(right)), projections, edges, jump_limit
 
 
-def check(texts, models, expressions, entry, catalog, version, timeout):
+def check(
+    texts, models, expressions, entry, catalog, version, timeout, *, continuations=None
+):
     from .check import PRELUDE, ROOT, build_model, run
     from .source_identity import render
 
@@ -90,6 +92,44 @@ def check(texts, models, expressions, entry, catalog, version, timeout):
         f"({json.dumps(name)},({inputs},{outputs}))"
         for name, (inputs, outputs) in table.items()
     )
+    provenance = ""
+    provenance_theorems = []
+    contextual = ""
+    if continuations is not None:
+        for lemma in (
+            "transfer_tags",
+            "checked_operands",
+            "swap_encoding",
+            "return_word",
+        ):
+            theorem = f"SolarTV.EVM.ContinuationFlow.{lemma}"
+            provenance += f"#print axioms {theorem}\n"
+            provenance_theorems.append(theorem)
+        for name, (_, witness) in zip(("before", "after"), continuations, strict=True):
+            theorem = f"{name}Provenance"
+            provenance_theorems.append(theorem)
+            provenance += f"""
+def {name}Source : EVM.ContinuationFlow.Program := {witness["source"]}
+def {name}Points : Array EVM.ContinuationFlow.Point := {witness["points"]}
+def {name}Edges : Array Edges := {witness["edges"]}
+theorem {theorem} :
+    EVM.ContinuationFlow.project {name}Source {name}Points {name}Edges = some {name} := by decide +kernel
+#print axioms {theorem}
+"""
+        provenance_theorems.append("matchedContinuations")
+        contextual = f"""
+theorem matchedContinuations {{World Observation : Type}} (handlers : Handlers World Observation)
+    (work : Nat) (state : State World) :
+    ((EVM.ContinuationFlow.project beforeSource beforePoints beforeEdges).bind
+        (fun p => project p sources edges {jump_limit})).map
+        (fun p => execute p signatures handlers work p.entry state) =
+      ((EVM.ContinuationFlow.project afterSource afterPoints afterEdges).bind
+        (fun p => project p targets edges {jump_limit})).map
+        (fun p => execute p signatures handlers work p.entry state) := by
+  rw [beforeProvenance,afterProvenance]
+  exact matched handlers work state
+#print axioms matchedContinuations
+"""
     code = (
         PRELUDE
         + f"""
@@ -99,6 +139,7 @@ set_option maxRecDepth 16384
 set_option maxHeartbeats 2500000
 def before : Program := {expressions[0]}
 def after : Program := {expressions[1]}
+{provenance}
 def old : Program := {render(normalized[0], catalog, version, "bb0", dynamic_exit=True)}
 def new : Program := {render(normalized[1], catalog, version, "bb0", dynamic_exit=True)}
 def sources : Array Nat := #{points[0]}
@@ -121,6 +162,7 @@ theorem matched {{World Observation : Type}} (handlers : Handlers World Observat
 #print axioms matched
 #print axioms EVM.ControlFlow.follow_execute
 #print axioms EVM.ControlFlow.resolve_edge
+{contextual}
 """
     )
     built = build_model(timeout)
@@ -140,6 +182,7 @@ theorem matched {{World Observation : Type}} (handlers : Handlers World Observat
         "matched",
         "SolarTV.EVM.ControlFlow.follow_execute",
         "SolarTV.EVM.ControlFlow.resolve_edge",
+        *provenance_theorems,
     ):
         axioms = re.search(rf"'{theorem}' depends on axioms: \[(.*?)\]", result.stdout)
         if not (
@@ -150,8 +193,11 @@ theorem matched {{World Observation : Type}} (handlers : Handlers World Observat
         ):
             raise Unsupported("unexpected control-flow proof axioms")
     programs = []
-    for text, model, paired in zip(texts, models, points, strict=True):
-        labels = {f"bb{row['label']}" for row in model["nodes"]}
+    for index, (text, model, paired) in enumerate(
+        zip(texts, models, points, strict=True)
+    ):
+        source, witness = continuations[index] if continuations else (model, None)
+        labels = {f"bb{row['label']}" for row in source["nodes"]}
         projection = (
             "@module ControlFlow\n"
             + "\n".join(
@@ -170,10 +216,12 @@ theorem matched {{World Observation : Type}} (handlers : Handlers World Observat
                 canonical_ir=projection,
                 replay_ir=text,
                 selector=entry,
-                scope="cfg-flow",
+                scope="continuation-flow" if witness else "cfg-flow",
                 evm_version=version,
                 import_evidence={
-                    "kind": "kernel-checked-jump-chain-projection",
+                    "kind": "kernel-checked-continuation-flow"
+                    if witness
+                    else "kernel-checked-jump-chain-projection",
                     "graph_sha256": hashlib.sha256(
                         json.dumps(model, sort_keys=True).encode()
                     ).hexdigest(),
@@ -183,6 +231,7 @@ theorem matched {{World Observation : Type}} (handlers : Handlers World Observat
                     "stack_height_bounds": bounds,
                     "changed_growth_checks": changed,
                     "boundary": "compiler source graph and schema; position-independent opcode handlers; all logical steps with temporary stack growth; no physical gas claim",
+                    **(witness["evidence"] if witness else {}),
                 },
             )
         )

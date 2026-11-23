@@ -49,6 +49,7 @@ import SolarTV.EVMIR.Effects
 import SolarTV.EVMIR.SourceGraph
 import SolarTV.EVMIR.StackGraph
 import SolarTV.EVMIR.ControlFlow
+import SolarTV.EVMIR.ContinuationFlow
 import SolarTV.EVMIR.Transforms.HeapEntry
 import SolarTV.MIR.Transforms.CfgFlow
 import SolarTV.EVMIR.State.Transactions.SetCode

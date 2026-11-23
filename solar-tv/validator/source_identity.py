@@ -113,7 +113,7 @@ def check(paths, solar, replay, version, timeout, entry):
     if not re.fullmatch(r"bb[0-9]{1,10}", entry) or int(entry[2:]) >= 2**32:
         raise Unsupported("source identity requires a valid region label")
     catalog = {row["name"]: row for row in native.catalog(replay, timeout)["evmir"]}
-    texts, models, expressions, headers = [], [], [], []
+    texts, headers = [], []
     for path in paths:
         if path.suffix != ".evmir" or path.stat().st_size > 1024 * 1024:
             raise Unsupported("source identity requires EVM IR files of at most 1 MiB")
@@ -131,15 +131,24 @@ def check(paths, solar, replay, version, timeout, entry):
         if parsed.returncode:
             raise Unsupported(parsed.stderr)
         text = parsed.stdout
-        model = correspondence.export(text, entry, version, replay, timeout)
         texts.append(text)
-        models.append(model)
         header = re.split(r"(?m)^bb\d+", text, maxsplit=1)[0]
         headers.append(
             [line for line in header.splitlines() if not line.startswith(";")]
         )
     if headers[0] != headers[1]:
         raise Unsupported("source identity changed shared declarations")
+    try:
+        models = [
+            correspondence.export(text, entry, version, replay, timeout)
+            for text in texts
+        ]
+    except Unsupported as error:
+        if str(error) != "EVM source graph: escaping label in EVM source graph":
+            raise
+        from . import continuation_flow
+
+        return continuation_flow.check(texts, replay, catalog, version, timeout, entry)
     dynamic_exit = any(
         row["node"] == {"kind": "terminal", "operation": "jump"}
         for row in models[0]["nodes"]

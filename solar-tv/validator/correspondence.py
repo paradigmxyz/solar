@@ -16,7 +16,7 @@ from . import evmir, memory, native, regions
 from .common import Inconclusive, Unsupported
 
 
-def export(text, entry_label, version, executable, timeout):
+def export(text, entry_label, version, executable, timeout, *, labels=False):
     """Obtain the independent reachable graph without assigning opcode semantics."""
     response = subprocess.run(
         [executable, "--evm-model"],
@@ -26,6 +26,7 @@ def export(text, entry_label, version, executable, timeout):
                 "text": text,
                 "entry": int(entry_label.removeprefix("bb")),
                 "evm_version": version,
+                "labels": labels,
             }
         ),
         text=True,

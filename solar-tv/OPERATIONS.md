@@ -230,10 +230,12 @@ stateful instruction rewrites remain unsupported. Reordered graphs also admit
 a kernel-checked mapping with opcode-schema height bounds: changed transfer
 growth checks must be proved safe for every incoming stack. Payloads and
 execution bounds remain arbitrary; physical transfer pricing and the concrete
-opcode-handler embedding remain outside this certificate. Raw dynamic jumps
-may serve only as observed full-payload exits under a shared logical
-continuation, without resolving their targets or proving physical return
-addresses. Escaping labels and code-image observers remain unsupported.
+opcode-handler embedding remain outside this certificate. The continuation
+certificate can resolve a dynamic jump when its top stack word is a tracked
+block label. It follows the actual label through ordinary stack shuffles and
+checks that no value-consuming operation observes it. Unresolved jumps still
+need an explicit output boundary. Physical return PCs, escaping labels,
+external messages and code-image observers remain outside this proof.
 Identical independently exported stateful graphs have a separate structural
 certificate for every execution bound; opcode and physical-layout bindings
 remain trusted. See

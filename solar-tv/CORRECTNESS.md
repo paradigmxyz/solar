@@ -472,6 +472,36 @@ targeted recheck of the frozen pairs with a six-second budget. When two
 paths reach one physical point in either graph, Lean checks the incoming
 edges separately. Each route retains its own temporary stack bound.
 
+### Stack-carried continuations
+
+The continuation certificate independently exports source label pushes and
+dynamic jumps. The proposed graph associates each reachable source point with
+the tags on its stack. Lean checks the entry, stack operations, both successors
+of each branch, and the destination of every dynamic return against the source
+graph. Ordinary operands must be untagged. The proof shows that a finite shape
+and a full shadow stack track the same tags, and that changing the addresses
+of tracked labels cannot change the operands of an admitted consumer.
+
+After this check, the abstract graph replaces a label push with a dummy word
+and a resolved return with a pop to its checked destination. The CFG proof
+checks the resulting pair for every incoming height and logical work bound.
+Physical PCs and exact gas remain outside the proof. Code-image observers,
+external messages and dynamically computed jump destinations are excluded.
+
+The empty-calldata WETH deposit slice from the pinned capture checks the
+return push redirected from `bb36` to `bb27`. The proof starts at that push,
+includes the storage and log effects of the helper, and follows the return
+into the continuation. Redirecting it to the error block changes success to
+revert, confirmed by the kernel and independent Rust execution. The full
+dispatcher includes external message paths outside this certificate.
+
+A serial recheck of the 159 frozen `cfg-simplify-early` regions whose exports
+previously rejected a stack-carried label verified four at eight seconds per
+proof. Another 15 timed out and 140 remained unsupported. Retrying the ten
+smallest timed-out graphs at 25 seconds verified seven more, for 11 verified
+and eight still timed out. ABI, creation bytecode and runtime bytecode matched
+for all three corpus contracts.
+
 ## Automatic typed source execution
 
 The scalar expression projection has a separate automatic fallback: direct

@@ -921,6 +921,8 @@ def main() -> int:
                         or str(error)
                         in {
                             "region entry stack cannot execute its instructions",
+                            "region label escapes its static transfer",
+                            "region branch lacks its condition",
                             "cyclic EVM regions require loop invariants",
                             "region expansion budget exceeded",
                         }

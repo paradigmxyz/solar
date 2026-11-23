@@ -1,9 +1,9 @@
 //! Independent structural EVM import, using compiler instructions and terminators.
 //!
 //! Export reachable program points without executing them or importing a Python
-//! recipe. Static label pushes are consumed only by their actual adjacent branch;
-//! other relocations remain unsupported. The Lean certificate checks the separate
-//! tree import against this graph for every projected stack and memory state.
+//! recipe. Static label pushes are consumed only by their actual adjacent branch.
+//! The continuation export retains other block-label pushes and their targets
+//! for stack provenance checking. Other relocations remain unsupported.
 
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -29,6 +29,8 @@ struct Input {
     evm_version: String,
     #[serde(default)]
     window: bool,
+    #[serde(default)]
+    labels: bool,
 }
 
 pub(super) fn export() -> Result<Value, String> {
@@ -58,11 +60,11 @@ pub(super) fn export() -> Result<Value, String> {
             .iter_enumerated()
             .find(|(_, b)| b.label == input.entry)
             .ok_or("missing EVM model entry")?;
-        if input.window { window(&module, entry) } else { graph(&module, entry) }
+        if input.window { window(&module, entry) } else { graph(&module, entry, input.labels) }
     })
 }
 
-fn graph(module: &Module, entry: BlockId) -> Result<Value, String> {
+fn graph(module: &Module, entry: BlockId, labels: bool) -> Result<Value, String> {
     let mut bases = IndexVec::<BlockId, _>::new();
     let mut total = 0;
     for block in &module.blocks {
@@ -93,19 +95,19 @@ fn graph(module: &Module, entry: BlockId) -> Result<Value, String> {
         };
         let node = if let Some(inst) = block.instructions.get(offset) {
             if let Some(target) = inst.pushed_block() {
-                let next = block
-                    .instructions
-                    .get(offset + 1)
-                    .map(|i| i.opcode)
-                    .or_else(|| match block.terminator.as_ref()?.kind {
+                let next = block.instructions.get(offset + 1).map(|i| i.opcode).or_else(|| {
+                    match block.terminator.as_ref()?.kind {
                         TerminatorKind::Op(opcode) => Some(opcode),
                         _ => None,
-                    })
-                    .ok_or("escaping label in EVM source graph")?;
+                    }
+                });
                 match next {
-                    op::JUMP => json!({"kind":"jump","growth":1,"next":edge(target,0)}),
-                    op::JUMPI => {
+                    Some(op::JUMP) => json!({"kind":"jump","growth":1,"next":edge(target,0)}),
+                    Some(op::JUMPI) => {
                         json!({"kind":"branch","yes":edge(target,0),"no":edge(id,offset+2)})
+                    }
+                    _ if labels => {
+                        json!({"kind":"push_label","target":edge(target,0),"next":edge(id,offset+1)})
                     }
                     _ => return Err("escaping label in EVM source graph".into()),
                 }
@@ -138,7 +140,7 @@ fn graph(module: &Module, entry: BlockId) -> Result<Value, String> {
         .collect::<BTreeMap<_, _>>();
     for (index, row) in nodes.iter_mut().enumerate() {
         row["id"] = index.into();
-        for key in ["next", "yes", "no"] {
+        for key in ["next", "yes", "no", "target"] {
             if let Some(old) = row["node"][key].as_u64() {
                 row["node"][key] = (*dense.get(&old).ok_or("unresolved EVM source edge")?).into();
             }

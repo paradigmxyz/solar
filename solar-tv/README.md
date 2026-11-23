@@ -2003,6 +2003,13 @@ against both source graphs and proves the matched actions preserve all
 incoming stack heights and ordered effects. The certificate counts logical
 work and leaves gas and physical return addresses outside its comparison.
 
+The continuation certificate also follows block labels carried on the stack.
+It checks label copies, swaps and pops before resolving a dynamic return to
+the block named by its push. A label that reaches storage, memory, arithmetic,
+a branch condition or a return or revert operand prevents the proof. The audit
+reports the number of resolved returns for each side. This is an unpriced
+region check. External messages and code-image observers remain unsupported.
+
 The MIR checker also validates block coalescing and jump threading on typed
 graphs, including backedges. Every selected phi group reads its predecessor's
 operands simultaneously. Direct callees are checked with their original

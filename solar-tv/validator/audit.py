@@ -282,15 +282,25 @@ def record(
                     "transfers are unpriced; source normalizer, raw constructor and schema binding remain trusted; no physical gas, opcode-implementation or backend-layout certificate; code-image observers and calls excluded",
                 ]
             )
-        elif program and program.scope == "cfg-flow":
+        elif program and program.scope in {"cfg-flow", "continuation-flow"}:
             assumptions.extend(
                 [
                     "independently exported EVM graphs; matched finite chains of unconditional transfers preserve the strongest temporary stack requirement",
                     "every incoming stack height, arbitrary live state and logical execution bound under shared position-independent handlers; changed growth requirements are proved safe on reachable paths",
-                    "raw transfer costs and physical return PCs are outside this projection; dynamic JUMP is a terminal observation, and code-image observers, escaping labels and calls are excluded",
                     "compiler parser/schema and constructor bindings are trusted",
                 ]
             )
+            if program.scope == "continuation-flow":
+                assumptions.extend(
+                    [
+                        "checked continuation provenance through stack operations; dynamic returns consume a known label; ordinary effect operands cannot observe relocation tags",
+                        "code-image observers and external messages are excluded; GAS uses a shared handler; physical address and gas equivalence remain outside the certificate",
+                    ]
+                )
+            else:
+                assumptions.append(
+                    "raw transfer costs and physical return PCs are outside this projection; dynamic JUMP is a terminal observation, and code-image observers, escaping labels and calls are excluded"
+                )
         elif program and program.scope == "mir-cfg-flow":
             assumptions.extend(
                 [
@@ -553,6 +563,8 @@ def record(
             assumptions.append(
                 "function-local proof with supplied callees; no whole-pass claim"
                 if program.symbolic_mir is not None
+                else "region-local proof over resolved internal return paths"
+                if program.scope == "continuation-flow"
                 else "region-local proof; no whole-pass or interprocedural claim"
             )
         if (program and program.memory) or (
@@ -587,6 +599,7 @@ def record(
                 "source-identity",
                 "stack-layout",
                 "cfg-flow",
+                "continuation-flow",
                 "mir-cfg-flow",
             }
             and program.symbolic_mir is None
@@ -646,6 +659,7 @@ def record(
                 "source-identity",
                 "stack-layout",
                 "cfg-flow",
+                "continuation-flow",
                 "mir-cfg-flow",
                 "return-path",
             }
@@ -816,12 +830,15 @@ def record(
                     if program.scope == "stack-layout"
                     else "kernel-checked-jump-chain-projection"
                     if program.scope == "cfg-flow"
+                    else "kernel-checked-continuation-flow"
+                    if program.scope == "continuation-flow"
                     else "universal-source-graph-identity",
                     "stack_height": None,
                 },
             }
             if program
-            and program.scope in {"source-identity", "stack-layout", "cfg-flow"}
+            and program.scope
+            in {"source-identity", "stack-layout", "cfg-flow", "continuation-flow"}
             else {}
         ),
         **(
