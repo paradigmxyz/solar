@@ -314,7 +314,7 @@ fn @choose(arg0: i256, arg1: i1) -> i256 {
         (root / "after.mir").write_text(after)
         return after
 
-    def check_loop(self, root, status):
+    def check_loop(self, root, status, *, fixture=None):
         report = root / "report.json"
         result = subprocess.run(
             [
@@ -328,6 +328,7 @@ fn @choose(arg0: i256, arg1: i1) -> i256 {
                 "--timeout=30",
                 "--report",
                 report,
+                *(("--world", fixture) if fixture else ()),
             ],
             text=True,
             capture_output=True,
@@ -511,32 +512,63 @@ fn @choose() -> i256 {
                     }
                 )
             )
-            report = root / "report.json"
-            result = subprocess.run(
-                [
-                    CLI,
-                    "mir",
-                    before,
-                    after,
-                    "--function=choose",
-                    "--solar",
-                    SOLAR,
-                    "--timeout=30",
-                    "--report",
-                    report,
-                    "--world",
-                    fixture,
-                ],
-                text=True,
-                capture_output=True,
-                timeout=90,
-                check=False,
-            )
-            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-            record = json.loads(report.read_text())
+            record = self.check_loop(root, 1, fixture=fixture)
             self.assertEqual(record["evidence"], "kernel-and-rust-replay")
             witness = record["witness"]
             self.assertEqual(witness["observations"], witness["native_observations"])
+
+    def test_egraph_storage_loop_replaces_word_scales_and_masks(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{name}.mir" for name in ("before", "after"))
+            before.write_text("""@module ScalingLoop
+fn @choose() -> i256 {
+  bb0:
+    v0 = sload 1
+    v1 = sload 2
+    jump bb1
+  bb1:
+    v2 = phi [bb0: false], [bb1: true]
+    v3 = div v0, 32
+    sstore 3, v3
+    v4 = mul v0, 32
+    sstore 4, v4
+    v5 = shl 1, v1
+    v6 = sub v5, 1
+    v7 = not v6
+    sstore 5, v7
+    jumpi v2, bb2, bb1
+  bb2:
+    ret v3
+}
+""")
+            output = subprocess.check_output(
+                [SOLAR, before, "-j1", "-Ogas", "-Zmir-pipeline=egraph"],
+                text=True,
+                timeout=20,
+            )
+            after.write_text(output)
+            record = self.check_loop(root, 0)
+            self.assertEqual(
+                record["import_correspondence"][0]["correspondence"]["choose"][
+                    "word_rewrites"
+                ],
+                3,
+            )
+            wrong, count = re.subn(r"(shr v\d+, )5\b", r"\g<1>4", output)
+            self.assertEqual(count, 1)
+            after.write_text(wrong)
+            self.check_loop(root, 2)
+            fixture = root / "world.json"
+            fixture.write_text(
+                '{"version":1,"accounts":[{"address":65536,"storage":{"1":"64","2":"8"}}]}'
+            )
+            record = self.check_loop(root, 1, fixture=fixture)
+            self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+            self.assertEqual(
+                record["witness"]["observations"],
+                record["witness"]["native_observations"],
+            )
 
     def test_cse_erases_pointer_copies_in_a_slice_loop(self):
         with tempfile.TemporaryDirectory() as folder:

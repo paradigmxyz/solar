@@ -691,6 +691,14 @@ word, preserving both the sum and the branch condition. That certificate
 also verifies the frozen Morpho `extSloads` egraph rewrite. The regression
 changes the zero test and replays the wrong result at the wrap boundary.
 
+The CFG proof also compares power-of-two multiplication and division with
+their shifts, doubling with a one-bit left shift, and high-bit masks with
+their complement forms. It checks full-word behavior, including shifts at
+or above 256. A mask sequence can discard its scalar temporaries only when
+the source uses show they are private or dead. This verifies a sixth frozen
+egraph loop capture, the word-scaled ERC20Mock storage-bytes store. The
+regression independently replays a wrong shift count.
+
 Same-phase carrier proofs retain the exact types of slice and product
 operations. That lets them prove all six frozen MIR CSE loop captures,
 including the storage-bytes helper passed a slice and the constructor

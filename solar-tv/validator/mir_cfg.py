@@ -2,7 +2,7 @@
 
 import hashlib
 import tempfile
-from collections import deque
+from collections import Counter, deque
 from dataclasses import dataclass
 from itertools import batched
 from pathlib import Path
@@ -19,8 +19,23 @@ class IncrementGuard:
     uses_previous: bool
 
 
+@dataclass(frozen=True)
+class HighMask:
+    argument: int
+    result: int
+    complement: bool
+
+
 WORD = {"kind": "word", "bits": 256, "name": "i256"}
 FLAG = {"kind": "word", "bits": 1, "name": "i1"}
+
+
+def word_constant(value):
+    return {"kind": "constant", "type": WORD, "value": str(value)}
+
+
+def word_local(index):
+    return {"kind": "local", "type": WORD, "index": index}
 
 
 def increment_guard(instructions, position):
@@ -34,8 +49,7 @@ def increment_guard(instructions, position):
     if op["kind"] != "opcode":
         return None
     original = add["operation"]["args"][0]
-    wrapped = {"kind": "local", "type": WORD, "index": add["result"]}
-    zero = {"kind": "constant", "type": WORD, "value": "0"}
+    wrapped, zero = word_local(add["result"]), word_constant(0)
     if op["name"] == "lt" and op["args"] == [wrapped, original]:
         uses_previous = True
     elif op["name"] == "eq" and op["args"] in ([wrapped, zero], [zero, wrapped]):
@@ -47,9 +61,56 @@ def increment_guard(instructions, position):
     )
 
 
+def word_operands(data, name):
+    op = data["operation"]
+    if (
+        data["type"] == WORD
+        and data["result"] is not None
+        and op["kind"] == "opcode"
+        and op["name"] == name
+        and all(operand["type"] == WORD for operand in op["args"])
+    ):
+        # The schema gives shifts in EVM operand order, with the count first.
+        return op["args"][::-1] if name in {"shl", "shr"} else op["args"]
+    return ()
+
+
+def high_mask(instructions, position, uses):
+    """Match a high-bit mask with two private temporaries in its complement form."""
+    first = instructions[position]
+    operands = word_operands(first, "shl")
+    if len(operands) != 2 or operands[1]["kind"] != "local":
+        return None
+    base, exponent = operands
+    if base == word_constant(2**256 - 1):
+        return HighMask(exponent["index"], first["result"], False), 1
+    if base != word_constant(1) or position + 2 >= len(instructions):
+        return None
+    subtract, invert = instructions[position + 1 : position + 3]
+    if uses[first["result"]] != 1:
+        return None
+    if word_operands(subtract, "sub") != [
+        word_local(first["result"]),
+        word_constant(1),
+    ]:
+        return None
+    if uses[subtract["result"]] == 1 and word_operands(invert, "not") == [
+        word_local(subtract["result"])
+    ]:
+        return HighMask(exponent["index"], invert["result"], True), 3
+    # Egraph can leave the old total scalar temporaries for a later DCE.
+    if uses[subtract["result"]] == 0 and word_operands(invert, "shl") == [
+        word_constant(2**256 - 1),
+        exponent,
+    ]:
+        return HighMask(exponent["index"], invert["result"], False), 3
+    return None
+
+
 def import_graph(body):
     """Keep predecessor-selected phi inputs as one simultaneous action."""
     blocks = body["blocks"]
+    uses = Counter(dead_ssa.reads(blocks, reject_undefined=False))
     points, nodes = {(0, None, -1): 0}, []
     pending = deque(points)
 
@@ -84,6 +145,9 @@ def import_graph(body):
             instructions = block["instructions"]
             if guard := increment_guard(instructions, position):
                 nodes.append(("action", guard, [point(index, None, position + 2)]))
+            elif mask := high_mask(instructions, position, uses):
+                data, length = mask
+                nodes.append(("action", data, [point(index, None, position + length)]))
             else:
                 inst = instructions[position]
                 nodes.append(("action", inst, [point(index, None, position + 1)]))
@@ -139,8 +203,10 @@ def flat_insert(data):
 
 
 def reads(data):
-    if isinstance(data, IncrementGuard):
+    if isinstance(data, (IncrementGuard, HighMask)):
         return [data.argument]
+    if word_key(data) == ("double", 1):
+        return [data["operation"]["args"][0]["index"]]
     insert = flat_insert(data)
     if insert is not None and insert[0]["kind"] == "undefined":
         return dead_ssa.reads(insert[1])
@@ -194,6 +260,8 @@ theorem {name} : MIR.ProductInit.safe [{",".join(inserts)}] {sorted(observed)} =
 def writes(data):
     if isinstance(data, IncrementGuard):
         return [data.sum, data.guard]
+    if isinstance(data, HighMask):
+        return [data.result]
     if isinstance(data, list):
         return [phi["result"] for phi in data]
     result = data.get("result")
@@ -201,25 +269,29 @@ def writes(data):
 
 
 def word_key(data):
+    if isinstance(data, HighMask):
+        return "highMask", data.complement
     if not isinstance(data, dict) or "operation" not in data:
         return None
-    operation = data["operation"]
-    op = operation.get("name")
-    if operation["kind"] != "opcode" or op not in {"add", "sub"}:
+    op = data["operation"].get("name")
+    if op not in {"add", "sub", "mul", "div", "shl", "shr"}:
         return None
-    operands = operation["args"]
-    if (
-        len(operands) != 2
-        or operands[0]["kind"] != "local"
-        or operands[1]["kind"] != "constant"
-        or any(value["type"] != WORD for value in operands)
-        or data["type"] != WORD
-        or data["result"] is None
-    ):
+    operands = word_operands(data, op)
+    if len(operands) != 2 or operands[0]["kind"] != "local":
+        return None
+    if op == "add" and operands[0] == operands[1]:
+        return "double", 1
+    if operands[1]["kind"] != "constant":
         return None
     value = int(operands[1]["value"])
     if not 0 <= value < 1 << 256:
         raise Unsupported("MIR word constant is outside i256")
+    if op in {"mul", "div"}:
+        if not value or value & (value - 1):
+            return None
+        value = value.bit_length() - 1
+    if op in {"shl", "shr"} and value >= 256:
+        return None
     return op, value
 
 
@@ -230,7 +302,18 @@ def action_signature(data):
     if key is None:
         return dead_ssa.signature(data)
     op, value = key
-    return ("word-add", value if op == "add" else -value % (1 << 256))
+    match op:
+        case "add":
+            return ("word-add", value)
+        case "sub":
+            return ("word-add", -value % (1 << 256))
+        case "mul" | "shl" | "double":
+            return ("word-shl", value)
+        case "div" | "shr":
+            return ("word-shr", value)
+        case "highMask":
+            return ("word-high-mask",)
+    raise AssertionError(f"unrecognized word rewrite {op}")
 
 
 def pairing(old, new):
@@ -323,7 +406,16 @@ def render(nodes, symbols):
             key = f"(.incrementGuard {str(data.uses_previous).lower()})"
         elif word:
             op, value = word
-            key = f"(.{op}Constant {value}#256)"
+            match op:
+                case "add" | "sub":
+                    source = f".{op}Constant {value}#256"
+                case "double":
+                    source = ".double"
+                case "highMask":
+                    source = f".highMask {str(value).lower()}"
+                case _:
+                    source = f".scale .{op} {value}#8"
+            key = f"(.word ({source}))"
         else:
             symbol = symbols.setdefault(
                 (kind, dead_ssa.stable(dead_ssa.signature(data))), len(symbols)
@@ -464,7 +556,7 @@ set_option maxHeartbeats 2000000
 #print axioms MIR.CfgFlow.typed_jump
 #print axioms MIR.CfgFlow.typed_enter_empty
 #print axioms MIR.CfgFlow.typed_literal_branch
-#print axioms MIR.CfgFlow.normalized_word_result
+#print axioms MIR.WordRewrite.normalized
 #print axioms MIR.CfgFlow.normalized_increment_result
 #print axioms MIR.PhaseShaping.pointer_carrier
 #print axioms MIR.PhaseShaping.full_word_casts

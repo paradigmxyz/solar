@@ -24,19 +24,27 @@ def stable(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"))
 
 
-def reads(value):
+def reads(value, *, reject_undefined=True):
     if isinstance(value, list):
-        return [index for item in value for index in reads(item)]
+        return [
+            index
+            for item in value
+            for index in reads(item, reject_undefined=reject_undefined)
+        ]
     if not isinstance(value, dict):
         return []
-    if value.get("kind") == "undefined":
+    if reject_undefined and value.get("kind") == "undefined":
         raise Unsupported("dead SSA excludes undefined operands")
     if value.get("kind") == "local":
         index = value["index"]
         if type(index) is not int or not 0 <= index < 2**32:
             raise Unsupported("invalid dead SSA local index")
         return [index]
-    return [index for item in value.values() for index in reads(item)]
+    return [
+        index
+        for item in value.values()
+        for index in reads(item, reject_undefined=reject_undefined)
+    ]
 
 
 def signature(value):

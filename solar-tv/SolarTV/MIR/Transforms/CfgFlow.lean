@@ -1,4 +1,5 @@
 import SolarTV.MIR.State.Interpreter
+import SolarTV.MIR.Transforms.WordRewrite
 
 /-! Path-sensitive comparison of typed MIR graphs. The importer resolves phi
 inputs for each predecessor and keeps each phi group as a parallel assignment.
@@ -12,29 +13,15 @@ open EvmRules
 
 inductive ActionKey where
   | opaque (id : Nat)
-  | addConstant (value : Word)
-  | subConstant (value : Word)
+  | word (operation : WordRewrite.Key)
   | incrementGuard (usesPrevious : Bool)
   | directCall (callee signature : Nat) (tail : Bool)
   deriving DecidableEq
 
 def ActionKey.normalized : ActionKey → ActionKey
-  | .subConstant constant => .addConstant (-constant)
+  | .word operation => .word operation.normalize
   | .incrementGuard _ => .incrementGuard false
   | key => key
-
-def ActionKey.wordResult (key : ActionKey) (input : Word) : Option Word :=
-  match key with
-  | .addConstant constant => some (MIR.eval .add input constant)
-  | .subConstant constant => some (MIR.eval .sub input constant)
-  | _ => none
-
-/-- The normalized key retains the result of the actual wrapped word
-operation for every scalar operand. -/
-theorem normalized_word_result (key : ActionKey) (input : Word) :
-    key.normalized.wordResult input = key.wordResult input := by
-  cases key <;> simp [ActionKey.normalized, ActionKey.wordResult, MIR.eval,
-    BitVec.sub_eq_add_neg]
 
 /-- An increment and its adjacent overflow test both produce observable SSA
 results. The test can use the old input or compare the wrapped sum to zero. -/
