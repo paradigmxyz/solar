@@ -20,7 +20,7 @@ def follow (nodes : ProofTable.View Node) : Nat → Nat → Option Path
   | fuel+1, pc => do
     match ← nodes.get? pc with
     | .jump _ growth next =>
-      if growth > 1 then none else
+      if growth > 1024 then none else
       let path ← follow nodes fuel next
       return ⟨path.destination,path.jumps+1,max growth path.growth⟩
     | _ => return ⟨pc,0,0⟩
@@ -139,6 +139,28 @@ theorem contextual (before after old new : Program) (sourcePoints targetPoints :
         (fun p => execute p signatures handlers work p.entry state) := by
   rw [oldProjection,newProjection]
   exact congrArg some (StackGraph.contextual old new id bounds signatures valid handlers work state)
+
+/-- At physical entry the stack is empty. The per-node invariant can then
+justify changes to transfer admission that would fail on arbitrary live-in
+stacks. -/
+theorem contextual_entry (before after old new : Program)
+    (sourcePoints targetPoints : Array Nat) (edges : Array Edges) (jumpLimit : Nat)
+    (signatures : Signatures) (bounds : Nat → Nat)
+    (oldProjection : project before sourcePoints edges jumpLimit = some old)
+    (newProjection : project after targetPoints edges jumpLimit = some new)
+    (valid : Valid old new id bounds signatures 0)
+    (handlers : Handlers World Observation) (work : Nat) (payload : World) :
+    (project before sourcePoints edges jumpLimit).map
+        (fun p => execute p signatures handlers work p.entry ⟨0, payload⟩) =
+      (project after targetPoints edges jumpLimit).map
+        (fun p => execute p signatures handlers work p.entry ⟨0, payload⟩) := by
+  rw [oldProjection, newProjection]
+  apply congrArg some
+  change execute old signatures handlers work old.entry ⟨0, payload⟩ =
+    execute new signatures handlers work new.entry ⟨0, payload⟩
+  rw [← valid.2.1]
+  exact StackGraph.bounded_simulation old new id bounds signatures
+    valid handlers work old.entry ⟨0, payload⟩ valid.1 (Nat.zero_le _)
 
 /-- Compose the two projection checks without re-evaluating either source graph. -/
 theorem compose {before after : Option Program} {old new : Program} {Projected Observation : Type}

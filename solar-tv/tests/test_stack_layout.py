@@ -36,11 +36,10 @@ class StackLayoutTests(unittest.TestCase):
             report,
             *flags,
         ]
-        command += (
-            ["--world", self.folder / "world.json", "--gas=exact"]
-            if world
-            else ["--region=bb0"]
-        )
+        if world:
+            command += ["--world", self.folder / "world.json", "--gas=exact"]
+        elif "--entry-trace" not in flags:
+            command += ["--region=bb0"]
         result = subprocess.run(
             command, capture_output=True, text=True, check=False, timeout=120
         )
@@ -76,9 +75,11 @@ class StackLayoutTests(unittest.TestCase):
 
     def test_changed_store_has_a_kernel_and_native_counterexample(self):
         broken = self.folder / "broken.evmir"
-        result, record = self.cli([self.paths[0], broken])
-        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
-        self.assertEqual(record["status"], "unsupported")
+        for flags in ((), ("--entry-trace",)):
+            with self.subTest(flags=flags):
+                result, record = self.cli([self.paths[0], broken], flags=flags)
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertEqual(record["status"], "unsupported")
         # Compare the same layout: the witness must expose the changed value,
         # rather than merely a legitimate difference in physical jump charges.
         result, record = self.cli([self.paths[1], broken], world=True)
@@ -87,6 +88,18 @@ class StackLayoutTests(unittest.TestCase):
         self.assertEqual(
             record["witness"]["observations"], record["witness"]["native_observations"]
         )
+
+    def test_entry_trace_checks_the_real_layout_with_an_empty_stack(self):
+        result, record = self.cli(flags=("--entry-trace",))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(record["region"]["kind"], "entry")
+        self.assertEqual(record["region"]["proof"], "kernel-checked-entry-layout")
+        self.assertEqual(record["gas_policy"], "unpriced-structural")
+        for side in record["import_correspondence"]:
+            self.assertEqual(side["block_labels"], [0, 2, 4])
+            self.assertEqual(side["entry_height_bound"], 0)
+            self.assertEqual(len(side["changed_growth_checks"]), 2)
+            self.assertLess(max(side["stack_height_bounds"]), 1024)
 
     def test_unproved_growth_is_not_hidden_by_an_entry_hint(self):
         paths = [self.tmp / f"{side}.evmir" for side in ("before", "after")]

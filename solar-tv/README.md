@@ -2035,7 +2035,7 @@ covers regions with resolved internal returns and shared replies to supported
 interactions. Relocation placeholders stay outside literal recipes.
 [Proof details](CORRECTNESS.md#compact-push-recipes)
 
-For a compact PUSH pair with helpers, check from the first physical block:
+For a compact PUSH or block layout pair with helpers, check from physical entry:
 
 ```sh
 solar-tv/solar-tv evmir before.evmir after.evmir --entry-trace
@@ -2046,6 +2046,9 @@ continuation label. It checks stack bounds through the callers before using
 them at a recipe. Shared immutable pushes retain their deployment slot and
 width. The report lists the blocks in the checked graph. The shared-reply and
 funding conditions still apply when interactions are present.
+The layout proof checks the strongest stack requirement of each jump chain,
+including when a fallthrough becomes a physical jump. It reports changes to
+those requirements and checks each against the reachable stack bound.
 
 For a region inside a larger pass output, derive the incoming stack bound
 from both physical entries:

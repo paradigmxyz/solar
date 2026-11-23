@@ -329,6 +329,19 @@ def record(
                     "transfers are unpriced; source normalizer, raw constructor and schema binding remain trusted; no physical gas, opcode-implementation or backend-layout certificate; code-image observers and calls excluded",
                 ]
             )
+        elif program and program.scope == "layout-flow":
+            assumptions.extend(
+                [
+                    "independent import starts at the physical EVM entry with an empty stack",
+                    "logical paths preserve ordinary actions and resolve continuation tags; the kernel checks reachable stack bounds for every changed jump",
+                    "shared position-independent handlers and immutable slots; interaction requests match under shared preceding replies",
+                    "physical gas, forwarded gas and child behavior remain environment obligations",
+                ]
+            )
+            if program.import_evidence.get("code_layout"):
+                assumptions.append(
+                    "constructor reads use the checked sole data suffix and identical appended arguments"
+                )
         elif program and program.scope in {
             "cfg-flow",
             "continuation-flow",
@@ -668,6 +681,7 @@ def record(
                 "cfg-flow",
                 "continuation-flow",
                 "interaction-flow",
+                "layout-flow",
                 "mir-cfg-flow",
             }
             and program.symbolic_mir is None
@@ -708,7 +722,12 @@ def record(
             else "refine"
             if program and program.scope in {"mint-layout", "burn-layout"}
             else "unpriced-shared-interactions"
-            if program and program.scope == "interaction-flow"
+            if program
+            and (
+                program.scope == "interaction-flow"
+                or program.scope == "layout-flow"
+                and program.import_evidence["interactions"]
+            )
             else "unpriced-structural"
             if program
             and program.scope
@@ -730,6 +749,7 @@ def record(
                 "stack-layout",
                 "cfg-flow",
                 "continuation-flow",
+                "layout-flow",
                 "mir-cfg-flow",
                 "return-path",
             }
@@ -908,7 +928,7 @@ def record(
                     else "kernel-checked-interaction-trace"
                     if program.scope == "interaction-flow"
                     else program.import_evidence["kind"]
-                    if program.scope == "compact-pushes"
+                    if program.scope in {"compact-pushes", "layout-flow"}
                     else "universal-source-graph-identity",
                     "stack_height": None,
                 },
@@ -922,6 +942,7 @@ def record(
                 "continuation-flow",
                 "interaction-flow",
                 "compact-pushes",
+                "layout-flow",
             }
             else {}
         ),

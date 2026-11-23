@@ -170,17 +170,24 @@ def check(
     *,
     continuations=None,
     interactions=False,
+    from_entry=False,
+    code_layout=None,
 ):
     from .check import PRELUDE, ROOT, build_model, run
     from .source_identity import INTERACTION_OPS, render_nodes
 
     points, normalized, edges, jump_limit = projections(models)
     signature_table = stack_layout.signatures(normalized[0], catalog)
+    entry_bound = 0 if from_entry else 1024
+    state_argument = "(payload : World)" if from_entry else "(state : State World)"
+    state_value = "⟨0,payload⟩" if from_entry else "state"
     identical = normalized[0] == normalized[1]
     if identical:
         bounds, changed = [], []
     else:
-        _, bounds, changed = stack_layout.certificate(*normalized, signature_table)
+        _, bounds, changed = stack_layout.certificate(
+            *normalized, signature_table, entry_bound=entry_bound
+        )
     program_declarations = ""
     for name, model in zip(
         ("before", "after", "old", "new"), (*models, *normalized), strict=True
@@ -195,6 +202,8 @@ def check(
             "bb0" if continuations or name in {"old", "new"} else entry,
             dynamic_exit=True,
             interactions=interactions,
+            from_entry=from_entry,
+            max_growth=4 if from_entry else 1,
         )
         program_declarations += table(f"{name}Nodes", "EVM.SourceGraph.Node", rows)
         program_declarations += (
@@ -221,16 +230,17 @@ def check(
         provenance_theorems.append("matchedContinuations")
         contextual = f"""
 theorem matchedContinuations {{World Observation : Type}} (handlers : Handlers World Observation)
-    (work : Nat) (state : State World) :
+    (work : Nat) {state_argument} :
     ((EVM.ContinuationFlow.project beforeSource beforePoints.rows.toArray beforeEdges.rows.toArray).bind
         (fun p => project p sources edges {jump_limit})).map
-        (fun p => execute p signatures handlers work p.entry state) =
+        (fun p => execute p signatures handlers work p.entry {state_value}) =
       ((EVM.ContinuationFlow.project afterSource afterPoints.rows.toArray afterEdges.rows.toArray).bind
         (fun p => project p targets edges {jump_limit})).map
-        (fun p => execute p signatures handlers work p.entry state) :=
+        (fun p => execute p signatures handlers work p.entry {state_value}) :=
   EVM.ControlFlow.compose beforeProvenance afterProvenance
     (fun p => project p sources edges {jump_limit}) (fun p => project p targets edges {jump_limit})
-    (fun p => execute p signatures handlers work p.entry state) (matched handlers work state)
+    (fun p => execute p signatures handlers work p.entry {state_value})
+    (matched handlers work {"payload" if from_entry else "state"})
 #print axioms matchedContinuations
 """
     if interactions:
@@ -245,6 +255,11 @@ theorem matchedContinuations {{World Observation : Type}} (handlers : Handlers W
             json.dumps(name)
             for name in sorted(INTERACTION_OPS & signature_table.keys())
         )
+        trace_argument = (
+            "(payload : EVM.InteractionTrace.Cursor Payload)"
+            if from_entry
+            else "(state : State (EVM.InteractionTrace.Cursor Payload))"
+        )
         contextual += f"""
 theorem traceSignatures :
     ([{names}] : List String).all (EVM.InteractionTrace.signatureFits signatures) = true :=
@@ -252,16 +267,17 @@ theorem traceSignatures :
 theorem matchingRequests {{Payload Halt : Type}} (view : Payload → EVM.InteractionTrace.View)
     (ordinary : Handlers Payload Halt)
     (reply : EVM.InteractionTrace.Request → Payload → Except Halt Payload)
-    (work : Nat) (state : State (EVM.InteractionTrace.Cursor Payload)) :
+    (work : Nat) {trace_argument} :
     ((EVM.ContinuationFlow.project beforeSource beforePoints.rows.toArray beforeEdges.rows.toArray).bind
         (fun p => project p sources edges {jump_limit})).map
         (fun p => execute p signatures (EVM.InteractionTrace.handlers view ordinary reply)
-          work p.entry state) =
+          work p.entry {state_value}) =
       ((EVM.ContinuationFlow.project afterSource afterPoints.rows.toArray afterEdges.rows.toArray).bind
         (fun p => project p targets edges {jump_limit})).map
         (fun p => execute p signatures (EVM.InteractionTrace.handlers view ordinary reply)
-          work p.entry state) :=
-  matchedContinuations (EVM.InteractionTrace.handlers view ordinary reply) work state
+          work p.entry {state_value}) :=
+  matchedContinuations (EVM.InteractionTrace.handlers view ordinary reply) work
+    {"payload" if from_entry else "state"}
 #print axioms traceSignatures
 #print axioms matchingRequests
 #print axioms EVM.InteractionTrace.stable_request
@@ -289,21 +305,22 @@ theorem matchingRequests {{Payload Halt : Type}} (view : Payload → EVM.Interac
     )
     if identical:
         validity = ""
-        match_proof = """congrArg (Option.map (fun p : Program => execute p signatures handlers work p.entry state))
+        match_proof = f"""congrArg (Option.map (fun p : Program => execute p signatures handlers work p.entry {state_value}))
     (oldProjection.trans newProjection.symm)"""
     else:
         validity = (
             table("heightBounds", "Nat", list(map(str, bounds)))
-            + """
+            + f"""
 def bounds (i : Nat) : Nat := (heightBounds.get? i).getD 0
-theorem valid : Valid old new id bounds signatures :=
-  valid_views old new oldNodes.view newNodes.view id bounds signatures 1024
+theorem valid : Valid old new id bounds signatures {entry_bound} :=
+  valid_views old new oldNodes.view newNodes.view id bounds signatures {entry_bound}
     oldNodesLookup newNodesLookup (by decide +kernel) (by rfl) (by decide +kernel)
     (by decide +kernel)
 """
         )
-        match_proof = f"""EVM.ControlFlow.contextual before after old new sources targets edges {jump_limit}
-    signatures bounds oldProjection newProjection valid handlers work state"""
+        lemma = "contextual_entry" if from_entry else "contextual"
+        match_proof = f"""EVM.ControlFlow.{lemma} before after old new sources targets edges {jump_limit}
+    signatures bounds oldProjection newProjection valid handlers work {"payload" if from_entry else "state"}"""
     code = (
         PRELUDE
         + f"""
@@ -322,11 +339,11 @@ def edges : Array Edges := transferEdges.rows.toArray
 {projections_code}
 {validity}
 theorem matched {{World Observation : Type}} (handlers : Handlers World Observation)
-    (work : Nat) (state : State World) :
+    (work : Nat) {state_argument} :
     (project before sources edges {jump_limit}).map
-        (fun p => execute p signatures handlers work p.entry state) =
+        (fun p => execute p signatures handlers work p.entry {state_value}) =
       (project after targets edges {jump_limit}).map
-        (fun p => execute p signatures handlers work p.entry state) :=
+        (fun p => execute p signatures handlers work p.entry {state_value}) :=
   {match_proof}
 #print axioms matched
 #print axioms EVM.ControlFlow.follow_execute
@@ -386,7 +403,9 @@ theorem matched {{World Observation : Type}} (handlers : Handlers World Observat
                 replay_ir=text,
                 selector=entry,
                 scope=(
-                    "interaction-flow"
+                    "layout-flow"
+                    if from_entry
+                    else "interaction-flow"
                     if interactions
                     else "continuation-flow"
                     if witness
@@ -394,7 +413,9 @@ theorem matched {{World Observation : Type}} (handlers : Handlers World Observat
                 ),
                 evm_version=version,
                 import_evidence={
-                    "kind": "kernel-checked-interaction-trace"
+                    "kind": "kernel-checked-entry-layout"
+                    if from_entry
+                    else "kernel-checked-interaction-trace"
                     if interactions
                     else "kernel-checked-continuation-flow"
                     if witness
@@ -409,6 +430,16 @@ theorem matched {{World Observation : Type}} (handlers : Handlers World Observat
                     "changed_growth_checks": changed,
                     "boundary": "compiler source graph and schema; position-independent opcode handlers; all logical steps with temporary stack growth; no physical gas claim",
                     **(witness["evidence"] if witness else {}),
+                    **(
+                        {
+                            "physical_entry": True,
+                            "entry_height_bound": entry_bound,
+                            "block_labels": sorted(witness["block_labels"]),
+                        }
+                        if from_entry
+                        else {}
+                    ),
+                    **({"code_layout": code_layout[index]} if code_layout else {}),
                 },
             )
         )

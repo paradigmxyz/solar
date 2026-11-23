@@ -706,7 +706,7 @@ def main() -> int:
     selection.add_argument(
         "--entry-trace",
         action="store_true",
-        help="check compact PUSH recipes from the physical EVM entry with an empty stack",
+        help="check EVM layout or compact PUSH recipes from physical entry",
     )
     selection.add_argument(
         "--prefix", help="prove a block prefix for every incoming stack"
@@ -842,18 +842,31 @@ def main() -> int:
                 raise Unsupported(
                     "--entry-trace requires unpriced EVM IR from an empty entry stack"
                 )
-            from . import compact_pushes
+            from . import compact_pushes, continuation_flow
 
-            result = compact_pushes.check(
-                (args.before, args.after),
-                solar,
-                rust_replay,
-                version,
-                args.timeout,
-                None,
-                None,
-                interactions=True,
-            )
+            paths = (args.before, args.after)
+            try:
+                result = compact_pushes.check(
+                    paths,
+                    solar,
+                    rust_replay,
+                    version,
+                    args.timeout,
+                    None,
+                    None,
+                    interactions=True,
+                )
+            except compact_pushes.RecipeRejected:
+                raise
+            except Unsupported as error:
+                try:
+                    result = continuation_flow.check_entry(
+                        paths, solar, rust_replay, version, args.timeout
+                    )
+                except Unsupported as layout_error:
+                    raise Unsupported(
+                        f"{error}; layout: {layout_error}"
+                    ) from layout_error
             programs = list(result.pair)
         elif args.interaction_trace:
             if (

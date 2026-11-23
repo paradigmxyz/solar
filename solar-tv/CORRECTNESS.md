@@ -800,6 +800,17 @@ these exit nodes. The real layout pair, changed-store kernel/native witness,
 unsafe-growth and bytecode-neutrality tests are in
 `examples/evmir/stack-layout/` and `tests/test_stack_layout.py`.
 
+The `--entry-trace` layout route starts with an empty stack at the first
+physical block on each side. `ControlFlow.contextual_entry` combines the
+checked path projection with the stack simulation at that entry height.
+Continuation provenance tracks logical return addresses through stack
+operations. The normalized graph keeps the largest temporary stack
+requirement along each chain of jumps and checks that changed requirements
+are safe on every reachable path. The proof shares immutable slots and
+supported interaction replies. For recognized constructor reads it also
+checks the assembled data suffix and uses common appended arguments.
+Physical transfer charges remain outside the proof.
+
 ## Remaining obligations
 
 The empty-runtime branch of `lower-dispatch` now has a kernel-checked proof.

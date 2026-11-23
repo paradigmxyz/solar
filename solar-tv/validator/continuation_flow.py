@@ -10,9 +10,9 @@ import hashlib
 import json
 import re
 
-from . import cfg_flow, code_relocations, correspondence, stack_layout
+from . import cfg_flow, code_relocations, correspondence, native, stack_layout
 from .common import Unsupported, literal
-from .source_identity import INTERACTION_OPS
+from .source_identity import INTERACTION_OPS, parse_pair
 
 
 def edges_text(node):
@@ -235,4 +235,40 @@ def check(texts, replay, catalog, version, timeout, entry, *, interactions=False
         timeout,
         continuations=tuple(zip(models, certificates, strict=True)),
         interactions=interactions,
+    )
+
+
+def check_entry(paths, solar, replay, version, timeout):
+    texts = parse_pair(paths, solar, version, timeout, None)
+    catalog = {row["name"]: row for row in native.catalog(replay, timeout)["evmir"]}
+    sources = [
+        correspondence.export(text, None, version, replay, timeout, labels=True)
+        for text in texts
+    ]
+    code_layout = code_relocations.bind(
+        sources, texts, solar, version, timeout, catalog
+    )
+    projected, witnesses = zip(
+        *(
+            project(source, catalog, version, interactions=True, from_entry=True)
+            for source in sources
+        ),
+        strict=True,
+    )
+    for model, witness in zip(projected, witnesses, strict=True):
+        witness["evidence"]["interactions"] = sorted(
+            {row["node"].get("operation") for row in model["nodes"]} & INTERACTION_OPS
+        )
+    entry = sources[0]["nodes"][sources[0]["entry"]]["label"]
+    return cfg_flow.check(
+        texts,
+        projected,
+        f"bb{entry}",
+        catalog,
+        version,
+        timeout,
+        continuations=tuple(zip(sources, witnesses, strict=True)),
+        interactions=True,
+        from_entry=True,
+        code_layout=code_layout,
     )
