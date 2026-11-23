@@ -1,0 +1,77 @@
+//@ compile-flags: -Zmir-pipeline=indvar-simplify --optimize-runs 10000
+//@ filecheck:
+@module CounterSurvives
+
+// Byte scans like `deep_byte_scan.mir`, where something keeps the counter alive beside a
+// pointer that would take over its exit test: a store of its update, or a read of its
+// address after the loop, which the pointer replaces only inside it. The pointer cannot
+// claim the counter's word, so the scans keep their counter test.
+// CHECK-LABEL: {{^[ +].*}}fn @update_read{{[( ]}}
+// CHECK-NOT: + {{v[0-9]+}} = phi
+// CHECK: = lt
+// CHECK-LABEL: {{^[ +].*}}fn @address_read_after{{[( ]}}
+// CHECK-NOT: + {{v[0-9]+}} = phi
+// CHECK: = lt
+
+fn @update_read(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 {
+  bb0:
+    v34 = add arg0, 560
+    jump bb7
+  bb7:
+    v44 = phi [bb0: 0], [bb11: v60]
+    v46 = phi [bb0: 0], [bb11: v61]
+    v47 = lt v46, arg1
+    jumpi v47, bb9, bb8
+  bb8:
+    ret 0
+  bb9:
+    v50 = add v34, v46
+    v51 = mload v50
+    v52 = shr v51, 248
+    v53 = eq v52, arg2
+    jumpi v53, bb10, bb11
+  bb10:
+    v56 = eq arg3, v44
+    jumpi v56, bb12, bb13
+  bb13:
+    v59 = add v44, 1
+    jump bb11
+  bb11:
+    v60 = phi [bb13: v59], [bb9: v44]
+    v61 = add v46, 1
+    mstore 0, v61
+    jump bb7
+  bb12:
+    ret v46
+}
+
+fn @address_read_after(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 {
+  bb0:
+    v34 = add arg0, 560
+    jump bb7
+  bb7:
+    v44 = phi [bb0: 0], [bb11: v60]
+    v46 = phi [bb0: 0], [bb11: v61]
+    v47 = lt v46, arg1
+    jumpi v47, bb9, bb8
+  bb8:
+    ret 0
+  bb9:
+    v50 = add v34, v46
+    v51 = mload v50
+    v52 = shr v51, 248
+    v53 = eq v52, arg2
+    jumpi v53, bb10, bb11
+  bb10:
+    v56 = eq arg3, v44
+    jumpi v56, bb12, bb13
+  bb13:
+    v59 = add v44, 1
+    jump bb11
+  bb11:
+    v60 = phi [bb13: v59], [bb9: v44]
+    v61 = add v46, 1
+    jump bb7
+  bb12:
+    ret v50
+}

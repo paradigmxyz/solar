@@ -576,6 +576,7 @@ impl IndVarSimplifier {
                 .sum::<usize>();
             before + Self::COUNTER_COST > after
                 || loop_data.trip_count.is_none()
+                    && Self::counter_dies(func, loop_data, &iv, &addresses)
                     && test_family.is_some_and(|(test, exit)| {
                         let setup = Self::pointer_setup_cost(
                             &families[test][0].0,
@@ -1176,6 +1177,28 @@ impl IndVarSimplifier {
             }
         }
         Some(reads)
+    }
+
+    /// Whether the counter dies once a pointer takes over its exit test: nothing but its phi
+    /// reads its update, and no address the pointers replace is read after the loop, where
+    /// they do not replace it.
+    fn counter_dies(
+        func: &Function,
+        loop_data: &Loop,
+        iv: &InductionVariable,
+        addresses: &FxHashSet<ValueId>,
+    ) -> bool {
+        let Some(next) = func.inst_result_value(iv.update_inst) else { return false };
+        func.blocks.iter_enumerated().all(|(block_id, block)| {
+            let outside = !loop_data.blocks.contains(block_id);
+            let kept =
+                |operand: ValueId| operand == next || outside && addresses.contains(&operand);
+            !block.terminator.as_ref().is_some_and(|term| term.any_operand(kept))
+                && block.instructions.iter().all(|&inst_id| {
+                    func.inst_result_value(inst_id) == Some(iv.value)
+                        || !func.inst(inst_id).kind.any_operand(kept)
+                })
+        })
     }
 
     /// Rebuilds the counter's reads after the loop from the pointer that took over its exit
