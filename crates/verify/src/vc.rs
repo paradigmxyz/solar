@@ -155,8 +155,12 @@ pub(crate) struct Vc<'p, 'a> {
     host: &'p Contract<'a>,
     /// storage-pointer locals (and storage return variables) of the running function
     slocals: FxHashSet<String>,
-    /// calldata parameters of the function being verified
+    /// calldata parameters of the function whose body runs (the verified one, or an inlined
+    /// callee while its body runs; none in modifier and base constructor bodies)
     cd_params: FxHashSet<String>,
+    /// every name the running body declares (parameters, returns, locals), which may shadow a
+    /// state variable of the same name
+    frame_names: FxHashSet<String>,
     /// values of the callee's names a pointer returned by a function was built from
     alias_env: FxHashMap<String, Env>,
     /// the location a just-inlined function's storage return points at
@@ -299,6 +303,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             cur: vec![],
             slocals: FxHashSet::default(),
             cd_params: FxHashSet::default(),
+            frame_names: FxHashSet::default(),
             alias_env: Default::default(),
             ret_alias: None,
             ret_alias_out: None,
@@ -1625,15 +1630,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 self.slocals.insert(n.clone());
             }
         }
-        self.cd_params = f
-            .item
-            .header
-            .parameters
-            .iter()
-            .zip(&f.params)
-            .filter(|(p, _)| p.data_location == Some(ast::DataLocation::Calldata))
-            .map(|(_, (n, _))| n.clone())
-            .collect();
+        (self.cd_params, self.frame_names) = Self::frame_of(f.item);
         let c = self.c;
         if ctor {
             for sv in c.state.iter().filter(|s| !s.constant) {
@@ -1740,8 +1737,15 @@ impl<'p, 'a> Vc<'p, 'a> {
                     self.bind(&n, ty, v);
                 }
                 if let Some(b) = &bf.body {
+                    // the base constructor's own names; its parameters are never calldata
+                    let (_, names) = Self::frame_of(bf);
+                    let saved_cd = std::mem::take(&mut self.cd_params);
+                    let saved_names = std::mem::replace(&mut self.frame_names, names);
                     self.frames.push(Frame { rets: vec![], exits: vec![] });
-                    self.exec_block(b)?;
+                    let r = self.exec_block(b);
+                    self.cd_params = saved_cd;
+                    self.frame_names = saved_names;
+                    r?;
                     let fr = self.frames.pop().unwrap();
                     let mut st = fr.exits;
                     st.push((self.guard.clone(), self.env.clone()));
@@ -1945,9 +1949,18 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             self.ph.push((f, mi + 1, fn_locals));
             if let Some(b) = &mdef.body {
+                // The modifier's names may shadow the function's or state; its body (and the
+                // function's under `_`) counts no name as calldata.
+                let (_, names) = Self::frame_of(mdef);
+                let saved_cd = std::mem::take(&mut self.cd_params);
+                let mut all = self.frame_names.clone();
+                all.extend(names);
+                let saved_names = std::mem::replace(&mut self.frame_names, all);
                 self.cur.push(String::new());
                 let r = self.exec_block(b);
                 self.cur.pop();
+                self.cd_params = saved_cd;
+                self.frame_names = saved_names;
                 r?;
             }
             let (_, _, fn_locals) = self.ph.pop().unwrap();
@@ -4751,10 +4764,42 @@ impl<'p, 'a> Vc<'p, 'a> {
         let roots = walk::root(e);
         !roots.is_empty()
             && roots.iter().all(|r| {
-                self.c.state.iter().any(|s| s.name == *r)
+                (self.c.state.iter().any(|s| s.name == *r) && !self.frame_names.contains(r))
                     || self.slocals.contains(r)
                     || self.cd_params.contains(r)
             })
+    }
+
+    /// The calldata parameters of function, modifier or constructor `item`, and every name it
+    /// declares: parameters, returns, locals and try/catch clause parameters.
+    fn frame_of(item: &'a ast::ItemFunction<'a>) -> (FxHashSet<String>, FxHashSet<String>) {
+        let name = |v: &ast::VariableDefinition<'_>| v.name.map(|n| n.as_str().to_string());
+        let mut cd = FxHashSet::default();
+        let mut names = FxHashSet::default();
+        for p in item.header.parameters.iter().chain(item.header.returns().iter()) {
+            if let Some(n) = name(p) {
+                if p.data_location == Some(ast::DataLocation::Calldata) {
+                    cd.insert(n.clone());
+                }
+                names.insert(n);
+            }
+        }
+        for s in item.body.iter().flat_map(|b| b.stmts.iter()) {
+            walk::all_stmts(s, &mut |s| match &s.kind {
+                StmtKind::DeclSingle(v) => names.extend(name(v)),
+                StmtKind::DeclMulti(vs, _) => {
+                    names.extend(vs.iter().filter_map(|v| v.as_ref().unspan()).filter_map(&name))
+                }
+                StmtKind::Try(t) => {
+                    for c in t.clauses.iter() {
+                        names.extend(c.args.iter().filter_map(&name));
+                    }
+                }
+                _ => {}
+            });
+        }
+        // a calldata name declared again in the body is not the parameter
+        (cd, names)
     }
 
     /// Whether `e` is an internal call, by name, whose every candidate callee returns a memory
@@ -4810,6 +4855,29 @@ impl<'p, 'a> Vc<'p, 'a> {
             walk::all_stmts(s, &mut |s| {
                 match &s.kind {
                     StmtKind::Assembly(_) => ok = false,
+                    // a declaration of the return's name shadows it: the name no longer means
+                    // the return variable
+                    StmtKind::DeclSingle(v)
+                        if v.name.is_some_and(|n| Some(n.as_str()) == name.as_deref()) =>
+                    {
+                        ok = false
+                    }
+                    StmtKind::DeclMulti(vs, _)
+                        if vs.iter().filter_map(|v| v.as_ref().unspan()).any(|v| {
+                            v.name.is_some_and(|n| Some(n.as_str()) == name.as_deref())
+                        }) =>
+                    {
+                        ok = false
+                    }
+                    StmtKind::Try(t)
+                        if t.clauses.iter().any(|c| {
+                            c.args.iter().any(|v| {
+                                v.name.is_some_and(|n| Some(n.as_str()) == name.as_deref())
+                            })
+                        }) =>
+                    {
+                        ok = false
+                    }
                     StmtKind::Return(Some(e)) if is_r(e) => allowed += 1,
                     StmtKind::Return(Some(e)) => ok &= Self::fresh_memory(e),
                     _ => {}
@@ -5905,6 +5973,9 @@ impl<'p, 'a> Vc<'p, 'a> {
         let saved_env = std::mem::take(&mut self.env);
         let saved_aliases = std::mem::take(&mut self.aliases);
         let saved_slocals = std::mem::take(&mut self.slocals);
+        let (cd, names) = Self::frame_of(f.item);
+        let saved_cd = std::mem::replace(&mut self.cd_params, cd);
+        let saved_names = std::mem::replace(&mut self.frame_names, names);
         let saved_alias_env = std::mem::take(&mut self.alias_env);
         let saved_raw_enums = std::mem::take(&mut self.raw_enums);
         let saved_old = self.old.take();
@@ -6139,6 +6210,8 @@ impl<'p, 'a> Vc<'p, 'a> {
         self.raw_enums = saved_raw_enums;
         self.aliases = saved_aliases;
         self.slocals = saved_slocals;
+        self.cd_params = saved_cd;
+        self.frame_names = saved_names;
         self.alias_env = saved_alias_env;
         self.old = saved_old;
         self.c = saved_c;

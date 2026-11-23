@@ -1176,3 +1176,8 @@ fn struct_names_base_ctor() {
         assert_eq!(got.get(f), Some(&want), "{f}\n{}\n{}", run.stdout, run.stderr);
     }
 }
+
+#[test]
+fn mem_names_shadow() {
+    check("tests/cases/mem_names_shadow.sol")
+}
