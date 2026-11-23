@@ -38,7 +38,9 @@
 //! must not wrap between the start and the bound: its base is a heap address,
 //! bounded by the memory a call can afford, and a loop cannot run
 //! `2^MAX_TRIP_COUNT_BITS` iterations, the trip-count assumption the loop split
-//! also makes, so a scaled bound below that stays far from the word size.
+//! also makes, so a scaled bound below that stays far from the word size. Its
+//! constant offset must not be negative: for a bound below the start, which
+//! enters no iteration, the end would otherwise fall below the base and wrap.
 //!
 //! A pointer with any other base, such as a calldata array element, may wrap,
 //! so it takes over the test only from a counter that starts at a literal below
@@ -525,6 +527,9 @@ impl IndVarSimplifier {
                         && key.scale <= 1 << 62
                         && key.invariants.is_empty()
                         && key.base.is_some_and(|base| self.is_heap_address(func, base))
+                        // `end` is the pointer at an unclamped bound, which may be below the
+                        // start: a negative offset would put it below the base and wrap.
+                        && key.constant >= 0
                         && step > 0
                         && step <= 1 << 64
                         && max_bits_with_args(func, iv.init, 4, &|_| 256) <= 64
