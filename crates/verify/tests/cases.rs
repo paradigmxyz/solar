@@ -1285,3 +1285,8 @@ fn modifier_storage_return() {
 fn modifier_return_name() {
     check("tests/cases/modifier_return_name.sol")
 }
+
+#[test]
+fn nested_modifier_return() {
+    check("tests/cases/nested_modifier_return.sol")
+}

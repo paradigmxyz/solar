@@ -2395,8 +2395,20 @@ impl<'p, 'a> Vc<'p, 'a> {
                 (self.slocals, self.aliases, self.alias_env) = ptrs;
                 // Held apart until the whole call returns: the modifier's own names after `_`
                 // never see them (see `exec_fn_body`).
+                // An inner modifier's `_` (the same call's) already held what the body bound; an
+                // outer one sees only its restored names, so it adds or replaces bound entries
+                // only.
                 if let Some(top) = self.ret_ptr_stash.last_mut() {
-                    *top = Some(rets);
+                    let held = top.get_or_insert_with(Vec::new);
+                    for e in rets {
+                        if e.2.is_none() {
+                            continue;
+                        }
+                        match held.iter_mut().find(|h| h.0 == e.0) {
+                            Some(h) => *h = e,
+                            None => held.push(e),
+                        }
+                    }
                 }
                 r?;
                 let fr = self.frames.pop().unwrap();
