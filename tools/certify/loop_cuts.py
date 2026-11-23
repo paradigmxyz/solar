@@ -39,6 +39,18 @@ GEN_MODULE = "Verify.LoopSource.Equiv.GenObl"
 GEN_FILE = GEN_MODULE.replace(".", "/") + ".lean"
 GEN_FORMAT = "loop obligations 1"
 REFUSED = 2
+# The loop cut hook's lake options: -R so the lakefile is elaborated with this -K, at the generated
+# library's cap (generic.GEN_LEAN_MEMORY; Counter's Obl fails the kernel at 6000).
+LAKE = ["lake", "-R", "-KleanMemory=12000"]
+# keep(label, output) -> (log name or None, tail): the driver's keeper of failed builds' logs
+# (generic.keep_log), set by hook; None keeps none.
+KEEP = None
+
+
+def kept(label, out):
+    return KEEP(label, out)[0] if KEEP else None
+
+
 # The generator splits the sequents' proofs over at most this many V modules.
 V_FILES = 8
 # A dotted Lean name: the module and constant a body summary names (GenObl.Summary).
@@ -48,10 +60,11 @@ LEAN_NAME = r"[A-Za-z_][A-Za-z0-9_']*(\.[A-Za-z_][A-Za-z0-9_']*)*"
 class Stop(Exception):
     """A step that does not complete, and why: the function stays BLOCKED with no loop_cuts entry."""
 
-    def __init__(self, step, why):
+    def __init__(self, step, why, log=None):
         super().__init__(f"{step}: {why}")
         self.step = step
         self.why = why
+        self.log = log
 
 
 def file_entry(p):
@@ -264,23 +277,30 @@ def obligations(
     (fd / "Gen.lean").write_text(gen_driver(name, contract, fname, sel, nargs, summary))
     # lake env lean runs Gen.lean against built imports only, so build them first.
     deps = [GEN_MODULE, *gen_imports(name, contract, fname, summary)]
-    rc, out, err = run(
-        ["lake", "build", "-KleanMemory=6000", *deps], cwd=lean_dir, env=lake_env
-    )
+    rc, out, err = run([*LAKE, "build", *deps], cwd=lean_dir, env=lake_env)
     if rc != 0:
         raise Stop(
             "obligations",
             f"lake cannot build the generator's imports: {tail(out + err)}",
+            kept(f"{name}.Loops.{fname}.GenImports", out + err),
         )
     rc, out, err = run(
-        ["lake", "env", "lean", "--run", str(fd / "Gen.lean")],
+        [*LAKE, "env", "lean", "--run", str(fd / "Gen.lean")],
         cwd=lean_dir,
         env=lake_env,
     )
     if rc == REFUSED:
-        raise Stop("obligations", f"the generator refuses: {tail(err)}")
+        raise Stop(
+            "obligations",
+            f"the generator refuses: {tail(err)}",
+            kept(f"{name}.Loops.{fname}.Gen", out + err),
+        )
     if rc != 0:
-        raise Stop("obligations", f"the generator exits {rc}: {tail(err or out)}")
+        raise Stop(
+            "obligations",
+            f"the generator exits {rc}: {tail(err or out)}",
+            kept(f"{name}.Loops.{fname}.Gen", out + err),
+        )
     mods, measure = gen_result(out)
     obl = f"{name}/Loops/{fname}/Obl"
     if obl not in mods:
@@ -290,12 +310,16 @@ def obligations(
     if missing:
         raise Stop("obligations", f"the generator did not write {', '.join(missing)}")
     rc, out, err = run(
-        ["lake", "build", "-KleanMemory=6000", obl.replace("/", ".")],
+        [*LAKE, "build", obl.replace("/", ".")],
         cwd=lean_dir,
         env=lake_env,
     )
     if rc != 0:
-        raise Stop("obligations", f"lake cannot build {obl}: {tail(out + err)}")
+        raise Stop(
+            "obligations",
+            f"lake cannot build {obl}: {tail(out + err)}",
+            kept(f"{name}.Loops.{fname}.Obl", out + err),
+        )
     return files, measure
 
 
@@ -315,6 +339,7 @@ def hook(
     lake_env,
     log,
     summary=lambda fname: None,
+    keep=None,
 ):
     """Steps 1 to 4 for every loop function of SRC. SOLAR and VERIFY return the run's solar and
     solar-verify, STAGES(solar, tmp) exports the run's stages to tmp/gen, LEAN_DIR() returns the
@@ -324,6 +349,8 @@ def hook(
     {"step", "why"}. BODY(fname)
     gives FNAME's body summary (module, constant) for gen_driver, or None, which the
     generator refuses."""
+    global KEEP
+    KEEP = keep
     loops = pathlib.Path(work) / "loops"
     loops.mkdir(parents=True, exist_ok=True)
     heads_file = loops / "loop-heads.json"
@@ -382,6 +409,8 @@ def hook(
             log(f"loop cut {fname}: obligations built; measure {measure}")
         except Stop as s:
             blocked[fname] = {"step": s.step, "why": s.why}
+            if s.log:
+                blocked[fname]["log"] = s.log
             log(f"loop cut {fname}: BLOCKED at {s.step}: {s.why}")
         except (OSError, ValueError, KeyError, TypeError) as e:
             blocked[fname] = {"step": "internal", "why": f"{type(e).__name__}: {e}"}

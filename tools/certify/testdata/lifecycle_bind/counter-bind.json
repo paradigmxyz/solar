@@ -1,0 +1,22 @@
+{
+ "unit": "SolidCore.Refinement.Source.VerifyCounter.importedSourceUnit",
+ "unit_module": "Contracts.VerifyCounter.Source",
+ "fuel": "Contracts.VerifyCounter.Source.fuel",
+ "init": "Verify.LoopSource.Equiv.CounterCtor.counterInit",
+ "runtime": "SolarTV.Export.Counter.bytecode",
+ "modules": [
+  "Verify.LoopSource.Equiv.CounterCtor",
+  "Verify.LoopSource.Equiv.Counter.gen.Counter.Bytecode"
+ ],
+ "ws": [
+  8
+ ],
+ "expected": {
+  "module": "Verify.LoopSource.Equiv.CounterCreated",
+  "binders": "{K : Nat} (hK : K \u2264 Verify.LoopSource.Equiv.CounterCtx.Kmax)",
+  "prop": "SolidCore.Verify.Generic.Expected (Verify.LoopSource.Equiv.CounterCtx.src 8) (Verify.LoopSource.Equiv.CounterCtx.spec 8 K) SolarTV.Export.Counter.bytecode",
+  "term": "Verify.LoopSource.Equiv.CounterCreated.counter_expected_created (n := 8) (Or.inr rfl) hK"
+ },
+ "source": "Verify.LoopSource.Equiv.CounterCtx.src 8",
+ "source_module": "Verify.LoopSource.Equiv.CounterCtx"
+}

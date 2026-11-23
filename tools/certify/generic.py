@@ -291,9 +291,74 @@ def param_of(p, enums):
     return None
 
 
+def creation_reach(cdef):
+    """The AST nodes creation can run in CDEF: the constructor (with its modifiers and base
+    constructor invocations), every state variable's initializer, and, through internal calls and
+    modifier invocations, every function and modifier they reach. Returns (the ids of those nodes,
+    whether some call or invocation could not be resolved to a function or modifier of CDEF, in
+    which case nothing counts as runtime-only)."""
+    defs = {
+        n["id"]: n
+        for n in walk(cdef)
+        if n.get("nodeType") in ("FunctionDefinition", "ModifierDefinition")
+        and "id" in n
+    }
+    roots = [
+        n
+        for n in walk(cdef)
+        if n.get("nodeType") == "FunctionDefinition" and n.get("kind") == "constructor"
+    ]
+    roots += [
+        n["value"]
+        for n in cdef.get("nodes", [])
+        if n.get("nodeType") == "VariableDeclaration"
+        and n.get("stateVariable")
+        and n.get("value")
+    ]
+    unresolved = False
+    seen, todo, reach = set(), list(roots), set()
+    while todo:
+        node = todo.pop()
+        if id(node) in seen:
+            continue
+        seen.add(id(node))
+        for m in walk(node):
+            reach.add(id(m))
+            t = m.get("nodeType")
+            if t == "ModifierInvocation":
+                ref = (m.get("modifierName") or {}).get("referencedDeclaration")
+                if ref in defs:
+                    todo.append(defs[ref])
+                else:
+                    unresolved = True  # a base constructor or an unknown modifier
+            elif t == "FunctionCall" and m.get("kind") == "functionCall":
+                e = m.get("expression") or {}
+                ref = e.get("referencedDeclaration")
+                if ref in defs:
+                    todo.append(defs[ref])
+                elif isinstance(ref, int) and ref < 0:
+                    pass  # a builtin (require, keccak256, ...)
+                elif " internal" in str(
+                    (e.get("typeDescriptions") or {}).get("typeString", "")
+                ):
+                    unresolved = True  # an internal call not to a known function (a function value)
+    return reach, unresolved
+
+
 def envelope(
-    text, ast, contracts, contract, invariants, natspec=False, lifecycle=False
+    text,
+    ast,
+    contracts,
+    contract,
+    invariants,
+    natspec=False,
+    lifecycle=False,
+    open_out=None,
 ):
+    """The source envelope. With LIFECYCLE (--tier lifecycle, which states only the creation), a
+    loop outside the constructor is not a block: it is appended to OPEN_OUT and the runtime's
+    obligations for it (the fixed-fuel resource obligation among them) are recorded OPEN, never
+    discharged; a loop in the constructor still blocks."""
     reasons = []
 
     def block(feature, node, detail):
@@ -345,6 +410,7 @@ def envelope(
         raise Failed(f"no contract {contract} in the source")
     cdef = cdefs[0]
     own = {n["id"] for n in walk(cdef) if "id" in n}
+    creation, creation_unresolved = creation_reach(cdef)
     enums = {}
     for n in walk(ast):
         if n.get("nodeType") == "EnumDefinition":
@@ -362,6 +428,20 @@ def envelope(
             block("external call", n, "try/catch makes an external call")
         elif t == "NewExpression":
             block("contract creation", n, "new creates a contract (CREATE)")
+        elif t in ("ForStatement", "WhileStatement", "DoWhileStatement") and (
+            lifecycle
+            and open_out is not None
+            and not creation_unresolved
+            and id(n) not in creation
+        ):
+            open_out.append(
+                {
+                    "feature": "loop",
+                    "where": line_of(text, n),
+                    "detail": "a runtime loop, outside the lifecycle tier's statement: its fixed-fuel "
+                    "resource obligation and loop proofs are OPEN, not required here",
+                }
+            )
         elif t in ("ForStatement", "WhileStatement", "DoWhileStatement"):
             block(
                 "loop",
@@ -532,6 +612,220 @@ def envelope(
     if reasons:
         raise Blocked(reasons)
     return contract, fns, events
+
+
+# Decided NatSpec checks (natspec_checks): a small fragment of spec clauses the driver can evaluate
+# exactly, so a clause it refutes is REJECTED by name before any proof. A clause outside the
+# fragment is left to the proofs (or recorded OPEN), never accepted on the driver's word.
+SPEC_ATOM = re.compile(
+    r"^\(?\s*([A-Za-z_]\w*|\d+)\s*(<=|>=|==|!=|<|>)\s*([A-Za-z_]\w*|\d+)\s*\)?$"
+)
+SPEC_FLIP = {"<": ">", ">": "<", "<=": ">=", ">=": "<=", "==": "==", "!=": "!="}
+
+
+def spec_atoms(clause):
+    """The conjuncts of CLAUSE as (name, op, value) with the name on the left, or None when CLAUSE
+    is not a conjunction (&&) of comparisons between one name and a decimal literal."""
+    if "||" in clause or "!" in clause.replace("!=", ""):
+        return None
+    out = []
+    for part in clause.split("&&"):
+        m = SPEC_ATOM.match(part.strip())
+        if not m:
+            return None
+        a, op, b = m.groups()
+        if a.isdigit() and not b.isdigit():
+            a, op, b = b, SPEC_FLIP[op], a
+        if a.isdigit() or not b.isdigit():
+            return None
+        out.append((a, op, int(b)))
+    return out
+
+
+def spec_holds(atoms, env):
+    """Whether every atom holds in ENV (a name to value map), or None when an atom's name is not in ENV."""
+    ops = {
+        "<": int.__lt__,
+        ">": int.__gt__,
+        "<=": int.__le__,
+        ">=": int.__ge__,
+        "==": int.__eq__,
+        "!=": int.__ne__,
+    }
+    for n, op, v in atoms:
+        if n not in env:
+            return None
+        if not ops[op](env[n], v):
+            return False
+    return True
+
+
+def natspec_clauses(node, tag):
+    doc = node.get("documentation") or {}
+    doc = doc.get("text", "") if isinstance(doc, dict) else str(doc)
+    return [
+        l.split(f"@custom:{tag}", 1)[1].strip()
+        for l in doc.splitlines()
+        if f"@custom:{tag}" in l
+    ]
+
+
+def literal_assignments(body):
+    """The state assignments of BODY when it is straight-line NAME = DECIMAL statements only (an
+    empty body included), as a map, else None."""
+    out = {}
+    for st in (body or {}).get("statements", []):
+        e = (
+            st.get("expression")
+            if st.get("nodeType") == "ExpressionStatement"
+            else None
+        )
+        if not (e and e.get("nodeType") == "Assignment" and e.get("operator") == "="):
+            return None
+        lhs, rhs = e.get("leftHandSide", {}), e.get("rightHandSide", {})
+        if (
+            lhs.get("nodeType") != "Identifier"
+            or rhs.get("nodeType") != "Literal"
+            or rhs.get("kind") != "number"
+        ):
+            return None
+        try:
+            out[lhs["name"]] = int(rhs["value"], 0)
+        except KeyError, ValueError:
+            return None
+    return out
+
+
+def vacuous_requires(f):
+    """Why F's @custom:requires clauses, taken together, are unsatisfiable, or None: decided only for
+    comparisons of one argument or state variable with decimal literals, over the uint range."""
+    atoms = []
+    for text in natspec_clauses(f, "requires"):
+        a = spec_atoms(text)
+        if a is None:
+            return None
+        atoms += a
+    if not atoms:
+        return None
+    for n in {x for x, _, _ in atoms}:
+        lo, hi, ne = 0, 2**256 - 1, set()
+        for x, op, v in atoms:
+            if x != n:
+                continue
+            if op == "<":
+                hi = min(hi, v - 1)
+            elif op == "<=":
+                hi = min(hi, v)
+            elif op == ">":
+                lo = max(lo, v + 1)
+            elif op == ">=":
+                lo = max(lo, v)
+            elif op == "==":
+                lo, hi = max(lo, v), min(hi, v)
+            else:
+                ne.add(v)
+        if lo > hi or (hi - lo < len(ne) and all(k in ne for k in range(lo, hi + 1))):
+            clauses = " && ".join(natspec_clauses(f, "requires"))
+            return (
+                f"vacuous: {f['name']}: @custom:requires {clauses} admits no value of {n}, so "
+                "the function's statement would hold of no call"
+            )
+    return None
+
+
+def natspec_checks(ast, contract):
+    """The decided NatSpec checks of CONTRACT: (the first refutation as a REJECTED reason or None,
+    the record's invariant entries). @custom:invariant: the initial state (state variables'
+    literal initializers, else 0, then a straight-line literal constructor) must satisfy it, and so
+    must the state each straight-line literal function body leaves; an invariant neither refuted
+    nor in the fragment is recorded OPEN (the driver proves no invariant). @custom:succeeds-if of a
+    nonpayable function: the dispatcher reverts a call with value, so the clause must require
+    msg.value == 0 (a top-level conjunct), or the per-function succeeds obligation is false."""
+    cdef = next(
+        (
+            n
+            for n in ast.get("nodes", [])
+            if n.get("nodeType") == "ContractDefinition" and n.get("name") == contract
+        ),
+        None,
+    )
+    if cdef is None:
+        return None, []
+    svars = {}
+    for n in cdef.get("nodes", []):
+        if n.get("nodeType") == "VariableDeclaration" and n.get("stateVariable"):
+            v = n.get("value")
+            svars[n["name"]] = (
+                int(v["value"], 0)
+                if v and v.get("nodeType") == "Literal" and v.get("kind") == "number"
+                else (0 if v is None else None)
+            )
+    for f in cdef.get("nodes", []):
+        if f.get("nodeType") != "FunctionDefinition" or f.get("kind") != "function":
+            continue
+        if (
+            f.get("visibility") not in ("external", "public")
+            or f.get("stateMutability") == "payable"
+        ):
+            continue
+        if why := vacuous_requires(f):
+            return why, []
+        for text in natspec_clauses(f, "succeeds-if") + natspec_clauses(
+            f, "succeeds_if"
+        ):
+            guards = [p.strip().strip("()").replace(" ", "") for p in text.split("&&")]
+            if "||" not in text and not (
+                {"msg.value==0", "0==msg.value"} & set(guards)
+            ):
+                why = (
+                    f"spec: {f['name']}_succeeds0 does not check: {f['name']} is nonpayable, so a "
+                    f"call with a value other than 0 reverts, but its @custom:succeeds-if {text} "
+                    "does not require msg.value == 0"
+                )
+                return why, []
+    invs = []
+    for text in natspec_clauses(cdef, "invariant"):
+        entry = {"invariant": text, "status": "OPEN: not proved by the driver"}
+        atoms = spec_atoms(text)
+        if atoms is not None:
+            init = {k: v for k, v in svars.items() if v is not None}
+            ctor = next(
+                (
+                    f
+                    for f in cdef.get("nodes", [])
+                    if f.get("nodeType") == "FunctionDefinition"
+                    and f.get("kind") == "constructor"
+                ),
+                None,
+            )
+            sets = literal_assignments(ctor.get("body")) if ctor else {}
+            if sets is not None and len(init) == len(svars):
+                init.update(sets)
+                if spec_holds(atoms, init) is False:
+                    shown = ", ".join(f"{k} = {init[k]}" for k, _, _ in atoms)
+                    return (
+                        f"invariant: {text} fails in the initial state (the constructor leaves {shown})",
+                        invs,
+                    )
+            for f in cdef.get("nodes", []):
+                if (
+                    f.get("nodeType") != "FunctionDefinition"
+                    or f.get("kind") != "function"
+                ):
+                    continue
+                if f.get("visibility") not in ("external", "public") or f.get(
+                    "stateMutability"
+                ) in ("view", "pure"):
+                    continue
+                sets = literal_assignments(f.get("body"))
+                if sets and spec_holds(atoms, sets) is False:
+                    shown = ", ".join(f"{k} = {v}" for k, v in sets.items())
+                    return (
+                        f"invariant: {text} is not preserved by {f['name']} (it sets {shown})",
+                        invs,
+                    )
+        invs.append(entry)
+    return None, invs
 
 
 def recursion_cycles(cdef, variables):
@@ -1066,7 +1360,7 @@ def run_probe(lean_dir, work, name, contract, fns, source_text, cache):
     env = dict(os.environ, LEAN_NUM_THREADS=os.environ.get("LEAN_NUM_THREADS", "2"))
     rc, out, err = run(
         [
-            "lake",
+            *LAKE,
             "build",
             f"{name}.Source",
             f"{name}.gen.{contract}.Stage0",
@@ -1079,21 +1373,23 @@ def run_probe(lean_dir, work, name, contract, fns, source_text, cache):
         env=env,
     )
     if rc != 0:
+        ln, _ = keep_log(f"{name}.Probe", out + err)
         raise Failed(
-            "the probe's build fails: "
+            f"the probe's build fails (log {ln}): "
             + " | ".join(l for l in (out + err).splitlines() if l.startswith("error"))[
                 :400
             ]
         )
-    rc, out, err = run(["lake", "env", "lean", str(d / "Probe.lean")], cwd=pl, env=env)
+    rc, out, err = run([*LAKE, "env", "lean", str(d / "Probe.lean")], cwd=pl, env=env)
     lines = [l for l in out.splitlines() if l.startswith("PROBE ")]
     res = {}
     for l in lines:
         what, _, verdict = l[len("PROBE ") :].partition(": ")
         res[what] = verdict
     if rc != 0 or "typecheck" not in res:
+        ln, _ = keep_log(f"{name}.Probe.run", out + err)
         raise Failed(
-            "the probe fails: "
+            f"the probe fails (log {ln}): "
             + " | ".join(l for l in (out + err).splitlines() if "error" in l)[:400]
         )
     reasons = []
@@ -1316,19 +1612,20 @@ def run_lifecycle_probe(
     )
     env = dict(os.environ, LEAN_NUM_THREADS=os.environ.get("LEAN_NUM_THREADS", "2"))
     rc, out, err = run(
-        ["lake", "build", f"{name}.Source", "SolidCore.Refinement.Wide.Refines"],
+        [*LAKE, "build", f"{name}.Source", "SolidCore.Refinement.Wide.Refines"],
         cwd=pl,
         env=env,
     )
     if rc != 0:
+        ln, _ = keep_log(f"{name}.LifeProbe", out + err)
         raise Failed(
-            "lifecycle: the probe's build fails: "
+            f"lifecycle: the probe's build fails (log {ln}): "
             + " | ".join(l for l in (out + err).splitlines() if l.startswith("error"))[
                 :400
             ]
         )
     rc, out, err = run(
-        ["lake", "env", "lean", str(d / "LifeProbe.lean")], cwd=pl, env=env
+        [*LAKE, "env", "lean", str(d / "LifeProbe.lean")], cwd=pl, env=env
     )
     res = {}
     for l in out.splitlines():
@@ -1336,8 +1633,9 @@ def run_lifecycle_probe(
             what, _, verdict = l[len("PROBE ") :].partition(": ")
             res[what] = verdict
     if rc != 0 or "typecheck" not in res:
+        ln, _ = keep_log(f"{name}.LifeProbe.run", out + err)
         raise Failed(
-            "lifecycle: the probe fails: "
+            f"lifecycle: the probe fails (log {ln}): "
             + " | ".join(l for l in (out + err).splitlines() if "error" in l)[:400]
         )
     shutil.rmtree(pl, ignore_errors=True)
@@ -1716,6 +2014,7 @@ def lifecycle_lean(
     ws,
     storage,
     refute=False,
+    bind=None,
 ):
     """The lifecycle module of a run (or, with REFUTE, its refutation): solar's init code INIT and
     runtime PLAIN as this run compiled them, the argument words WS the run was given and the storage
@@ -1723,7 +2022,13 @@ def lifecycle_lean(
     every literal. Deploys is Creation.deploys_of_check, one kernel evaluation of the generic
     creation frame; the source half is Route.deployedAtWith by kernel_rfl, as the generic source
     check's DeployedAt is. The runtime code is PLAIN with the immutable words the constructor
-    patched in (DEPLOYED's differences), so an unpatched immutable is refuted."""
+    patched in (DEPLOYED's differences), so an unpatched immutable is refuted.
+
+    With BIND (lifecycle_binding: the expected theorem's own constants), the module states the
+    lifecycle at that theorem's (c, fuel): fuel and contract? are its constants by definition, and
+    init, code and ws are proved equal to its init code, runtime and words (fuel_same,
+    contract_same, init_same, code_same, ws_same), so the certificate and the theorem share one
+    source unit, constructor and runtime."""
     patches = immutable_patches(deployed, plain)
     if patches is None:
         code = lean_bytes(deployed)
@@ -1741,12 +2046,44 @@ def lifecycle_lean(
         f"  if s = {lean_str(g['sig'])} then {hex(g['sel'])}\n  else" for g in sigs
     )
     splits = nested_splits([f"selSig{i}_eq" for i in range(len(sigs))])
+    bind_imports = (
+        "".join(f"import {m}\n" for m in bind_modules(bind))
+        + "import Verify.Generic.Expected\n"
+        if bind
+        else ""
+    )
+    fuel_def = bind["fuel"] if bind else "4096"
+    fuel_doc = ": the expected theorem's own" if bind else ""
+    contract_def = (
+        f"{paren(bind['source'])}.checked"
+        if bind
+        else f"TypeCheck.CheckedInput.contract {unit} {lean_str(contract)}"
+    )
+    same = (
+        f"""
+/-! ## The expected theorem's (c, fuel), constructor and runtime -/
+
+theorem fuel_same : fuel = {bind["fuel"]} := rfl
+
+theorem contract_same : contract? = {paren(bind["source"])}.checked := rfl
+
+theorem init_same : init = {bind["init"]} := by
+  apply ByteArray.ext; decide +kernel
+
+theorem code_same : code = SolidCore.Verify.Generic.runtimeCode {bind["runtime"]} := by
+  apply ByteArray.ext; decide +kernel
+
+theorem ws_same : ws = [{", ".join(str(w) for w in bind["ws"])}] := rfl
+"""
+        if bind
+        else ""
+    )
     head = f"""import Verify.Lifecycle.CreationFrame
 import Verify.Lifecycle.Route
 import Verify.Lifecycle.KernelIndex
 import SolidCore.Refinement.KernelRfl
 import {src_import}
-
+{bind_imports}
 -- Generated by solar's tools/certify/generic.py from this run's init code, arguments and storage;
 -- do not edit. Untrusted data and composition: every literal below is checked by the kernel.
 
@@ -1755,8 +2092,8 @@ namespace {ns}
 open EthLib.Base EthLib.Execution EthLib.Execution.Evm EthLib.Execution.Evm.Logic
 open SolidCore.Solidity SolidCore.Refinement Verify.Lifecycle Verify.Lifecycle.Creation
 
-/-- The interpreter fuel of SolidCore's runs. -/
-def fuel : Nat := 4096
+/-- The interpreter fuel of SolidCore's runs{fuel_doc}. -/
+def fuel : Nat := {fuel_def}
 
 /-- The steps of the generic creation frame's evaluator. -/
 def frameFuel : Nat := 4096
@@ -1803,7 +2140,7 @@ end {ns}
         + f"""
 /-- SolidCore's checked §{contract}§. -/
 def contract? : Except TypeCheck.TypeError TypeCheck.CheckedContract :=
-  TypeCheck.CheckedInput.contract {unit} {lean_str(contract)}
+  {contract_def}
 
 /-! ## Selectors, each by Keccak-256 once, then by table -/
 
@@ -1847,10 +2184,192 @@ theorem statement : ∃ c, contract? = .ok c ∧ Statement fuel c init code ws s
 /-- info: '{ns}.statement' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms statement
-
+{same}
 end {ns}
 """.replace("§", "\u0060")
     )
+
+
+BIND_KEYS = {
+    "unit": "the expected theorem's checked source unit (a constant)",
+    "unit_module": "its module",
+    "fuel": "its fuel constant",
+    "init": "its constructor's init code constant (ByteArray)",
+    "runtime": "the runtime bytes constant it states Expected for (List Nat)",
+    "modules": "the modules holding fuel, init and runtime (the lifecycle module imports these, the "
+    "unit's and the source's)",
+    "ws": "the pinned constructor words it admits for this run",
+    "source": "the expected theorem's Source term (a constant, or one applied to the words in ws, "
+    "such as CounterCtx.src 8)",
+    "source_module": "the module defining the source term (the lifecycle module imports it: its "
+    "contract? is the source's checked)",
+    "expected": "{module, binders, prop, term}: the theorem's module, its Expected conjunct, binders and the term "
+    "proving PROP ∧ ∀ c, contract? = .ok c → ∀ s, Statement fuel c init (runtimeCode runtime) ws s → "
+    "Deploys (initArgs init ws) (runtimeCode runtime) s",
+}
+LEAN_IDENT = r"[A-Za-z_][A-Za-z0-9_'?!]*(\.[A-Za-z_][A-Za-z0-9_'?!]*)*"
+BIND_FORBIDDEN = (
+    "sorry",
+    "admit",
+    "axiom",
+    "native_decide",
+    "ofReduceBool",
+    "trustCompiler",
+    "implemented_by",
+    "extern",
+    "unsafe",
+    "#",
+    "import",
+    "set_option",
+)
+
+
+def lifecycle_binding(path, ws):
+    """--lifecycle-bind FILE: the expected theorem the lifecycle certificate is bound to (BIND_KEYS),
+    checked as names and text before any is written into a module. WS must be the run's own words."""
+    try:
+        b = json.loads(pathlib.Path(path).read_text())
+    except (OSError, ValueError) as e:
+        raise Failed(f"--lifecycle-bind: cannot read {path}: {e}") from None
+    if not isinstance(b, dict) or set(b) != set(BIND_KEYS):
+        raise Failed(f"--lifecycle-bind: keys must be exactly {sorted(BIND_KEYS)}")
+    for k in ("unit", "unit_module", "source_module", "fuel", "init", "runtime"):
+        if not (isinstance(b[k], str) and re.fullmatch(LEAN_IDENT, b[k])):
+            raise Failed(f"--lifecycle-bind: {k} {b[k]!r} is not a Lean name")
+    if not (
+        isinstance(b["modules"], list)
+        and b["modules"]
+        and all(
+            isinstance(m, str) and re.fullmatch(LEAN_IDENT, m) for m in b["modules"]
+        )
+    ):
+        raise Failed("--lifecycle-bind: modules must be a list of Lean module names")
+    src_term = b.get("source")
+    for k, t in (("source", src_term),):
+        if not isinstance(t, str):
+            raise Failed(f"--lifecycle-bind: {k} must be a Lean term")
+        head, *args = t.split(" ")
+        if not re.fullmatch(LEAN_IDENT, head) or any(
+            not re.fullmatch(r"[0-9]+", x) for x in args
+        ):
+            raise Failed(
+                f"--lifecycle-bind: {k} {t!r} is not a Lean name applied to decimal words"
+            )
+        if args and [int(x) for x in args] != list(ws):
+            raise Failed(
+                f"--lifecycle-bind: {k} {t!r} is applied to {args}, not this run's words {list(ws)}"
+            )
+    if b["ws"] != list(ws):
+        raise Failed(
+            f"--lifecycle-bind: ws {b['ws']} are not this run's constructor words {list(ws)}"
+        )
+    e = b["expected"]
+    if not (
+        isinstance(e, dict)
+        and set(e) == {"module", "binders", "prop", "term"}
+        and all(isinstance(e[k], str) for k in e)
+    ):
+        raise Failed(
+            "--lifecycle-bind: expected must be {module, binders, prop, term} strings"
+        )
+    if not re.fullmatch(LEAN_IDENT, e["module"]):
+        raise Failed("--lifecycle-bind: expected.module is not a Lean module name")
+    if not e["prop"].startswith("SolidCore.Verify.Generic.Expected "):
+        raise Failed(
+            "--lifecycle-bind: expected.prop must be a SolidCore.Verify.Generic.Expected statement"
+        )
+    lead = f"SolidCore.Verify.Generic.Expected {paren(src_term)} "
+    if not e["prop"].startswith(lead):
+        raise Failed(
+            f"--lifecycle-bind: expected.prop is not about the bound source {src_term!r} "
+            f"(it must start {lead!r})"
+        )
+    if f" {b['runtime']}" not in e["prop"]:
+        raise Failed("--lifecycle-bind: expected.prop is not about the bound runtime")
+    for k in ("binders", "prop", "term"):
+        t = e[k]
+        if "\n" in t or any(w in t for w in BIND_FORBIDDEN):
+            raise Failed(
+                f"--lifecycle-bind: expected.{k} holds a forbidden token or a newline"
+            )
+    return b
+
+
+def paren(t):
+    return f"({t})" if " " in t else t
+
+
+def bind_modules(bind):
+    """The modules the bound lifecycle module imports: the unit's, the source term's, and those
+    holding fuel, init and runtime, once each, in that order."""
+    out = []
+    for m in [bind["unit_module"], bind["source_module"], *bind["modules"]]:
+        if m not in out:
+            out.append(m)
+    return out
+
+
+def source_same_lean(name, bind):
+    """The check that this run's source unit, from its own solc AST, is the expected theorem's: one
+    definitional equality, so the run's commit-bound source is the unit the theorem is about."""
+    return f"""import {name}.Source
+import {bind["unit_module"]}
+
+-- Generated by solar's tools/certify/generic.py; do not edit.
+
+namespace Certified.{name}.SourceSame
+
+theorem unit_same : Certified.{name}.Src.importedSourceUnit = {bind["unit"]} := rfl
+
+end Certified.{name}.SourceSame
+"""
+
+
+def composed_lean(name, bind):
+    """The composed theorem: the expected theorem's Expected, and at one witness c of its source's
+    checked contract (the lifecycle's contract? is that source's checked, by definition):
+    Source.CreatedBy c with solar's init code and the creation bytes initArgs init ws, the lifecycle
+    Statement and the deployment of those creation bytes. EXPECTED.term proves Expected ∧ ∃ c,
+    SOURCE.checked = .ok c ∧ SOURCE.CreatedBy c INIT (initArgs INIT WS) ∧ … (the shape of
+    CounterCreated.counter_expected_created); its c is proved to be the certificate's, and the
+    admission is the theorem's, never a second one."""
+    life = f"Certified.{name}.Lifecycle"
+    e = bind["expected"]
+    src = paren(bind["source"])
+    ws = "[" + ", ".join(str(w) for w in bind["ws"]) + "]"
+    init = bind["init"]
+    cre = f"(Verify.Lifecycle.initArgs {init} {ws})"
+    code = f"(SolidCore.Verify.Generic.runtimeCode {bind['runtime']})"
+    return f"""import {name}.Lifecycle
+import {name}.SourceSame
+import {e["module"]}
+
+-- Generated by solar's tools/certify/generic.py; do not edit.
+
+namespace Certified.{name}.Composed
+
+/-- **The expected theorem with this run's lifecycle certificate**: the theorem's Expected, and at
+the one checked contract c of its source: the source is created by solar's init code with exactly
+the arguments {ws} (§Source.CreatedBy§, the theorem's typed admission), SolidCore's constructor of c
+on {ws} leaves §storageLit§, and those creation bytes deploy the runtime with the same storage. -/
+theorem composed {e["binders"]} :
+    {e["prop"]} ∧
+      ∃ c, {src}.checked = .ok c ∧ {src}.CreatedBy c {init} {cre} ∧
+        Verify.Lifecycle.Statement {bind["fuel"]} c {init} {code} {ws} {life}.storageLit ∧
+        SolidCore.Refinement.Deploys {cre} {code} {life}.storageLit := by
+  obtain ⟨hE, c, hc, hcb, -⟩ := {e["term"]}
+  obtain ⟨c', hc', hl⟩ := {life}.statement
+  rw [{life}.contract_same, hc] at hc'
+  cases hc'
+  rw [{life}.fuel_same, {life}.init_same, {life}.code_same, {life}.ws_same] at hl
+  exact ⟨hE, c, hc, hcb, hl, hl.deploys⟩
+
+/-- info: 'Certified.{name}.Composed.composed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms composed
+
+end Certified.{name}.Composed
+""".replace("§", "\u0060")
 
 
 def storage_list(text):
@@ -1981,6 +2500,7 @@ def lifecycle_all(
         rec["detail"] = (
             f"the symbolic creation frame does not prove every creation: {errs}"
         )
+        rec["log"], rec["log_tail"] = keep_log(f"{name}.LifecycleAll", out)
     return rec
 
 
@@ -1997,6 +2517,7 @@ def lifecycle_kernel(
     ws,
     storage,
     outside,
+    bind=None,
 ):
     """The kernel stage: {"stage", "ok", "detail", "verdict"}. verdict "proved" when BUILD accepts
     the lifecycle module (Deploys by the generic creation frame, and DeployedAtWith), "refuted"
@@ -2011,7 +2532,17 @@ def lifecycle_kernel(
             + ", ".join(outside),
         }
     text = lifecycle_lean(
-        ns, src_import, unit, contract, sigs, init, plain, deployed, ws, storage
+        ns,
+        src_import,
+        unit,
+        contract,
+        sigs,
+        init,
+        plain,
+        deployed,
+        ws,
+        storage,
+        bind=bind,
     )
     ok, out = build("Lifecycle", text)
     if ok:
@@ -2036,7 +2567,18 @@ def lifecycle_kernel(
         storage,
         refute=True,
     )
-    rok, _ = build("LifecycleRefute", rtext)
+    rok, rout = build("LifecycleRefute", rtext)
+    lname = ns.split(".")[1]
+    logs = {
+        "logs": {
+            "Lifecycle": keep_log(f"{lname}.Lifecycle", out)[0],
+            "LifecycleRefute": None
+            if rok
+            else keep_log(f"{lname}.LifecycleRefute", rout)[0],
+        },
+        "log_tail": "\n".join(out.splitlines()[-60:]),
+        "refute_log_tail": None if rok else "\n".join(rout.splitlines()[-60:]),
+    }
     if rok:
         return {
             "stage": "kernel",
@@ -2044,6 +2586,7 @@ def lifecycle_kernel(
             "verdict": "refuted",
             "lean": rtext,
             "detail": "the kernel proves the creation does not deploy this code and storage (not_deploys_of_refutes)",
+            **logs,
         }
     errs = " | ".join(l for l in out.splitlines() if "error" in l)[:400]
     return {
@@ -2051,7 +2594,92 @@ def lifecycle_kernel(
         "ok": False,
         "verdict": "outside",
         "detail": f"the kernel proves neither the deployment nor its refutation (a revert path, or a frame outside the shape): {errs}",
+        **logs,
     }
+
+
+def seal_record(rec_dir, record, status, **extra):
+    """Write RECORD as REC_DIR/record.json with STATUS: when it has a run manifest (run_files), every
+    file the driver left in REC_DIR but record.json is added to it with its sha256."""
+    record.update(extra)
+    if record.get("run_files") is not None:
+        for q in sorted(rec_dir.rglob("*")):
+            rel = str(q.relative_to(rec_dir))
+            if q.is_file() and rel != "record.json" and rel not in record["run_files"]:
+                record["run_files"][rel] = sha256_file(q)
+    record["status"] = status
+    record["finished"] = datetime.datetime.now(datetime.UTC).isoformat(
+        timespec="seconds"
+    )
+    (rec_dir / "record.json").write_text(json.dumps(record, indent=2) + "\n")
+
+
+# The lifecycle tier's compared bytes, kept in the record directory (run_files) beside the record.
+LIFECYCLE_FILES = {
+    "init": "lifecycle/init.hex",
+    "creation": "lifecycle/creation.hex",
+    "bin_runtime": "lifecycle/bin-runtime.hex",
+    "bind": "lifecycle/bind.json",
+}
+
+
+def lifecycle_manifest(
+    record,
+    lean_src,
+    lean_dir,
+    base,
+    name,
+    contract,
+    src,
+    src_sha,
+    rec_dir,
+    init,
+    creation,
+    plain,
+):
+    """The lifecycle run's manifest, as the certified path writes it: the generated inputs of the
+    run's clone (Certified/NAME/ and the lakefile stanza) committed on BASE and checked by
+    checkout.sh, solidity_lean.inputs/inputs_sha256/base_tree/executed_tree, the source and inputs
+    copied into REC_DIR, the base's pinned packages, and the creation, init and runtime bytes and
+    the binding it compared (LIFECYCLE_FILES). seal_record then lists every file in run_files."""
+    inputs, changed = commit_inputs(lean_dir, base, name, contract)
+    tree = git(lean_dir, "rev-parse", inputs + "^{tree}")
+    record["solidity_lean_source"] = str(lean_src)
+    record["solidity_lean"] = {
+        "base": base,
+        "inputs_commit": inputs,
+        "inputs_tree": tree,
+        "provenance": f"solidity-lean {base} + inputs {inputs} (tree {tree}, Certified/{name} only)",
+        "inputs": changed,
+        "inputs_sha256": {p: sha256_file(lean_dir / p) for p in changed},
+    }
+    shutil.copy(src, rec_dir / src.name)
+    for q in changed:
+        (rec_dir / "inputs" / q).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(lean_dir / q, rec_dir / "inputs" / q)
+    record["run_files"] = {
+        src.name: src_sha,
+        **{f"inputs/{q}": sha256_file(lean_dir / q) for q in changed},
+    }
+    rebuilt = inputs_tree(lean_dir, base, rec_dir / "inputs", changed)
+    if rebuilt != tree:
+        raise Failed(
+            f"executed tree: the input commit's tree {tree} is not base + the listed generated inputs ({rebuilt})"
+        )
+    record["solidity_lean"].update(
+        base_tree=git(lean_dir, "rev-parse", base + "^{tree}"), executed_tree=tree
+    )
+    pin, pin_digest = pinned_packages(lean_dir, base)
+    record["packages"] = {"pinned": pin, "digest": pin_digest, "cache_sha256": None}
+    (rec_dir / "lifecycle").mkdir(exist_ok=True)
+    (rec_dir / LIFECYCLE_FILES["init"]).write_text(init.hex() + "\n")
+    (rec_dir / LIFECYCLE_FILES["creation"]).write_text(creation.hex() + "\n")
+    (rec_dir / LIFECYCLE_FILES["bin_runtime"]).write_text(plain.lower() + "\n")
+    bind = (record.get("lifecycle") or {}).get("bind")
+    if bind is not None:
+        (rec_dir / LIFECYCLE_FILES["bind"]).write_text(
+            json.dumps(bind, indent=1) + "\n"
+        )
 
 
 def lifecycle_run(
@@ -2062,6 +2690,8 @@ def lifecycle_run(
     kernel refutes, CERTIFIED (exit 0) only when the kernel proves the generated lifecycle module."""
     types = constructor_params(ast, contract)
     ws = constructor_words(types, a.constructor_args)
+    bind_file = getattr(a, "lifecycle_bind", None)
+    bind = lifecycle_binding(bind_file, ws) if bind_file else None
     imm = immutables(ast, contract)
     rc, out, err = run([str(solar), str(src), *OPTIONS, "--emit=bin,bin-runtime"])
     if rc != 0:
@@ -2119,6 +2749,8 @@ def lifecycle_run(
     git(work, "clone", "-q", "--no-checkout", "--shared", str(lean_src), str(lean_dir))
     git(lean_dir, "checkout", "-q", "--detach", base)
     git(lean_dir, "submodule", "update", "-q", "--init", "--recursive", check=False)
+    # The canonical library stanza (the one the inputs commit may add), before any module build.
+    fresh_certified(lean_dir, name, contract)
     rc, body, err = frontend(lean_dir, src, src_sha, name, contract, a.solc)
     if rc != 0:
         raise Blocked(
@@ -2131,6 +2763,32 @@ def lifecycle_run(
                 }
             ]
         )
+    sealed = finish
+
+    def finish(status, code, line, **extra):
+        # Every outcome from here on leaves the run's manifest, so --replay can check it.
+        (lean_dir / "Certified" / name).mkdir(parents=True, exist_ok=True)
+        (lean_dir / "Certified" / name / "Source.lean").write_text(source_lean(body))
+        try:
+            lifecycle_manifest(
+                record,
+                lean_src,
+                lean_dir,
+                base,
+                name,
+                contract,
+                src,
+                src_sha,
+                rec_dir,
+                init,
+                creation,
+                plain,
+            )
+        except (Failed, OSError) as e:
+            record.pop("run_files", None)
+            record["lifecycle_manifest_error"] = str(e)
+        sealed(status, code, line, **extra)
+
     res = run_lifecycle_probe(
         lean_dir,
         work,
@@ -2171,6 +2829,31 @@ def lifecycle_run(
             f"the base {base[:12]} has no generic creation frame (Verify/Lifecycle/CreationFrame.lean)"
         )
     sigs = [{"sig": f["sig"], "sel": f["sel"]} for f in fns]
+    if bind:
+        life["bind"] = {k: bind[k] for k in BIND_KEYS}
+        ok, out = lifecycle_build(
+            lean_dir,
+            name,
+            source_lean(body),
+            "SourceSame",
+            source_same_lean(name, bind),
+            a.probe_cache or None,
+        )
+        life["source_same"] = ok
+        if not ok:
+            errs = " | ".join(l for l in out.splitlines() if "error" in l)[:300]
+            log_name, tail = build_failure(rec_dir, name, "SourceSame", out)
+            raise Blocked(
+                [
+                    {
+                        "feature": "lifecycle binding",
+                        "where": "",
+                        "detail": f"this run's source unit is not the expected theorem's ({bind['unit']}): {errs}",
+                        "log": log_name,
+                        "log_tail": tail,
+                    }
+                ]
+            )
     kq = lifecycle_kernel(
         lambda mod, t: lifecycle_build(
             lean_dir, name, source_lean(body), mod, t, a.probe_cache or None
@@ -2186,8 +2869,15 @@ def lifecycle_run(
         ws,
         storage_list(res.get("storage")),
         outside,
+        bind,
     )
-    stages.append({k: kq[k] for k in ("stage", "ok", "detail")})
+    stages.append(
+        {
+            k: kq[k]
+            for k in ("stage", "ok", "detail", "logs", "log_tail", "refute_log_tail")
+            if k in kq
+        }
+    )
     log(f"lifecycle kernel: {'YES' if kq['ok'] else 'NO'}: {kq['detail']}")
     if "lean" in kq:
         f = rec_dir / f"{name}.{'Lifecycle' if kq['ok'] else 'LifecycleRefute'}.lean"
@@ -2213,10 +2903,71 @@ def lifecycle_run(
         log(
             f"lifecycle all arguments: {'YES' if life['all_args']['ok'] else 'NO'}: {life['all_args']['detail']}"
         )
+        if bind:
+            text = composed_lean(name, bind)
+            (rec_dir / f"{name}.Composed.lean").write_text(text)
+            ok, out = lifecycle_build(
+                lean_dir,
+                name,
+                source_lean(body),
+                "Composed",
+                text,
+                a.probe_cache or None,
+            )
+            life["composed"] = {
+                "theorem": f"Certified.{name}.Composed.composed",
+                "lean_sha256": hashlib.sha256(text.encode()).hexdigest(),
+                "built": ok,
+                # One witness c for every conjunct; the admission is the expected theorem's.
+                "conjuncts": [
+                    "Expected",
+                    "checked",
+                    "CreatedBy",
+                    "Statement",
+                    "Deploys",
+                ],
+                "contract": f"{paren(bind['source'])}.checked",
+                "created_by": f"{paren(bind['source'])}.CreatedBy c {bind['init']} "
+                f"(Verify.Lifecycle.initArgs {bind['init']} {bind['ws']})",
+                "ctor_args": bind["ws"],
+            }
+            log(
+                f"lifecycle composed with the expected theorem: {'YES' if ok else 'NO'}"
+            )
+            if not ok:
+                errs = " | ".join(l for l in out.splitlines() if "error" in l)[:400]
+                life["composed"]["log"], life["composed"]["log_tail"] = build_failure(
+                    rec_dir, name, "Composed", out
+                )
+                finish(
+                    "BLOCKED",
+                    2,
+                    f"BLOCKED: lifecycle: the composed theorem does not build: {errs}",
+                    tier_reached="lifecycle",
+                )
+        opened = record.get("lifecycle_open") or []
+        loops_note = (
+            f"; runtime loops OPEN, outside this tier ({', '.join(o['where'] for o in opened)}): "
+            "their fixed-fuel resource obligation is not discharged"
+            if opened
+            else ""
+        )
+        if opened and bind:
+            lr = lifecycle_loop_resources(
+                a, solar, src, name, contract, ast, fns, bind, lean_dir, body, rec_dir
+            )
+            life["loop_resources"] = lr
+            log(f"lifecycle loop resources: {lr['status']}: {lr['detail']}")
+            if lr["status"] == "subedge":
+                loops_note = (
+                    f"; runtime loop ({', '.join(o['where'] for o in opened)}) resources: the final "
+                    f"EVM IR subedge is proved on these bytes ({lr['theorem']}); the source join stays "
+                    f"OPEN: {LOOP_SOURCE_GAP}"
+                )
         finish(
             "CERTIFIED",
             0,
-            f"CERTIFIED: lifecycle: {kq['detail']}",
+            f"CERTIFIED: lifecycle: {kq['detail']}" + loops_note,
             tier_reached="lifecycle",
         )
     if kq["verdict"] == "refuted":
@@ -2232,6 +2983,96 @@ def lifecycle_run(
         f"UNSUPPORTED-lifecycle: kernel: {kq['detail']}",
         tier_reached="none",
     )
+
+
+# The edge the loop-resource generator cannot derive within tools/certify: the source loop's body
+# summary. resources_of_verdict over the source semantics needs a stage from the source to the final
+# EVM IR, and Verify.LoopSource.Equiv.loop_stage needs BodyRuns of the loop's body, which
+# SolidCore.Refinement.Generic.eraseStmt (no loop case) cannot give.
+LOOP_SOURCE_GAP = (
+    "no generic BodyRuns for a loop body. SolidCore.Refinement.Generic.bodyRuns_of_erase needs "
+    "`eraseStmt E fuel fn.body (initState fn) = some b`, and eraseStmt has no case for a loop. "
+    "Missing: a loop-aware eraser `eraseLoopStmt (E : EraseEnv) : Nat → Stmt → SymState → Option Br` "
+    "and `theorem bodyRuns_of_eraseLoop {E : EraseEnv} {fuel : Nat} {fn : FunctionDef} {b : Br} "
+    "(h : eraseLoopStmt E fuel fn.body (initState fn) = some b) : BodyRuns E fuel fn b`, the premise "
+    "`hb` of Verify.LoopSource.Equiv.loop_stage"
+)
+
+# The composed theorem's binder the joint consumer reuses: one iteration bound K under a named bound.
+JOINT_BINDERS = re.compile(r"\{K : Nat\} \(hK : K ≤ (" + LEAN_IDENT + r")\)")
+
+
+def lifecycle_loop_resources(
+    a, solar, src, name, contract, ast, fns, bind, lean_dir, body, rec_dir
+):
+    """The runtime loop's fixed-fuel resources at the lifecycle tier
+    (tools/certify/loop_resources.py): the generated module Certified/NAME/LoopResources.lean,
+    built in the run's clone after Composed. status is "subedge" when it builds (the final EVM IR's
+    Shapes.Resources on this run's bytes, joined with the composed theorem), "unsupported" when the
+    loop is outside the generator's shape, and "failed" when the kernel refuses the module."""
+    import loop_resources
+
+    m = JOINT_BINDERS.fullmatch(bind["expected"]["binders"])
+    if not m:
+        return {
+            "status": "unsupported",
+            "detail": "the composed theorem's binders are not one iteration bound K",
+        }
+    joint = {
+        "composed": f"Certified.{name}.Composed.composed",
+        "bound": m.group(1),
+        "code_same": f"Certified.{name}.Lifecycle.code_same",
+        "runtime": bind["runtime"],
+        "import": f"{name}.Composed",
+    }
+    abi = [
+        {
+            "signature": f["sig"],
+            "selector": f"0x{f['sel']:08x}",
+            "params": [
+                t for t in f["sig"].split("(", 1)[1].rstrip(")").split(",") if t
+            ],
+        }
+        for f in fns
+    ]
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            text, facts = loop_resources.for_run(
+                solar,
+                src,
+                contract,
+                ast,
+                abi,
+                tmp,
+                ns=f"Certified.{name}.LoopResources",
+                code_term=f"Certified.{name}.Lifecycle.code",
+                code_import=f"{name}.Lifecycle",
+                joint=joint,
+            )
+    except loop_resources.Unsupported as e:
+        return {"status": "unsupported", "detail": str(e)}
+    runtime = facts.pop("runtime")
+    (rec_dir / f"{name}.LoopResources.lean").write_text(text)
+    ok, out = lifecycle_build(
+        lean_dir, name, source_lean(body), "LoopResources", text, a.probe_cache or None
+    )
+    rec = {
+        "status": "subedge" if ok else "failed",
+        "theorem": f"Certified.{name}.LoopResources.joint",
+        "resources": f"Certified.{name}.LoopResources.resources_evmir",
+        "lean_sha256": hashlib.sha256(text.encode()).hexdigest(),
+        "export_runtime_sha256": hashlib.sha256(bytes.fromhex(runtime)).hexdigest(),
+        "obligation": facts,
+        "source_join": LOOP_SOURCE_GAP,
+        "detail": (
+            "Shapes.Resources of the final EVM IR on Valid K, K ≤ Kmax, joined with the composed theorem"
+            if ok
+            else "the kernel refuses the generated loop-resource module"
+        ),
+    }
+    if not ok:
+        rec["log"], rec["log_tail"] = build_failure(rec_dir, name, "LoopResources", out)
+    return rec
 
 
 def admit_lake_jobs():
@@ -2257,7 +3098,7 @@ def lake_jobs_env(lean_dir, env):
         sys.exit("generic: CERTIFY_LAKE_JOBS must be a positive integer")
     if jobs == "1":
         return env
-    rc, out, err = run(["lake", "env", "which", "lean"], cwd=lean_dir, env=env)
+    rc, out, err = run([*LAKE, "env", "which", "lean"], cwd=lean_dir, env=env)
     if rc != 0:
         sys.exit(f"generic: cannot find lean: {err.strip()}")
     tc = pathlib.Path(out.strip()).resolve().parent.parent
@@ -2296,10 +3137,46 @@ def lifecycle_build(lean_dir, name, source_text, mod, text, cache):
         if rc != 0:
             raise Failed(f"cannot copy the probe cache: {err[:200]}")
     env = lake_jobs_env(lean_dir, dict(os.environ, LEAN_NUM_THREADS="1"))
-    rc, out, err = run(
-        ["lake", "build", "-KleanMemory=6000", f"{name}.{mod}"], cwd=lean_dir, env=env
-    )
+    rc, out, err = run([*LAKE, "build", f"{name}.{mod}"], cwd=lean_dir, env=env)
+    if rc != 0:
+        keep_log(f"{name}.{mod}", out + err)
     return rc == 0, out + err
+
+
+# The lean memory cap (MB) of the generated certification library's builds: its Source, the
+# probes', and every lifecycle module (SourceSame, Lifecycle, LifecycleRefute, LifecycleAll,
+# Composed) with their kernel checks. Counter's Lifecycle peaks at 4.88 GB unbounded and fails the
+# kernel at -M 6000; it passes at 10000.
+GEN_LEAN_MEMORY = 12000
+# The lake options every lake call on the run's clones passes first. The lakefile reads leanMemory
+# with get_config? into weakLeanArgs, which lake applies only when it elaborates the lakefile: -R
+# makes every call elaborate it with this -K, so a configuration cached by an earlier call without
+# it (or with another value) never runs the generated modules with no -M or another one.
+LAKE = ["lake", "-R", f"-KleanMemory={GEN_LEAN_MEMORY}"]
+
+
+# The record directory failed lake builds keep their whole output in (main sets it); None keeps none.
+BUILD_LOG_DIR = None
+
+
+def keep_log(label, out, lines=60):
+    """A failed lake build's (or lake-run probe's) whole output, kept as LABEL.build.log in
+    BUILD_LOG_DIR, and its last LINES lines: (the log's name or None, the tail)."""
+    tail = "\n".join((out or "").splitlines()[-lines:])
+    if BUILD_LOG_DIR is None:
+        return None, tail
+    log_name = f"{label}.build.log"
+    (pathlib.Path(BUILD_LOG_DIR) / log_name).write_text(out or "")
+    return log_name, tail
+
+
+def build_failure(rec_dir, name, mod, out, lines=60):
+    """A failed lifecycle build's whole lake output, kept as NAME.MOD.build.log in the record
+    directory, and its last LINES lines: lake prints a failed module's own messages (such as Lean's
+    memory_exception and its exit code) in that module's block, and they need not say "error"."""
+    log_name = f"{name}.{mod}.build.log"
+    (rec_dir / log_name).write_text(out)
+    return log_name, "\n".join(out.splitlines()[-lines:])
 
 
 def frontend(lean_dir, src, src_sha, name, contract, solc):
@@ -3016,6 +3893,7 @@ def loop_cuts(record, src, ast, a, work, name, src_sha):
         lake_env=lambda d: lake_jobs_env(d, dict(os.environ, LEAN_NUM_THREADS="1")),
         log=log,
         summary=loop_summaries(a.loop_summary or []).get,
+        keep=keep_log,
     )
     record["loop_heads"] = heads
     record["loop_cuts"] = cuts
@@ -3144,6 +4022,11 @@ REPLAY_KEYS = [
     ("status",),
     ("strict",),
     ("tier_reached",),
+    # The lifecycle tier's provenance-bound inputs: the binding (every key, source_module
+    # included), the argument words and the creation bytes they give.
+    ("lifecycle", "bind"),
+    ("lifecycle", "args"),
+    ("lifecycle", "creation_sha256"),
     ("solidity_lean", "executed_tree"),
     ("packages", "digest"),
     ("packages", "cache_sha256"),
@@ -3586,9 +4469,54 @@ def replayed_modules(rec):
     ]
 
 
+def lifecycle_verdict(rec):
+    """The lifecycle verdict replay compares between the record and the fresh run: whether a kernel
+    stage proved the creation, and the composed theorem's name and whether it built."""
+    life = rec.get("lifecycle") or {}
+    comp = life.get("composed") or {}
+    return {
+        "kernel_ok": any(
+            st.get("stage") == "kernel" and st.get("ok") is True
+            for st in life.get("stages") or []
+        ),
+        "composed.theorem": comp.get("theorem"),
+        "composed.built": comp.get("built"),
+    }
+
+
+def lifecycle_claims_problem(rec):
+    """Why a lifecycle-tier record's claims do not hold together, or None. The lifecycle tier runs no
+    scripts/certify: it publishes no final statement, statuses or replay of its own, and its
+    verdict is the lifecycle stages' (CERTIFIED exactly when the kernel proved the creation, with the
+    composed theorem built when the record binds an expected theorem). The fresh run must reproduce
+    status, tier_reached and every lifecycle key replay compares."""
+    claimed = [k for k in (*CLAIM_KEYS, "strict", "published_statement") if rec.get(k)]
+    if claimed:
+        return f"the lifecycle tier publishes no {', '.join(claimed)}, but the record claims it"
+    if "certify-record.json" in (rec.get("run_files") or {}):
+        return "the lifecycle tier runs no scripts/certify, but the record lists a certify-record.json"
+    status, reached = rec.get("status"), rec.get("tier_reached")
+    life = rec.get("lifecycle") or {}
+    if status == "CERTIFIED":
+        if reached != "lifecycle":
+            return f"a CERTIFIED lifecycle record has tier_reached {reached!r}, not 'lifecycle'"
+        if not any(
+            st.get("stage") == "kernel" and st.get("ok")
+            for st in life.get("stages", [])
+        ):
+            return "a CERTIFIED lifecycle record has no proved kernel stage"
+        if life.get("bind") and not (life.get("composed") or {}).get("built"):
+            return "a CERTIFIED lifecycle record that binds an expected theorem has no built composed theorem"
+    elif reached == "lifecycle":
+        return f"a {status} lifecycle record claims tier_reached 'lifecycle'"
+    return None
+
+
 def claims_problem(rec, d):
     """Why record.json's claims are not certify-record.json's (or its verdict not the one strict
-    gives that record), or None."""
+    gives that record), or None. A lifecycle-tier record is checked by lifecycle_claims_problem."""
+    if rec.get("requested_tier") == "lifecycle":
+        return lifecycle_claims_problem(rec)
     if "certify-record.json" not in rec.get("run_files", {}):
         claimed = [
             k
@@ -3677,6 +4605,10 @@ def producer_problem(rec, d, which):
             f"stale producer: the {which}'s solar embeds {s.get('binary_commit')}, "
             f"not the commit it was built from ({b['commit']})"
         )
+    if rec.get("requested_tier") == "lifecycle":
+        # The lifecycle tier runs no scripts/certify: the driver itself ran the artifact its build
+        # produced, bound above (solar.build.artifact.sha256 == binary_sha256).
+        return None
     try:
         cr = json.loads((d / "certify-record.json").read_text())
     except OSError, ValueError:
@@ -3685,6 +4617,66 @@ def producer_problem(rec, d, which):
         return (
             f"substituted executable: the {which}'s scripts/certify ran solar "
             f"{cr.get('solar_sha256')}, not the built {s['binary_sha256']}"
+        )
+    return None
+
+
+LIFECYCLE_PROVENANCE = ("bind", "args", "creation_sha256")
+
+
+def lifecycle_files_problem(rec, d):
+    """Why a lifecycle record's provenance is not its own listed files, or None: its creation, init
+    and runtime bytes and its binding (LIFECYCLE_FILES) must be listed in run_files, and the record's
+    creation_sha256, initcode_sha256, bin_runtime_sha256, args and bind must be those files'."""
+    if rec.get("requested_tier") != "lifecycle":
+        return None
+    life, files = rec.get("lifecycle") or {}, rec.get("run_files") or {}
+    need = ["init", "creation", "bin_runtime"] + (
+        ["bind"] if life.get("bind") is not None else []
+    )
+    for k in need:
+        if LIFECYCLE_FILES[k] not in files:
+            return f"lifecycle files: the record lists no {LIFECYCLE_FILES[k]}"
+    try:
+        init = bytes.fromhex((d / LIFECYCLE_FILES["init"]).read_text().strip())
+        creation = bytes.fromhex((d / LIFECYCLE_FILES["creation"]).read_text().strip())
+        plain = bytes.fromhex((d / LIFECYCLE_FILES["bin_runtime"]).read_text().strip())
+    except (OSError, ValueError) as e:
+        return f"lifecycle files: unreadable bytes: {e}"
+    if hashlib.sha256(creation).hexdigest() != life.get("creation_sha256"):
+        return "lifecycle files: creation_sha256 is not lifecycle/creation.hex's"
+    if hashlib.sha256(init).hexdigest() != life.get("initcode_sha256"):
+        return "lifecycle files: initcode_sha256 is not lifecycle/init.hex's"
+    if hashlib.sha256(plain).hexdigest() != life.get("bin_runtime_sha256"):
+        return "lifecycle files: bin_runtime_sha256 is not lifecycle/bin-runtime.hex's"
+    try:
+        words = b"".join(int(w, 16).to_bytes(32, "big") for w in life.get("args") or [])
+    except (TypeError, ValueError, OverflowError):  # fmt: skip
+        return "lifecycle files: args are not 32-byte words"
+    if creation != init + words:
+        return "lifecycle files: args are not the words lifecycle/creation.hex appends to lifecycle/init.hex"
+    if life.get("bind") is not None:
+        try:
+            listed = json.loads((d / LIFECYCLE_FILES["bind"]).read_text())
+        except (OSError, ValueError) as e:
+            return f"lifecycle files: unreadable lifecycle/bind.json: {e}"
+        if listed != life["bind"]:
+            return "lifecycle files: lifecycle.bind is not lifecycle/bind.json"
+    return None
+
+
+def lifecycle_provenance_problem(rec):
+    """Why a lifecycle-tier record cannot be replayed, or None: it must carry the lifecycle tier's
+    provenance-bound inputs (LIFECYCLE_PROVENANCE), which the fresh run is given and compared on; a
+    record without them is refused, never filled in. Other tiers are not affected."""
+    if rec.get("requested_tier") != "lifecycle":
+        return None
+    life = rec.get("lifecycle") or {}
+    missing = [k for k in LIFECYCLE_PROVENANCE if life.get(k) is None]
+    if missing:
+        return (
+            f"versioned-unsupported: the recorded run has no lifecycle provenance "
+            f"({', '.join(missing)}); nothing is filled in"
         )
     return None
 
@@ -3729,6 +4721,10 @@ def replay_main(a):
         out(1, "REJECTED: replay: the record's source digest is not its source file's")
     if (why := inputs_problem(rec, files)) is not None:
         out(1, f"REJECTED: replay: {why}")
+    if (why := lifecycle_provenance_problem(rec)) is not None:
+        out(1, f"REJECTED: replay: {why}")
+    if (why := lifecycle_files_problem(rec, d)) is not None:
+        out(1, f"REJECTED: replay: {why}")
     if (why := claims_problem(rec, d)) is not None:
         out(1, f"REJECTED: replay: {why}")
     if (why := producer_problem(rec, d, "recorded run")) is not None:
@@ -3763,6 +4759,13 @@ def replay_main(a):
     ]
     if rec.get("contract"):
         cmd += ["--contract", rec["contract"]]
+    life = rec.get("lifecycle") or {}
+    if rec.get("requested_tier") == "lifecycle" and life.get("args") is not None:
+        cmd += ["--constructor-args", ",".join(str(int(w, 16)) for w in life["args"])]
+        if life.get("bind"):
+            bind_file = fresh_dir.parent / f"{fresh_dir.name}.bind.json"
+            bind_file.write_text(json.dumps(life["bind"]))
+            cmd += ["--lifecycle-bind", str(bind_file)]
     for flag, val in (
         ("--packages-from", a.packages_from),
         ("--probe-cache", a.probe_cache),
@@ -3803,6 +4806,15 @@ def replay_main(a):
             f"REJECTED: replay: {q} differs between the record and the fresh run "
             f"(record {str(fresh_caveats(rec))[:120]}, fresh {str(fresh_caveats(new))[:120]})",
         )
+    if rec.get("requested_tier") == "lifecycle":
+        want, got = lifecycle_verdict(rec), lifecycle_verdict(new)
+        for k in want:
+            if want[k] != got[k]:
+                out(
+                    1,
+                    f"REJECTED: replay: lifecycle.{k} differs between the record and the fresh run "
+                    f"(record {want[k]}, fresh {got[k]})",
+                )
     if replayed_modules(rec) != replayed_modules(new):
         out(
             1,
@@ -3843,6 +4855,12 @@ def main():
     ap.add_argument(
         "--constructor-args",
         help="--tier lifecycle: the constructor's static argument words, comma-separated",
+    )
+    ap.add_argument(
+        "--lifecycle-bind",
+        help="--tier lifecycle: a JSON file naming the expected theorem whose (c, fuel), init code, "
+        "runtime and words the certificate states (lifecycle_binding); the run then also checks its "
+        "source unit is the theorem's and builds the composed theorem",
     )
     ap.add_argument("--work", help="a fresh work directory")
     ap.add_argument("--record-dir")
@@ -3885,6 +4903,8 @@ def main():
     src = pathlib.Path(a.source).resolve()
     rec_dir = pathlib.Path(a.record_dir).resolve()
     rec_dir.mkdir(parents=True, exist_ok=True)
+    global BUILD_LOG_DIR
+    BUILD_LOG_DIR = rec_dir
     work = pathlib.Path(a.work).resolve()
     if a.spec not in ("natspec", "none"):
         raise SystemExit("certify: SPEC must be natspec or none")
@@ -3937,28 +4957,14 @@ def main():
     }
 
     def finish(status, code, line, **extra):
-        record.update(extra)
-        # The manifest: every file the driver leaves in the record directory but record.json.
-        if record.get("run_files") is not None:
-            for q in sorted(rec_dir.rglob("*")):
-                rel = str(q.relative_to(rec_dir))
-                if (
-                    q.is_file()
-                    and rel != "record.json"
-                    and rel not in record["run_files"]
-                ):
-                    record["run_files"][rel] = sha256_file(q)
-        record["status"] = status
-        record["finished"] = datetime.datetime.now(datetime.UTC).isoformat(
-            timespec="seconds"
-        )
-        (rec_dir / "record.json").write_text(json.dumps(record, indent=2) + "\n")
+        seal_record(rec_dir, record, status, **extra)
         log(line)
         sys.exit(code)
 
     try:
         log(f"== generic: {src} ({src_sha}) as {name}, requested tier {tier}")
         ast, contracts = solc_ast(a.solc, src)
+        lifecycle_open = []
         try:
             contract, fns, events = envelope(
                 text,
@@ -3968,6 +4974,7 @@ def main():
                 a.invariants,
                 a.spec == "natspec",
                 tier == "lifecycle",
+                lifecycle_open,
             )
         except Blocked as b:
             if any(r["feature"] == "loop" for r in b.reasons):
@@ -3977,6 +4984,21 @@ def main():
                 loop_resources(record, src, ast, a.contract)
                 raise Blocked(b.reasons + extra) from b
             raise
+        if lifecycle_open:
+            record["lifecycle_open"] = lifecycle_open
+            record["resources"] = (
+                "OPEN: the fixed-fuel resource obligation of the runtime loop(s) is not required at "
+                "the lifecycle tier and is not discharged"
+            )
+            log(
+                f"lifecycle: runtime loops OPEN (not this tier's statement): {[o['where'] for o in lifecycle_open]}"
+            )
+        if a.spec == "natspec":
+            refuted, invs = natspec_checks(ast, contract)
+            if invs:
+                record["invariants"] = invs
+            if refuted:
+                raise Failed(refuted)
         record["contract"] = contract
         record["functions"] = [
             {
