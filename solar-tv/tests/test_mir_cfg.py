@@ -349,7 +349,7 @@ fn @choose(arg0: i256, arg1: i1) -> i256 {
         programs = [
             Program(
                 ("world-entry", "mir"),
-                ["arg0", "arg1"],
+                [f"arg{i}" for i in range(len(args))],
                 "",
                 "",
                 replay_ir=text,
@@ -537,6 +537,55 @@ fn @choose() -> i256 {
             self.assertEqual(record["evidence"], "kernel-and-rust-replay")
             witness = record["witness"]
             self.assertEqual(witness["observations"], witness["native_observations"])
+
+    def test_cse_erases_pointer_copies_in_a_slice_loop(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{name}.mir" for name in ("before", "after"))
+            source = """@module SliceLoop
+fn @choose(arg0: slice<memory>, arg1: i1) -> i256 {
+  bb0:
+    v0 = extract_value slice<memory>, arg0, 0
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v1, 7
+    jump bb1
+  bb1:
+    v2 = phi [bb0: arg1], [bb1: false]
+    v3 = ptrtoint ptr<memory> v0 to i256
+    v4 = mload v3
+    v5 = add v4, 1
+    mstore v3, v5
+    jumpi v2, bb1, bb2
+  bb2:
+    ret v5
+}
+"""
+            before.write_text(source)
+            output = subprocess.check_output(
+                [SOLAR, before, "-j1", "-Ogas", "-Zmir-pipeline=cse"],
+                text=True,
+                timeout=20,
+            )
+            self.assertEqual(output.count("ptrtoint"), 1)
+            after.write_text(output)
+            record = self.check_loop(root, 0)
+            self.assertEqual(
+                record["import_correspondence"][0]["correspondence"]["choose"]["proof"],
+                "carrier-copies",
+            )
+            self.assertEqual(
+                self.replay_loop(root, source, output, [128, 32, 1]),
+                [["9"], ["9"]],
+            )
+
+            wrong, count = re.subn(r"(v\d+ = mload) v\d+", r"\1 160", output)
+            self.assertEqual(count, 1)
+            after.write_text(wrong)
+            self.check_loop(root, 2)
+            self.assertEqual(
+                self.replay_loop(root, source, wrong, [128, 32, 1]),
+                [["9"], ["1"]],
+            )
 
     def test_cfg_simplify_checks_mutually_recursive_callees(self):
         with tempfile.TemporaryDirectory() as folder:

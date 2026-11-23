@@ -188,7 +188,7 @@ def align(before, after, tail_rewrites, *, erase_both=False):
     return renaming
 
 
-def project(body, symbols, renaming, tail_rewrites, *, retain_target_copies=False):
+def project(body, symbols, renaming, tail_rewrites, *, same_phase=False):
     def local(index):
         if renaming is None:
             return index
@@ -196,12 +196,20 @@ def project(body, symbols, renaming, tail_rewrites, *, retain_target_copies=Fals
             raise Unsupported("carrier proof has an unbound target register")
         return renaming[index]
 
+    def action_type(value):
+        if same_phase and value["kind"] in {"product", "slice"}:
+            # Retained aggregate operations have identical types on both
+            # sides. Only full-word pointer casts may disappear.
+            mir_state.value_type(value)
+            return value
+        return scalar_type(value)
+
     def read(value):
         if value["kind"] == "local":
             return ("reg", local(value["index"]))
         if value["kind"] not in {"arg", "constant"}:
             raise Unsupported("carrier proof requires defined scalar operands")
-        constant = {**value, "type": scalar_type(value["type"])}
+        constant = {**value, "type": action_type(value["type"])}
         return ("fixed", intern(symbols, ["operand", constant]))
 
     def action(payload, writes=()):
@@ -215,7 +223,7 @@ def project(body, symbols, renaming, tail_rewrites, *, retain_target_copies=Fals
             if value.get("kind") in {"pointer", "word", "product", "slice"} and (
                 "bits" in value or "fields" in value or "location" in value
             ):
-                return scalar_type(value)
+                return action_type(value)
             if "type" in value and value.get("kind") in {
                 "local",
                 "arg",
@@ -223,7 +231,7 @@ def project(body, symbols, renaming, tail_rewrites, *, retain_target_copies=Fals
                 "undefined",
             }:
                 reads.append(read(value))
-                return ["operand", scalar_type(value["type"])]
+                return ["operand", action_type(value["type"])]
             return {key: visit(item) for key, item in sorted(value.items())}
 
         return Action(intern(symbols, ["action", visit(payload)]), tuple(reads), writes)
@@ -252,7 +260,7 @@ def project(body, symbols, renaming, tail_rewrites, *, retain_target_copies=Fals
             term = {**instructions[-1]["operation"], "kind": "tail_call"}
             instructions = instructions[:-1]
         for inst in instructions:
-            if (renaming is None or retain_target_copies) and (
+            if (renaming is None or same_phase) and (
                 operand := source_copy(inst)
             ) is not None:
                 code.append(Copy(local(inst["result"]), read(operand)))
@@ -346,8 +354,8 @@ def paired_proof(index, old, new):
     renaming = align(old, new, {}, erase_both=True)
     symbols = {}
     graphs = (
-        project(old, symbols, None, {}),
-        project(new, symbols, renaming, {}, retain_target_copies=True),
+        project(old, symbols, None, {}, same_phase=True),
+        project(new, symbols, renaming, {}, same_phase=True),
     )
     names = ("before", "after")
     count = 0
