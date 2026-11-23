@@ -222,3 +222,144 @@ fn @choose(arg0: i256, arg1: i1) -> i256 {
                     self.assertEqual(
                         a == b, after_program is programs[1] or inputs == [5, 0]
                     )
+
+    def test_literal_branch_keeps_the_selected_phi_input(self):
+        tail = """  bb3:
+    jumpi arg1, bb4, bb5
+  bb4:
+    jumpi false, bb6, bb7
+  bb5:
+    jump bb7
+  bb6:
+    ret 77
+  bb7:
+    v3: i256 = phi [bb4: 9], [bb5: 12]
+    ret v3
+}
+"""
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before = self.write_loop(root, "i256", tail)
+            after = self.simplify(root)
+            self.assertNotIn("jumpi false,", after)
+            record = self.check_loop(root, 0)
+            source = record["import_correspondence"][0]["correspondence"]["choose"]
+            self.assertEqual(source["literal_branches"], [1, 0])
+            wrong = after.replace(": 9]", ": 10]")
+            self.assertNotEqual(after, wrong)
+            (root / "after.mir").write_text(wrong)
+            self.check_loop(root, 2)
+            for args, expected in (
+                ([2, 1], [["9"], ["10"]]),
+                ([2, 0], [["12"], ["12"]]),
+            ):
+                with self.subTest(args=args):
+                    self.assertEqual(
+                        self.replay_loop(root, before, wrong, args), expected
+                    )
+
+    def test_product_construction_rejects_an_uninitialized_return(self):
+        tail = """  bb3:
+    v3 = insert_value struct0, undef struct0, 0, arg0
+    v4 = insert_value struct0, v3, 1, 17
+    ret v4
+}
+"""
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before = self.write_loop(
+                root, "struct0", tail, "@types\n  struct0: {i256, i256}\n"
+            )
+            after = self.simplify(root)
+            self.assertIn("insert_value struct0, undef struct0", after)
+            record = self.check_loop(root, 0)
+            source = record["import_correspondence"][0]["correspondence"]["choose"]
+            self.assertEqual(source["product_initialization"], [True, True])
+            self.assertEqual(
+                self.replay_loop(root, before, after, [2, 0]),
+                [["2", "17"], ["2", "17"]],
+            )
+            # Both graphs keep the same insert sequence, but the returned
+            # product has a field that was never written.
+            for name, text in (("before", before), ("after", after)):
+                unfinished = text.replace(", 1, 17", ", 0, 17")
+                self.assertNotEqual(unfinished, text)
+                (root / f"{name}.mir").write_text(unfinished)
+            self.check_loop(root, 2)
+
+    def write_loop(self, root, return_type, tail, declarations=""):
+        text = (
+            f"@module Loop\n{declarations}"
+            f"fn @choose(arg0: i256, arg1: i1) -> {return_type} {{\n"
+            """  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v1]
+    v2 = ne v0, 0
+    jumpi v2, bb2, bb3
+  bb2:
+    v1 = sub v0, 1
+    jump bb1
+""" + tail
+        )
+        (root / "before.mir").write_text(text)
+        return text
+
+    def simplify(self, root):
+        after = subprocess.check_output(
+            [SOLAR, root / "before.mir", "-j1", "-Ogas", "-Zmir-pipeline=cfg-simplify"],
+            text=True,
+            timeout=10,
+        )
+        (root / "after.mir").write_text(after)
+        return after
+
+    def check_loop(self, root, status):
+        report = root / "report.json"
+        result = subprocess.run(
+            [
+                CLI,
+                "mir",
+                root / "before.mir",
+                root / "after.mir",
+                "--function=choose",
+                "--solar",
+                SOLAR,
+                "--timeout=30",
+                "--report",
+                report,
+            ],
+            text=True,
+            capture_output=True,
+            timeout=90,
+            check=False,
+        )
+        self.assertEqual(result.returncode, status, result.stdout + result.stderr)
+        record = json.loads(report.read_text())
+        if status == 0:
+            self.assertEqual(
+                record["region"]["proof"], "kernel-checked-typed-jump-chain"
+            )
+        return record
+
+    def replay_loop(self, root, before, after, args):
+        fixture = root / "world.json"
+        fixture.write_text('{"version":1}')
+        initial = world.read(fixture, SOLAR, None, kind="mir")
+        programs = [
+            Program(
+                ("world-entry", "mir"),
+                ["arg0", "arg1"],
+                "",
+                "",
+                replay_ir=text,
+                selector="choose",
+                evm_version="cancun",
+                world=initial,
+            )
+            for text in (before, after)
+        ]
+        replay = native.replay(
+            *programs, args, executable=native.default(SOLAR), timeout=10
+        )
+        return [json.loads(row)["values"] for row in replay["observations"]]

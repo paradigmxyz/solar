@@ -552,11 +552,22 @@ local IDs. Independent MIR replay confirms the same storage and return
 values on both former tails, and detects a rewrite that stores the wrong
 local.
 
+Literal `i1` branches are retained in the source graph. The kernel follows
+their selected edge and the typed transition lemma establishes the same
+predecessor as an unconditional jump. A flat product seeded by `undef`
+starts with an empty field mask. The kernel tracks each inserted field and
+requires a complete mask at every use outside the construction. The mask
+lemmas use the interpreter's actual product update and undefined field
+semantics. The certificate checks unchanged callees by equality of their
+exported action graphs. It checks groups of points from changed functions
+against one indexed table so the kernel can reuse the same source cursors.
+
 The serial recheck selected 26 frozen `cfg-simplify` and `jump-threading`
 captures that had failed structural matching on shared nodes. At eight
 seconds per proof, 15 verified, five timed out and six remained unsupported.
-A 20-second retry verified four of the five timed-out captures from Morpho.
-All three pinned contracts kept their ABI, creation bytecode and runtime bytecode.
+A 20-second retry brought that total to 19. The current certificate verifies
+all 26 with the 20-second proof budget. All three pinned contracts kept their
+ABI, creation bytecode and runtime bytecode.
 
 ## Automatic typed source execution
 

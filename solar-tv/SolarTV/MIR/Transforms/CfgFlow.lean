@@ -18,6 +18,7 @@ structure Action where
 inductive Node where
   | action (action : Action)
   | forward (next : Nat)
+  | literalBranch (condition : Bool) (yes no : Nat)
 
 abbrev Graph := Array Node
 abbrev Locals (Value : Type) := Nat → Value
@@ -34,6 +35,7 @@ def follow (graph : Graph) : Nat → Nat → Option Action
   | fuel+1, point => do
     match ← graph[point]? with
     | .forward next => follow graph fuel next
+    | .literalBranch condition yes no => follow graph fuel (if condition then yes else no)
     | .action action => some action
 
 def write (values reply : Locals Value) (writes : List Nat) : Locals Value :=
@@ -208,5 +210,27 @@ theorem typed_enter_empty (cfg : State.Config) (functions : State.Functions)
     change cursor.entered = false at entered
     simp [State.transition,resolved,selected,State.required,entered,empty,
       State.enter,Bind.bind,Except.bind,Pure.pure,Except.pure]
+
+/-- A literal i1 selects its successor and sets the predecessor just as a
+direct jump does. Phi operands are selected when that successor is entered. -/
+theorem typed_literal_branch (cfg : State.Config) (functions : State.Functions)
+    (machine : State.Machine) (body : State.Function) (block : State.Block)
+    (condition : Bool) (yes no fuel : Nat)
+    (resolved : State.function functions machine.cursor.function = .ok body)
+    (selected : body.blocks[machine.cursor.block]? = some block)
+    (entered : machine.cursor.entered = true)
+    (endOfBlock : block.instructions.length ≤ machine.cursor.next)
+    (transfer : block.terminator =
+      .branch ⟨.constant ⟨1, if condition then 1 else 0⟩, .word 1⟩ yes no) :
+    State.transition fuel cfg functions machine = .ok (.next 0
+      ⟨State.branch machine.cursor (if condition then yes else no),machine.stack,machine.frame⟩) := by
+  cases machine with
+  | mk cursor stack frame =>
+    change cursor.entered = true at entered
+    cases condition <;>
+      simp [State.transition,resolved,selected,State.required,entered,transfer,
+        show ¬cursor.next < block.instructions.length from Nat.not_lt.mpr endOfBlock,
+        State.next,State.readBits,State.readValue,State.Value.fits,State.ValueType.width,
+        Bind.bind,Except.bind,Pure.pure,Except.pure]
 
 end SolarTV.MIR.CfgFlow

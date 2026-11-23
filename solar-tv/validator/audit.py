@@ -314,11 +314,18 @@ def record(
         elif program and program.scope == "mir-cfg-flow":
             assumptions.extend(
                 [
-                    "independently exported typed MIR; kernel-checked edges, live operand agreement and simultaneous phi writes, including distinct paths to shared tails",
+                    "independently exported typed MIR; kernel-checked edges, literal branch selection, live operand agreement and simultaneous phi writes",
                     "every logical action bound and shared live state; direct callee graphs checked with the same bindings; GAS and message effects are retained requests",
                     "trusted compiler structural exporter and action-constructor binding; no physical gas pricing, ABI frame initialization or runtime callback binding",
                 ]
             )
+            if any(
+                any(details["product_initialization"])
+                for details in program.import_evidence["correspondence"].values()
+            ):
+                assumptions.append(
+                    "flat products seeded by undef have kernel-checked initialized fields; reads outside their insert chains require a complete product"
+                )
         elif program and program.scope == "source-identity":
             assumptions.extend(
                 [

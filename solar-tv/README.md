@@ -2026,8 +2026,11 @@ local values its path needs. A shared block can therefore match separate
 blocks with different local IDs. Phi groups read their predecessor's
 operands before writing any result. Direct callees keep their original
 bindings, and `GAS` and external calls remain ordered requests under the
-shared effect handler. This is an unpriced check of the selected function and
-its direct call closure. [Proof details](CORRECTNESS.md#shared-mir-tails)
+shared effect handler. Literal branches follow their selected edge. For
+flat tuples constructed from `undef`, the checker requires every field to
+be initialized before the tuple leaves its chain of inserts. This is an
+unpriced check of the selected function and its direct call closure.
+[Proof details](CORRECTNESS.md#shared-mir-tails)
 
 The same eight-check-per-contract sample now verifies **17 of 24** with
 `--timeout 30`; 7 remain unsupported, with no counterexamples, timeouts or

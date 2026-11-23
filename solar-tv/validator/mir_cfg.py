@@ -53,13 +53,17 @@ def import_graph(body):
                     nodes.append(("forward", None, [point(term["target"], index)]))
                 case "branch":
                     keys = {k: v for k, v in term.items() if k not in {"then", "else"}}
-                    nodes.append(
-                        (
-                            "select",
-                            keys,
-                            [point(term[k], index) for k in ("then", "else")],
-                        )
-                    )
+                    edges = [point(term[k], index) for k in ("then", "else")]
+                    (condition,) = term["args"]
+                    if (
+                        condition["kind"] == "constant"
+                        and condition["type"]
+                        == {"kind": "word", "bits": 1, "name": "i1"}
+                        and condition["value"] in {"0", "1"}
+                    ):
+                        nodes.append(("literal", condition["value"] == "1", edges))
+                    else:
+                        nodes.append(("select", keys, edges))
                 case "switch":
                     keys = {**term, "cases": [key for key, _ in term["cases"]]}
                     del keys["default"]
@@ -71,6 +75,78 @@ def import_graph(body):
                 case _:
                     nodes.append(("terminal", term, []))
     return nodes
+
+
+def flat_insert(data):
+    if (
+        not isinstance(data, dict)
+        or data.get("operation", {}).get("kind") != "insert_value"
+    ):
+        return None
+    op = data["operation"]
+    ty, index = op["aggregate_type"], op["index"]
+    base, value = op["args"]
+    if (
+        ty["kind"] == "product"
+        and data["type"] == base["type"] == ty
+        and all(field["kind"] == "word" for field in ty["fields"])
+        and 0 <= index < len(ty["fields"])
+        and value["type"] == ty["fields"][index]
+        and base["kind"] in {"undefined", "local"}
+    ):
+        return base, value, len(ty["fields"]), index
+    return None
+
+
+def reads(data):
+    insert = flat_insert(data)
+    if insert is not None and insert[0]["kind"] == "undefined":
+        return dead_ssa.reads(insert[1])
+    return dead_ssa.reads(data)
+
+
+def product_certificate(name, nodes):
+    """Bind the checked field masks to inserts and every other local read."""
+    seeds, children = [], {}
+    for kind, data, _ in nodes:
+        insert = flat_insert(data) if kind == "action" else None
+        if insert is not None:
+            base = insert[0]
+            if base["kind"] == "undefined":
+                seeds.append((data, insert))
+            else:
+                children.setdefault(base["index"], []).append((data, insert))
+    if not seeds:
+        return ""
+    inserts, constructing, pending = [], set(), deque(seeds)
+    while pending:
+        data, (base, _, arity, index) = pending.popleft()
+        result = data["result"]
+        if result in constructing:
+            raise Unsupported("MIR product construction repeats a result")
+        constructing.add(result)
+        source = "none" if base["kind"] == "undefined" else f"some {base['index']}"
+        inserts.append(f"⟨{result},{source},{arity},{index}⟩")
+        pending.extend(children.get(result, ()))
+    observed = set()
+    for kind, data, _ in nodes:
+        if kind in {"forward", "literal"}:
+            continue
+        if (
+            kind == "action"
+            and isinstance(data, dict)
+            and data["result"] in constructing
+        ):
+            # An insert copies its base without observing undefined fields.
+            # Its scalar operand must be initialized.
+            observed.update(dead_ssa.reads(data["operation"]["args"][1]))
+        else:
+            observed.update(reads(data))
+    return f"""
+theorem {name} : MIR.ProductInit.safe [{",".join(inserts)}] {sorted(observed)} = true :=
+  by decide +kernel
+#print axioms {name}
+"""
 
 
 def writes(data):
@@ -96,8 +172,9 @@ def pairing(old, new):
 
     def follow(nodes, point):
         hops = 1
-        while nodes[point][0] == "forward":
-            point = nodes[point][2][0]
+        while nodes[point][0] in {"forward", "literal"}:
+            kind, condition, edges = nodes[point]
+            point = edges[int(kind == "literal" and not condition)]
             hops += 1
             if hops > len(nodes):
                 raise Unsupported(
@@ -120,7 +197,7 @@ def pairing(old, new):
         targets.append(
             [index(edge) for edge in zip(left_edges, right_edges, strict=True)]
         )
-        live.append(set(zip(dead_ssa.reads(left), dead_ssa.reads(right), strict=True)))
+        live.append(set(zip(reads(left), reads(right), strict=True)))
         definitions.append(
             tuple({local: i for i, local in enumerate(side)} for side in (a, b))
         )
@@ -157,10 +234,12 @@ def render(nodes, symbols):
     def row(kind, data, edges):
         if kind == "forward":
             return f".forward {edges[0]}"
+        if kind == "literal":
+            return f".literalBranch {str(data).lower()} {edges[0]} {edges[1]}"
         key = symbols.setdefault(
             (kind, dead_ssa.stable(dead_ssa.signature(data))), len(symbols)
         )
-        return f".action ⟨{key},{dead_ssa.reads(data)},{writes(data)},{edges}⟩"
+        return f".action ⟨{key},{reads(data)},{writes(data)},{edges}⟩"
 
     return "#[" + ",".join(row(*node) for node in nodes) + "]"
 
@@ -170,12 +249,16 @@ def render_point(point, targets, live):
     return f"⟨{point[0]},{point[1]},[{pairs}],{targets}⟩"
 
 
-def certificate(i, old, new, witnesses, limit):
+def graph_source(i, old, new):
     symbols = {}
-    code = f"""
+    return f"""
 def before{i} : Graph := {render(old, symbols)}
 def after{i} : Graph := {render(new, symbols)}
 """
+
+
+def certificate(i, old, new, witnesses, limit):
+    code = graph_source(i, old, new)
     parts = []
     checks = []
     proof = ""
@@ -191,13 +274,16 @@ def after{i} : Graph := {render(new, symbols)}
             f"theorem {theorem} : {name}.all {predicate} = true := by decide +kernel"
         )
         proof = f"(append_checked {proof} {theorem})" if proof else theorem
-    code += f"def points{i} : Array Point := {' ++ '.join(parts)}\n"
+    # Keep random access to the full table independent of proof partitioning.
+    code += f"def points{i} : Array Point := #[{','.join(witnesses)}]\n"
     code += "\n".join(checks) + "\n"
     return (
         code
         + f"""
-theorem valid{i} : Valid before{i} after{i} points{i} {limit} :=
-  {proof}
+theorem valid{i} : Valid before{i} after{i} points{i} {limit} := by
+  have partition : points{i} = {" ++ ".join(parts)} := by rfl
+  exact Eq.mp (congrArg (fun rows => rows.all {predicate} = true) partition.symm)
+    {proof}
 theorem preserved{i} {{V S T : Type}} (handle : Handler V S T) (work : Nat)
     (left right : Locals V) (state : S) :
     MIR.CfgFlow.run before{i} {limit} handle work 0 left state =
@@ -254,10 +340,14 @@ set_option maxRecDepth 16384
 set_option maxHeartbeats 2000000
 #print axioms MIR.CfgFlow.typed_jump
 #print axioms MIR.CfgFlow.typed_enter_empty
+#print axioms MIR.CfgFlow.typed_literal_branch
+#print axioms MIR.ProductInit.construct_initialized
+#print axioms MIR.ProductInit.observed_initialized
 """
     )
     work = [function]
     checked = {}
+    axioms_checks = 5
     while work:
         name = work.pop()
         if name in checked:
@@ -274,7 +364,6 @@ set_option maxHeartbeats 2000000
             raise Unsupported("MIR CFG proof requires defined function bodies")
         i = len(checked)
         old, new = map(import_graph, (a, b))
-        points, edges, live, limit = pairing(old, new)
         for kind, data, _ in old:
             if kind == "action" and isinstance(data, dict):
                 op = data["operation"]
@@ -290,24 +379,53 @@ set_option maxHeartbeats 2000000
                 if len(targets) != 1:
                     raise Unsupported("MIR CFG proof has an ambiguous call binding")
                 work.extend(targets)
-        witnesses = [
-            render_point(point, targets, locals_)
-            for point, targets, locals_ in zip(points, edges, live, strict=True)
+        product_initialization = []
+        for side, graph in enumerate((old, new)):
+            products = product_certificate(f"products{i}_{side}", graph)
+            product_initialization.append(bool(products))
+            if products:
+                code += products
+                axioms_checks += 1
+        literal_branches = [
+            sum(node[0] == "literal" for node in graph) for graph in (old, new)
         ]
-        code += certificate(i, old, new, witnesses, limit)
-        checked[name] = {
-            "paired_points": len(points),
-            "reused_points": [
-                len(points) - len({point[side] for point in points}) for side in (0, 1)
-            ],
-            "live_pairs": sum(map(len, live)),
-        }
+        if old == new:
+            code += graph_source(i, old, new)
+            code += f"""
+theorem identical{i} : before{i} = after{i} := by rfl
+#print axioms identical{i}
+"""
+            axioms_checks += 1
+            checked[name] = {
+                "proof": "identity",
+                "source_points": len(old),
+                "literal_branches": literal_branches,
+            }
+        else:
+            points, edges, live, limit = pairing(old, new)
+            witnesses = [
+                render_point(point, targets, locals_)
+                for point, targets, locals_ in zip(points, edges, live, strict=True)
+            ]
+            code += certificate(i, old, new, witnesses, limit)
+            axioms_checks += 2
+            checked[name] = {
+                "proof": "path-correspondence",
+                "paired_points": len(points),
+                "reused_points": [
+                    len(points) - len({point[side] for point in points})
+                    for side in (0, 1)
+                ],
+                "live_pairs": sum(map(len, live)),
+                "literal_branches": literal_branches,
+            }
+        checked[name]["product_initialization"] = product_initialization
     entry_proof.success(build_model(timeout), "MIR CFG proof model")
     with tempfile.TemporaryDirectory(prefix="solar-tv-mir-cfg-") as folder:
         output = entry_proof.success(
             entry_proof.lean(Path(folder), "Cfg", code, timeout), "MIR CFG certificate"
         )
-    entry_proof.check_axioms(output.splitlines(), 2 + 2 * len(checked))
+    entry_proof.check_axioms(output.splitlines(), axioms_checks)
     evidence = {
         "kind": "kernel-checked-typed-jump-chain",
         "functions": sorted(checked),
