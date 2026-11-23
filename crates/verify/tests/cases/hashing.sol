@@ -113,6 +113,52 @@ contract EncodeWrites {
         a[0] = x;
         r = keccak256(abi.encode(a, uint256(1)));
     }
+
+    function _touch(uint256[1] memory) private pure returns (uint256) {
+        return 2;
+    }
+
+    function _write(uint256[1] memory a) private pure returns (uint256) {
+        a[0] = 1;
+        return 2;
+    }
+
+    // A function pointer local named like the no-op `_touch` calls `_write`, which changes
+    // `a` before the compiled code encodes it.
+    // expect: solver returned unknown
+    /// @custom:ensures r == keccak256(abi.encode(x, uint256(2)))
+    function bad_fnptr_write(uint256 x) external pure returns (bytes32 r) {
+        uint256[1] memory a;
+        a[0] = x;
+        function(uint256[1] memory) pure returns (uint256) _touch = _write;
+        r = keccak256(abi.encode(a, _touch(a)));
+    }
+
+    function _via(uint256[1] memory a) private pure returns (uint256) {
+        function(uint256[1] memory) pure returns (uint256) _touch = _write;
+        return _touch(a);
+    }
+
+    // The same pointer call inside a callee.
+    // expect: solver returned unknown
+    /// @custom:ensures r == keccak256(abi.encode(x, uint256(2)))
+    function bad_fnptr_write_callee(uint256 x) external pure returns (bytes32 r) {
+        uint256[1] memory a;
+        a[0] = x;
+        r = keccak256(abi.encode(a, _via(a)));
+    }
+
+    function _peek(uint256[1] memory) private pure returns (uint256) {
+        return 2;
+    }
+
+    // A call to a function that writes nothing, by a name no function-typed variable declares.
+    /// @custom:ensures r == keccak256(abi.encode(x, uint256(2)))
+    function ok_no_write_call(uint256 x) external pure returns (bytes32 r) {
+        uint256[1] memory a;
+        a[0] = x;
+        r = keccak256(abi.encode(a, _peek(a)));
+    }
 }
 
 /// The signature's selector is all `encodeWithSignature` encodes, and distinct signatures can share it.
