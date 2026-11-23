@@ -292,7 +292,11 @@ def record(
                     "transfers are unpriced; source normalizer, raw constructor and schema binding remain trusted; no physical gas, opcode-implementation or backend-layout certificate; code-image observers and calls excluded",
                 ]
             )
-        elif program and program.scope in {"cfg-flow", "continuation-flow"}:
+        elif program and program.scope in {
+            "cfg-flow",
+            "continuation-flow",
+            "interaction-flow",
+        }:
             assumptions.extend(
                 [
                     "independently exported EVM graphs; matched finite chains of unconditional transfers preserve the strongest temporary stack requirement",
@@ -300,7 +304,15 @@ def record(
                     "compiler parser/schema and constructor bindings are trusted",
                 ]
             )
-            if program.scope == "continuation-flow":
+            if program.scope == "interaction-flow":
+                assumptions.extend(
+                    [
+                        "kernel-checked equality of every interaction prefix with shared replies to preceding requests; temporary stack checks and relocated continuations are retained",
+                        "observes requested gas, destinations, value, calldata and memory ranges at the opcode boundary before admission",
+                        "ordinary opcode handlers and the incoming state are shared; actual code-size and GAS replies, child behavior, reentry and forwarded gas remain environment obligations",
+                    ]
+                )
+            elif program.scope == "continuation-flow":
                 assumptions.extend(
                     [
                         "checked continuation provenance through stack operations; dynamic returns consume a known label; ordinary effect operands cannot observe relocation tags",
@@ -581,7 +593,7 @@ def record(
                 "function-local proof with supplied callees; no whole-pass claim"
                 if program.symbolic_mir is not None
                 else "region-local proof over resolved internal return paths"
-                if program.scope == "continuation-flow"
+                if program.scope in {"continuation-flow", "interaction-flow"}
                 else "region-local proof; no whole-pass or interprocedural claim"
             )
         if (program and program.memory) or (
@@ -618,6 +630,7 @@ def record(
                 "stack-layout",
                 "cfg-flow",
                 "continuation-flow",
+                "interaction-flow",
                 "mir-cfg-flow",
             }
             and program.symbolic_mir is None
@@ -657,6 +670,8 @@ def record(
             if program and program.gas == "exact-caller-continuation"
             else "refine"
             if program and program.scope in {"mint-layout", "burn-layout"}
+            else "unpriced-shared-interactions"
+            if program and program.scope == "interaction-flow"
             else "unpriced-structural"
             if program
             and program.scope
@@ -851,6 +866,8 @@ def record(
                     if program.scope == "cfg-flow"
                     else "kernel-checked-continuation-flow"
                     if program.scope == "continuation-flow"
+                    else "kernel-checked-interaction-trace"
+                    if program.scope == "interaction-flow"
                     else "kernel-checked-compact-pushes"
                     if program.scope == "compact-pushes"
                     else "universal-source-graph-identity",
@@ -864,6 +881,7 @@ def record(
                 "stack-layout",
                 "cfg-flow",
                 "continuation-flow",
+                "interaction-flow",
                 "compact-pushes",
             }
             else {}

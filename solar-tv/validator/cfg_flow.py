@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 import tempfile
+from itertools import batched
 from pathlib import Path
 
 from . import audit, regions, stack_layout
@@ -79,11 +80,73 @@ def projections(models):
     return (list(left), list(right)), projections, edges, jump_limit
 
 
+def projection_proof(theorem, module, arguments, points, rows, result):
+    """Check fixed ranges independently and compose the full projection in Lean."""
+    code, ranges = [], []
+    proof = ""
+    start = 0
+    for part, group in enumerate(batched(rows, 12)):
+        interval = f"List.range' {start} {len(group)}"
+        name = f"{theorem}Part{part}"
+        code.append(
+            f"theorem {name} : {module}.projectRows {arguments} ({interval}) =\n"
+            f"    some [{','.join(group)}] := by decide +kernel\n"
+        )
+        ranges.append(f"({interval})")
+        proof = (
+            f"({module}.append_projectRows {arguments} {proof} {name})"
+            if proof
+            else name
+        )
+        start += len(group)
+    return (
+        "".join(code)
+        + f"""
+theorem {theorem} : {module}.project {arguments} = some {result} := by
+  have range : List.range {points}.size = {" ++ ".join(ranges)} := by rfl
+  exact {module}.project_result {arguments} 0 _ {result}
+    (by rfl) (by rfl) (by rw [range]; exact {proof}) (by rfl)
+"""
+    )
+
+
+def layout_proof(size):
+    code, ranges = [], []
+    proof = ""
+    for part, start in enumerate(range(0, size, 16)):
+        interval = f"List.range' {start} {min(16, size - start)}"
+        name = f"layoutPart{part}"
+        code.append(
+            f"theorem {name} : ({interval}).all (checkIndex old new id bounds signatures) = true :=\n"
+            "  by decide +kernel\n"
+        )
+        ranges.append(f"({interval})")
+        proof = f"(append_checks {proof} {name})" if proof else name
+    return (
+        "".join(code)
+        + f"""
+theorem valid : Valid old new id bounds signatures := by
+  have range : List.range old.nodes.size = {" ++ ".join(ranges)} := by rfl
+  exact valid_checked old new id bounds signatures 1024
+    (by decide +kernel) (by rfl) (by decide +kernel) (by rw [range]; exact {proof})
+"""
+    )
+
+
 def check(
-    texts, models, expressions, entry, catalog, version, timeout, *, continuations=None
+    texts,
+    models,
+    expressions,
+    entry,
+    catalog,
+    version,
+    timeout,
+    *,
+    continuations=None,
+    interactions=False,
 ):
     from .check import PRELUDE, ROOT, build_model, run
-    from .source_identity import render
+    from .source_identity import render_nodes
 
     points, normalized, edges, jump_limit = projections(models)
     table = stack_layout.signatures(normalized[0], catalog)
@@ -105,17 +168,28 @@ def check(
             theorem = f"SolarTV.EVM.ContinuationFlow.{lemma}"
             provenance += f"#print axioms {theorem}\n"
             provenance_theorems.append(theorem)
-        for name, (_, witness) in zip(("before", "after"), continuations, strict=True):
+        for name, model, (_, witness) in zip(
+            ("before", "after"), models, continuations, strict=True
+        ):
             theorem = f"{name}Provenance"
             provenance_theorems.append(theorem)
             provenance += f"""
 def {name}Source : EVM.ContinuationFlow.Program := {witness["source"]}
 def {name}Points : Array EVM.ContinuationFlow.Point := {witness["points"]}
 def {name}Edges : Array Edges := {witness["edges"]}
-theorem {theorem} :
-    EVM.ContinuationFlow.project {name}Source {name}Points {name}Edges = some {name} := by decide +kernel
-#print axioms {theorem}
 """
+            _, rows = render_nodes(
+                model, catalog, version, "bb0", interactions=interactions
+            )
+            provenance += projection_proof(
+                theorem,
+                "EVM.ContinuationFlow",
+                f"{name}Source {name}Points {name}Edges",
+                f"{name}Points",
+                rows,
+                name,
+            )
+            provenance += f"#print axioms {theorem}\n"
         provenance_theorems.append("matchedContinuations")
         contextual = f"""
 theorem matchedContinuations {{World Observation : Type}} (handlers : Handlers World Observation)
@@ -125,11 +199,66 @@ theorem matchedContinuations {{World Observation : Type}} (handlers : Handlers W
         (fun p => execute p signatures handlers work p.entry state) =
       ((EVM.ContinuationFlow.project afterSource afterPoints afterEdges).bind
         (fun p => project p targets edges {jump_limit})).map
-        (fun p => execute p signatures handlers work p.entry state) := by
-  rw [beforeProvenance,afterProvenance]
-  exact matched handlers work state
+        (fun p => execute p signatures handlers work p.entry state) :=
+  EVM.ControlFlow.compose beforeProvenance afterProvenance
+    (fun p => project p sources edges {jump_limit}) (fun p => project p targets edges {jump_limit})
+    (fun p => execute p signatures handlers work p.entry state) (matched handlers work state)
 #print axioms matchedContinuations
 """
+    if interactions:
+        provenance_theorems.extend(
+            (
+                "traceSignatures",
+                "matchingRequests",
+                "SolarTV.EVM.InteractionTrace.stable_request",
+            )
+        )
+        names = ",".join(json.dumps(name) for name in table)
+        contextual += f"""
+theorem traceSignatures :
+    ([{names}] : List String).all (EVM.InteractionTrace.signatureFits signatures) = true :=
+  by decide +kernel
+theorem matchingRequests {{Payload Halt : Type}} (view : Payload → EVM.InteractionTrace.View)
+    (ordinary : Handlers Payload Halt)
+    (reply : EVM.InteractionTrace.Request → Payload → Except Halt Payload)
+    (work : Nat) (state : State (EVM.InteractionTrace.Cursor Payload)) :
+    ((EVM.ContinuationFlow.project beforeSource beforePoints beforeEdges).bind
+        (fun p => project p sources edges {jump_limit})).map
+        (fun p => execute p signatures (EVM.InteractionTrace.handlers view ordinary reply)
+          work p.entry state) =
+      ((EVM.ContinuationFlow.project afterSource afterPoints afterEdges).bind
+        (fun p => project p targets edges {jump_limit})).map
+        (fun p => execute p signatures (EVM.InteractionTrace.handlers view ordinary reply)
+          work p.entry state) :=
+  matchedContinuations (EVM.InteractionTrace.handlers view ordinary reply) work state
+#print axioms traceSignatures
+#print axioms matchingRequests
+#print axioms EVM.InteractionTrace.stable_request
+"""
+    projections_code = []
+    normalized_terms = []
+    for name, source, point_array, model in zip(
+        ("old", "new"),
+        ("before", "after"),
+        ("sources", "targets"),
+        normalized,
+        strict=True,
+    ):
+        root, rows = render_nodes(
+            model, catalog, version, "bb0", dynamic_exit=True, interactions=interactions
+        )
+        normalized_terms.append(f"def {name} : Program := ⟨{root},#[{','.join(rows)}]⟩")
+        projections_code.append(
+            projection_proof(
+                f"{name}Projection",
+                "EVM.ControlFlow",
+                f"{source} {point_array} edges {jump_limit}",
+                point_array,
+                [f"[{left},{right}]" for left, right in batched(rows, 2)],
+                name,
+            )
+        )
+    normalized_declarations = "\n".join(normalized_terms)
     code = (
         PRELUDE
         + f"""
@@ -140,17 +269,15 @@ set_option maxHeartbeats 2500000
 def before : Program := {expressions[0]}
 def after : Program := {expressions[1]}
 {provenance}
-def old : Program := {render(normalized[0], catalog, version, "bb0", dynamic_exit=True)}
-def new : Program := {render(normalized[1], catalog, version, "bb0", dynamic_exit=True)}
+{normalized_declarations}
 def sources : Array Nat := #{points[0]}
 def targets : Array Nat := #{points[1]}
 def edges : Array Edges := #[{",".join(edges)}]
 def bounds (i : Nat) : Nat := (#{bounds} : Array Nat)[i]?.getD 0
 def signatures (name : String) : Option (Nat × Nat) :=
   ([{signatures}] : List (String × (Nat × Nat))).lookup name
-theorem oldProjection : project before sources edges {jump_limit} = some old := by decide +kernel
-theorem newProjection : project after targets edges {jump_limit} = some new := by decide +kernel
-theorem valid : Valid old new id bounds signatures := by decide +kernel
+{"".join(projections_code)}
+{layout_proof(len(normalized[0]["nodes"]))}
 theorem matched {{World Observation : Type}} (handlers : Handlers World Observation)
     (work : Nat) (state : State World) :
     (project before sources edges {jump_limit}).map
@@ -216,10 +343,18 @@ theorem matched {{World Observation : Type}} (handlers : Handlers World Observat
                 canonical_ir=projection,
                 replay_ir=text,
                 selector=entry,
-                scope="continuation-flow" if witness else "cfg-flow",
+                scope=(
+                    "interaction-flow"
+                    if interactions
+                    else "continuation-flow"
+                    if witness
+                    else "cfg-flow"
+                ),
                 evm_version=version,
                 import_evidence={
-                    "kind": "kernel-checked-continuation-flow"
+                    "kind": "kernel-checked-interaction-trace"
+                    if interactions
+                    else "kernel-checked-continuation-flow"
                     if witness
                     else "kernel-checked-jump-chain-projection",
                     "graph_sha256": hashlib.sha256(

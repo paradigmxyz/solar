@@ -184,30 +184,59 @@ theorem transfer_tags (op : StackOp) (shape full : Shape)
 def resolve (points : Array Point) (target : Point) (index : Nat) : Option Nat :=
   if points[index]? = some target then some index else none
 
+def projectRow (program : Program) (points : Array Point) (edges : Array ControlFlow.Edges)
+    (index : Nat) : Option SourceGraph.Node := do
+  let point ← points[index]?
+  let find (pc : Nat) (shape : Shape) := resolve points ⟨pc,shape⟩
+  match ← program.nodes[point.pc]?, ← edges[index]? with
+  | .operation name op next, .next successor =>
+    return .operation 0 name (← find next (← transfer op point.shape) successor)
+  | .pushLabel target next, .next successor =>
+    if target ≥ program.nodes.size then none else
+    return .operation 0 "push 0" (← find next (some target :: point.shape) successor)
+  | .jump growth next, .next successor =>
+    return .jump 0 growth (← find next point.shape successor)
+  | .branch yes no, .branch trueEdge falseEdge =>
+    if (tagAt point.shape 0).isSome then none else
+    return .branch 0 (← find yes point.shape.tail trueEdge) (← find no point.shape.tail falseEdge)
+  | .terminal name inputs, .terminal =>
+    if (point.shape.take inputs).all Option.isNone then some (.terminal 0 name) else none
+  | .dynamicJump, .next successor =>
+    let target ← tagAt point.shape 0
+    return .operation 0 "pop" (← find target point.shape.tail successor)
+  | _, _ => none
+
+def projectRows (program : Program) (points : Array Point) (edges : Array ControlFlow.Edges)
+    (indices : List Nat) : Option (List SourceGraph.Node) :=
+  indices.mapM (projectRow program points edges)
+
+theorem append_projectRows (program : Program) (points : Array Point)
+    (edges : Array ControlFlow.Edges) {left right : List Nat}
+    {a b : List SourceGraph.Node}
+    (l : projectRows program points edges left = some a)
+    (r : projectRows program points edges right = some b) :
+    projectRows program points edges (left ++ right) = some (a ++ b) := by
+  simp only [projectRows] at l r ⊢
+  simp [List.mapM_append, l, r, Bind.bind, Option.bind, Pure.pure]
+
 def project (program : Program) (points : Array Point) (edges : Array ControlFlow.Edges) :
     Option SourceGraph.Program := do
   let entry ← resolve points ⟨program.entry, []⟩ 0
   if points.size != edges.size then none else
-  let rows ← (points.toList.zipIdx).mapM fun (point,index) => do
-    let find (pc : Nat) (shape : Shape) := resolve points ⟨pc,shape⟩
-    match ← program.nodes[point.pc]?, ← edges[index]? with
-    | .operation name op next, .next successor =>
-      return .operation 0 name (← find next (← transfer op point.shape) successor)
-    | .pushLabel target next, .next successor =>
-      if target ≥ program.nodes.size then none else
-      return .operation 0 "push 0" (← find next (some target :: point.shape) successor)
-    | .jump growth next, .next successor =>
-      return .jump 0 growth (← find next point.shape successor)
-    | .branch yes no, .branch trueEdge falseEdge =>
-      if (tagAt point.shape 0).isSome then none else
-      return .branch 0 (← find yes point.shape.tail trueEdge) (← find no point.shape.tail falseEdge)
-    | .terminal name inputs, .terminal =>
-      if (point.shape.take inputs).all Option.isNone then some (.terminal 0 name) else none
-    | .dynamicJump, .next successor =>
-      let target ← tagAt point.shape 0
-      return .operation 0 "pop" (← find target point.shape.tail successor)
-    | _, _ => none
+  let rows ← projectRows program points edges (List.range points.size)
   return ⟨entry, rows.toArray⟩
+
+theorem project_result (program : Program) (points : Array Point)
+    (edges : Array ControlFlow.Edges) (entry : Nat) (rows : List SourceGraph.Node)
+    (result : SourceGraph.Program)
+    (start : resolve points ⟨program.entry, []⟩ 0 = some entry)
+    (size : points.size = edges.size)
+    (checked : projectRows program points edges (List.range points.size) = some rows)
+    (layout : result = ⟨entry, rows.toArray⟩) :
+    project program points edges = some result := by
+  have same : (points.size != edges.size) = false := by simp [size]
+  simp [project, start, same, checked, layout, Bind.bind, Option.bind, Option.pure_def]
+
 
 inductive Slot
   | word (value : Word)

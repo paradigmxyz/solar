@@ -95,6 +95,29 @@ instance : Decidable (Valid before after rename bounds signatures entryBound) :=
   unfold Valid
   infer_instance
 
+def checkIndex (before after : Program) (rename bounds : Nat → Nat)
+    (signatures : Signatures) (i : Nat) : Bool :=
+  match before.nodes[i]? with
+  | none => false
+  | some node => bounds i ≤ 1024 &&
+      compatible before.nodes.size rename bounds signatures i node after.nodes[rename i]?
+
+theorem append_checks {check : Nat → Bool} {a b : List Nat}
+    (left : a.all check = true) (right : b.all check = true) :
+    (a ++ b).all check = true := by
+  simp only [List.all_append, left, right, Bool.true_and]
+
+theorem valid_checked (before after : Program) (rename bounds : Nat → Nat)
+    (signatures : Signatures) (entryBound : Nat)
+    (entry : before.entry < before.nodes.size) (mapped : rename before.entry = after.entry)
+    (height : entryBound ≤ bounds before.entry)
+    (checked : (List.range before.nodes.size).all (checkIndex before after rename bounds signatures) = true) :
+    Valid before after rename bounds signatures entryBound := by
+  refine ⟨entry, mapped, height, ?_⟩
+  intro i
+  have part := List.all_eq_true.mp checked i (List.mem_range.mpr i.isLt)
+  simpa [checkIndex, Array.getElem?_eq_getElem i.isLt, Bool.and_eq_true] using part
+
 theorem post_height_bound (height bound inputs outputs : Nat)
     (small : height ≤ bound) (enough : inputs ≤ height)
     (fits : height - inputs + outputs ≤ 1024) :

@@ -680,6 +680,11 @@ def main() -> int:
         action="store_true",
         help="validate dispatch with compiler-generated Error(string) payloads",
     )
+    parser.add_argument(
+        "--interaction-trace",
+        action="store_true",
+        help="compare EVM region requests under shared interaction responses",
+    )
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument(
         "--function", help="check one function in the full MIR module"
@@ -752,6 +757,7 @@ def main() -> int:
         erc20_layout=args.erc20_layout,
         prune=args.prune,
         debug_reverts=args.debug_reverts,
+        interaction_trace=args.interaction_trace,
     )
     programs: list[Program] = []
     model = audit.semantics()
@@ -786,8 +792,32 @@ def main() -> int:
             erc20_layout=args.erc20_layout,
             prune=args.prune,
             debug_reverts=args.debug_reverts,
+            interaction_trace=args.interaction_trace,
         )
-        if args.prune:
+        if args.interaction_trace:
+            if (
+                args.ir != "evmir"
+                or not args.region
+                or args.gas is not None
+                or args.world is not None
+                or args.stack_height is not None
+            ):
+                raise Unsupported(
+                    "--interaction-trace requires an unpriced EVM IR region with symbolic stack and world"
+                )
+            from . import source_identity
+
+            result = source_identity.check(
+                (args.before, args.after),
+                solar,
+                rust_replay,
+                version,
+                args.timeout,
+                args.region,
+                interactions=True,
+            )
+            programs = list(result.pair)
+        elif args.prune:
             if (
                 args.ir != "mir"
                 or args.world
@@ -1078,6 +1108,7 @@ def main() -> int:
             isinstance(error, Unsupported)
             and not isinstance(error, Inconclusive)
             and args.ir == "evmir"
+            and not args.interaction_trace
             and entry
             and args.world is None
             and args.gas is None

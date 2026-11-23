@@ -50,6 +50,7 @@ import SolarTV.EVMIR.SourceGraph
 import SolarTV.EVMIR.StackGraph
 import SolarTV.EVMIR.ControlFlow
 import SolarTV.EVMIR.ContinuationFlow
+import SolarTV.EVMIR.InteractionTrace
 import SolarTV.EVMIR.Transforms.HeapEntry
 import SolarTV.EVMIR.Transforms.CompactPushes
 import SolarTV.MIR.Transforms.CfgFlow

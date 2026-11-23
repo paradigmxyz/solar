@@ -209,6 +209,7 @@ def replay_command(
     erc20_layout: str | None = None,
     prune: bool = False,
     debug_reverts: bool = False,
+    interaction_trace: bool = False,
 ) -> str:
     checker = Path(__file__).resolve().parents[1] / "solar-tv"
     argv = [
@@ -231,6 +232,8 @@ def replay_command(
         argv.append("--prune")
     if debug_reverts:
         argv.append("--debug-reverts")
+    if interaction_trace:
+        argv.append("--interaction-trace")
     if world is not None:
         argv.extend(["--world", str(world.resolve())])
     if gas is not None:

@@ -12,6 +12,7 @@ import re
 
 from . import cfg_flow, correspondence
 from .common import Unsupported, literal
+from .source_identity import INTERACTION_OPS, render
 
 
 def edges_text(node):
@@ -24,7 +25,7 @@ def edges_text(node):
             return ".terminal"
 
 
-def instruction_role(operation, catalog, version):
+def instruction_role(operation, catalog, version, *, interactions=False):
     if operation.startswith("push "):
         literal(operation[5:])
         return ".ordinary 0 1", (0, 1)
@@ -40,8 +41,10 @@ def instruction_role(operation, catalog, version):
     if (
         definition is None
         or not definition["forks"][version]["available"]
-        or definition["observes_code"]
-        or definition["sets_returndata"]
+        or (
+            (definition["observes_code"] or definition["sets_returndata"])
+            and not (interactions and operation in INTERACTION_OPS)
+        )
         or definition["stack"] is None
         or operation in {"jump", "jumpi"}
     ):
@@ -50,14 +53,16 @@ def instruction_role(operation, catalog, version):
     return f".ordinary {inputs} {outputs}", (inputs, outputs)
 
 
-def project(model, catalog, version):
+def project(model, catalog, version, *, interactions=False):
     source = []
     roles = {}
     for row in model["nodes"]:
         node = row["node"]
         match node:
             case {"kind": "operation", "operation": operation, "next": target}:
-                op, roles[row["id"]] = instruction_role(operation, catalog, version)
+                op, roles[row["id"]] = instruction_role(
+                    operation, catalog, version, interactions=interactions
+                )
                 source.append(f".operation {json.dumps(operation)} ({op}) {target}")
             case {"kind": "push_label", "target": target, "next": successor}:
                 source.append(f".pushLabel {target} {successor}")
@@ -167,19 +172,32 @@ def project(model, catalog, version):
     }
 
 
-def check(texts, replay, catalog, version, timeout, entry):
-    from .source_identity import render
-
+def check(texts, replay, catalog, version, timeout, entry, *, interactions=False):
     models = [
         correspondence.export(text, entry, version, replay, timeout, labels=True)
         for text in texts
     ]
     projected, certificates = zip(
-        *(project(model, catalog, version) for model in models), strict=True
+        *(
+            project(model, catalog, version, interactions=interactions)
+            for model in models
+        ),
+        strict=True,
     )
-    if not any(c["evidence"]["resolved_returns"] for c in certificates):
+    if interactions:
+        for model, witness in zip(projected, certificates, strict=True):
+            requests = {
+                row["node"].get("operation") for row in model["nodes"]
+            } & INTERACTION_OPS
+            if not requests:
+                raise Unsupported("interaction trace requires a reachable interaction")
+            witness["evidence"]["interactions"] = sorted(requests)
+    elif not any(c["evidence"]["resolved_returns"] for c in certificates):
         raise Unsupported("continuation proof needs a resolved dynamic return")
-    expressions = [render(model, catalog, version, "bb0") for model in projected]
+    expressions = [
+        render(model, catalog, version, "bb0", interactions=interactions)
+        for model in projected
+    ]
     return cfg_flow.check(
         texts,
         projected,
@@ -189,4 +207,5 @@ def check(texts, replay, catalog, version, timeout, entry):
         version,
         timeout,
         continuations=tuple(zip(models, certificates, strict=True)),
+        interactions=interactions,
     )

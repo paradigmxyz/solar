@@ -16,8 +16,41 @@ from pathlib import Path
 from . import audit, correspondence, native, regions
 from .common import Program, Unsupported, literal
 
+INTERACTION_OPS = frozenset({"gas", "extcodesize", "call", "staticcall"})
 
-def render(model, catalog, version, entry, *, dynamic_exit=False, max_growth=1):
+
+def render(
+    model,
+    catalog,
+    version,
+    entry,
+    *,
+    dynamic_exit=False,
+    max_growth=1,
+    interactions=False,
+):
+    root, nodes = render_nodes(
+        model,
+        catalog,
+        version,
+        entry,
+        dynamic_exit=dynamic_exit,
+        max_growth=max_growth,
+        interactions=interactions,
+    )
+    return f"⟨{root},#[{','.join(nodes)}]⟩"
+
+
+def render_nodes(
+    model,
+    catalog,
+    version,
+    entry,
+    *,
+    dynamic_exit=False,
+    max_growth=1,
+    interactions=False,
+):
     if not isinstance(model, dict) or not isinstance(model.get("nodes"), list):
         raise Unsupported("invalid source-identity graph")
     rows = model.get("nodes", [])
@@ -72,8 +105,10 @@ def render(model, catalog, version, entry, *, dynamic_exit=False, max_growth=1):
             if (
                 definition is None
                 or not definition["forks"][version]["available"]
-                or definition["observes_code"]
-                or definition["sets_returndata"]
+                or (
+                    (definition["observes_code"] or definition["sets_returndata"])
+                    and not (interactions and name in INTERACTION_OPS)
+                )
                 or definition["stack"] is None
                 or name in {"jump", "jumpi"}
             ):
@@ -104,7 +139,7 @@ def render(model, catalog, version, entry, *, dynamic_exit=False, max_growth=1):
             nodes.append(f".terminal {label} {json.dumps(node['operation'])}")
         else:
             raise Unsupported("unsupported source-identity node")
-    return f"⟨{root},#[{','.join(nodes)}]⟩"
+    return root, nodes
 
 
 def parse_pair(paths, solar, version, timeout, entry):
@@ -140,11 +175,17 @@ def parse_pair(paths, solar, version, timeout, entry):
     return texts
 
 
-def check(paths, solar, replay, version, timeout, entry):
+def check(paths, solar, replay, version, timeout, entry, *, interactions=False):
     from .check import PRELUDE, ROOT, build_model, run
 
     catalog = {row["name"]: row for row in native.catalog(replay, timeout)["evmir"]}
     texts = parse_pair(paths, solar, version, timeout, entry)
+    if interactions:
+        from . import continuation_flow
+
+        return continuation_flow.check(
+            texts, replay, catalog, version, timeout, entry, interactions=True
+        )
     try:
         models = [
             correspondence.export(text, entry, version, replay, timeout)

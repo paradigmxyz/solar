@@ -80,22 +80,48 @@ theorem resolve_edge (points : Array Nat) (source logical : Nat)
   cases point : points[logical]? <;>
     simp_all [resolve, Bind.bind, Option.bind]
 
+def projectRow (program : Program) (points : Array Nat) (edges : Array Edges)
+    (jumpLimit index : Nat) : Option (List Node) := do
+  let pc ← points[index]?
+  let path ← follow program jumpLimit pc
+  let action ← match ← program.nodes[path.destination]?, ← edges[index]? with
+  | .operation _ name next, .next target => pure (.operation 0 name (← resolve points next target))
+  | .branch _ yes no, .branch yesTarget noTarget =>
+    pure (.branch 0 (← resolve points yes yesTarget) (← resolve points no noTarget))
+  | .terminal _ name, .terminal => pure (.terminal 0 name)
+  | _, _ => none
+  return [.jump 0 path.growth (2*index+1),action]
+
+def projectRows (program : Program) (points : Array Nat) (edges : Array Edges)
+    (jumpLimit : Nat) (indices : List Nat) : Option (List (List Node)) :=
+  indices.mapM (projectRow program points edges jumpLimit)
+
+theorem append_projectRows (program : Program) (points : Array Nat) (edges : Array Edges)
+    (jumpLimit : Nat) {left right : List Nat} {a b : List (List Node)}
+    (l : projectRows program points edges jumpLimit left = some a)
+    (r : projectRows program points edges jumpLimit right = some b) :
+    projectRows program points edges jumpLimit (left ++ right) = some (a ++ b) := by
+  simp only [projectRows] at l r ⊢
+  simp [List.mapM_append, l, r, Bind.bind, Option.bind, Pure.pure]
+
 /-- Check every proposed edge against the actual successor, even if two
 different logical edges use the same physical point. -/
 def project (program : Program) (points : Array Nat) (edges : Array Edges)
     (jumpLimit : Nat) : Option Program := do
   let entry ← resolve points program.entry 0
   if edges.size != points.size then none else
-  let rows ← (points.toList.zipIdx).mapM fun (pc,index) => do
-    let path ← follow program jumpLimit pc
-    let action ← match ← program.nodes[path.destination]?, ← edges[index]? with
-    | .operation _ name next, .next target => pure (.operation 0 name (← resolve points next target))
-    | .branch _ yes no, .branch yesTarget noTarget =>
-      pure (.branch 0 (← resolve points yes yesTarget) (← resolve points no noTarget))
-    | .terminal _ name, .terminal => pure (.terminal 0 name)
-    | _, _ => none
-    return [.jump 0 path.growth (2*index+1),action]
+  let rows ← projectRows program points edges jumpLimit (List.range points.size)
   return ⟨entry, rows.flatten.toArray⟩
+
+theorem project_result (program : Program) (points : Array Nat) (edges : Array Edges)
+    (jumpLimit entry : Nat) (rows : List (List Node)) (result : Program)
+    (start : resolve points program.entry 0 = some entry)
+    (size : points.size = edges.size)
+    (checked : projectRows program points edges jumpLimit (List.range points.size) = some rows)
+    (layout : result = ⟨entry, rows.flatten.toArray⟩) :
+    project program points edges jumpLimit = some result := by
+  have same : (edges.size != points.size) = false := by simp [size]
+  simp [project, start, same, checked, layout, Bind.bind, Option.bind, Option.pure_def]
 
 /-- Equality after checking the projection from both independent source
 graphs. A logical step covers a finite transfer chain and its first
@@ -113,5 +139,13 @@ theorem contextual (before after old new : Program) (sourcePoints targetPoints :
         (fun p => execute p signatures handlers work p.entry state) := by
   rw [oldProjection,newProjection]
   exact congrArg some (StackGraph.contextual old new id bounds signatures valid handlers work state)
+
+/-- Compose the two projection checks without re-evaluating either source graph. -/
+theorem compose {before after : Option Program} {old new : Program} {Observation : Type}
+    (left : before = some old) (right : after = some new)
+    (projectLeft projectRight : Program → Option Program) (observe : Program → Observation)
+    (same : (projectLeft old).map observe = (projectRight new).map observe) :
+    (before.bind projectLeft).map observe = (after.bind projectRight).map observe := by
+  simpa [left, right] using same
 
 end SolarTV.EVM.ControlFlow

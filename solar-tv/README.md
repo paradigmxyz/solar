@@ -2007,8 +2007,22 @@ The continuation certificate also follows block labels carried on the stack.
 It checks label copies, swaps and pops before resolving a dynamic return to
 the block named by its push. A label that reaches storage, memory, arithmetic,
 a branch condition or a return or revert operand prevents the proof. The audit
-reports the number of resolved returns for each side. This is an unpriced
-region check. External messages and code-image observers remain unsupported.
+reports the number of resolved returns for each side. The default unpriced
+region check excludes external messages and code-image observers.
+
+To compare regions that contain `CALL`, `STATICCALL`, `EXTCODESIZE` or
+`GAS`, request an interaction trace proof:
+
+```sh
+solar-tv/solar-tv evmir before.evmir after.evmir --region bb0 --interaction-trace
+```
+
+This checks the requested gas, call destination, value, input bytes and
+memory ranges at each opcode boundary, with shared replies to earlier
+requests. Code identity, actual gas balances and child execution remain
+environment obligations. Use a concrete `--world` check separately to
+execute the children and replay a mismatch.
+[Proof details](CORRECTNESS.md#evm-interaction-traces)
 
 For `compact-pushes`, the kernel evaluates the literal recipes, checks each
 intermediate stack height, and accounts for every opcode's gas on the selected

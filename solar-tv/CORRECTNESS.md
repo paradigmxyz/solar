@@ -502,6 +502,33 @@ smallest timed-out graphs at 25 seconds verified seven more, for 11 verified
 and eight still timed out. ABI, creation bytecode and runtime bytecode matched
 for all three corpus contracts.
 
+### EVM interaction traces
+
+The interaction trace route extends the continuation certificate for
+`CALL`, `STATICCALL`, `EXTCODESIZE` and `GAS`. It checks each opcode's
+stack arity against the typed request decoder. The relocation proof checks
+that these requests cannot observe a stack-carried label. The call decoder
+uses the same zero-extended byte reads as the state interpreter.
+
+The proof stops before the reply at an arbitrary request ordinal. Earlier
+requests use shared responses and the remaining code uses shared
+position-independent handlers. This compares every finite request prefix
+and distinguishes a halt before the specified request. It observes calls
+before admission and checks their requested gas. Actual parent and child
+gas, code-size replies, deployed code identity and reentry remain separate
+obligations. The CLI requires explicit `--interaction-trace` selection.
+
+The CFG certificate checks both the continuation projection and the
+jump-chain projection in bounded ranges. It also checks stack bounds in
+ranges. The kernel composes each complete table and still checks every
+successor against the full source graph.
+
+A serial recheck verified the eight smallest eligible frozen
+`cfg-simplify-early` captures with a 32-second timeout per proof. These included
+WETH calls and Morpho paths with calls and code-size reads. The ABI,
+creation bytecode and runtime bytecode matched for all three pinned
+contracts.
+
 ### Compact PUSH recipes
 
 The checker matches each recipe to consecutive instructions and successors in
