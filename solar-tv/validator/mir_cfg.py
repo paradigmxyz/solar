@@ -7,7 +7,15 @@ from dataclasses import dataclass
 from itertools import batched
 from pathlib import Path
 
-from . import audit, dead_ssa, entry_proof, phase_carriers, prune, type_prune
+from . import (
+    audit,
+    dead_ssa,
+    entry_proof,
+    phase_carriers,
+    prune,
+    scalar_checks,
+    type_prune,
+)
 from .common import Program, Unsupported
 
 
@@ -662,13 +670,19 @@ set_option maxHeartbeats 2000000
 #print axioms MIR.PhaseShaping.calldata_size_copy
 #print axioms MIR.ProductInit.construct_initialized
 #print axioms MIR.ProductInit.observed_initialized
+#print axioms MIR.ScalarChecks.argument_projection
+#print axioms MIR.ScalarChecks.identities
+#print axioms MIR.ScalarChecks.widen_bit
+#print axioms MIR.ScalarChecks.inactive
+#print axioms MIR.ScalarChecks.negated
+#print axioms MIR.ScalarChecks.repeated_comparison
 """
     )
     work = [function]
     checked = {}
     calls = {}
     procedure_pairs = []
-    axioms_checks = 13
+    axioms_checks = 19
     while work:
         name = work.pop()
         if name in checked:
@@ -684,7 +698,10 @@ set_option maxHeartbeats 2000000
         if not a["blocks"] or not b["blocks"]:
             raise Unsupported("MIR CFG proof requires defined function bodies")
         i = len(checked)
-        old, new = map(import_graph, (a, b))
+        (first, first_checks), (second, second_checks) = map(
+            scalar_checks.normalize, (a, b)
+        )
+        old, new = map(import_graph, (first, second))
         calls[a["id"]] = set()
         for kind, data, _ in old:
             if kind == "action" and isinstance(data, dict):
@@ -768,6 +785,8 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 "literal_branches": literal_branches,
             }
         checked[name]["product_initialization"] = product_initialization
+        if first_checks or second_checks:
+            checked[name]["scalar_checks"] = [first_checks, second_checks]
         if any(
             isinstance(data, RoundedExtent)
             for graph in (old, new)

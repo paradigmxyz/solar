@@ -770,6 +770,68 @@ fn @choose() -> i256 {
             witness = record["witness"]
             self.assertEqual(witness["observations"], witness["native_observations"])
 
+    def test_egraph_composes_slice_reuse_and_checked_guards(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{name}.mir" for name in ("before", "after"))
+            before.write_text("""@module SliceChecks
+fn @choose(arg0: slice<calldata>) -> i256 {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = mul v0, 1
+    v2 = div v1, 1
+    v3 = eq v2, v0
+    v4 = or v3, false
+    v5 = zext i1 v4 to i256
+    v6 = eq v5, 0
+    icall panic_if<0x41>, v6
+    jump bb1
+  bb1:
+    v7 = phi [bb0: 0], [bb2: v9]
+    v8 = lt v7, v1
+    jumpi v8, bb2, bb3
+  bb2:
+    v9 = checked_add uint256, v7, 1
+    v10 = extract_value slice<calldata>, arg0, 1
+    v11 = lt v7, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    jump bb1
+  bb3:
+    ret v7
+}
+""")
+            output = subprocess.check_output(
+                [SOLAR, before, "-j1", "-Ogas", "-Zmir-pipeline=egraph"],
+                text=True,
+                timeout=20,
+            )
+            after.write_text(output)
+            record = self.check_loop(root, 0)
+            old, _ = record["import_correspondence"][0]["correspondence"]["choose"][
+                "scalar_checks"
+            ]
+            self.assertEqual(
+                old,
+                {
+                    "argument_projections": 1,
+                    "check_polarities": 1,
+                    "inactive_checks": 1,
+                    "reused_comparisons": 1,
+                    "scalar_identities": 6,
+                },
+            )
+            wrong = output.replace("panic_if_zero<0x32>", "panic_if<0x32>")
+            self.assertNotEqual(wrong, output)
+            after.write_text(wrong)
+            self.check_loop(root, 2)
+            fixture = root / "world.json"
+            fixture.write_text('{"version":1}')
+            record = self.check_loop(root, 1, fixture=fixture)
+            self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+            witness = record["witness"]
+            self.assertEqual(witness["observations"], witness["native_observations"])
+
     def test_cfg_simplify_checks_mutually_recursive_callees(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
