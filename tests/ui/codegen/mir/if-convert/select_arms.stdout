@@ -233,3 +233,21 @@
       ret v0
   }
   
+  fn @crc_step(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 1
+      v1 = shr arg0, 1
+      v2 = ne v0, 0
+-     jumpi v2, bb1, bb2
+-   bb1:                                            ; preds = bb0
+      v3 = xor v1, 0xedb88320
+-     jump bb2
+-   bb2:                                            ; preds = bb0, bb1
+-     v4 = phi [bb0: v1], [bb1: v3]
+-     ret v4
++     v5 = zext i1 v2 to i256
++     v6 = mul v5, 0xedb88320
++     v7 = xor v1, v6
++     ret v7
+  }
+  

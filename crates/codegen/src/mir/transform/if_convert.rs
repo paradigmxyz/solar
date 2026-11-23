@@ -13,8 +13,8 @@
 //! A boolean condition scales an amount, so every select is arithmetic:
 //!
 //! - a value merged with one derived from it, `c ? a + k : a`, `c ? a | k : a`, `c ? a >> k : a`,
-//!   and `c ? t : 0`, becomes `a + c * k`, `a | c * k`, `a >> c * k`, and `c * t`, the shapes
-//!   hand-written bit-search assembly uses;
+//!   `c ? a ^ k : a`, and `c ? t : 0`, becomes `a + c * k`, `a | c * k`, `a >> c * k`, `a ^ c * k`,
+//!   and `c * t`, the shapes hand-written bit-search and checksum assembly uses;
 //! - two literals, `c ? A : B`, become `B + c * (A - B)` with the difference folded, so a lookup
 //!   among constant table words needs no branch;
 //! - a literal chosen over a select the condition implies, `x < a ? A : (x < b ? B : C)` with `a <=
@@ -422,6 +422,7 @@ fn select_cost(func: &Function, target: &Target, select: &Select, shared: bool) 
             Derivation::Add(amount) => (amount, target.opcode(op::ADD)),
             Derivation::Or(amount) => (amount, target.opcode(op::OR)),
             Derivation::Shr(amount) => (amount, target.opcode(op::SHR)),
+            Derivation::Xor(amount) => (amount, target.opcode(op::XOR)),
         };
         if shared { combine } else { product.plus(literal(amount)).plus(combine) }
     };
@@ -696,6 +697,7 @@ enum Derivation {
     Add(ValueId),
     Or(ValueId),
     Shr(ValueId),
+    Xor(ValueId),
     FromZero,
 }
 
@@ -709,6 +711,8 @@ fn derivation(func: &Function, derived: ValueId, base: ValueId) -> Option<Deriva
         InstKind::Or(a, b) if a == base => Some(Derivation::Or(b)),
         InstKind::Or(a, b) if b == base => Some(Derivation::Or(a)),
         InstKind::Shr(amount, value) if value == base => Some(Derivation::Shr(amount)),
+        InstKind::Xor(a, b) if a == base => Some(Derivation::Xor(b)),
+        InstKind::Xor(a, b) if b == base => Some(Derivation::Xor(a)),
         _ => None,
     }
 }
@@ -749,6 +753,11 @@ fn scaled_select(
             let scaled = scale(func, amount);
             append(func, block, InstKind::Shr(scaled, else_value), ty)
         }
+        // c ? e ^ k : e => e ^ c * k
+        Derivation::Xor(amount) => {
+            let scaled = scale(func, amount);
+            append(func, block, InstKind::Xor(else_value, scaled), ty)
+        }
     }
 }
 
@@ -782,9 +791,10 @@ fn scaled_amount(func: &Function, select: &Select) -> Option<(bool, Result<U256,
         _ => return None,
     };
     match derived {
-        Derivation::Add(amount) | Derivation::Or(amount) | Derivation::Shr(amount) => {
-            Some((negated, func.value_u256(amount).ok_or(amount)))
-        }
+        Derivation::Add(amount)
+        | Derivation::Or(amount)
+        | Derivation::Shr(amount)
+        | Derivation::Xor(amount) => Some((negated, func.value_u256(amount).ok_or(amount))),
         Derivation::FromZero => None,
     }
 }
