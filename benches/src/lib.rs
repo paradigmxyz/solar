@@ -97,6 +97,8 @@ pub fn get_srcs() -> &'static [Source] {
             ),
             include_source("../testdata/projects/tempo-zones.json.gz", Capabilities::all())
                 .no_codspeed_codegen(),
+            include_source("../testdata/projects/zstd-giant.json.gz", Capabilities::all()),
+            include_source("../testdata/projects/gzip-yul.json.gz", Capabilities::all()),
         ]);
 
         sources

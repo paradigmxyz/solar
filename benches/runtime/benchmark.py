@@ -2104,8 +2104,8 @@ def source_links(test_case: TestCase) -> list[dict[str, str]]:
     ]
     links.extend(
         {
-            "label": source.repo,
-            "url": f"https://github.com/{source.repo}/tree/{source.commit}",
+            "label": source.label,
+            "url": source.url,
         }
         for source in (
             test_case.project.sources if test_case.project is not None else ()

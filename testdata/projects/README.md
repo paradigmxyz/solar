@@ -52,3 +52,18 @@ uv run --project tools/compiler-diff compiler-diff runtime -- \
   --solar /absolute/path/to/solar --solc /absolute/path/to/solc \
   --mode compile-time --projects tempo-zones --compile-repeats 3
 ```
+
+## Decompressors
+
+`zstd-giant.json.gz` and `gzip-yul.json.gz` hold two MIT-licensed mainnet contracts, with sources
+taken unchanged from their Sourcify chain 1 verifications:
+[`ZstdGiant`](https://repo.sourcify.dev/1/0x2bC7404Ba5CAd16f7A01437A6e6a4325A72DCcFa) at
+`0x2bC7404Ba5CAd16f7A01437A6e6a4325A72DCcFa` (`src/ZstdGiant.sol`) and
+[`GzipYulWrapper`](https://repo.sourcify.dev/1/0x7B54d32da164dFDb06de3fDd4BC140662c6112C4) at
+`0x7B54d32da164dFDb06de3fDd4BC140662c6112C4` (`src/GzipYulWrapper.sol` and `src/GzipYul.sol`).
+Both were built with Solar 0.3.0 at 10,000 optimizer runs for Osaka, ZstdGiant through via-IR and
+GzipYulWrapper through the legacy pipeline. The archives keep these settings and the
+`forge-std/=lib/forge-std/src/` remapping, but set `settings.metadata` and the output selection
+as the other archives do. To regenerate one, fetch
+`https://sourcify.dev/server/v2/contract/1/<address>?fields=sources,compilation` and copy
+`sources` and those compiler settings into a Standard JSON input.

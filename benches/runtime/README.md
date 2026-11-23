@@ -301,6 +301,8 @@ runtime observations.
 | `lilweb3-fractional` | `m1guelpf/lil-web3` plus `transmissions11/solmate` | `7346bd28c2586da3b07102d5290175a276949b15`, `e802bcf2fb24dda2bf7e513bea86d15c48b57486` | 3 |
 | `maple-erc20` | `maple-labs/erc20` | `baf791a9f894b0b319a2d42d5b9f8d30349ebaad` | 2 |
 | `tempo-zones-portal` | `tempoxyz/zones` plus `tempoxyz/tempo-std` | `700069eb8a40fce7e1f7a4bf0fc5703bcc692c43`, `96f882963ce3b0e0abc7ec2b41d03d42457877bb` | 23 |
+| `zstd-giant` | Sourcify chain 1 | `0x2bC7404Ba5CAd16f7A01437A6e6a4325A72DCcFa` | 1 |
+| `gzip-yul` | Sourcify chain 1 | `0x7B54d32da164dFDb06de3fDd4BC140662c6112C4` | 2 |
 | `solady-encoding` | `Vectorized/solady` plus `Encoding.sol` | `solady-0.1.26` archive | 3 |
 | `solady-algorithms` | `Vectorized/solady` plus `Algorithms.sol` | `solady-0.1.26` archive | 5 |
 | `prb-math` | `PaulRBerg/prb-math` plus `PRBMath.sol` | `b51e8631ed28d3cc917c491dd47cd6c3ff652edc` (4.1.1 archive) | 34 |
@@ -383,6 +385,45 @@ word boundary, and the end; more boundaries reach 1024 bytes, including long all
 high-bit bytes near both ends. All 153 calls check returned values against solc. It isolates
 encoding and ABI costs from upstream assertions and memory brutalization; report both it and
 `solady-lib-string`, since they exercise different behavior.
+
+`zstd-giant` and `gzip-yul` call `decompress(bytes)` on two MIT-licensed mainnet decoders,
+`ZstdGiant` and `GzipYulWrapper`, compiled with the settings they were deployed with: 10,000
+optimizer runs, Osaka, via-IR for ZstdGiant and the legacy pipeline for GzipYulWrapper.
+`../../testdata/projects/README.md` describes the archives. ZstdGiant uses `clz`, so solc compiles
+it only from 0.8.31 and only through via-IR; `solc-legacy` fails with stack too deep.
+[`decompress.json`](../../testdata/runtime/decompress.json) holds the frames: per format, each
+call's label, compressed input, and the length and keccak256 of the expected output. The data
+are prefixes of this repository's `LICENSE-APACHE` (text), prefixes of `src/GzipYul.sol` from
+`gzip-yul.json.gz` (sol), 512 bytes from `random.Random(1)` drawn as
+`bytes(rng.randrange(256) for _ in range(512))` (random), and zero bytes:
+
+| Call | Data | Level | Blocks |
+| --- | --- | ---: | --- |
+| gzip `text-64-fixed` | text, 64 bytes | 9 | fixed Huffman |
+| gzip `text-512-dynamic` | text, 512 bytes | 9 | dynamic Huffman |
+| gzip `text-1k-dynamic` | text, 1,024 bytes | 9 | dynamic Huffman |
+| gzip `sol-1k-dynamic` | sol, 1,024 bytes | 6 | dynamic Huffman |
+| gzip `random-512-stored` | random | 0 | stored |
+| zstd `text-64` | text, 64 bytes | 3 | compressed: raw literals, predefined sequence codes |
+| zstd `text-1k` | text, 1,024 bytes | 3 | compressed: Huffman literals, FSE sequence codes |
+| zstd `text-4k` | text, 4,096 bytes | 19 | compressed |
+| zstd `sol-2k` | sol, 2,048 bytes | 3 | compressed |
+| zstd `random-512-raw` | random | 3 | raw |
+| zstd `text-zeros-rle` | text, 256 bytes, then 1,024 zero bytes | 3 | compressed, then RLE |
+| zstd `text-4k-blocks` | text, 4,096 bytes in 512-byte chunks | 9 | eight compressed, some reusing earlier tables |
+
+Python 3.14's `gzip.compress(data, compresslevel=level, mtime=0)`, with zlib 1.3.2, made the gzip
+frames. `zstandard` 0.25.0 (libzstd 1.5.7) made the zstd frames with
+`ZstdCompressor(level=level).compressobj(size=len(data))`: `compress` on each chunk, then
+`flush(COMPRESSOBJ_FLUSH_BLOCK)` between chunks and `flush(COMPRESSOBJ_FLUSH_FINISH)` at the end.
+Calls with one chunk pass the whole input. The frames record the content size and carry no
+checksum. Every call stays below half of Osaka's transaction gas cap.
+
+Runtime checks compare each returned buffer across compilers, and comparison reports list buffers
+that differ from the baseline run. GzipYul also checks the CRC-32 and size in the gzip trailer and
+reverts on a mismatch, so a wrong gzip result fails its gas call even when our compiler runs alone.
+ZstdGiant skips the frame checksum: a run of our compiler alone checks only that zstd calls
+succeed, and needs a reference compiler, `--solar-size`, or a baseline to catch a wrong result.
 
 These local workloads in `../../testdata/runtime/` target specific optimizations. Report each apart
 from the pinned project corpus; they show targeted gains, not general superiority over solc.

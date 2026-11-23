@@ -21,7 +21,7 @@ benchmark = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = benchmark
 SPEC.loader.exec_module(benchmark)
 
-from cases import GasCall
+from cases import GasCall, SourcifySource
 
 
 class CorpusTests(unittest.TestCase):
@@ -163,7 +163,10 @@ class CorpusTests(unittest.TestCase):
                     origins = case.project.sources
                     self.assertTrue(origins)
                     for source in origins:
-                        self.assertRegex(source.commit, r"^[0-9a-f]{40}$")
+                        if isinstance(source, SourcifySource):
+                            self.assertRegex(source.address, r"^0x[0-9a-fA-F]{40}$")
+                        else:
+                            self.assertRegex(source.commit, r"^[0-9a-f]{40}$")
         wrapper = next(
             case for case in benchmark.TEST_CASES if case.test_id == "solady-encoding"
         )
@@ -178,7 +181,7 @@ class CorpusTests(unittest.TestCase):
             )
 
     def test_vendored_cases_and_projects_exist(self) -> None:
-        self.assertEqual(len(benchmark.TEST_CASES), 39)
+        self.assertEqual(len(benchmark.TEST_CASES), 41)
         repository_cases = [
             case for case in benchmark.TEST_CASES if case.suite == "repository"
         ]
@@ -469,12 +472,14 @@ class CorpusTests(unittest.TestCase):
 
     def test_large_cases_resolve_from_pinned_projects(self) -> None:
         large_cases = [case for case in benchmark.TEST_CASES if case.suite == "large"]
-        self.assertEqual(len(large_cases), 4)
+        self.assertEqual(len(large_cases), 6)
         expected_source_counts = {
             "openzeppelin-governor": 48,
             "openzeppelin-p256": 6,
             "solady-signature-checker": 12,
             "solady-lib-string": 9,
+            "zstd-giant": 1,
+            "gzip-yul": 2,
         }
         for case in large_cases:
             payload, _, _ = benchmark.compiler_input(case, None)

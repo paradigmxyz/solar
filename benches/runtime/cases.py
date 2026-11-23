@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -412,6 +413,9 @@ CALLDATA_WEIGHTS = "[" + ",".join(str(i + 1) for i in range(32)) + "]"
 CALLDATA_ACCOUNTS = "[" + ",".join(f"0x{0xA11CE000 + i:040x}" for i in range(32)) + "]"
 CALLDATA_LAST_ACCOUNT = f"0x{0xA11CE000 + 31:040x}"
 
+# Gzip and zstd frames for the decompressor cases, keyed by format.
+DECOMPRESS_INPUTS = json.loads((TESTDATA_ROOT / "runtime/decompress.json").read_text())
+
 # The valid RIP-7212 probe vector from the pinned OpenZeppelin P256 library.
 P256_SIGNATURE = (
     "0xbb5a52f42f9c9261ed4361f59422a1e30036e7c32b270c8807a419feca605023",
@@ -449,12 +453,35 @@ class Source:
     repo: str
     commit: str
 
+    @property
+    def label(self) -> str:
+        return self.repo
+
+    @property
+    def url(self) -> str:
+        return f"https://github.com/{self.repo}/tree/{self.commit}"
+
+
+@dataclass(frozen=True)
+class SourcifySource:
+    """A contract verified on Sourcify for Ethereum mainnet."""
+
+    address: str
+
+    @property
+    def label(self) -> str:
+        return f"Sourcify chain 1 {self.address}"
+
+    @property
+    def url(self) -> str:
+        return f"https://repo.sourcify.dev/1/{self.address}"
+
 
 @dataclass(frozen=True)
 class Project:
     name: str
     file: str
-    sources: Sequence[Source]
+    sources: Sequence[Source | SourcifySource]
 
     @property
     def path(self) -> Path:
@@ -570,6 +597,16 @@ PROJECTS = {
         "tempo-zones",
         "tempo-zones.json.gz",
         (Source("tempoxyz/zones", "700069eb8a40fce7e1f7a4bf0fc5703bcc692c43"),),
+    ),
+    "zstd-giant": Project(
+        "zstd-giant",
+        "zstd-giant.json.gz",
+        (SourcifySource("0x2bC7404Ba5CAd16f7A01437A6e6a4325A72DCcFa"),),
+    ),
+    "gzip-yul": Project(
+        "gzip-yul",
+        "gzip-yul.json.gz",
+        (SourcifySource("0x7B54d32da164dFDb06de3fDd4BC140662c6112C4"),),
     ),
 }
 
@@ -1875,6 +1912,42 @@ TEST_CASES: Sequence[TestCase] = (
             RuntimeCheck(
                 "small-string", "toSmallString(string)(bytes32)", ("short string",)
             ),
+        ),
+        suite="large",
+    ),
+    TestCase(
+        test_id="zstd-giant",
+        description="ZstdGiant zstd decompression",
+        # The `clz` opcode needs solc 0.8.31.
+        min_solc="0.8.31",
+        project=PROJECTS["zstd-giant"],
+        source="src/ZstdGiant.sol",
+        contract_name="ZstdGiant",
+        gas_calls=tuple(
+            GasCall(case["label"], "decompress(bytes)", (case["input"],))
+            for case in DECOMPRESS_INPUTS["zstd"]
+        ),
+        runtime_checks=tuple(
+            RuntimeCheck(case["label"], "decompress(bytes)(bytes)", (case["input"],))
+            for case in DECOMPRESS_INPUTS["zstd"]
+        ),
+        suite="large",
+    ),
+    TestCase(
+        test_id="gzip-yul",
+        description="GzipYul gzip decompression",
+        # The `osaka` EVM target needs solc 0.8.29.
+        min_solc="0.8.29",
+        project=PROJECTS["gzip-yul"],
+        source="src/GzipYulWrapper.sol",
+        contract_name="GzipYulWrapper",
+        gas_calls=tuple(
+            GasCall(case["label"], "decompress(bytes)", (case["input"],))
+            for case in DECOMPRESS_INPUTS["gzip"]
+        ),
+        runtime_checks=tuple(
+            RuntimeCheck(case["label"], "decompress(bytes)(bytes)", (case["input"],))
+            for case in DECOMPRESS_INPUTS["gzip"]
         ),
         suite="large",
     ),
