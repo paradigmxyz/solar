@@ -226,7 +226,7 @@ use super::{
     call_cleanup,
     cfg_simplify::simplify_function,
     egraph::{max_bits_with_args, use_counts},
-    utils::{block_results_have_external_uses, redirect_edge},
+    utils::{block_results_have_external_users, redirect_edge, value_users},
     word_sequence::is_pure,
 };
 use crate::{
@@ -990,6 +990,8 @@ struct CheckEliminator<'a> {
     unfailing: Vec<(InstId, InstKind)>,
     /// Edges into a join whose branch their scope decides, as `(pred, join, successor)`.
     threads: Vec<(BlockId, BlockId, BlockId)>,
+    /// The branch of each join an edge may skip, as `skippable_join` finds it, built on first use.
+    skippable_joins: FxHashMap<BlockId, Option<(ValueId, BlockId, BlockId)>>,
     ranges: FxHashMap<ValueId, Range>,
     relations: FxHashSet<Relation>,
     /// Possible outgoing facts; each candidate still requires a scoped membership check.
@@ -1408,7 +1410,7 @@ impl<'a> CheckEliminator<'a> {
     fn collect_threads(&mut self, func: &Function, cfg: &CfgInfo, block: BlockId, folded: bool) {
         match func.blocks[block].terminator.as_ref() {
             Some(&Terminator::Jump(join)) => {
-                if let Some(branch) = skippable_join(func, cfg, join)
+                if let Some(branch) = self.skippable_join(func, cfg, join)
                     && let Some(successor) = self.decided_successor(func, block, join, branch)
                 {
                     self.threads.push((block, join, successor));
@@ -1420,7 +1422,7 @@ impl<'a> CheckEliminator<'a> {
                 for (join, other, truth) in
                     [(then_block, else_block, true), (else_block, then_block, false)]
                 {
-                    let Some(branch) = skippable_join(func, cfg, join) else { continue };
+                    let Some(branch) = self.skippable_join(func, cfg, join) else { continue };
                     let marks =
                         (self.range_undo.len(), self.relation_undo.len(), self.equality_undo.len());
                     self.assume(func, condition, truth, MAX_DEPTH);
@@ -1436,6 +1438,16 @@ impl<'a> CheckEliminator<'a> {
             }
             _ => {}
         }
+    }
+
+    /// [`skippable_join`], found once for each join of the function.
+    fn skippable_join(
+        &mut self,
+        func: &Function,
+        cfg: &CfgInfo,
+        join: BlockId,
+    ) -> Option<(ValueId, BlockId, BlockId)> {
+        *self.skippable_joins.entry(join).or_insert_with(|| skippable_join(func, cfg, join))
     }
 
     /// The successor that `branch`, ending `join`, takes on every entry from `pred` when the
@@ -3852,16 +3864,14 @@ fn skippable_join(
 
 /// Whether `condition` reads a phi of `block`, directly or through other instructions of `block`.
 fn condition_reads_phi(func: &Function, block: BlockId, condition: ValueId) -> bool {
-    let instructions = &func.blocks[block].instructions;
+    let mut unvisited = func.blocks[block].instructions.iter().copied().collect::<FxHashSet<_>>();
     let mut pending = SmallVec::<[ValueId; 8]>::new();
     pending.push(condition);
-    let mut seen = SmallVec::<[InstId; 8]>::new();
     while let Some(value) = pending.pop() {
         let Value::Inst(id) = *func.value(value) else { continue };
-        if seen.contains(&id) || !instructions.contains(&id) {
+        if !unvisited.remove(&id) {
             continue;
         }
-        seen.push(id);
         let kind = &func.inst(id).kind;
         if matches!(kind, InstKind::Phi(_)) {
             return true;
@@ -3882,6 +3892,9 @@ fn thread_decided_edges(
     target: &Target,
     threads: &[(BlockId, BlockId, BlockId)],
 ) -> usize {
+    if threads.is_empty() {
+        return 0;
+    }
     let successor_phis = |func: &Function, block: BlockId| {
         func.blocks[block]
             .instructions
@@ -3895,7 +3908,8 @@ fn thread_decided_edges(
     // into the other successor's subtree from inside it, unless it enters that successor itself.
     let pairs =
         threads.iter().map(|&(_, join, successor)| (join, successor)).collect::<FxHashSet<_>>();
-    let mut results = DenseBitSet::new_empty(func.num_values());
+    let users = value_users(func);
+    let homes = func.inst_block_table();
     let mut threadable = FxHashMap::default();
     let threads = threads
         .iter()
@@ -3919,15 +3933,16 @@ fn thread_decided_edges(
                 });
                 let kept =
                     |block| other.is_some_and(|other| cfg.dominators().dominates(other, block));
-                !block_results_have_external_uses(func, join, |block, _| kept(block), &mut results)
-                    && successor_phis(func, successor).iter().all(|&phi| {
-                        let InstKind::Phi(incoming) = &func.inst(phi).kind else { unreachable!() };
-                        incoming.iter().all(|&(from, value)| {
-                            from != join
-                                || !results.contains(value)
-                                || matches!(func.value_inst_kind(value), Some(InstKind::Phi(_)))
-                        })
+                !block_results_have_external_users(func, &users, &homes, join, |block, _| {
+                    kept(block)
+                }) && successor_phis(func, successor).iter().all(|&phi| {
+                    let InstKind::Phi(incoming) = &func.inst(phi).kind else { unreachable!() };
+                    incoming.iter().all(|&(from, value)| {
+                        from != join
+                            || !matches!(func.value(value), Value::Inst(id) if homes[*id] == Some(join))
+                            || matches!(func.value_inst_kind(value), Some(InstKind::Phi(_)))
                     })
+                })
             })
         })
         .collect::<SmallVec<[_; 4]>>();

@@ -6,7 +6,7 @@ use crate::mir::{
     memory::EvmMemoryLayout,
     utils::{IndexLists, replace_terminator},
 };
-use solar_data_structures::bit_set::DenseBitSet;
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_evmir::debug::DebugLocKind;
 use solar_sema::hir::StateMutability;
 
@@ -196,6 +196,36 @@ pub(super) fn block_results_have_external_uses(
             && !ignored(other_block, None)
             && block.terminator.as_ref().is_some_and(|term| term.any_operand(external)))
     })
+}
+
+/// [`block_results_have_external_uses`] from the readers of each result, as [`value_users`] lists
+/// them, and the block of each instruction, as `Function::inst_block_table` maps them, instead of
+/// a scan of the function.
+pub(super) fn block_results_have_external_users(
+    func: &Function,
+    users: &IndexLists<ValueId, User>,
+    homes: &IndexVec<InstId, Option<BlockId>>,
+    block_id: BlockId,
+    ignored: impl Fn(BlockId, Option<InstId>) -> bool,
+) -> bool {
+    func.blocks[block_id].instructions.iter().filter_map(|&inst| func.inst_result_value(inst)).any(
+        |result| {
+            users.get(result).iter().any(|&user| match user {
+                User::Inst(inst) => {
+                    let block = homes[inst].expect("a user is in a block");
+                    let reads = match &func.inst(inst).kind {
+                        InstKind::Phi(incoming) if block != block_id => incoming
+                            .iter()
+                            .any(|&(pred, value)| pred != block_id && value == result),
+                        InstKind::Phi(_) => true,
+                        _ => block != block_id,
+                    };
+                    reads && !ignored(block, Some(inst))
+                }
+                User::Terminator(block) => block != block_id && !ignored(block, None),
+            })
+        },
+    )
 }
 
 /// Returns whether `func` has a private MIR signature that direct callers may rewrite, given the
