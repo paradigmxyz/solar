@@ -182,6 +182,14 @@ def check(paths, solar, executable, timeout, entry, version, policy):
     ]
     if headers[0] != headers[1]:
         raise Unsupported("prefix shared declarations changed")
+    if policy is None:
+        from . import stop_tail
+
+        terminal = stop_tail.try_check(
+            texts, models, entry, catalog, version, executable, timeout
+        )
+        if terminal is not None:
+            return terminal
     for model in models:
         for line in model["instructions"]:
             name = line.split()[0]

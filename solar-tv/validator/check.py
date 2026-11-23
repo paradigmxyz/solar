@@ -1340,13 +1340,16 @@ def main() -> int:
                     "effectful-prefix",
                     "shared-prefix-suffix",
                     "interior-window",
+                    "stack-terminal-stop",
                 }
             ):
                 shared = result.program and result.program.import_evidence.get(
                     "shared_prologue_operations"
                 )
                 record["region"]["proof"] = (
-                    "universal-post-precompile-suffix"
+                    "kernel-checked-terminal-pop-deletion"
+                    if result.program and result.program.scope == "stack-terminal-stop"
+                    else "universal-post-precompile-suffix"
                     if result.program and result.program.scope == "shared-prefix-suffix"
                     else "universal-branching-effect-prefix"
                     if result.program

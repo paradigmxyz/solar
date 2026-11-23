@@ -1289,6 +1289,15 @@ checks the mask in the same bytecode and proves the selector is in range
 for every incoming word. Without that producer, the selector range is an
 input obligation.
 
+### Removing terminal stack discards
+
+A `--prefix=bbN` check can prove deletion of a `POP` suffix before
+`STOP` even when the compiler cannot assign the block an entry height.
+Lean checks a lower stack bound at the first removed `POP` from the
+physical entry, including transfers through return labels. The proof
+compares terminal outcomes with shared incoming state and leaves
+physical gas out of the claim.
+
 ### Relocated internal returns
 
 For the captured ERC20Mock runtime `block-layout` pair, validate the

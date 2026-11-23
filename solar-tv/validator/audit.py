@@ -322,6 +322,13 @@ def record(
                 assumptions.append(
                     "gas-insensitive handlers; GAS, code-image observers and external messages excluded"
                 )
+        elif program and program.scope == "stack-terminal-stop":
+            assumptions.extend(
+                [
+                    "kernel-checked lower stack bound at the first deleted POP from the original physical entry",
+                    "the unpriced STOP suffix compares shared incoming state; physical gas and layout and source/schema bindings remain obligations",
+                ]
+            )
         elif program and program.scope == "stack-layout":
             assumptions.extend(
                 [
@@ -709,6 +716,7 @@ def record(
                 "compact-pushes",
                 "source-identity",
                 "stack-layout",
+                "stack-terminal-stop",
                 "cfg-flow",
                 "continuation-flow",
                 "interaction-flow",
@@ -778,6 +786,7 @@ def record(
                 "allocation-prefix",
                 "source-identity",
                 "stack-layout",
+                "stack-terminal-stop",
                 "cfg-flow",
                 "continuation-flow",
                 "layout-flow",

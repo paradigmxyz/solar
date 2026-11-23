@@ -102,7 +102,7 @@ theorem {name}Lookup : {name}.view = EVM.ProofTable.ofArray {name}.rows.toArray 
     )
 
 
-def check_rows(name, check, size):
+def check_rows(name, check, size, *, start=0):
     """Give each kernel reduction a separate declaration and join the ranges."""
     declarations = [f"def {name}At : Nat → Bool := {check}\n"]
 
@@ -119,9 +119,9 @@ theorem {part} : EVM.StackReachability.CheckedRange {name}At {start} {count} :=
         right = visit(start + middle, count - middle)
         return f"(EVM.StackReachability.joinRanges {left} {right})"
 
-    expression = visit(0, size)
+    expression = visit(start, size)
     declarations.append(f"""
-theorem {name} : EVM.StackReachability.CheckedRange {name}At 0 {size} :=
+theorem {name} : EVM.StackReachability.CheckedRange {name}At {start} {size} :=
   {expression}
 """)
     return "".join(declarations)

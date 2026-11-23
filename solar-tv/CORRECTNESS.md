@@ -871,6 +871,15 @@ these exit nodes. The real layout pair, changed-store kernel/native witness,
 unsafe-growth and bytecode-neutrality tests are in
 `examples/evmir/stack-layout/` and `tests/test_stack_layout.py`.
 
+For terminal stack DCE, a lower-height invariant starts at physical
+entry and follows successful transfers through the checked continuation
+projection. Both branch edges constrain the floor. The kernel checks the
+`POP` sequence and `STOP` at the original cut and proves the removed
+instructions cannot underflow. The claim is local and unpriced, with
+the code before the cut shared. The regression exercises two indirect
+callers, including one that becomes too short and fails in raw-bytecode
+replay.
+
 The `--entry-trace` layout route starts with an empty stack at the first
 physical block on each side. `ControlFlow.contextual_bounded` combines the
 checked path projection with the stack simulation at that entry height.

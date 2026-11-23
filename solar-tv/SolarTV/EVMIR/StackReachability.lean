@@ -115,6 +115,49 @@ theorem cap {graph : ProofTable.View Node} {signatures : Signatures} {bounds : N
   rw [Bool.and_eq_true] at checked
   exact Nat.le_trans fits (of_decide_eq_true checked.1)
 
+/-- A successful opcode needs its input words even if the incoming floor
+is lower. Branches consume the condition; plain jumps retain the height. -/
+def floorAt (graph : ProofTable.View Node) (signatures : Signatures)
+    (floors : Nat → Nat) (pc : Nat) : Bool :=
+  match graph.get? pc with
+  | some (.operation _ name next) =>
+    next < graph.size && match signatures name with
+    | some (inputs,outputs) => floors next ≤ max (floors pc) inputs - inputs + outputs
+    | none => false
+  | some (.jump _ _ next) => next < graph.size && floors next ≤ floors pc
+  | some (.branch _ yes no) =>
+    yes < graph.size && no < graph.size &&
+      floors yes ≤ max (floors pc) 1 - 1 && floors no ≤ max (floors pc) 1 - 1
+  | some (.terminal ..) => true
+  | none => false
+
+theorem floor_invariant {graph : ProofTable.View Node} {signatures : Signatures}
+    {floors : Nat → Nat} (entry : 0 < graph.size) (empty : floors 0 = 0)
+    (closed : ∀ pc < graph.size, floorAt graph signatures floors pc = true)
+    {pc height : Nat} (reaches : Reaches graph signatures pc height) :
+    pc < graph.size ∧ floors pc ≤ height ∧ height ≤ 1024 := by
+  induction reaches with
+  | entry => exact ⟨entry,by simp [empty],by decide⟩
+  | @step pc h next height _ executed ih =>
+    obtain ⟨inside,floor,cap⟩ := ih
+    have checked := closed pc inside
+    cases executed with
+    | operation node arity enough room =>
+      simp [floorAt, node, arity] at checked
+      exact ⟨checked.1,by omega,room⟩
+    | jump node room =>
+      simp [floorAt, node] at checked
+      exact ⟨checked.1,by omega,cap⟩
+    | branch node enough room taken =>
+      simp [floorAt, node] at checked
+      cases taken with
+      | false =>
+        simp only [Bool.false_eq_true, ite_false]
+        exact ⟨checked.1.1.2,by omega,by omega⟩
+      | true =>
+        simp only [ite_true]
+        exact ⟨checked.1.1.1,by omega,by omega⟩
+
 /-- At a literal table transfer the conservative lowering peak must fit.
 Equal overflow in two abstract projections would not establish this room:
 their chosen encodings can use different amounts of scratch stack. -/
