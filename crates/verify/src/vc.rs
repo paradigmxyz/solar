@@ -131,6 +131,11 @@ pub(crate) struct Vc<'p, 'a> {
     /// Every name each body `modset_raw` or `mem_param_writes` is walking declares, innermost
     /// last; empty while `effects` walks the running body, whose names are `frame_names`.
     effect_frames: std::cell::RefCell<Vec<FxHashSet<String>>>,
+    /// For each block (or for statement) being executed, innermost last: the names it has
+    /// declared so far, with what each stood for just before its declaration (see
+    /// `note_decl`), put back when the block ends.
+    #[allow(clippy::type_complexity)]
+    decl_scopes: Vec<Vec<(String, bool, Option<&'a Expr<'a>>, Option<Env>, Option<Var>)>>,
     /// Calls `loop_targets` found writing a memory reference argument: (callee, argument root).
     mem_call_writes: std::cell::RefCell<Vec<(String, String)>>,
     /// `mem_param_written` answers, by function item address and parameter (see there).
@@ -291,6 +296,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             in_ctor: false,
             lock_modset: std::cell::Cell::new(false),
             effect_frames: Default::default(),
+            decl_scopes: vec![],
             mem_call_writes: Default::default(),
             mem_written: Default::default(),
             mem_walk: Default::default(),
@@ -1746,7 +1752,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                     let saved_cd = std::mem::take(&mut self.cd_params);
                     let saved_names = std::mem::replace(&mut self.frame_names, names);
                     self.frames.push(Frame { rets: vec![], exits: vec![] });
-                    let r = self.exec_block(b);
+                    let r = self.exec_block_stmts(b);
                     self.cd_params = saved_cd;
                     self.frame_names = saved_names;
                     r?;
@@ -1963,7 +1969,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 all.extend(names);
                 let saved_names = std::mem::replace(&mut self.frame_names, all);
                 self.cur.push(String::new());
-                let r = self.exec_block(b);
+                let r = self.exec_block_stmts(b);
                 self.cur.pop();
                 self.cd_params = saved_cd;
                 self.frame_names = saved_names;
@@ -1979,7 +1985,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 self.runtime_check(ck)?;
             }
             self.cur.push(f.contract.clone());
-            let r = self.exec_block(b);
+            let r = self.exec_block_stmts(b);
             self.cur.pop();
             r?;
         }
@@ -2016,45 +2022,33 @@ impl<'p, 'a> Vc<'p, 'a> {
         // The names this block declares go out of scope at its end: each names again what it
         // named before (a shadowed storage pointer, or nothing), so a storage pointer of an
         // inner block never stands for a later memory local of its name.
-        let saved = self.save_pointers(b.stmts.iter());
+        self.decl_scopes.push(vec![]);
         let r = self.exec_block_stmts(b);
-        self.restore_pointers(saved);
+        self.end_scope();
         r
     }
 
-    /// What the names the statements `stmts` declare (at their own level) stand for as storage
-    /// pointers now, for `restore_pointers` once those declarations go out of scope.
-    #[allow(clippy::type_complexity)]
-    fn save_pointers(
-        &self,
-        stmts: impl Iterator<Item = &'a Stmt<'a>>,
-    ) -> Vec<(String, bool, Option<&'a Expr<'a>>, Option<Env>)> {
-        let mut declared: Vec<String> = vec![];
-        for s in stmts {
-            match &s.kind {
-                StmtKind::DeclSingle(v) => declared.extend(v.name.map(|n| n.as_str().to_string())),
-                StmtKind::DeclMulti(vs, _) => declared.extend(
-                    vs.iter()
-                        .filter_map(|v| v.as_ref().unspan())
-                        .filter_map(|v| v.name.map(|n| n.as_str().to_string())),
-                ),
-                _ => {}
-            }
+    /// Before a declaration of @@n@@ in the innermost scope: what @@n@@ stands for now (an outer
+    /// local's value, a storage pointer, or nothing), the first time this scope declares it.
+    fn note_decl(&mut self, n: &str) {
+        let Some(top) = self.decl_scopes.last() else { return };
+        if top.iter().any(|e| e.0 == n) {
+            return;
         }
-        declared
-            .into_iter()
-            .map(|n| {
-                let sl = self.slocals.contains(&n);
-                let al = self.aliases.get(&n).copied();
-                let ae = self.alias_env.get(&n).cloned();
-                (n, sl, al, ae)
-            })
-            .collect()
+        let e = (
+            n.to_string(),
+            self.slocals.contains(n),
+            self.aliases.get(n).copied(),
+            self.alias_env.get(n).cloned(),
+            self.env.get(n).cloned(),
+        );
+        self.decl_scopes.last_mut().unwrap().push(e);
     }
 
-    #[allow(clippy::type_complexity)]
-    fn restore_pointers(&mut self, saved: Vec<(String, bool, Option<&'a Expr<'a>>, Option<Env>)>) {
-        for (n, sl, al, ae) in saved {
+    /// The innermost scope ends: each name it declared stands again for what it stood for
+    /// before, so an outer local, storage pointer or state variable of that name is seen again.
+    fn end_scope(&mut self) {
+        for (n, sl, al, ae, v) in self.decl_scopes.pop().unwrap_or_default() {
             if sl {
                 self.slocals.insert(n.clone());
             } else {
@@ -2065,8 +2059,12 @@ impl<'p, 'a> Vc<'p, 'a> {
                 None => self.aliases.remove(&n),
             };
             match ae {
-                Some(e) => self.alias_env.insert(n, e),
+                Some(e) => self.alias_env.insert(n.clone(), e),
                 None => self.alias_env.remove(&n),
+            };
+            match v {
+                Some(v) => self.env.insert(n, v),
+                None => self.env.remove(&n),
             };
         }
     }
@@ -2078,6 +2076,8 @@ impl<'p, 'a> Vc<'p, 'a> {
         self.alias_env.remove(name);
     }
 
+    /// A block's statements without a scope of their own: a function, modifier or constructor
+    /// body, whose names its specs still read when it returns.
     fn exec_block_stmts(&mut self, b: &'a ast::Block<'a>) -> R<()> {
         for s in b.stmts.iter() {
             if self.guard == "false" {
@@ -2161,6 +2161,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                         init
                     }
                 };
+                self.note_decl(&name);
                 self.env.remove(&name);
                 self.slocals.insert(name.clone());
                 match cap {
@@ -2188,6 +2189,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                         ),
                     ));
                 };
+                self.note_decl(&name);
                 self.env.remove(&name);
                 self.slocals.insert(name.clone());
                 self.alias_env.insert(name.clone(), env);
@@ -2203,6 +2205,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                         ),
                     ));
                 }
+                self.note_decl(&name);
                 self.env.remove(&name);
                 self.slocals.insert(name);
             }
@@ -2222,6 +2225,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                     None => self.zero_var(&ty),
                 };
                 let name = v.name.map(|n| n.as_str().to_string()).unwrap_or_default();
+                self.note_decl(&name);
                 self.unalias(&name);
                 self.bind(&name, ty, val);
             }
@@ -2231,6 +2235,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                     if let Some(v) = v.as_ref().unspan() {
                         let ty = self.ty_of_decl(&v.ty);
                         let name = v.name.map(|n| n.as_str().to_string()).unwrap_or_default();
+                        self.note_decl(&name);
                         self.unalias(&name);
                         self.bind(&name, ty, val);
                     }
@@ -2277,13 +2282,13 @@ impl<'p, 'a> Vc<'p, 'a> {
             StmtKind::While(c, body) => self.exec_loop(s, Some(c), None, body)?,
             StmtKind::For { init, cond, next, body } => {
                 // The init declaration is in scope for the loop only.
-                let saved = self.save_pointers(init.as_deref().into_iter());
+                self.decl_scopes.push(vec![]);
                 let r = match init {
                     Some(i) => self.exec_stmt(i),
                     None => Ok(()),
                 }
                 .and_then(|()| self.exec_loop(s, cond.as_deref(), next.as_deref(), body));
-                self.restore_pointers(saved);
+                self.end_scope();
                 r?;
             }
             StmtKind::Return(e) => {

@@ -1260,3 +1260,8 @@ fn storage_pointer_scope() {
 fn for_init_shadow() {
     check("tests/cases/for_init_shadow.sol")
 }
+
+#[test]
+fn for_init_pointer() {
+    check("tests/cases/for_init_pointer.sol")
+}
