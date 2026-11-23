@@ -3,11 +3,48 @@
 import hashlib
 import tempfile
 from collections import deque
+from dataclasses import dataclass
 from itertools import batched
 from pathlib import Path
 
 from . import audit, dead_ssa, entry_proof, phase_carriers, prune, type_prune
 from .common import Program, Unsupported
+
+
+@dataclass(frozen=True)
+class IncrementGuard:
+    argument: int
+    sum: int
+    guard: int
+    uses_previous: bool
+
+
+WORD = {"kind": "word", "bits": 256, "name": "i256"}
+FLAG = {"kind": "word", "bits": 1, "name": "i1"}
+
+
+def increment_guard(instructions, position):
+    """Bind both outputs of an adjacent i256 increment and overflow test."""
+    if position + 1 >= len(instructions):
+        return None
+    add, guard = instructions[position : position + 2]
+    if word_key(add) != ("add", 1) or guard["type"] != FLAG or guard["result"] is None:
+        return None
+    op = guard["operation"]
+    if op["kind"] != "opcode":
+        return None
+    original = add["operation"]["args"][0]
+    wrapped = {"kind": "local", "type": WORD, "index": add["result"]}
+    zero = {"kind": "constant", "type": WORD, "value": "0"}
+    if op["name"] == "lt" and op["args"] == [wrapped, original]:
+        uses_previous = True
+    elif op["name"] == "eq" and op["args"] in ([wrapped, zero], [zero, wrapped]):
+        uses_previous = False
+    else:
+        return None
+    return IncrementGuard(
+        original["index"], add["result"], guard["result"], uses_previous
+    )
 
 
 def import_graph(body):
@@ -44,8 +81,12 @@ def import_graph(body):
                 ("action", phis, [next]) if phis else ("forward", None, [next])
             )
         elif position < len(block["instructions"]):
-            inst = block["instructions"][position]
-            nodes.append(("action", inst, [point(index, None, position + 1)]))
+            instructions = block["instructions"]
+            if guard := increment_guard(instructions, position):
+                nodes.append(("action", guard, [point(index, None, position + 2)]))
+            else:
+                inst = instructions[position]
+                nodes.append(("action", inst, [point(index, None, position + 1)]))
         else:
             term = block["terminator"]
             match term["kind"]:
@@ -57,8 +98,7 @@ def import_graph(body):
                     (condition,) = term["args"]
                     if (
                         condition["kind"] == "constant"
-                        and condition["type"]
-                        == {"kind": "word", "bits": 1, "name": "i1"}
+                        and condition["type"] == FLAG
                         and condition["value"] in {"0", "1"}
                     ):
                         nodes.append(("literal", condition["value"] == "1", edges))
@@ -99,6 +139,8 @@ def flat_insert(data):
 
 
 def reads(data):
+    if isinstance(data, IncrementGuard):
+        return [data.argument]
     insert = flat_insert(data)
     if insert is not None and insert[0]["kind"] == "undefined":
         return dead_ssa.reads(insert[1])
@@ -150,6 +192,8 @@ theorem {name} : MIR.ProductInit.safe [{",".join(inserts)}] {sorted(observed)} =
 
 
 def writes(data):
+    if isinstance(data, IncrementGuard):
+        return [data.sum, data.guard]
     if isinstance(data, list):
         return [phi["result"] for phi in data]
     result = data.get("result")
@@ -164,13 +208,12 @@ def word_key(data):
     if operation["kind"] != "opcode" or op not in {"add", "sub"}:
         return None
     operands = operation["args"]
-    word = {"kind": "word", "bits": 256, "name": "i256"}
     if (
         len(operands) != 2
         or operands[0]["kind"] != "local"
         or operands[1]["kind"] != "constant"
-        or any(value["type"] != word for value in operands)
-        or data["type"] != word
+        or any(value["type"] != WORD for value in operands)
+        or data["type"] != WORD
         or data["result"] is None
     ):
         return None
@@ -181,6 +224,8 @@ def word_key(data):
 
 
 def action_signature(data):
+    if isinstance(data, IncrementGuard):
+        return ("increment-guard",)
     key = word_key(data)
     if key is None:
         return dead_ssa.signature(data)
@@ -194,6 +239,7 @@ def pairing(old, new):
     targets, live, definitions = [], [], []
     jump_limit = 1
     word_rewrites = 0
+    increment_rewrites = 0
 
     def index(pair):
         if pair not in locations:
@@ -228,6 +274,8 @@ def pairing(old, new):
         ):
             raise Unsupported("MIR control-flow comparison changed a typed action")
         word_rewrites += word_key(left) != word_key(right)
+        if isinstance(left, IncrementGuard) and isinstance(right, IncrementGuard):
+            increment_rewrites += left.uses_previous != right.uses_previous
         targets.append(
             [index(edge) for edge in zip(left_edges, right_edges, strict=True)]
         )
@@ -261,7 +309,7 @@ def pairing(old, new):
         raise Unsupported(
             "MIR CFG entry depends on a local without a matched definition"
         )
-    return points, targets, live, jump_limit, word_rewrites
+    return points, targets, live, jump_limit, word_rewrites, increment_rewrites
 
 
 def render(nodes, symbols):
@@ -271,7 +319,9 @@ def render(nodes, symbols):
         if kind == "literal":
             return f".literalBranch {str(data).lower()} {edges[0]} {edges[1]}"
         word = word_key(data)
-        if word:
+        if isinstance(data, IncrementGuard):
+            key = f"(.incrementGuard {str(data.uses_previous).lower()})"
+        elif word:
             op, value = word
             key = f"(.{op}Constant {value}#256)"
         else:
@@ -415,6 +465,7 @@ set_option maxHeartbeats 2000000
 #print axioms MIR.CfgFlow.typed_enter_empty
 #print axioms MIR.CfgFlow.typed_literal_branch
 #print axioms MIR.CfgFlow.normalized_word_result
+#print axioms MIR.CfgFlow.normalized_increment_result
 #print axioms MIR.PhaseShaping.pointer_carrier
 #print axioms MIR.PhaseShaping.full_word_casts
 #print axioms MIR.ProductInit.construct_initialized
@@ -425,7 +476,7 @@ set_option maxHeartbeats 2000000
     checked = {}
     calls = {}
     procedure_pairs = []
-    axioms_checks = 8
+    axioms_checks = 9
     while work:
         name = work.pop()
         if name in checked:
@@ -488,7 +539,9 @@ theorem identical{i} : before{i} = after{i} := by rfl
             )
         else:
             try:
-                points, edges, live, limit, word_rewrites = pairing(old, new)
+                points, edges, live, limit, word_rewrites, increment_rewrites = pairing(
+                    old, new
+                )
             except Unsupported as error:
                 try:
                     proof, copies = phase_carriers.paired_proof(i, a, b)
@@ -518,6 +571,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 ],
                 "live_pairs": sum(map(len, live)),
                 "word_rewrites": word_rewrites,
+                "increment_guard_rewrites": increment_rewrites,
                 "literal_branches": literal_branches,
             }
         checked[name]["product_initialization"] = product_initialization

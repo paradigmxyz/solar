@@ -14,11 +14,13 @@ inductive ActionKey where
   | opaque (id : Nat)
   | addConstant (value : Word)
   | subConstant (value : Word)
+  | incrementGuard (usesPrevious : Bool)
   | directCall (callee signature : Nat) (tail : Bool)
   deriving DecidableEq
 
 def ActionKey.normalized : ActionKey → ActionKey
   | .subConstant constant => .addConstant (-constant)
+  | .incrementGuard _ => .incrementGuard false
   | key => key
 
 def ActionKey.wordResult (key : ActionKey) (input : Word) : Option Word :=
@@ -33,6 +35,32 @@ theorem normalized_word_result (key : ActionKey) (input : Word) :
     key.normalized.wordResult input = key.wordResult input := by
   cases key <;> simp [ActionKey.normalized, ActionKey.wordResult, MIR.eval,
     BitVec.sub_eq_add_neg]
+
+/-- An increment and its adjacent overflow test both produce observable SSA
+results. The test can use the old input or compare the wrapped sum to zero. -/
+def incrementResult (usesPrevious : Bool) (input : Word) : Word × BitVec 1 :=
+  let sum := MIR.eval .add input 1
+  (sum, if usesPrevious then MIR.compare .lt sum input else MIR.compare .eq sum 0)
+
+theorem normalized_increment_result (usesPrevious : Bool) (input : Word) :
+    incrementResult usesPrevious input = incrementResult false input := by
+  cases usesPrevious
+  · rfl
+  · simp only [incrementResult, MIR.eval, MIR.compare, Bool.false_eq_true, ite_false, ite_true,
+      Prod.mk.injEq, true_and]
+    have wrap : (input + 1).ult input = ((input + 1) == 0) := by
+      rw [Bool.eq_iff_iff, BitVec.ult_iff_toNat_lt, beq_iff_eq, BitVec.toNat_eq,
+        BitVec.toNat_add]
+      change (input.toNat + 1) % 2 ^ 256 < input.toNat ↔
+        (input.toNat + 1) % 2 ^ 256 = 0
+      have bound : input.toNat < 2 ^ 256 := input.isLt
+      by_cases next : input.toNat + 1 < 2 ^ 256
+      · rw [Nat.mod_eq_of_lt next]
+        omega
+      · have overflow : input.toNat + 1 = 2 ^ 256 := by omega
+        rw [overflow, Nat.mod_self]
+        omega
+    rw [wrap]
 
 structure Action where
   key : ActionKey

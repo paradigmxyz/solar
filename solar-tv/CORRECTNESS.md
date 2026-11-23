@@ -685,6 +685,12 @@ They cover ERC20Mock `name`, `symbol` and the storage-bytes load and store
 helpers. The regression replays a wrong subtraction through a two-iteration
 loop in both interpreters.
 
+An adjacent i256 increment and its overflow test can form one action with two
+results. The kernel proves that `sum < previous` and `sum == 0` agree on every
+word, preserving both the sum and the branch condition. That certificate
+also verifies the frozen Morpho `extSloads` egraph rewrite. The regression
+changes the zero test and replays the wrong result at the wrap boundary.
+
 The checked MIR call table also supports direct recursive calls. A request
 identifies its callee and typed operands, and the state resumes from that
 callee's result. The kernel composes the checked bodies by induction on

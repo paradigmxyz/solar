@@ -454,6 +454,90 @@ fn @step() -> i256 {
                 record["witness"]["native_observations"],
             )
 
+    def test_egraph_preserves_a_loop_increment_guard(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{name}.mir" for name in ("before", "after"))
+            before.write_text("""@module OverflowLoop
+fn @choose() -> i256 {
+  bb0:
+    v0 = sload 1
+    jump bb1
+  bb1:
+    v1 = phi [bb0: v0], [bb3: v3]
+    v2 = phi [bb0: 0], [bb3: 1]
+    v3 = add v1, 1
+    v4 = lt v3, v1
+    jumpi v4, bb2, bb3
+  bb2:
+    ret v2
+  bb3:
+    v5 = eq v2, 0
+    jumpi v5, bb1, bb4
+  bb4:
+    ret v3
+}
+""")
+            output = subprocess.check_output(
+                [SOLAR, before, "-j1", "-Ogas", "-Zmir-pipeline=egraph"],
+                text=True,
+                timeout=20,
+            )
+            after.write_text(output)
+            record = self.check_loop(root, 0)
+            self.assertEqual(
+                record["import_correspondence"][0]["correspondence"]["choose"][
+                    "increment_guard_rewrites"
+                ],
+                1,
+            )
+
+            wrong, count = re.subn(
+                r"(v\d+ = eq (v\d+), )0(\n    jumpi v\d+, bb2, bb3)",
+                r"\g<1>1\g<3>",
+                output,
+            )
+            self.assertEqual(count, 1)
+            after.write_text(wrong)
+            self.check_loop(root, 2)
+            fixture = root / "world.json"
+            fixture.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "accounts": [
+                            {"address": 65536, "storage": {"1": str(2**256 - 1)}}
+                        ],
+                    }
+                )
+            )
+            report = root / "report.json"
+            result = subprocess.run(
+                [
+                    CLI,
+                    "mir",
+                    before,
+                    after,
+                    "--function=choose",
+                    "--solar",
+                    SOLAR,
+                    "--timeout=30",
+                    "--report",
+                    report,
+                    "--world",
+                    fixture,
+                ],
+                text=True,
+                capture_output=True,
+                timeout=90,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            record = json.loads(report.read_text())
+            self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+            witness = record["witness"]
+            self.assertEqual(witness["observations"], witness["native_observations"])
+
     def test_cfg_simplify_checks_mutually_recursive_callees(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
