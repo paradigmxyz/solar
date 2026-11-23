@@ -1,4 +1,5 @@
 import SolarTV.MIR.State.Interpreter
+import SolarTV.MIR.Transforms.RoundedExtent
 import SolarTV.MIR.Transforms.WordRewrite
 
 /-! Path-sensitive comparison of typed MIR graphs. The importer resolves phi
@@ -15,12 +16,14 @@ inductive ActionKey where
   | opaque (id : Nat)
   | word (operation : WordRewrite.Key)
   | incrementGuard (usesPrevious : Bool)
+  | roundedExtent (division checked : Bool)
   | directCall (callee signature : Nat) (tail : Bool)
   deriving DecidableEq
 
 def ActionKey.normalized : ActionKey → ActionKey
   | .word operation => .word operation.normalize
   | .incrementGuard _ => .incrementGuard false
+  | .roundedExtent .. => .roundedExtent false false
   | key => key
 
 /-- An increment and its adjacent overflow test both produce observable SSA

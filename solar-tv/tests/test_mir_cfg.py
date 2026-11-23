@@ -702,6 +702,74 @@ fn @choose() -> i256 {
             witness = record["witness"]
             self.assertEqual(witness["observations"], witness["native_observations"])
 
+    def test_egraph_discharges_rounded_extent_overflow_from_length(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{name}.mir" for name in ("before", "after"))
+            source = """@module Extent
+fn @choose() -> i256 {
+  bb0:
+    v0 = sload 1
+    v1 = shr v0, 1
+    v2 = sload 2
+    v3 = and v1, v2
+    v4 = add v3, 31
+    v5 = div v4, 32
+    v6 = add v3, 31
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v8 = add v7, 32
+    v9 = lt v8, v3
+    jumpi v9, bb1, bb2
+  bb1:
+    ret 77
+  bb2:
+    v10 = phi [bb0: false], [bb2: true]
+    sstore 3, v5
+    jumpi v10, bb3, bb2
+  bb3:
+    ret v8
+}
+"""
+            before.write_text(source)
+            output = subprocess.check_output(
+                [SOLAR, before, "-j1", "-Ogas", "-Zmir-pipeline=egraph"],
+                text=True,
+                timeout=20,
+            )
+            self.assertIn("jumpi false, bb1, bb2", output)
+            after.write_text(output)
+            record = self.check_loop(root, 0)
+            self.assertEqual(
+                record["import_correspondence"][0]["correspondence"]["choose"][
+                    "rounded_extent_guards"
+                ],
+                [1, 0],
+            )
+
+            # Drop the size bound on both sides. Removing the check is now invalid.
+            before.write_text(source.replace("shr v0, 1", "shr v0, 0"))
+            after.write_text(output.replace("shr v0, 1", "shr v0, 0"))
+            self.check_loop(root, 2)
+            fixture = root / "world.json"
+            full_word = str(2**256 - 1)
+            fixture.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "accounts": [
+                            {
+                                "address": 65536,
+                                "storage": {"1": full_word, "2": full_word},
+                            }
+                        ],
+                    }
+                )
+            )
+            record = self.check_loop(root, 1, fixture=fixture)
+            self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+            witness = record["witness"]
+            self.assertEqual(witness["observations"], witness["native_observations"])
+
     def test_cfg_simplify_checks_mutually_recursive_callees(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

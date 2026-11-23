@@ -26,6 +26,14 @@ class HighMask:
     complement: bool
 
 
+@dataclass(frozen=True)
+class RoundedExtent:
+    length: int
+    results: tuple[int, int, int, int]
+    division: bool
+    checked: bool
+
+
 WORD = {"kind": "word", "bits": 256, "name": "i256"}
 FLAG = {"kind": "word", "bits": 1, "name": "i1"}
 
@@ -107,10 +115,86 @@ def high_mask(instructions, position, uses):
     return None
 
 
+def shifted_length(value, definitions):
+    source = definitions.get(value.get("index")) if value["kind"] == "local" else None
+    if source is None:
+        return False
+    shift = word_operands(source, "shr")
+    return (
+        len(shift) == 2
+        and shift[1]["kind"] == "constant"
+        and int(shift[1]["value"]) > 0
+    )
+
+
+def rounded_extent(block, position, uses, definitions):
+    """Check a block suffix that computes allocation size and dispatches on overflow."""
+    term = block["terminator"]
+    instructions = block["instructions"]
+    if term["kind"] != "branch" or not 4 <= len(instructions) - position <= 6:
+        return None
+    sum_, quotient, *tail = instructions[position:]
+    total = word_operands(sum_, "add")
+    if len(total) != 2 or total[0]["kind"] != "local" or total[1] != word_constant(31):
+        return None
+    length = total[0]
+    source = definitions.get(length["index"])
+    if source is None or not (
+        shifted_length(length, definitions)
+        or any(
+            shifted_length(operand, definitions)
+            for operand in word_operands(source, "and")
+        )
+    ):
+        return None
+
+    rounded = word_local(sum_["result"])
+    division = word_operands(quotient, "div") == [rounded, word_constant(32)]
+    if not division and word_operands(quotient, "shr") != [rounded, word_constant(5)]:
+        return None
+    # The division and alignment may share the sum or compute it twice.
+    if word_operands(tail[0], "add") == total:
+        if len(tail) < 3 or uses[tail[0]["result"]] != 1:
+            return None
+        rounded = word_local(tail.pop(0)["result"])
+    aligned, extent, *guard = tail
+    if word_operands(aligned, "and") != [rounded, word_constant(2**256 - 32)] or (
+        word_operands(extent, "add")
+        != [word_local(aligned["result"]), word_constant(32)]
+    ):
+        return None
+    if len(guard) == 1:
+        comparison = guard[0]
+        result = comparison["result"]
+        if comparison["type"] != FLAG or result is None or uses[result] != 1:
+            return None
+        expected = {"kind": "local", "type": FLAG, "index": result}
+        if comparison["operation"] != {
+            "kind": "opcode",
+            "name": "lt",
+            "args": [word_local(extent["result"]), length],
+        }:
+            return None
+    elif not guard:
+        expected = {"kind": "constant", "type": FLAG, "value": "0"}
+    else:
+        return None
+    if term["args"] != [expected]:
+        return None
+    results = (sum_["result"], quotient["result"], aligned["result"], extent["result"])
+    return RoundedExtent(length["index"], results, division, bool(guard))
+
+
 def import_graph(body):
     """Keep predecessor-selected phi inputs as one simultaneous action."""
     blocks = body["blocks"]
     uses = Counter(dead_ssa.reads(blocks, reject_undefined=False))
+    definitions = {
+        inst["result"]: inst
+        for block in blocks
+        for inst in block["instructions"]
+        if inst["result"] is not None
+    }
     points, nodes = {(0, None, -1): 0}, []
     pending = deque(points)
 
@@ -148,6 +232,10 @@ def import_graph(body):
             elif mask := high_mask(instructions, position, uses):
                 data, length = mask
                 nodes.append(("action", data, [point(index, None, position + length)]))
+            elif extent := rounded_extent(block, position, uses, definitions):
+                nodes.append(
+                    ("action", extent, [point(block["terminator"]["else"], index)])
+                )
             else:
                 inst = instructions[position]
                 nodes.append(("action", inst, [point(index, None, position + 1)]))
@@ -205,6 +293,8 @@ def flat_insert(data):
 def reads(data):
     if isinstance(data, (IncrementGuard, HighMask)):
         return [data.argument]
+    if isinstance(data, RoundedExtent):
+        return [data.length]
     if word_key(data) == ("double", 1):
         return [data["operation"]["args"][0]["index"]]
     insert = flat_insert(data)
@@ -262,6 +352,8 @@ def writes(data):
         return [data.sum, data.guard]
     if isinstance(data, HighMask):
         return [data.result]
+    if isinstance(data, RoundedExtent):
+        return list(data.results)
     if isinstance(data, list):
         return [phi["result"] for phi in data]
     result = data.get("result")
@@ -298,6 +390,8 @@ def word_key(data):
 def action_signature(data):
     if isinstance(data, IncrementGuard):
         return ("increment-guard",)
+    if isinstance(data, RoundedExtent):
+        return ("rounded-extent",)
     key = word_key(data)
     if key is None:
         return dead_ssa.signature(data)
@@ -404,6 +498,8 @@ def render(nodes, symbols):
         word = word_key(data)
         if isinstance(data, IncrementGuard):
             key = f"(.incrementGuard {str(data.uses_previous).lower()})"
+        elif isinstance(data, RoundedExtent):
+            key = f"(.roundedExtent {str(data.division).lower()} {str(data.checked).lower()})"
         elif word:
             op, value = word
             match op:
@@ -558,6 +654,9 @@ set_option maxHeartbeats 2000000
 #print axioms MIR.CfgFlow.typed_literal_branch
 #print axioms MIR.WordRewrite.normalized
 #print axioms MIR.CfgFlow.normalized_increment_result
+#print axioms MIR.RoundedExtent.shifted_length
+#print axioms MIR.RoundedExtent.masked_length
+#print axioms MIR.RoundedExtent.normalized
 #print axioms MIR.PhaseShaping.pointer_carrier
 #print axioms MIR.PhaseShaping.full_word_casts
 #print axioms MIR.PhaseShaping.calldata_size_copy
@@ -569,7 +668,7 @@ set_option maxHeartbeats 2000000
     checked = {}
     calls = {}
     procedure_pairs = []
-    axioms_checks = 10
+    axioms_checks = 13
     while work:
         name = work.pop()
         if name in checked:
@@ -669,6 +768,18 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 "literal_branches": literal_branches,
             }
         checked[name]["product_initialization"] = product_initialization
+        if any(
+            isinstance(data, RoundedExtent)
+            for graph in (old, new)
+            for _, data, _ in graph
+        ):
+            checked[name]["rounded_extent_guards"] = [
+                sum(
+                    isinstance(data, RoundedExtent) and data.checked
+                    for _, data, _ in graph
+                )
+                for graph in (old, new)
+            ]
         procedure_pairs.append(
             f"⟨{a['id']},⟨before{i},{limit}⟩,⟨after{i},{limit}⟩,{matched}⟩"
         )

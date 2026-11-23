@@ -719,11 +719,14 @@ Volatile returndata size remains an ordinary operation. This verifies a
 third frozen Morpho `extSloads` rewrite. The regression substitutes
 returndata size and independently reproduces a different return value.
 
-The current serial recheck verifies 17 of 19 previously unsupported
+The current serial recheck verifies 18 of 19 previously unsupported
 loop-related captures. All six CSE and both loop-layout captures verify.
-Nine of the eleven egraph captures verify. ERC20Mock `load_storage_bytes`
-still needs an allocation bound, and the remaining Morpho `extSloads`
-pair needs slice and checked-arithmetic correspondence.
+Ten of the eleven egraph captures verify. In ERC20Mock
+`load_storage_bytes`, a right shift bounds the length, and the mask
+preserves the bound. Lean proves the 32-byte rounding and header
+addition stay in range, keeping the checked allocation and all its live
+inputs. The remaining Morpho `extSloads` pair needs slice and
+checked-arithmetic correspondence.
 
 The checked MIR call table also supports direct recursive calls. A request
 identifies its callee and typed operands, and the state resumes from that
