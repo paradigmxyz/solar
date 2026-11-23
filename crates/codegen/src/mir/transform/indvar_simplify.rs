@@ -1469,8 +1469,8 @@ impl IndVarSimplifier {
     }
 
     /// Operations a pointer that takes over the exit test adds once per entry to the loop: its
-    /// end in the preheader, with the clamp an equality exit may need, and the counter's rebuild
-    /// in each block or edge after the loop that reads it.
+    /// start and end in the preheader, with the clamps an equality exit may need, and the
+    /// counter's rebuild in each block or edge after the loop that reads it.
     fn pointer_setup_cost(
         key: &AddressKey,
         exit: PointerExit,
@@ -1479,11 +1479,21 @@ impl IndVarSimplifier {
     ) -> usize {
         let scaling = if key.scale == 1 { 0 } else { 2 };
         let offset = if key.constant != 0 { 2 } else { 0 };
-        let clamp =
-            if matches!(exit, PointerExit::Reaches(_)) && key.scale % 2 == 0 { 6 } else { 0 };
+        // A start other than the base adds its offset to the base.
+        let start = if key.constant != 0 || !init_is_zero { 2 } else { 0 };
+        // An equality exit lowers the bound to `2^65` for an even scale and raises it to a
+        // nonzero start.
+        let clamp = match exit {
+            PointerExit::Below => 0,
+            PointerExit::Reaches(from) => {
+                let upper = if key.scale % 2 == 0 { 6 } else { 0 };
+                let lower = if from.is_zero() { 0 } else { 6 };
+                upper + lower
+            }
+        };
         let end = 2 + scaling + offset + clamp;
         let rebuild = 2 + scaling + if init_is_zero { 0 } else { 2 };
-        end + reads.map_or(0, |reads| reads.blocks.len() + reads.phis.len()) * rebuild
+        start + end + reads.map_or(0, |reads| reads.blocks.len() + reads.phis.len()) * rebuild
     }
 
     /// Operations a family's pointer uses cost: one duplication per primary use and three per

@@ -1,0 +1,38 @@
+- ; === ROOT/tests/ui/codegen/mir/indvar-simplify/nonzero_start.mir (before indvar-simplify) ===
++ ; === ROOT/tests/ui/codegen/mir/indvar-simplify/nonzero_start.mir (after indvar-simplify) ===
+  @module NonzeroStart
+  fn @scan(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      jump bb1
+    bb1:                                            ; preds = bb0, bb2
+      v0 = phi [bb0: 1], [bb2: v18]
+      v1 = phi [bb0: 0], [bb2: v12]
+      v2 = phi [bb0: 0], [bb2: v13]
+      v3 = phi [bb0: 0], [bb2: v14]
+      v4 = phi [bb0: 0], [bb2: v15]
+      v5 = phi [bb0: 0], [bb2: v16]
+      v6 = phi [bb0: 0], [bb2: v17]
+      v7 = lt v0, arg1
+      jumpi v7, bb2, bb3
+    bb3:                                            ; preds = bb1
+      v19 = add v1, v2
+      v20 = add v19, v3
+      v21 = add v20, v4
+      v22 = add v21, v5
+      v23 = add v22, v6
+      ret v23
+    bb2:                                            ; preds = bb1
+      v8 = add arg0, v0
+      v9 = mload v8
+      v10 = add arg0, v0
+      v11 = mload v10
+      v12 = mul v9, v1
+      v13 = mul v11, v2
+      v14 = mul v9, v3
+      v15 = mul v11, v4
+      v16 = mul v9, v5
+      v17 = mul v11, v6
+      v18 = add v0, 1
+      jump bb1
+  }
+  
