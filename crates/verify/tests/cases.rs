@@ -1203,3 +1203,8 @@ fn encode_ptr_scope() {
     let f = "Leaf.constructor";
     assert_eq!(got.get(f), Some(&"unknown"), "{f}\n{}\n{}", run.stdout, run.stderr);
 }
+
+#[test]
+fn encode_modifier_alias() {
+    check("tests/cases/encode_modifier_alias.sol")
+}

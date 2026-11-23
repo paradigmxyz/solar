@@ -5183,9 +5183,19 @@ impl<'p, 'a> Vc<'p, 'a> {
         let Some(body) = &f.item.body else {
             return (true, vec![]);
         };
-        // Modifier arguments run in the function's scope before its body.
-        let mod_args: Vec<&'a Expr<'a>> =
-            f.item.header.modifiers.iter().flat_map(|m| m.arguments.exprs()).collect();
+        // Modifier arguments run in the function's scope before its body. Each is paired with
+        // whether its modifier parameter may receive a memory reference (unknown modifiers may).
+        let mut mod_args: Vec<(&'a Expr<'a>, bool)> = vec![];
+        for m in f.item.header.modifiers.iter() {
+            let params =
+                self.c.modifiers.get(m.name.last().as_str()).map(|md| &md.header.parameters);
+            for (i, a) in m.arguments.exprs().enumerate() {
+                let by_ref = params.is_none_or(|ps| {
+                    ps.get(i).is_none_or(|p| p.data_location == Some(ast::DataLocation::Memory))
+                });
+                mod_args.push((a, by_ref));
+            }
+        }
         let outer = self.mem_walk.replace(Some(vec![]));
         self.effect_frames.borrow_mut().push(Self::fn_ptr_names(f.item));
         let direct = self.mem_param_written_body(body, &mod_args, n);
@@ -5202,7 +5212,7 @@ impl<'p, 'a> Vc<'p, 'a> {
     fn mem_param_written_body(
         &self,
         body: &'a ast::Block<'a>,
-        mod_args: &[&'a Expr<'a>],
+        mod_args: &[(&'a Expr<'a>, bool)],
         n: &str,
     ) -> bool {
         let is_n =
@@ -5231,10 +5241,12 @@ impl<'p, 'a> Vc<'p, 'a> {
         // A modifier argument may write `n` itself, or hand `n` to the modifier, whose body may
         // then write it through its own parameter.
         let mut passed = false;
-        for a in mod_args {
-            // A call's result is a new value; anything else may be (part of) `n` itself.
-            passed |= !matches!(a.peel_parens().kind, ExprKind::Call(..))
-                && walk::root(a).iter().any(|r| r == n);
+        for &(a, by_ref) in mod_args {
+            // A reference the modifier receives may be `n`'s object or part of it, through any
+            // branch, index or call result that mentions `n`; a value parameter copies it.
+            if by_ref {
+                walk::sub_exprs(a, &mut |x| passed |= is_n(x));
+            }
             walk::sub_exprs(a, &mut expr);
         }
         for s in body.stmts.iter() {
