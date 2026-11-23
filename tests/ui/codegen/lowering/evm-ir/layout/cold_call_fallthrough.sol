@@ -32,7 +32,7 @@ contract ColdCallFallthrough {
     // SIZE-NEXT: jumpi
     // SIZE-NOT: jump
     // SIZE: return
-    // SIZE: [[SIZE_COLD]] [cold]:
+    // SIZE: [[SIZE_COLD]] [cold{{.*}}]:
     function nonzero(uint256 value) external pure returns (uint256) {
         if (value == 0) abort(value);
         return value;

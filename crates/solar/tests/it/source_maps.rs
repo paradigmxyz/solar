@@ -344,6 +344,29 @@ fn tail_call_entry_label_maps_to_definition() {
 }
 
 #[test]
+fn shared_callee_label_keeps_its_own_entry() {
+    // `a` falls through into `halt` while `b` jumps to it, so its `JUMPDEST` marks the entry of
+    // `halt`, not of the caller that falls into it.
+    let name = "src/FallthroughEntry.sol:FallthroughEntry";
+    let debug = compile_files(
+        &["src/FallthroughEntry.sol"],
+        "none",
+        "bin,bin-runtime,ethdebug-runtime",
+        &[],
+    );
+    let instructions =
+        debug["contracts"][name]["ethdebug-runtime"]["instructions"].as_array().unwrap();
+    let invoked =
+        |inst: &Value| inst["context"]["invoke"]["identifier"].as_str().map(str::to_owned);
+    assert!(
+        instructions.iter().any(|inst| {
+            inst["operation"]["mnemonic"] == "JUMPDEST" && invoked(inst).as_deref() == Some("halt")
+        }),
+        "the `JUMPDEST` of `halt` must mark its entry"
+    );
+}
+
+#[test]
 fn tail_calls_keep_the_call_location() {
     let source = RealFileLoader.load_file(&Path::new(FIXTURES).join("src/TailCalls.sol")).unwrap();
     let function = |header: &str| {
@@ -644,50 +667,24 @@ fn shared_custom_error_keeps_distinct_condition_origins() {
                 .expect("each rejection must keep its own condition location");
             destinations.push(instructions[index - 1]["operation"]["arguments"][0].clone());
         }
-        assert_eq!(destinations[0], destinations[1], "both guards share the same error body");
-        // NOTE: The shared body cannot have either call's unique source location. Coverage
-        // must distinguish the incoming edges instead of counting the common destination, so no
-        // entry from the shared label through its `REVERT` may name only one of the merged paths.
-        let target =
-            u64::from_str_radix(destinations[0].as_str().unwrap().trim_start_matches("0x"), 16)
-                .unwrap();
-        let label = instructions
-            .iter()
-            .position(|inst| {
-                inst["operation"]["mnemonic"] == "JUMPDEST" && inst["offset"] == target
-            })
-            .expect("the guards jump to a `JUMPDEST`");
-        let revert = label
-            + instructions[label..]
+        // `-Onone` gives each rejection its own error body, so no body merges the locations of
+        // both guards.
+        assert_ne!(destinations[0], destinations[1], "each guard has its own error body");
+        let mut origins = Vec::new();
+        for destination in &destinations {
+            let target =
+                u64::from_str_radix(destination.as_str().unwrap().trim_start_matches("0x"), 16)
+                    .unwrap();
+            let label = instructions
                 .iter()
-                .position(|inst| inst["operation"]["mnemonic"] == "REVERT")
-                .expect("the shared body reverts");
-        let shared = entries[label..=revert]
-            .iter()
-            .zip(&instructions[label..=revert])
-            .map(|(entry, inst)| {
-                format!(
-                    "{} {}:{}:{}",
-                    inst["operation"]["mnemonic"].as_str().unwrap(),
-                    entry[0],
-                    entry[1],
-                    entry[2]
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        assert_data_eq!(
-            shared,
-            str![[r#"
-JUMPDEST -1:-1:-1
-PUSH4 -1:-1:-1
-PUSH0 -1:-1:-1
-MSTORE -1:-1:-1
-PUSH1 -1:-1:-1
-PUSH1 -1:-1:-1
-REVERT -1:-1:-1
-"#]]
-        );
+                .position(|inst| {
+                    inst["operation"]["mnemonic"] == "JUMPDEST" && inst["offset"] == target
+                })
+                .expect("the guards jump to a `JUMPDEST`");
+            origins.push(entries[label + 1]);
+        }
+        assert_ne!(origins[0], origins[1], "the error bodies keep distinct origins");
+        assert!(origins.iter().all(|entry| entry[0] != -1), "no error body merges origins");
         // The source-only assignments in `_state` have no instructions. Its return, which maps to
         // the closing brace of the body, still identifies successful completion of the helper,
         // independently of those locations.
@@ -743,14 +740,19 @@ fn external_calls_map_to_the_call_expression() {
             "token.transfer(to, 1)",
         ];
         assert_eq!(calls.len(), expressions.len(), "{mode}");
-        for (call, expression) in calls.iter().copied().zip(expressions) {
+        let mut try_call = 0;
+        for expression in expressions {
             let start = source.find(expression).unwrap();
             let end = start + expression.len();
-            assert_eq!(
-                entries[call],
-                [start as i64, expression.len() as i64, id],
-                "{mode}: the call of {expression} must map to the call expression"
-            );
+            // Layout may place the calls in any order.
+            let call = calls
+                .iter()
+                .copied()
+                .find(|&call| entries[call] == [start as i64, expression.len() as i64, id])
+                .unwrap_or_else(|| {
+                    panic!("{mode}: the call of {expression} must map to the call expression")
+                });
+            try_call = call;
             assert!(
                 entries[..call].iter().any(|&entry| in_statement(entry, id as usize, start, end)),
                 "{mode}: {expression} has no instruction before its call"
@@ -758,7 +760,7 @@ fn external_calls_map_to_the_call_expression() {
         }
         // The success test of the `try` belongs to the statement, not to the call.
         let statement = source.find("try token.transfer").unwrap();
-        let branch = (calls[2]..instructions.len())
+        let branch = (try_call..instructions.len())
             .find(|&index| instructions[index]["operation"]["mnemonic"] == "JUMPI")
             .unwrap();
         assert_eq!(entries[branch][0], statement as i64, "{mode}: the `try` branch");

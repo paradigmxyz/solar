@@ -48,17 +48,17 @@
             "cborAuxdata": {
               "A.sol:Child": [
                 {
-                  "offset": 415,
+                  "offset": 416,
                   "value": "0xa264697066735822122022ebc42e7e43fe1275cad7a94698a83ddd208f03e001457097286b7eceed73dd65736f6c6172430000000034"
                 },
                 {
-                  "offset": 502,
+                  "offset": 503,
                   "value": "0xa264697066735822122022ebc42e7e43fe1275cad7a94698a83ddd208f03e001457097286b7eceed73dd65736f6c6172430000000034"
                 }
               ],
               "A.sol:C": [
                 {
-                  "offset": 557,
+                  "offset": 558,
                   "value": "0xa264697066735822122002c3ed47cc33a58cdaffeb5ecd53b7f2bbd7978fad8bc74014d1f3caa00039ba65736f6c6172430000000034"
                 }
               ]
@@ -68,7 +68,7 @@
             "immutableReferences": {
               "12": [
                 {
-                  "start": 123,
+                  "start": 251,
                   "length": 32
                 }
               ]
@@ -76,17 +76,17 @@
             "cborAuxdata": {
               "A.sol:Child": [
                 {
-                  "offset": 384,
+                  "offset": 385,
                   "value": "0xa264697066735822122022ebc42e7e43fe1275cad7a94698a83ddd208f03e001457097286b7eceed73dd65736f6c6172430000000034"
                 },
                 {
-                  "offset": 471,
+                  "offset": 472,
                   "value": "0xa264697066735822122022ebc42e7e43fe1275cad7a94698a83ddd208f03e001457097286b7eceed73dd65736f6c6172430000000034"
                 }
               ],
               "A.sol:C": [
                 {
-                  "offset": 526,
+                  "offset": 527,
                   "value": "0xa264697066735822122002c3ed47cc33a58cdaffeb5ecd53b7f2bbd7978fad8bc74014d1f3caa00039ba65736f6c6172430000000034"
                 }
               ]
@@ -100,23 +100,23 @@
             "cborAuxdata": {
               "A.sol:Child": [
                 {
-                  "offset": 479,
+                  "offset": 480,
                   "value": "0xa264697066735822122022ebc42e7e43fe1275cad7a94698a83ddd208f03e001457097286b7eceed73dd65736f6c6172430000000034"
                 },
                 {
-                  "offset": 566,
+                  "offset": 567,
                   "value": "0xa264697066735822122022ebc42e7e43fe1275cad7a94698a83ddd208f03e001457097286b7eceed73dd65736f6c6172430000000034"
                 }
               ],
               "A.sol:C": [
                 {
-                  "offset": 621,
+                  "offset": 622,
                   "value": "0xa264697066735822122002c3ed47cc33a58cdaffeb5ecd53b7f2bbd7978fad8bc74014d1f3caa00039ba65736f6c6172430000000034"
                 }
               ],
               "A.sol:D": [
                 {
-                  "offset": 676,
+                  "offset": 677,
                   "value": "0xa26469706673582212205691fe589e7a1d07bb2eaa23ba78573e7ff0e568a5c290340ca8b836977b5d5665736f6c6172430000000034"
                 }
               ]

@@ -113,7 +113,7 @@ bb10 [cold]:
   shl
   push 2
   jump bb23
-bb23 [cold]:                                      ; revert_error (synthesized)
+bb23 [cold, function_entry]:                      ; revert_error (synthesized)
   push 32
   dup 1
   mstore

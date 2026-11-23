@@ -1109,6 +1109,7 @@ symbols! {
         frame_load,
         frame_store,
         from,
+        function_entry,
         function_pointer_dispatcher,
         gasleft,
         global,

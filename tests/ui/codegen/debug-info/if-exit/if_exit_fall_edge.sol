@@ -7,15 +7,15 @@
 //@ normalize-stdout-test: "(?s).+" -> ""
 
 // An arm that only assigns a local leaves no code of its own: `cfg-simplify` bypasses it and the
-// edge from the branch to the join holds the assignment. The block layout may put that edge's code
+// edge from the branch to the join holds the assignment. `-Onone` keeps the arm's block, which
+// names the assignment, and the push of the assignment keeps its origin. The block layout may put that edge's code
 // inline after the branch instead of in a trampoline. Either way the jump that leaves the arm has
 // no location, as it has in the arm's own block, and the origin of the condition does not come
 // back after the arm ran.
 contract C {
     // NONE-LABEL: ; function states(
-    // NONE: swap 2 !metadata(span=
-    // NONE-NEXT: pop !metadata(span=
-    // NONE-NEXT: push 33 !metadata(span=
+    // NONE: push 33 !metadata(span=
+    // NONE-NEXT: swap 1{{$}}
     // NONE-NEXT: jump {{bb[0-9]+}}{{$}}
     function states(uint256 n) external pure returns (uint256) {
         uint256 state = 0;

@@ -196,6 +196,19 @@ impl Module {
         (next < self.blocks.len()).then(|| BlockId::from_usize(next))
     }
 
+    /// Returns whether lowering the jump that ends `block` to `target` emits no instruction.
+    ///
+    /// A jump to the next block falls through, except that `-O none` keeps the jump of a call: it
+    /// is the call statement's only instruction.
+    #[must_use]
+    pub fn jump_falls_through(&self, block: BlockId, target: BlockId) -> bool {
+        let unoptimized =
+            self.blocks[block].metadata.optimization.unwrap_or(self.optimization).is_none();
+        let metadata = &self.blocks[target].metadata;
+        let calls = metadata.call_effect.is_some() || metadata.function_entry;
+        self.next_block(block) == Some(target) && !(unoptimized && calls)
+    }
+
     /// Returns the blocks whose lent function entry is still valid: the label has exactly one
     /// reference, a direct jump or branch to it. An opaque label use, a physical fallthrough, the
     /// program entry or a second incoming edge means the event no longer marks the transfer that
@@ -348,6 +361,9 @@ pub struct BlockMetadata {
     /// Direct jumps to the block are calls, and the return address is a block's address that the
     /// caller pushed before them. See [`CallEffect`].
     pub call_effect: Option<CallEffect>,
+    /// This block is the entry of an internal function, which a jump to it calls. Unlike
+    /// [`Self::call_effect`] it is set for a function that never returns.
+    pub function_entry: bool,
     /// A function entry lent to this block by a bypassed conditional thunk.
     ///
     /// NOTE: The event marks the callee's entry, so it sits on the destination only while the
@@ -797,10 +813,10 @@ pub const INDEXED_JUMP_STACK_GROWTH: usize = 3;
 impl TerminatorKind {
     /// Returns the temporary stack growth introduced when lowering this terminator.
     #[must_use]
-    pub fn lowering_stack_growth(&self, next: Option<BlockId>) -> usize {
+    pub fn lowering_stack_growth(&self, module: &Module, block: BlockId) -> usize {
         match self {
             Self::IndexedJump(_) => INDEXED_JUMP_STACK_GROWTH,
-            Self::Jump(target) => usize::from(Some(*target) != next),
+            Self::Jump(target) => usize::from(!module.jump_falls_through(block, *target)),
             Self::JumpI { .. } => 1,
             Self::Op(_) => 0,
         }

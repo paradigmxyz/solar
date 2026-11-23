@@ -291,3 +291,23 @@ fn @aggregate_arms(arg0: i1, arg1: struct0, arg2: struct0) -> struct0 {
     v0 = phi [bb0: arg1], [bb1: arg2]
     ret v0
 }
+
+// A CRC-32 step xors the shifted word with the polynomial when the dropped bit was set: the
+// triangle becomes a scaled exclusive or.
+// CHECK-LABEL: {{^[ +].*}}fn @crc_step{{[( ]}}
+// CHECK: - jumpi
+// CHECK: + [[SCALED:v[0-9]+]] = mul {{v[0-9]+}}, 0xedb88320
+// CHECK-NEXT: + {{v[0-9]+}} = xor v1, [[SCALED]]
+fn @crc_step(arg0: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 1
+    v1 = shr arg0, 1
+    v2 = ne v0, 0
+    jumpi v2, bb1, bb2
+  bb1:
+    v3 = xor v1, 0xedb88320
+    jump bb2
+  bb2:
+    v4 = phi [bb0: v1], [bb1: v3]
+    ret v4
+}

@@ -1,0 +1,133 @@
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `)`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │             if ()
+   ╰╴                ━ expected one of 10 possible tokens
+
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `)`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │             if ()
+   ╰╴                ━ expected one of 10 possible tokens
+
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `)`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │             if ()
+   ╰╴                ━ expected one of 10 possible tokens
+
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `]`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │             if (]
+   ╰╴                ━ expected one of 10 possible tokens
+
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `)`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │         if () {} else {}
+   ╰╴            ━ expected one of 10 possible tokens
+
+error: expected one of `(`, `+`, `[`, `assembly`, `break`, `continue`, `delete`, `do`, `emit`, `for`, `if`, `new`, `payable`, `return`, `revert`, `throw`, `try`, `type`, `unchecked`, `while`, `{`, `}`, elementary type name, identifier, or literal, found keyword `else`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │         if () {} else {}
+   ╰╴                 ━━━━ expected one of 25 possible tokens
+
+error: expected one of `(`, `)`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `]`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │         f(1, ];
+   ╰╴             ━ expected one of 11 possible tokens
+
+error: expected one of `(`, `+`, `[`, `assembly`, `break`, `continue`, `delete`, `do`, `emit`, `for`, `if`, `new`, `payable`, `return`, `revert`, `throw`, `try`, `type`, `unchecked`, `while`, `{`, `}`, elementary type name, identifier, or literal, found `;`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │         f(1, ];
+   ╰╴              ━ expected one of 25 possible tokens
+
+error: expected one of `(`, `)`, `+`, `,`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │         (x, (1, }
+   ╰╴                ━ expected one of 12 possible tokens
+
+error: expected `while`, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │         do x; }
+   ╰╴              ━ expected `while`
+
+error: expected `;`, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │         do break }
+   ╰╴                 ━ expected `;`
+
+error: expected one of `)`, literal, or path, found `]`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │             pop(] }
+   ╰╴                ━ expected one of `)`, literal, or path
+
+error: expected one of `(`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │     struct S { uint[ }
+   ╰╴                     ━ expected one of 10 possible tokens
+
+error: expected `;`, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │     struct S { uint[ }
+   │                       ─ expected `;`
+LL │
+LL │ }
+   ╰╴━ unexpected token
+
+error: expected one of `)`, `function`, `mapping`, elementary type name, or path, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │     function f(uint256 x, }
+   ╰╴                          ━ expected one of `)`, `function`, `mapping`, elementary type name, or path
+
+error: expected one of `(`, `)`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `]`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │     uint stateVar = f(1, ];
+   ╰╴                         ━ expected one of 11 possible tokens
+
+error: expected global item (pragma, import directive, contract, interface, library, struct, enum, constant, function, modifier, or error definition), found `]`
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │     uint stateVar = f(1, ];
+   │                          ━
+   │
+   ╰ note: for a full list of valid global items, see <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.sourceUnit>
+
+error: structs must have at least one field
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │     struct S { uint[ }
+   ╰╴           ━
+
+error: wrong argument count for function call: 0 arguments given but expected 1
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │             pop(] }
+   ╰╴            ━━━━ expected 1 argument, found 0
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │         uint8 value = 300;
+   ╰╴                      ━━━ expected `uint8`, found `int_literal[9]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/parser/recover_stray_close_delim.sol:LL:CC
+   │
+LL │     uint8 value = 300;
+   ╰╴                  ━━━ expected `uint8`, found `int_literal[9]`
+
+error: aborting due to 21 previous errors
+

@@ -169,6 +169,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 Some(effect) => self.asm.define_function_label(label, effect),
                 None => self.asm.define_label(label),
             }
+            self.asm.mark_function_entry(label);
             self.mark_block_label_origin(label, &func.blocks[BlockId::ENTRY].label_metadata);
             self.mark_debug_function_invoke(func, false);
             self.comment_function_entry(func, false, false);
@@ -303,9 +304,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         // A block that only jumps on is never emitted; edges into it go to its final target.
+        // `-O none` emits every block.
         let mut forward = FxHashMap::default();
         for (block, block_plan) in plan.blocks.iter_enumerated() {
-            if block != BlockId::ENTRY
+            if !self.optimization.is_none()
+                && block != BlockId::ENTRY
                 && let Some(block_plan) = block_plan
                 && block_plan.steps.is_empty()
                 && let Exit::Jump(mut target) = block_plan.exit

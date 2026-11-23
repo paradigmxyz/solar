@@ -31,9 +31,8 @@ contract C {
     // An arm that only assigns a local leaves no code of its own: the edge from the branch to the
     // join holds the push of the assignment, which has its origin, and the jump, which has none.
     // CHECK-LABEL: ; function phiArm(
-    // CHECK: swap 2 !metadata(span=
-    // CHECK-NEXT: pop !metadata(span=
-    // CHECK-NEXT: push 1 !metadata(span={{[0-9]+\.\.[0-9]+}})
+    // CHECK: push 1 !metadata(span={{[0-9]+\.\.[0-9]+}})
+    // CHECK-NEXT: swap 1{{$}}
     // CHECK-NEXT: jump {{bb[0-9]+}}{{$}}
     function phiArm(uint256 n) external pure returns (uint256) {
         uint256 state = 0;
@@ -47,13 +46,11 @@ contract C {
         return state;
     }
 
-    // The jump of a `break` is a source construct, so the edge that replaces it keeps the origin of
-    // the branch, the condition, and is not dropped.
+    // The jump of a `break` is a source construct. `-Onone` keeps its block, so the jump keeps the
+    // origin of the `break` and is not dropped.
     // CHECK-LABEL: ; function breakArm(
-    // CHECK: pop !metadata(span=
-    // CHECK-NEXT: push 1 !metadata(span=
-    // CHECK-NEXT: swap 1 !metadata(span=[[#BREAK:]]..{{[0-9]+}})
-    // CHECK-NEXT: jump {{bb[0-9]+}} !metadata(span=[[#BREAK]]..{{[0-9]+}})
+    // CHECK: push 1 !metadata(span=
+    // CHECK-NEXT: jump {{bb[0-9]+}} !metadata(span={{[0-9]+}}..{{[0-9]+}})
     function breakArm(uint256 n, uint256 m) external pure returns (uint256 r) {
         for (uint256 i = 0; i < n; i++) {
             if (i == m) {
