@@ -41,8 +41,10 @@
 //! index, but with the `ISZERO` an equality exit adds. The target then weighs
 //! the operations it saves on each iteration against its setup: its end and
 //! the counter's rebuild after the loop. A counter from a literal start to a
-//! literal bound keeps its test, so complete unrolling can count it. The pointer
-//! must not wrap between the start and the bound: its base is a heap address,
+//! literal bound keeps its test, so complete unrolling can count it, and so
+//! does one bounded by a parameter in the run before the general inliner and
+//! specialization, which may replace the parameter with a caller's literal. The
+//! pointer must not wrap between the start and the bound: its base is a heap address,
 //! bounded by the memory a call can afford, and a loop cannot run
 //! `2^MAX_TRIP_COUNT_BITS` iterations, the trip-count assumption the loop split
 //! also makes, so a scaled bound below that stays far from the word size. Its
@@ -138,11 +140,20 @@ use solar_evmir::debug::DebugLocKind;
 use std::rc::Rc;
 
 /// Function pass for induction-variable simplification and strength reduction.
-pub(crate) struct IndVarSimplify;
+pub(crate) enum IndVarSimplify {
+    /// The run before the general inliner and specialization, which counts a parameter bound
+    /// as a literal.
+    Early,
+    /// The run after memory lowering and inlining.
+    Late,
+}
 
 impl MirPass for IndVarSimplify {
     fn name(&self) -> &'static str {
-        "indvar-simplify"
+        match self {
+            Self::Early => "indvar-simplify-early",
+            Self::Late => "indvar-simplify",
+        }
     }
 
     fn run_pass(
@@ -166,6 +177,7 @@ impl MirPass for IndVarSimplify {
                 let changed = IndVarSimplifier::new(
                     Rc::clone(analyses.alias()),
                     analyses.loop_aware_target(gcx),
+                    matches!(self, Self::Early),
                 )
                 .run(func, Rc::clone(analyses.cfg()));
                 // NOTE: A pointer phi that fails to materialize leaves the instructions it
@@ -200,6 +212,8 @@ struct IndVarSimplifier {
     seen: DenseBitSet<ValueId>,
     /// The cost model of the function's loops.
     target: Target,
+    /// Whether inlining or specialization may still replace a parameter bound with a literal.
+    before_inlining: bool,
 }
 
 /// Reads of a counter phi after its loop, which the counter's pointer rebuilds once the
@@ -281,7 +295,7 @@ impl AddressKey {
 impl IndVarSimplifier {
     /// Creates a new induction-variable simplifier.
     #[must_use]
-    fn new(alias: Rc<AliasAnalysis>, target: Target) -> Self {
+    fn new(alias: Rc<AliasAnalysis>, target: Target, before_inlining: bool) -> Self {
         Self {
             changed: false,
             alias,
@@ -291,6 +305,7 @@ impl IndVarSimplifier {
             read_by_non_address: DenseBitSet::new_empty(0),
             seen: DenseBitSet::new_empty(0),
             target,
+            before_inlining,
         }
     }
 
@@ -571,9 +586,13 @@ impl IndVarSimplifier {
             None
         };
         // loop-unroll counts the trips of a counter from a literal start to a literal bound, and
-        // only then unrolls the loop completely.
+        // only then unrolls the loop completely. Before inlining, a parameter bound counts too,
+        // since a caller that passes a literal may still inline or specialize the function.
         let countable = func.value_u256(iv.init).is_some()
-            && exit_test.is_some_and(|test| func.value_u256(test.bound).is_some());
+            && exit_test.is_some_and(|test| {
+                func.value_u256(test.bound).is_some()
+                    || self.before_inlining && matches!(func.value(test.bound), Value::Arg(_))
+            });
         let reduce_all = test_family.is_some() && {
             let before = families
                 .iter()

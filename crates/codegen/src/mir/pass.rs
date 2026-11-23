@@ -83,7 +83,8 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &loop_unroll::LoopUnroll,
     &loop_version::LoopVersion,
     &merge_aborts::MergeAborts,
-    &indvar_simplify::IndVarSimplify,
+    &indvar_simplify::IndVarSimplify::Early,
+    &indvar_simplify::IndVarSimplify::Late,
     &storage_promotion::StorageScalarPromotion,
     &loop_opt::Licm,
     &check_elim::CheckElim,
@@ -259,7 +260,7 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // become reachable if a loop is replaced by a constant-time formula.
     &GasOnly::new(dce::Dce),
     &GasOnly::new(loop_reduce::LoopReduce),
-    &indvar_simplify::IndVarSimplify,
+    &indvar_simplify::IndVarSimplify::Early,
     &storage_promotion::StorageScalarPromotion,
     &loop_opt::Licm,
     &check_elim::CheckElim,
@@ -420,7 +421,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // plus invariants; carry it as a pointer stepped on the latch instead of
     // rebuilding it from the index every iteration. Gas-only: under `-Osize` it grows
     // nearly every contract.
-    &GasOnly::new(indvar_simplify::IndVarSimplify),
+    &GasOnly::new(indvar_simplify::IndVarSimplify::Late),
     // Counted loops test their bound once per two iterations once their
     // physical shape is final; the cleanup below drops the unread clones.
     // Size mode copies no loops; there it only counts up-counting loops from `-n` to zero, which

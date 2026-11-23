@@ -1,0 +1,178 @@
+; === ROOT/tests/ui/codegen/mir/indvar-simplify/parameter_bound.sol:ParameterBound ===
+@module ParameterBound
+@phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:                                            ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xe88de523 => bb2]
+  bb2:                                            ; preds = bb1
+    tail_call @f
+  bb3 [cold]:                                     ; preds = bb0, bb1
+    revert 0, 0
+}
+
+; function count(bytes memory data, uint256 n, uint256 a, uint256 b, uint256 c) internal pure returns (uint256 x, uint256 y, uint256 z)
+fn @count(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_memory, return_abi=[i256, i256, i256]] {
+  bb0:
+    v1 = add arg0, 32
+    v43 = add v1, 0
+    v44 = mload v43
+    v45 = byte 0, v44
+    v46 = eq v45, arg1
+    v47 = zext i1 v46 to i256
+    v48 = add v47, 0
+    v49 = eq v45, arg2
+    v50 = zext i1 v49 to i256
+    v51 = add v50, 0
+    v52 = eq v45, arg3
+    v53 = zext i1 v52 to i256
+    v54 = add v53, 0
+    v61 = add v1, 1
+    v62 = mload v61
+    v63 = byte 0, v62
+    v64 = eq v63, arg1
+    v65 = zext i1 v64 to i256
+    v66 = add v48, v65
+    v67 = eq v63, arg2
+    v68 = zext i1 v67 to i256
+    v69 = add v51, v68
+    v70 = eq v63, arg3
+    v71 = zext i1 v70 to i256
+    v72 = add v54, v71
+    v79 = add v1, 2
+    v80 = mload v79
+    v81 = byte 0, v80
+    v82 = eq v81, arg1
+    v83 = zext i1 v82 to i256
+    v84 = add v66, v83
+    v85 = eq v81, arg2
+    v86 = zext i1 v85 to i256
+    v87 = add v69, v86
+    v88 = eq v81, arg3
+    v89 = zext i1 v88 to i256
+    v90 = add v72, v89
+    v97 = add v1, 3
+    v98 = mload v97
+    v99 = byte 0, v98
+    v100 = eq v99, arg1
+    v101 = zext i1 v100 to i256
+    v102 = add v84, v101
+    v103 = eq v99, arg2
+    v104 = zext i1 v103 to i256
+    v105 = add v87, v104
+    v106 = eq v99, arg3
+    v107 = zext i1 v106 to i256
+    v108 = add v90, v107
+    v115 = add v1, 4
+    v116 = mload v115
+    v117 = byte 0, v116
+    v118 = eq v117, arg1
+    v119 = zext i1 v118 to i256
+    v120 = add v102, v119
+    v121 = eq v117, arg2
+    v122 = zext i1 v121 to i256
+    v123 = add v105, v122
+    v124 = eq v117, arg3
+    v125 = zext i1 v124 to i256
+    v126 = add v108, v125
+    v133 = add v1, 5
+    v134 = mload v133
+    v135 = byte 0, v134
+    v136 = eq v135, arg1
+    v137 = zext i1 v136 to i256
+    v138 = add v120, v137
+    v139 = eq v135, arg2
+    v140 = zext i1 v139 to i256
+    v141 = add v123, v140
+    v142 = eq v135, arg3
+    v143 = zext i1 v142 to i256
+    v144 = add v126, v143
+    v151 = add v1, 6
+    v152 = mload v151
+    v153 = byte 0, v152
+    v154 = eq v153, arg1
+    v155 = zext i1 v154 to i256
+    v156 = add v138, v155
+    v157 = eq v153, arg2
+    v158 = zext i1 v157 to i256
+    v159 = add v141, v158
+    v160 = eq v153, arg3
+    v161 = zext i1 v160 to i256
+    v162 = add v144, v161
+    v169 = add v1, 7
+    v170 = mload v169
+    v171 = byte 0, v170
+    v178 = eq v171, arg3
+    v179 = zext i1 v178 to i256
+    v180 = add v162, v179
+    v175 = eq v171, arg2
+    v176 = zext i1 v175 to i256
+    v177 = add v159, v176
+    v172 = eq v171, arg1
+    v173 = zext i1 v172 to i256
+    v174 = add v156, v173
+    ret v174, v177, v180
+}
+
+; function f(bytes memory data, uint256 a, uint256 b, uint256 c) external pure returns (uint256, uint256, uint256) [selector 0xe88de523]
+fn @f() {
+  bb0:
+    v7 = calldatasize
+    v8 = lt v7, 132
+    v12 = calldataload 4
+    v13 = add v12, 4
+    v15 = sub v7, 36
+    v16 = lt v15, v12
+    v50 = or v8, v16
+    jumpi v50, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v17 = calldataload v13
+    v18 = add v13, 32
+    v48 = add v17, 63
+    v21 = and v48, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v22 = lt v21, v17
+    v42 = heap_floor !metadata(alloc_ptr)
+    v43 = add v42, v21 !metadata(alloc_ptr)
+    v55 = shr v43, 64
+    v44 = lt v43, v42
+    v57 = zext i1 v44 to i256
+    v58 = or v55, v57
+    v60 = zext i1 v22 to i256
+    v61 = or v58, v60
+    v51 = ne v61, 0
+    jumpi v51, bb3, bb5
+  bb5:                                            ; preds = bb2
+    mstore 64, v43 !metadata(memory=scratch)
+    mstore v42, v17
+    v24 = sub v7, v18
+    v25 = lt v24, v17
+    jumpi v25, bb1, bb4
+  bb4:                                            ; preds = bb5
+    v54 = calldataload 100
+    v53 = calldataload 68
+    v52 = calldataload 36
+    v39 = add v42, 32
+    calldatacopy v39, v18, v17
+    v31 = icall @count, v42, v52, v53, v54
+    v37 = mload 32 !metadata(memory=scratch)
+    v33 = add v37, 32
+    v34 = mload v33
+    v35 = add v37, 64
+    v36 = mload v35
+    mstore 0, v31
+    mstore 32, v34
+    mstore 64, v36
+    returndata 0, 96
+  bb3 [cold]:                                     ; preds = bb2
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb1 [cold]:                                     ; preds = bb0, bb5
+    revert 0, 0
+}
