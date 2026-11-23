@@ -14,6 +14,7 @@ from .check import ROOT, build_model
 from .common import Unsupported
 
 MODULE = "SolarTV.EVMIR.Transforms.EncodedTable"
+ENTRY_MODULE = "SolarTV.EVMIR.Transforms.IndexedEntry"
 FUEL = 64
 
 
@@ -204,6 +205,65 @@ def raise_witness(proof, **extra):
     )
 
 
+def check_entry(image, tables, catalog, version, timeout, *, final_image):
+    producers = [
+        (guard["pc"], table["entry_pc"])
+        for table in tables
+        for guard in table.get("range_guards", [])
+    ]
+    cuts = sorted(
+        {start for start, _ in producers}
+        | {table["producer"]["pc"] for table in tables if "producer" in table}
+    )
+    targets = sorted({edge["pc"] for table in tables for edge in table["entries"]})
+    entries = [table["entry_pc"] for table in tables]
+    pairs = ", ".join(f"({start},{pc})" for start, pc in producers)
+    source = (
+        f"import {ENTRY_MODULE}\n"
+        + start_image(image, catalog, version)
+        + f"""
+open EVM.IndexedEntry
+def cuts : List Nat := {cuts}
+def producers : List (Nat × Nat) := [{pairs}]
+def decoded := producers.map fun (start,entry) => EVM.IndexedGuard.read cfg code start entry
+theorem completeGuards : decoded.all Option.isSome = true := by decide +kernel
+def misses := decoded.filterMap fun guard => guard.map (·.miss.toNat)
+def targets : List Nat := {targets}
+def roots : List Point := (0 :: misses ++ targets).map fun pc => ⟨pc,none⟩
+def entries : List Nat := {entries}
+def finalImage : Bool := {str(final_image).lower()}
+def seen := (candidates code finalImage cuts roots).getD []
+theorem closed : Closed code finalImage cuts roots seen entries = true := by decide +kernel
+theorem jumpInputs (opcode : Nat) (jump : isJump opcode = true) :
+    0 < (EVM.State.available cfg opcode).inputs := by
+  simp [isJump] at jump
+  rcases jump with rfl | rfl <;> decide +kernel
+theorem guardedEntry (data : List Execution.Byte) (frame : EVM.State.Frame)
+    (finalSize : finalImage = true → data = [])
+    (path : FramePrefix cfg (code.bytes ++ data) cuts roots frame) :
+    frame.pc ∉ entries :=
+  cannotBypass code cfg data finalImage cuts roots seen entries finalSize closed jumpInputs frame path
+#print axioms guardedEntry
+"""
+    )
+    try:
+        entry_proof.success(
+            build_model(timeout, ENTRY_MODULE), "indexed entry model build"
+        )
+        with tempfile.TemporaryDirectory(prefix="solar-tv-indexed-entry-") as directory:
+            proof = entry_proof.lean(Path(directory), "GuardedEntry", source, timeout)
+    except subprocess.TimeoutExpired:
+        return {"status": "timeout", "cuts": cuts}
+    if proof.returncode:
+        return {
+            "status": "unproven",
+            "cuts": cuts,
+            "diagnostic": (proof.stdout + proof.stderr)[-1200:],
+        }
+    entry_proof.check_axioms(proof.stdout.splitlines(), 1)
+    return {"status": "verified", "cuts": cuts}
+
+
 def check(
     image,
     pc,
@@ -347,6 +407,15 @@ def main(argv):
             args.timeout,
             args.mask_pc,
         )
+        if "producer" in result:
+            result["entry_coverage"] = check_entry(
+                image,
+                [result],
+                native.catalog(args.replay, args.timeout),
+                args.evm_version,
+                args.timeout,
+                final_image=True,
+            )
     except (OSError, ValueError, Unsupported, subprocess.TimeoutExpired) as error:
         result = {"version": 1, "status": "unsupported", "diagnostic": str(error)}
     if args.report:

@@ -20,6 +20,7 @@ import SolarTV.EVMIR.Transforms.StackPeephole
 import SolarTV.EVMIR.Transforms.RelocatedReturn
 import SolarTV.EVMIR.Transforms.EncodedTable
 import SolarTV.EVMIR.Transforms.IndexedGuard
+import SolarTV.EVMIR.Transforms.IndexedEntry
 import SolarTV.EVMIR.Transforms.StopTail
 import SolarTV.EVMIR.Transforms.ERC20Layout
 import SolarTV.EVMIR.StackSafety

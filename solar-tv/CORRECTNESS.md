@@ -920,11 +920,26 @@ The taken path includes the emitted `JUMPDEST` charge between the guard and
 the table. Raw replay checks the edges at their exact local gas thresholds,
 including wrapped selectors and a changed range literal.
 
-The reports are local assembly certificates. Establishing which range
-producers dominate a table from physical entry remains an enclosing-graph
-obligation. Images with Amsterdam extended-stack immediates remain
-unsupported by this decoder, which must distinguish those bytes from
-`JUMPDEST`.
+The optional entry certificate checks a closed set of decoded control
+points. Its roots are physical entry, every guard miss, and every proved
+table destination. Tables in the same image join the same certificate, so
+a destination can lead to another checked table or back to the first one.
+Outside a producer cut the graph follows both outcomes
+of a conditional jump, and each jump target must come from a known PUSH.
+The kernel proves that interpreter continuations stay inside this set
+until a producer is reached. The set excludes the table entry. This holds
+for arbitrary live inputs, gas, world state, and child responses. The
+proof binds a fall off the bytecode to an exact image without trailing
+bytes. For an opaque suffix, all resumed PCs must stay in the checked
+prefix.
+
+The Solidity dense switch has an entry certificate. Replaying an invalid
+function selector against a redirected ABI branch reaches the table
+directly and changes a revert into success. The modified artifact has
+only the local certificate. Unresolved computed jumps, routes into opaque
+data, and oversized reachability checks also leave this scope local.
+The decoder still excludes Amsterdam images with extended-stack
+immediates, which must be distinguished from `JUMPDEST` bytes.
 
 The normalized graph keeps the largest temporary stack
 requirement along each chain of jumps and checks that changed requirements
@@ -1515,7 +1530,7 @@ token revert and a false result.
 | General loop proof support | Cutpoint invariants over typed MIR preserve ordered effects, exits and divergence. Real certificates cover calldata, memory and storage loops, including a runtime-bounded fill. | Apply the framework to more changed CFGs. Automatic recognition currently covers supported shapes. |
 | Arbitrary state and aliases | Automatic universal caller-state proofs within the defined 64 KiB domain; explicit fixtures for broader operation families | Universal account/memory relation with aliasing, reentry, rollback and fresh allocation obligations. |
 | Whole-function MIR interfaces | Automatic typed products/slices, void/multiple results, acyclic calls and recursive direct-call graphs with checked logical bodies | ABI entry, physical frame and allocation correspondence, recursion that needs different logical actions and broader defined memory domains. |
-| EVM entry stacks and indirect transfers | Fixed or symbolic entry stacks, checked physical-entry bounds, stack-carried jump and conditional targets, literal indexed transfers, and compiler-bound emitted table proofs from masks and dense guards | General entry-to-table selector invariants, independent certification of block placement, and broader physical stack, gas and state correspondence. |
+| EVM entry stacks and indirect transfers | Fixed or symbolic entry stacks, checked physical-entry bounds, stack-carried jump and conditional targets, and compiler-bound table proofs with entry coverage for resolved jumps | Entry coverage through unresolved computed jumps, independent certification of block placement, and broader physical stack, gas and state correspondence. |
 | Importer correctness | Certificates for acyclic EVM regions and acyclic typed scalar MIR | Extend independently checked imports to calls, memory, state, ABI entries and symbolic checked powers; audit the remaining Rust and opcode boundaries. |
 | Physical code and resource correspondence | Explicit layout assumptions and selected priced execution | Backend layout certificates, complete caller work pricing and gas-sensitive transfers; observable code locations and resource failures must agree. |
 | Fork and transaction completeness | Signed set-code authorization processing through Osaka, Amsterdam reservoir initialization, debits and rollback | Other transaction envelopes, fee and block settlement, Amsterdam stateful opcode and nested-frame gas accounting. |

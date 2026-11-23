@@ -291,6 +291,7 @@ class EncodedTableTests(unittest.TestCase):
         result, record = self.cli(image, targets, 1, entry=7, mask_pc=4)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(record["producer"], {"pc": 4, "mask": 3, "gas": 6})
+        self.assertEqual(record["entry_coverage"], {"status": "verified", "cuts": [4]})
         for selector in (0, 1, 2, 3, 4, 1 << 255, (1 << 256) - 1):
             entry = record["entries"][selector & 3]
             program = self.program(text, image, selector, entry["gas"] + 14)
@@ -393,20 +394,23 @@ bb88:
         layout, runtime = self.compile_with_audit(SWITCH, "-Osize", capture=True)
         self.assertFalse((layout.parent / "result.json").exists())
         image = bytes.fromhex((layout.parent / "bytecode.hex").read_text())
-        self.assertTrue(runtime.startswith(image))
+        self.assertEqual(runtime, image)
         result, record = self.check_bundle(layout)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(record["status"], "verified")
         table = record["tables"][0]
         self.assertEqual(len(table["entries"]), 24)
-        self.assertEqual(table["selector_scope"], "from-guard-cut")
+        self.assertEqual(table["selector_scope"], "from-physical-entry")
         (guard,) = table["range_guards"]
         self.assertEqual(guard["limit"], 24)
+        self.assertEqual(
+            table["entry_coverage"], {"status": "verified", "cuts": [guard["pc"]]}
+        )
         text = (layout.parent / "source.evmir").read_text()
         selector = bytes.fromhex("839a19d9")
 
-        def replay(code, key, *, gas=50_000, pc=None):
-            program = self.program(text, code, key, gas, prefix=selector)
+        def replay(code, key, *, gas=50_000, pc=None, method=selector):
+            program = self.program(text, code, key, gas, prefix=method)
             observed = native.replay(
                 program,
                 program,
@@ -460,6 +464,41 @@ bb88:
             [replay(code, 34)[0] for code in (runtime, wider)], ["success", "exception"]
         )
 
+        marker = table["entry_pc"] - 1
+        instructions = list(decode_runtime(runtime, self.catalog).items())
+        (dispatch_push,) = [
+            push[0]
+            for sub, push, jump in zip(instructions, instructions[1:], instructions[2:])
+            if jump[0] < start
+            and sub[1][0] == "sub"
+            and push[1][0] == "push1"
+            and jump[1][0] == "jumpi"
+        ]
+        redirected = (
+            runtime[: dispatch_push + 1]
+            + bytes([marker])
+            + runtime[dispatch_push + 2 :]
+        )
+        # The final case falls off the end of the emitted instruction stream.
+        # Appended bytes must prevent the proof from treating that as a halt.
+        extended = runtime + b"\xfe"
+        for broken in (redirected, extended):
+            (layout.parent / "bytecode.hex").write_text(broken.hex())
+            result, record = self.check_bundle(layout)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            table = record["tables"][0]
+            self.assertEqual(table["status"], "verified")
+            self.assertEqual(table["selector_scope"], "from-guard-cut")
+            self.assertEqual(table["entry_coverage"]["status"], "unproven")
+        self.assertEqual(
+            [replay(code, 0, method=b"\0\0\0\1")[0] for code in (runtime, redirected)],
+            ["revert", "success"],
+        )
+        self.assertEqual(
+            [replay(code, 10)[0] for code in (runtime, extended)],
+            ["success", "exception"],
+        )
+
     def test_live_outlined_transfer_uses_the_original_targets(self):
         path = (
             ROOT.parent / "tests/ui/codegen/disasm/indexed_jump_two_byte_entries.evmir"
@@ -476,6 +515,54 @@ bb88:
             list(dict(artifact["labels"]).values()),
         )
         self.assertTrue(all(row["gas"] > 24 for row in table["entries"]))
+
+    def test_entry_certificate_covers_two_tables_in_a_cycle(self):
+        path = self.directory / "cycle.evmir"
+        text = """@module Cycle
+bb0 [stack=0]:
+  jump bb1
+bb1:
+  push 0
+  calldataload
+  push 1
+  and
+  indexed_jump bb2, bb3
+bb2:
+  push 32
+  calldataload
+  push 1
+  and
+  indexed_jump bb1, bb3
+bb3:
+  stop
+"""
+        path.write_text(text)
+        layout, runtime = self.compile_with_audit(
+            path, "-Ogas", "-Zevm-ir-pipeline=none"
+        )
+        record = json.loads((layout.parent / "result.json").read_text())
+        self.assertEqual(record["status"], "verified")
+        first, second = record["tables"]
+        cuts = [first["producer"]["pc"], second["producer"]["pc"]]
+        for table in (first, second):
+            self.assertEqual(table["selector_scope"], "from-physical-entry")
+            self.assertEqual(
+                table["entry_coverage"], {"status": "verified", "cuts": cuts}
+            )
+
+        stops = []
+        for selector in (0, 1):
+            program = self.program(text, runtime, selector, 500)
+            replay = native.replay(
+                program,
+                program,
+                [],
+                raw_runtime=True,
+                executable=self.replay,
+                timeout=30,
+            )
+            stops.append(json.loads(replay["observations"][0])[0])
+        self.assertEqual(stops, ["out-of-gas", "success"])
 
     def test_extended_stack_payload_is_not_certified_as_jumpdest(self):
         # The local cut adds one to selector zero and jumps. Under Amsterdam

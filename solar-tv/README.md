@@ -1312,6 +1312,14 @@ miss continuation and carries the taken edge through the table, including
 the charge for the intervening `JUMPDEST`. A changed limit produces a
 counterexample with the selector and the two successor PCs.
 
+`entry_coverage` reports whether Lean proved that execution cannot reach
+the table without one of its checked selector producers. The proof starts
+at bytecode PC zero and resumes from every guard miss and table destination.
+Tables in the same image can share the proof, including cyclic dispatches.
+The compiler bundle reports `selector_scope: "from-physical-entry"` for
+that stronger result. Reachable computed jumps and execution into an
+unchecked data suffix leave the proof scoped to the local mask or guard.
+
 ### Removing terminal stack discards
 
 A `--prefix=bbN` check can prove deletion of a `POP` suffix before

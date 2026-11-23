@@ -150,8 +150,9 @@ def check(manifest, replay, timeout):
         raise Unsupported("invalid executable extent in emitted layout")
     code = image[:code_end]
     model = source_model(source, version, replay, timeout)
-    catalog = {op["name"]: op for op in native.catalog(replay, timeout)["evmir"]}
-    tables = list(validate_layout(layout, code, model, catalog))
+    catalog = native.catalog(replay, timeout)
+    opcodes = {op["name"]: op for op in catalog["evmir"]}
+    tables = list(validate_layout(layout, code, model, opcodes))
     record = {
         "version": 1,
         "status": "verified",
@@ -212,6 +213,25 @@ def check(manifest, replay, timeout):
             receipt["status"] == "unsupported" and record["status"] == "verified"
         ):
             record.update(status=receipt["status"], diagnostic=receipt["diagnostic"])
+    guarded = [
+        table
+        for table in record["tables"]
+        if table["status"] == "verified"
+        and ("producer" in table or "range_guards" in table)
+    ]
+    if guarded and record["status"] != "counterexample":
+        coverage = encoded_table.check_entry(
+            code,
+            guarded,
+            catalog,
+            version,
+            timeout,
+            final_image=layout["artifact"] == "runtime" and code_end == len(image),
+        )
+        for table in guarded:
+            table["entry_coverage"] = coverage
+            if coverage["status"] == "verified":
+                table["selector_scope"] = "from-physical-entry"
     if record["semantics"] != audit.semantics():
         raise Unsupported("semantics changed during this check")
     return record
