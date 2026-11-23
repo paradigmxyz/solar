@@ -37,14 +37,7 @@ impl<'gcx> Assembler<'gcx> {
             block.label = u32::try_from(index).expect("EVM IR block index should fit in u32");
         }
         let block_labels = vec![None; module.blocks.len()];
-        let keep_function_entry_jumps = module.optimization.is_none();
-        Ok(Self {
-            program: module,
-            program_is_finalized: true,
-            block_labels,
-            keep_function_entry_jumps,
-            ..Self::new(gcx)
-        })
+        Ok(Self { program: module, program_is_finalized: true, block_labels, ..Self::new(gcx) })
     }
 
     /// Creates a new label.

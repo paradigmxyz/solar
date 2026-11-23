@@ -1,9 +1,8 @@
 debugify: MIR StackifyConstructor after heap-floor: 9/9 origins retained, 0 lost
 debugify: MIR StackifyConstructor after lower-checks: 9/9 origins retained, 0 lost
 debugify: MIR StackifyConstructor after lower-builtins: 9/9 origins retained, 0 lost
-debugify: MIR StackifyConstructor after lower-arithmetic-shared: 9/9 origins retained, 0 lost
 debugify: MIR StackifyConstructor after lower-arithmetic: 9/9 origins retained, 0 lost
-debugify: MIR StackifyConstructor after cfg-cleanup: 9/9 origins retained, 0 lost
+debugify: MIR StackifyConstructor after cfg-simplify: 9/9 origins retained, 0 lost
 debugify: MIR StackifyConstructor after lower-abi: 9/9 origins retained, 0 lost
 debugify: MIR StackifyConstructor after lower-abi-encode: 9/9 origins retained, 0 lost
 debugify: MIR StackifyConstructor after lower-dispatch: 9/9 origins retained, 0 lost

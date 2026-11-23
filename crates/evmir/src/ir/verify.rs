@@ -566,7 +566,7 @@ impl<'a> Verifier<'a> {
                     targets.push((target, stack));
                 }
             }
-            let lowering_growth = term.kind.lowering_stack_growth(module.next_block(block_id));
+            let lowering_growth = term.kind.lowering_stack_growth(module, block_id);
             note_overflow(&mut overflow, &term.kind, stack + lowering_growth);
             let effect = default_terminator_stack_effect(&term.kind)
                 .expect("terminator stack effect must be known after shape validation");

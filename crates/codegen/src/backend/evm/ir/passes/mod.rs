@@ -108,50 +108,6 @@ impl<P: EvmPass> EvmPass for RunsAtNone<P> {
     }
 }
 
-/// Runs one pipeline slot at `-O none` only, as the configuration of a pass that keeps its input's
-/// structure.
-struct OnlyAtNone<P>(P);
-
-impl<P: EvmPass> EvmPass for OnlyAtNone<P> {
-    fn name(&self) -> &'static str {
-        self.0.name()
-    }
-
-    fn is_enabled(&self, _gcx: Gcx<'_>, module: &Module) -> bool {
-        module.optimization.is_none()
-    }
-
-    fn cache_config(&self) -> u64 {
-        self.0.cache_config()
-    }
-
-    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        self.0.run_pass(gcx, module)
-    }
-}
-
-/// Runs one pipeline slot at every level but `-O none`, beside an [`OnlyAtNone`] configuration of
-/// the same pass.
-struct UnlessNone<P>(P);
-
-impl<P: EvmPass> EvmPass for UnlessNone<P> {
-    fn name(&self) -> &'static str {
-        self.0.name()
-    }
-
-    fn is_enabled(&self, _gcx: Gcx<'_>, module: &Module) -> bool {
-        !module.optimization.is_none()
-    }
-
-    fn cache_config(&self) -> u64 {
-        self.0.cache_config()
-    }
-
-    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        self.0.run_pass(gcx, module)
-    }
-}
-
 /// All EVM IR passes exposed by `-Zevm-ir-pipeline`, one per name: a name resolves to its first
 /// pass, so every pass the canonical pipeline runs needs an entry under a name of its own for
 /// `-Zevm-ir-pipeline` to replay it.
@@ -172,12 +128,10 @@ static ALL_PASSES: &[&dyn EvmPass] = &[
     &stack_reschedule::StackReschedule,
     &compact_pushes::CompactPushes,
     &coalesce_copies::CoalesceCopies,
-    &data::PackData::REPLACE_RUNS,
-    &data::PackData::KEEP_STORES,
+    &data::PackData,
     &legalize_revert::LegalizeRevert,
     &cfg_simplify::CfgSimplify::EARLY,
     &cfg_simplify::CfgSimplify::FINAL,
-    &cfg_simplify::CfgSimplify::KEEP_BLOCKS,
     &outline::Outline,
     &terminal_dedup::TerminalDedup,
     &tail_merge::TailMerge,
@@ -196,8 +150,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Normalize and establish the first physical layout.
     &peephole::Peephole::EARLY,
     &coalesce_copies::CoalesceCopies,
-    &cfg_simplify::CfgSimplify::EARLY,
-    &OnlyAtNone(cfg_simplify::CfgSimplify::KEEP_BLOCKS),
+    &RunsAtNone(cfg_simplify::CfgSimplify::EARLY),
     &peephole::Cleanup(compact_pushes::CompactPushes),
     &RunsAtNone(block_layout::BlockLayout),
     &share_reverts::ShareReverts,
@@ -247,8 +200,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &block_layout::BlockLayout,
     // Materialize literal-store runs and pack the referenced data pool before final sharing and
     // cleanup.
-    &UnlessNone(data::PackData::REPLACE_RUNS),
-    &OnlyAtNone(data::PackData::KEEP_STORES),
+    &data::PackData,
     // Data packing can add compactable immediates and local stack shuffles. This slot also runs
     // at `-O none`, where it compacts what earlier passes left.
     &RunsAtNone(compact_pushes::CompactPushes),

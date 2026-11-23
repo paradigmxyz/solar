@@ -19,12 +19,8 @@ use crate::mir::{
     transform::utils::expand_block,
 };
 use alloy_primitives::U256;
-use solar_config::OptimizationMode;
 use solar_data_structures::map::FxHashMap;
 
-/// Lowers checked arithmetic with a builder per block, so checks in different blocks get separate
-/// revert blocks that later passes share. At `-O none` [`LowerArithmeticShared`] runs first and
-/// leaves it nothing to lower.
 pub(crate) struct LowerArithmetic;
 
 impl MirPass for LowerArithmetic {
@@ -40,49 +36,15 @@ impl MirPass for LowerArithmetic {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        lower(module, analyses, false)
-    }
-}
-
-/// Lowers checked arithmetic with one builder per function, so its checks share one revert block
-/// per failure.
-pub(crate) struct LowerArithmeticShared;
-
-impl MirPass for LowerArithmeticShared {
-    fn name(&self) -> &'static str {
-        "lower-arithmetic-shared"
-    }
-    fn is_required(&self) -> bool {
-        true
-    }
-    fn runs_on(&self, objective: OptimizationMode) -> bool {
-        objective.is_none()
-    }
-    fn run_pass(
-        &self,
-        _gcx: solar_sema::Gcx<'_>,
-        module: &mut Module,
-        analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> bool {
-        lower(module, analyses, true)
-    }
-}
-
-fn lower(
-    module: &mut Module,
-    analyses: &mut crate::mir::pass::ModuleAnalyses,
-    shared_reverts: bool,
-) -> bool {
-    run_function_pass(module, analyses, |func, _| {
-        if !func
-            .instructions()
-            .any(|id| matches!(func.inst(id).kind, InstKind::CheckedBinary { .. }))
-        {
-            return false;
-        }
-        let mut replacements = FxHashMap::default();
-        let mut expand =
-            |builder: &mut FunctionBuilder<'_>, block: BlockId| {
+        run_function_pass(module, analyses, |func, analyses| {
+            if !func
+                .instructions()
+                .any(|id| matches!(func.inst(id).kind, InstKind::CheckedBinary { .. }))
+            {
+                return false;
+            }
+            let mut replacements = FxHashMap::default();
+            let mut expand = |builder: &mut FunctionBuilder<'_>, block: BlockId| {
                 if !builder.func().blocks[block].instructions.iter().any(|&id| {
                     matches!(builder.func().inst(id).kind, InstKind::CheckedBinary { .. })
                 }) {
@@ -105,20 +67,22 @@ fn lower(
                     true
                 });
             };
-        let blocks = func.blocks.indices();
-        if shared_reverts {
-            let mut builder = FunctionBuilder::new(func);
-            for block in blocks {
-                expand(&mut builder, block);
+            let blocks = func.blocks.indices();
+            if analyses.optimization().is_none() {
+                // One builder for the function, so its checks share one revert block per failure.
+                let mut builder = FunctionBuilder::new(func);
+                for block in blocks {
+                    expand(&mut builder, block);
+                }
+            } else {
+                for block in blocks {
+                    expand(&mut FunctionBuilder::new(func), block);
+                }
             }
-        } else {
-            for block in blocks {
-                expand(&mut FunctionBuilder::new(func), block);
-            }
-        }
-        func.replace_uses_canonicalized(&replacements);
-        true
-    })
+            func.replace_uses_canonicalized(&replacements);
+            true
+        })
+    }
 }
 
 struct ArithmeticLowerer<'a, 'b> {

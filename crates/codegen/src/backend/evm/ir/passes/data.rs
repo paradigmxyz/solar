@@ -23,7 +23,7 @@
 //! runs inside them are judged the same way. A copy of data that ends in zeros stops before them
 //! when a zero word store clears the last word first, if that is cheaper.
 //!
-//! `pack-data-keep-stores` replaces no run, since a copy would merge the origins of its stores.
+//! At `-O none` no run is replaced, since a copy would merge the origins of its stores.
 //!
 //! The pass leaves a module alone when a data address may reach anything but a `CODECOPY` that
 //! stays inside its entry. The last entry of creation code is the tail: the runtime code ends the
@@ -81,32 +81,20 @@ const MAX_RUN_INSTRUCTIONS: usize = 256;
 /// Bounds the unconditional jumps followed from a block to find where its data addresses are used.
 const MAX_DATA_JUMP_HOPS: usize = 4;
 
-pub(super) struct PackData {
-    /// Replaces the literal-store runs by copies of packed data.
-    replace_runs: bool,
-}
-
-impl PackData {
-    pub(super) const REPLACE_RUNS: Self = Self { replace_runs: true };
-    pub(super) const KEEP_STORES: Self = Self { replace_runs: false };
-}
+pub(super) struct PackData;
 
 impl EvmPass for PackData {
     fn name(&self) -> &'static str {
-        if self.replace_runs { "pack-data" } else { "pack-data-keep-stores" }
+        "pack-data"
     }
 
     fn is_required(&self) -> bool {
         true
     }
 
-    fn cache_config(&self) -> u64 {
-        u64::from(self.replace_runs)
-    }
-
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let Some(mut scan) = scan_data_references(module, None) else { return false };
-        let groups = if self.replace_runs { find_runs(gcx, module) } else { FxHashMap::default() };
+        let groups = find_runs(gcx, module);
         let packed = pack_data(module, &mut scan);
         let materialized = materialize_data(gcx, module, groups);
         if materialized && let Some(mut scan) = scan_data_references(module, scan.tail) {
@@ -362,6 +350,10 @@ fn find_runs(gcx: Gcx<'_>, module: &Module) -> FxHashMap<Bytes, Vec<Rewrite>> {
             continue;
         };
         let target = block.target(gcx, module.optimization, module.code_follows);
+        // At `-O none` no run of stores is replaced.
+        if target.optimization().is_none() {
+            continue;
+        }
         let mut start = 0;
         while start <= last_store {
             let Some((data, mut rewrite)) =

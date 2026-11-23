@@ -1,5 +1,5 @@
-- ; === ROOT/tests/ui/codegen/evm-ir/pack-data/none.evmir (before pack-data-keep-stores) ===
-+ ; === ROOT/tests/ui/codegen/evm-ir/pack-data/none.evmir (after pack-data-keep-stores) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/pack-data/none.evmir (before pack-data) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/pack-data/none.evmir (after pack-data) ===
   @module None
   bb0:
     push 128
