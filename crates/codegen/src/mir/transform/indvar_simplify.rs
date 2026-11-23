@@ -35,6 +35,10 @@
 //! bound, computed once in the preheader, and the counter's phi and update
 //! die. Then every address family is reduced at once, since removing the
 //! counter pays for a pointer that alone would only break even. The pointer
+//! that takes over the test carries the counter's word, so it pays neither for
+//! deepening a loop that already carries many words nor the extra charge of a
+//! byte pointer beside its index, unless the loop runs a literal number of
+//! times, which keeps its counter countable for complete unrolling. The pointer
 //! must not wrap between the start and the bound: its base is a heap address,
 //! bounded by the memory a call can afford, and a loop cannot run
 //! `2^MAX_TRIP_COUNT_BITS` iterations, the trip-count assumption the loop split
@@ -558,7 +562,16 @@ impl IndVarSimplifier {
                 .sum::<usize>();
             let after = families
                 .iter()
-                .map(|members| Self::family_cost_after(members, carried))
+                .enumerate()
+                .map(|(index, members)| {
+                    if loop_data.trip_count.is_none()
+                        && test_family.is_some_and(|(test, _)| test == index)
+                    {
+                        Self::test_family_cost_after(members)
+                    } else {
+                        Self::family_cost_after(members, carried)
+                    }
+                })
                 .sum::<usize>();
             before + Self::COUNTER_COST > after
         };
@@ -1378,14 +1391,25 @@ impl IndVarSimplifier {
     fn family_cost_after(members: &[(AddressKey, Vec<ValueId>)], carried: usize) -> usize {
         let carry = 2 + carried.saturating_sub(Target::SHALLOW_CARRIED_WORDS);
         let byte_pointer = if members[0].0.scale.abs() == 1 { 2 } else { 0 };
+        Self::pointer_uses_cost(members) + 2 + carry + byte_pointer
+    }
+
+    /// Operations the pointer that takes over the counter's exit test costs per iteration:
+    /// its uses, the latch update, and the counter's carried word. It carries that word
+    /// instead of a new one, so unlike a pointer beside the counter it deepens no other
+    /// word and sits beside no index.
+    fn test_family_cost_after(members: &[(AddressKey, Vec<ValueId>)]) -> usize {
+        Self::pointer_uses_cost(members) + 2 + 2
+    }
+
+    /// Operations a family's pointer uses cost: one duplication per primary use and an add
+    /// per sibling use.
+    fn pointer_uses_cost(members: &[(AddressKey, Vec<ValueId>)]) -> usize {
         members
             .iter()
             .enumerate()
             .map(|(index, (_, values))| values.len() * if index == 0 { 1 } else { 3 })
             .sum::<usize>()
-            + 2
-            + carry
-            + byte_pointer
     }
 
     /// Whether carrying one pointer for a family of addresses saves more per
