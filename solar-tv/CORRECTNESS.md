@@ -523,11 +523,30 @@ jump-chain projection in bounded ranges. It also checks stack bounds in
 ranges. The kernel composes each complete table and still checks every
 successor against the full source graph.
 
-A serial recheck verified the eight smallest eligible frozen
-`cfg-simplify-early` captures with a 32-second timeout per proof. These included
-WETH calls and Morpho paths with calls and code-size reads. The ABI,
-creation bytecode and runtime bytecode matched for all three pinned
-contracts.
+Of 115 eligible frozen `cfg-simplify-early` captures, 10 verified and 105
+timed out in a serial recheck. The smallest 49 had a 32-second proof limit
+and the remaining 66 had an eight-second limit. The verified captures
+included WETH and Morpho calls and code-size reads. The ABI, creation
+bytecode and runtime bytecode matched for all three pinned contracts.
+
+### Gas at a sampled CALL
+
+The Cancun sampled-call proof starts at an emitted `GAS` followed by a
+value-capable `CALL` with zero input and output offsets and lengths. It
+derives the child budget from the physical gas sample, the account and
+value charges, and the EIP-150 cap and stipend. Its result also covers an
+unpaid `GAS` or `CALL`, a static violation, and depth or funds rejection.
+The pair theorem needs matched gas and state at the `GAS` instruction,
+including active memory and the account journal.
+
+On the frozen WETH withdrawal, one `cfg-simplify-early` pair forwards
+79,852 gas on both sides with 100,000 entry gas. Another pair spends 12 fewer
+gas getting to the sample and forwards 79,840 before and 79,852 after. At
+21,218 entry gas the first image of that pair runs out of gas at `CALL`,
+while the second admits the call with the 2,300 stipend and succeeds. The
+regression checks both pairs against the assembled bytecode using Lean and
+the independent Rust replay. The prefix from ABI entry is replayed for these
+inputs, and call admission is symbolic at the matched `GAS` cut.
 
 ### Compact PUSH recipes
 

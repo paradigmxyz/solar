@@ -190,7 +190,8 @@ theorem until_accounted (cfg : Config) (target fuel : Nat) (world : Journal) (fr
                 rw [← checked]
                 obtain ⟨atCut,balanced⟩ := tail
                 constructor
-                · cases h : rest.exit <;> simpa [Exit.at,Exit.addWork,h] using atCut
+                · cases h : rest.exit <;>
+                    simp [Exit.at,Exit.addWork,h] at atCut ⊢ <;> exact atCut
                 · cases h : rest.exit <;>
                     simp [Debit.net,Exit.gas,Exit.addWork,h] at balanced ⊢ <;> omega
 
