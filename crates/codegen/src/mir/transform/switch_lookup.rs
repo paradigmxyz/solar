@@ -51,7 +51,7 @@
 //! location, and each phi's value takes that phi's, or none when the phi has none. The new
 //! terminator keeps the switch's metadata.
 
-use super::cfg_simplify::simplify_function;
+use super::{cfg_simplify::simplify_function, egraph::use_counts};
 use crate::{
     backend::evm::op,
     mir::{
@@ -65,7 +65,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_config::SwitchLowering;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashSet};
 use solar_evmir::debug::DebugLocKind;
 
 /// Function pass that replaces switches selecting literals with packed table lookups.
@@ -174,15 +174,19 @@ enum Encoding {
 
 fn switch_lookup_function(func: &mut Function, target: &Target, repeated: bool) -> bool {
     let cfg = CfgInfo::new(func);
+    let mut uses = use_counts(func);
     let mut changed = false;
     for block in func.blocks.indices() {
         if !cfg.is_reachable(block) {
             continue;
         }
-        let Some(site) = find_site(func, block) else { continue };
+        let Some(site) = find_site(func, block, &uses) else { continue };
         let in_loop = repeated || cfg.cyclic_blocks().contains(block);
         if let Some(encoding) = choose(target, &site, in_loop) {
+            count_reads(func, &site, &mut uses, false);
             rewrite(func, &site, encoding);
+            uses.resize(func.num_values(), 0);
+            count_reads(func, &site, &mut uses, true);
             changed = true;
         }
     }
@@ -211,7 +215,7 @@ fn forwarded_join(func: &Function, block: BlockId, target: BlockId) -> Option<Bl
     (pure && join != target && join != block).then_some(join)
 }
 
-fn find_site(func: &Function, block: BlockId) -> Option<Site> {
+fn find_site(func: &Function, block: BlockId, uses: &IndexVec<ValueId, u32>) -> Option<Site> {
     let Some(Terminator::Switch { value, default, cases }) = &func.blocks[block].terminator else {
         return None;
     };
@@ -239,19 +243,20 @@ fn find_site(func: &Function, block: BlockId) -> Option<Site> {
         .find(|&join| join != block && keyed.iter().all(|&(_, target)| reaches(target, join)))?;
     // A literal default goes with the cases; any other default stays a branch target.
     if reaches(default, join)
-        && let Some(site) = site(func, block, value, join, &keyed, low, len, default, true)
+        && let Some(site) = site(func, uses, block, value, join, &keyed, low, len, default, true)
     {
         return Some(site);
     }
     if default == join {
         return None;
     }
-    site(func, block, value, join, &keyed, low, len, default, false)
+    site(func, uses, block, value, join, &keyed, low, len, default, false)
 }
 
 #[expect(clippy::too_many_arguments)]
 fn site(
     func: &Function,
+    uses: &IndexVec<ValueId, u32>,
     block: BlockId,
     value: ValueId,
     join: BlockId,
@@ -332,9 +337,8 @@ fn site(
         fields.push(Field { phi, ty, value: field });
     }
     // The forwarders go with the switch, so nothing else may read what they compute: a forwarder
-    // that dominates a loop header reaches every block below it. This scans the function, so it
-    // runs after the phis' cheaper checks.
-    if !forwarded.is_empty() && used_outside(func, &forwarders, &forwarded) {
+    // that dominates a loop header reaches every block below it.
+    if !forwarded.is_empty() && used_outside(func, uses, &forwarders, &forwarded) {
         return None;
     }
     let present =
@@ -354,20 +358,46 @@ fn site(
     })
 }
 
-/// Whether a block other than the `forwarders` reads a value in `forwarded`.
-fn used_outside(func: &Function, forwarders: &[BlockId], forwarded: &FxHashSet<ValueId>) -> bool {
-    func.blocks.iter_enumerated().any(|(block, body)| {
-        let mut used = false;
-        if !forwarders.contains(&block) {
-            for &inst in &body.instructions {
-                func.inst(inst).kind.visit_operands(|value| used |= forwarded.contains(&value));
-            }
-            if let Some(terminator) = &body.terminator {
-                terminator.visit_operands(|value| used |= forwarded.contains(&value));
-            }
+/// Whether a block other than the `forwarders` reads a value in `forwarded`, given the reads of
+/// every value in `uses`.
+fn used_outside(
+    func: &Function,
+    uses: &IndexVec<ValueId, u32>,
+    forwarders: &[BlockId],
+    forwarded: &FxHashSet<ValueId>,
+) -> bool {
+    let mut outside = forwarded.iter().map(|&value| uses[value] as usize).sum::<usize>();
+    // Forwarders end in operand-free jumps.
+    for &block in forwarders {
+        for &inst in &func.blocks[block].instructions {
+            func.inst(inst).kind.visit_operands(|value| {
+                if forwarded.contains(&value) {
+                    outside -= 1;
+                }
+            });
         }
-        used
-    })
+    }
+    outside != 0
+}
+
+/// Adds the reads in the blocks that rewriting `site` changes to `uses`, or removes them.
+fn count_reads(func: &Function, site: &Site, uses: &mut IndexVec<ValueId, u32>, add: bool) {
+    let mut count = |value: ValueId| {
+        if add {
+            uses[value] += 1;
+        } else {
+            uses[value] -= 1;
+        }
+    };
+    for &block in [site.block, site.join].iter().chain(&site.forwarders) {
+        let body = &func.blocks[block];
+        for &inst in &body.instructions {
+            func.inst(inst).kind.visit_operands(&mut count);
+        }
+        if let Some(terminator) = &body.terminator {
+            terminator.visit_operands(&mut count);
+        }
+    }
 }
 
 /// The cheapest encoding of the site, when it pays for the switch it replaces.
