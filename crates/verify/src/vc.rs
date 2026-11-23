@@ -2352,7 +2352,33 @@ impl<'p, 'a> Vc<'p, 'a> {
                 // declares of their names is its own.
                 let ptrs = (self.slocals.clone(), self.aliases.clone(), self.alias_env.clone());
                 let r = self.exec_fn_body(f, i);
+                // The function's own storage returns keep what its body bound them to: the call
+                // returns them once the modifier ends.
+                let rets: Vec<_> = f
+                    .rets
+                    .iter()
+                    .map(|(n, _)| {
+                        let sl = self.slocals.contains(n);
+                        (
+                            n.clone(),
+                            sl,
+                            self.aliases.get(n).copied(),
+                            self.alias_env.get(n).cloned(),
+                        )
+                    })
+                    .collect();
                 (self.slocals, self.aliases, self.alias_env) = ptrs;
+                for (n, sl, al, ae) in rets {
+                    if sl {
+                        self.slocals.insert(n.clone());
+                    }
+                    if let Some(a) = al {
+                        self.aliases.insert(n.clone(), a);
+                    }
+                    if let Some(e) = ae {
+                        self.alias_env.insert(n, e);
+                    }
+                }
                 r?;
                 let fr = self.frames.pop().unwrap();
                 let mut st = fr.exits;

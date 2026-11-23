@@ -1275,3 +1275,8 @@ fn callee_local_scope() {
 fn modifier_pointer_scope() {
     check("tests/cases/modifier_pointer_scope.sol")
 }
+
+#[test]
+fn modifier_storage_return() {
+    check("tests/cases/modifier_storage_return.sol")
+}
