@@ -363,3 +363,93 @@ fn @choose(arg0: i256, arg1: i1) -> i256 {
             *programs, args, executable=native.default(SOLAR), timeout=10
         )
         return [json.loads(row)["values"] for row in replay["observations"]]
+
+    def test_egraph_loop_with_wrapping_words_and_pointer_callee(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{name}.mir" for name in ("before", "after"))
+            before.write_text("""@module WrappingLoop
+fn @roundtrip(arg0: i256) -> i256 {
+  bb0:
+    v0 = inttoptr i256 arg0 to ptr<memory>
+    v1 = ptrtoint ptr<memory> v0 to i256
+    ret v1
+}
+
+fn @step() -> i256 {
+  bb0:
+    v0 = sload 1
+    jump bb1
+  bb1:
+    v1 = phi [bb0: v0], [bb2: v4]
+    v2 = phi [bb0: 0], [bb2: v5]
+    v3 = lt v2, 2
+    jumpi v3, bb2, bb3
+  bb2:
+    v4 = add v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v5 = add v2, 1
+    jump bb1
+  bb3:
+    v6 = icall @roundtrip, v1
+    ret v6
+}
+""")
+            output = subprocess.check_output(
+                [SOLAR, before, "-j1", "-Ogas", "-Zmir-pipeline=egraph"],
+                text=True,
+                timeout=20,
+            )
+            after.write_text(output)
+            report = root / "report.json"
+            command = [
+                CLI,
+                "mir",
+                before,
+                after,
+                "--function=step",
+                "--solar",
+                SOLAR,
+                "--timeout=30",
+                "--report",
+                report,
+            ]
+            result = subprocess.run(
+                command, text=True, capture_output=True, timeout=90, check=False
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            record = json.loads(report.read_text())
+            self.assertEqual(
+                record["region"]["proof"], "kernel-checked-typed-jump-chain"
+            )
+            proofs = record["import_correspondence"][0]["correspondence"]
+            self.assertEqual(proofs["step"]["word_rewrites"], 1)
+            self.assertEqual(proofs["roundtrip"]["proof"], "carrier-copies")
+
+            broken = root / "broken.mir"
+            wrong, count = re.subn(r"(\bsub v\d+, )32\b", r"\g<1>33", output)
+            self.assertEqual(count, 1)
+            broken.write_text(wrong)
+            command[3] = broken
+            result = subprocess.run(
+                command, text=True, capture_output=True, timeout=90, check=False
+            )
+            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            self.assertEqual(json.loads(report.read_text())["status"], "unsupported")
+            fixture = root / "world.json"
+            fixture.write_text(
+                '{"version":1,"accounts":[{"address":65536,"storage":{"1":"7"}}]}'
+            )
+            result = subprocess.run(
+                [*command, "--world", fixture],
+                text=True,
+                capture_output=True,
+                timeout=90,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            record = json.loads(report.read_text())
+            self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+            self.assertEqual(
+                record["witness"]["observations"],
+                record["witness"]["native_observations"],
+            )

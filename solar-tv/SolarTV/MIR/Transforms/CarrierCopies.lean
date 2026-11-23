@@ -423,6 +423,24 @@ theorem from_entry (handlers : Handlers Value State Terminal) (fixed : Registers
   | inl identity => simp [identity, Input.read]
   | inr member => simp [List.isEmpty_iff.mp empty] at member
 
+/-- Each side may retain different full-word copies. Compare their checked
+erasures without assuming that an unused copy's source stays current. -/
+theorem paired_entry (handlers : Handlers Value State Terminal) (fixed : Registers Value)
+    (left right : List Block) (leftCopies rightCopies : Copies) (leftLive rightLive : List (List Nat))
+    (leftChecked : check leftCopies leftLive left = true)
+    (rightChecked : check rightCopies rightLive right = true)
+    (matched : left.map (erase leftCopies) = right.map (erase rightCopies))
+    (fuel : Nat) (regs : Registers Value) (state : State) :
+    run handlers fixed left fuel 0 none regs state =
+      run handlers fixed right fuel 0 none regs state := by
+  calc
+    _ = run handlers fixed (left.map (erase leftCopies)) fuel 0 none regs state :=
+      from_entry handlers fixed leftCopies leftLive left _ leftChecked rfl fuel regs state
+    _ = run handlers fixed (right.map (erase rightCopies)) fuel 0 none regs state :=
+      congrArg (fun blocks => run handlers fixed blocks fuel 0 none regs state) matched
+    _ = _ :=
+      (from_entry handlers fixed rightCopies rightLive right _ rightChecked rfl fuel regs state).symm
+
 -- A redefinition invalidates the old word captured by a copy.
 example :
     checkCode [(3,.reg 1)]

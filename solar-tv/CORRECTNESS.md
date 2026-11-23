@@ -674,6 +674,17 @@ A 20-second retry brought that total to 19. The current certificate verifies
 all 26 with the 20-second proof budget. All three pinned contracts kept their
 ABI, creation bytecode and runtime bytecode.
 
+Matched word actions can use wrapping i256 addition and subtraction with
+complementary constants. The kernel checks the normalized keys and proves
+that the typed operations return the same word for every input. A callee
+can also retain different full-word pointer casts. Both carrier graphs
+must erase to the same checked graph, using an invariant that invalidates
+cached copies when a loop overwrites their source. Four of the eleven
+frozen egraph captures that previously required a loop invariant now verify.
+They cover ERC20Mock `name`, `symbol` and the storage-bytes load and store
+helpers. The regression replays a wrong subtraction through a two-iteration
+loop in both interpreters.
+
 ## Automatic typed source execution
 
 The scalar expression projection has a separate automatic fallback: direct

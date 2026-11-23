@@ -6,7 +6,7 @@ from collections import deque
 from itertools import batched
 from pathlib import Path
 
-from . import audit, dead_ssa, entry_proof, prune, type_prune
+from . import audit, dead_ssa, entry_proof, phase_carriers, prune, type_prune
 from .common import Program, Unsupported
 
 
@@ -156,11 +156,44 @@ def writes(data):
     return [] if result is None else [result]
 
 
+def word_key(data):
+    if not isinstance(data, dict) or "operation" not in data:
+        return None
+    operation = data["operation"]
+    op = operation.get("name")
+    if operation["kind"] != "opcode" or op not in {"add", "sub"}:
+        return None
+    operands = operation["args"]
+    word = {"kind": "word", "bits": 256, "name": "i256"}
+    if (
+        len(operands) != 2
+        or operands[0]["kind"] != "local"
+        or operands[1]["kind"] != "constant"
+        or any(value["type"] != word for value in operands)
+        or data["type"] != word
+        or data["result"] is None
+    ):
+        return None
+    value = int(operands[1]["value"])
+    if not 0 <= value < 1 << 256:
+        raise Unsupported("MIR word constant is outside i256")
+    return op, value
+
+
+def action_signature(data):
+    key = word_key(data)
+    if key is None:
+        return dead_ssa.signature(data)
+    op, value = key
+    return ("word-add", value if op == "add" else -value % (1 << 256))
+
+
 def pairing(old, new):
     points = [(0, 0)]
     locations = {(0, 0): 0}
     targets, live, definitions = [], [], []
     jump_limit = 1
+    word_rewrites = 0
 
     def index(pair):
         if pair not in locations:
@@ -191,9 +224,10 @@ def pairing(old, new):
             left_kind != right_kind
             or len(a) != len(b)
             or len(left_edges) != len(right_edges)
-            or dead_ssa.signature(left) != dead_ssa.signature(right)
+            or action_signature(left) != action_signature(right)
         ):
             raise Unsupported("MIR control-flow comparison changed a typed action")
+        word_rewrites += word_key(left) != word_key(right)
         targets.append(
             [index(edge) for edge in zip(left_edges, right_edges, strict=True)]
         )
@@ -227,7 +261,7 @@ def pairing(old, new):
         raise Unsupported(
             "MIR CFG entry depends on a local without a matched definition"
         )
-    return points, targets, live, jump_limit
+    return points, targets, live, jump_limit, word_rewrites
 
 
 def render(nodes, symbols):
@@ -236,9 +270,15 @@ def render(nodes, symbols):
             return f".forward {edges[0]}"
         if kind == "literal":
             return f".literalBranch {str(data).lower()} {edges[0]} {edges[1]}"
-        key = symbols.setdefault(
-            (kind, dead_ssa.stable(dead_ssa.signature(data))), len(symbols)
-        )
+        word = word_key(data)
+        if word:
+            op, value = word
+            key = f"(.{op}Constant {value}#256)"
+        else:
+            symbol = symbols.setdefault(
+                (kind, dead_ssa.stable(dead_ssa.signature(data))), len(symbols)
+            )
+            key = f"(.opaque {symbol})"
         return f".action ⟨{key},{reads(data)},{writes(data)},{edges}⟩"
 
     return "#[" + ",".join(row(*node) for node in nodes) + "]"
@@ -341,13 +381,16 @@ set_option maxHeartbeats 2000000
 #print axioms MIR.CfgFlow.typed_jump
 #print axioms MIR.CfgFlow.typed_enter_empty
 #print axioms MIR.CfgFlow.typed_literal_branch
+#print axioms MIR.CfgFlow.normalized_word_result
+#print axioms MIR.PhaseShaping.pointer_carrier
+#print axioms MIR.PhaseShaping.full_word_casts
 #print axioms MIR.ProductInit.construct_initialized
 #print axioms MIR.ProductInit.observed_initialized
 """
     )
     work = [function]
     checked = {}
-    axioms_checks = 5
+    axioms_checks = 8
     while work:
         name = work.pop()
         if name in checked:
@@ -402,7 +445,21 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 "literal_branches": literal_branches,
             }
         else:
-            points, edges, live, limit = pairing(old, new)
+            try:
+                points, edges, live, limit, word_rewrites = pairing(old, new)
+            except Unsupported as error:
+                try:
+                    proof, copies = phase_carriers.paired_proof(i, a, b)
+                except Unsupported:
+                    raise error from None
+                code += proof
+                axioms_checks += 1
+                checked[name] = {
+                    "proof": "carrier-copies",
+                    "copies": copies,
+                    "product_initialization": product_initialization,
+                }
+                continue
             witnesses = [
                 render_point(point, targets, locals_)
                 for point, targets, locals_ in zip(points, edges, live, strict=True)
@@ -417,6 +474,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
                     for side in (0, 1)
                 ],
                 "live_pairs": sum(map(len, live)),
+                "word_rewrites": word_rewrites,
                 "literal_branches": literal_branches,
             }
         checked[name]["product_initialization"] = product_initialization

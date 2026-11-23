@@ -142,7 +142,7 @@ theorem abort_never_returns{index} (cfg : MIR.State.Config) (fuel : Nat)
 """
 
 
-def align(before, after, tail_rewrites):
+def align(before, after, tail_rewrites, *, erase_both=False):
     if len(before["blocks"]) != len(after["blocks"]):
         raise Unsupported("carrier proof requires unchanged block identities")
     renaming = {}
@@ -162,21 +162,33 @@ def align(before, after, tail_rewrites):
         zip(before["blocks"], after["blocks"], strict=True)
     ):
         retained = [inst for inst in left["instructions"] if source_copy(inst) is None]
+        targets = (
+            [inst for inst in right["instructions"] if source_copy(inst) is None]
+            if erase_both
+            else right["instructions"]
+        )
         if index in tail_rewrites:
             retained.pop()
-        if len(retained) != len(right["instructions"]) or len(left["phis"]) != len(
-            right["phis"]
-        ):
+        if len(retained) != len(targets) or len(left["phis"]) != len(right["phis"]):
             raise Unsupported("carrier proof changed the number of retained actions")
         for old, new in [
             *zip(left["phis"], right["phis"], strict=True),
-            *zip(retained, right["instructions"], strict=True),
+            *zip(retained, targets, strict=True),
         ]:
             bind(old["result"], new["result"])
+    if erase_both:
+        # Assign the target's erased results fresh names so that retained
+        # locals share the same names in both checked erasures.
+        next_id = 1 + max(used, default=0)
+        for block in after["blocks"]:
+            for inst in block["instructions"]:
+                if source_copy(inst) is not None:
+                    bind(next_id, inst["result"])
+                    next_id += 1
     return renaming
 
 
-def project(body, symbols, renaming, tail_rewrites):
+def project(body, symbols, renaming, tail_rewrites, *, retain_target_copies=False):
     def local(index):
         if renaming is None:
             return index
@@ -240,8 +252,10 @@ def project(body, symbols, renaming, tail_rewrites):
             term = {**instructions[-1]["operation"], "kind": "tail_call"}
             instructions = instructions[:-1]
         for inst in instructions:
-            if renaming is None and (operand := source_copy(inst)) is not None:
-                code.append(Copy(inst["result"], read(operand)))
+            if (renaming is None or retain_target_copies) and (
+                operand := source_copy(inst)
+            ) is not None:
+                code.append(Copy(local(inst["result"]), read(operand)))
                 continue
             result = inst["result"]
             code.append(
@@ -326,6 +340,42 @@ def render_block(block):
         + "]"
     )
     return f"⟨{phis},{code},{render_action(block.exit)},{block.targets}⟩"
+
+
+def paired_proof(index, old, new):
+    renaming = align(old, new, {}, erase_both=True)
+    symbols = {}
+    graphs = (
+        project(old, symbols, None, {}),
+        project(new, symbols, renaming, {}, retain_target_copies=True),
+    )
+    names = ("before", "after")
+    count = 0
+    code = f"\nnamespace CarrierPair{index}\nopen MIR.CarrierCopies\n"
+    for name, graph in zip(names, graphs, strict=True):
+        aliases, live = aliases_and_live(graph)
+        count += len(aliases)
+        mapping = ",".join(
+            f"({reg},{render_input(source)})" for reg, source in aliases.items()
+        )
+        code += f"""
+def {name}Copies : Copies := [{mapping}]
+def {name}Live : List (List Nat) := {live}
+def {name} : List Block := [{",".join(map(render_block, graph))}]
+"""
+    if count == 0:
+        raise Unsupported("no full-word carrier can be erased")
+    code += f"""
+theorem preserved {{Value State Terminal : Type}} (handlers : Handlers Value State Terminal)
+    (fixed regs : Registers Value) (fuel : Nat) (state : State) :
+    run handlers fixed before fuel 0 none regs state =
+      run handlers fixed after fuel 0 none regs state :=
+  paired_entry handlers fixed before after beforeCopies afterCopies beforeLive afterLive
+    (by decide +kernel) (by decide +kernel) (by decide +kernel) fuel regs state
+end CarrierPair{index}
+#print axioms CarrierPair{index}.preserved
+"""
+    return code, count
 
 
 def check(left, right, changed, definitions, timeout):

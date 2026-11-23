@@ -399,6 +399,15 @@ def record(
                 assumptions.append(
                     "flat products seeded by undef have kernel-checked initialized fields; reads outside their insert chains require a complete product"
                 )
+            functions = program.import_evidence["correspondence"].values()
+            if any(details.get("word_rewrites") for details in functions):
+                assumptions.append(
+                    "kernel checks wrapped i256 add/subtract operands at matched actions"
+                )
+            if any(details["proof"] == "carrier-copies" for details in functions):
+                assumptions.append(
+                    "both callee graphs check full-word carrier copies against the common erasure; overwrites invalidate captured values across loops"
+                )
         elif program and program.scope == "source-identity":
             assumptions.extend(
                 [

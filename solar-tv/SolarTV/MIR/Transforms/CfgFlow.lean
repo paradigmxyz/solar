@@ -8,9 +8,33 @@ by each successor. Sharing a source tail does not require the other tail to
 use the same local IDs. Empty forwarding chains consume no logical work. -/
 
 namespace SolarTV.MIR.CfgFlow
+open EvmRules
+
+inductive ActionKey where
+  | opaque (id : Nat)
+  | addConstant (value : Word)
+  | subConstant (value : Word)
+  deriving DecidableEq
+
+def ActionKey.normalized : ActionKey → ActionKey
+  | .subConstant constant => .addConstant (-constant)
+  | key => key
+
+def ActionKey.wordResult (key : ActionKey) (input : Word) : Option Word :=
+  match key with
+  | .opaque _ => none
+  | .addConstant constant => some (MIR.eval .add input constant)
+  | .subConstant constant => some (MIR.eval .sub input constant)
+
+/-- The normalized key retains the result of the actual wrapped word
+operation for every scalar operand. -/
+theorem normalized_word_result (key : ActionKey) (input : Word) :
+    key.normalized.wordResult input = key.wordResult input := by
+  cases key <;> simp [ActionKey.normalized, ActionKey.wordResult, MIR.eval,
+    BitVec.sub_eq_add_neg]
 
 structure Action where
-  key : Nat
+  key : ActionKey
   reads : List Nat
   writes : List Nat
   targets : List Nat
@@ -58,7 +82,7 @@ def edge (points : Array Point) (live : Live) (a b : Action)
       next.live.all (transferred live a.writes b.writes)
 
 def compatible (points : Array Point) (point : Point) (a b : Action) : Bool :=
-  a.key == b.key && a.reads.length == b.reads.length &&
+  decide (a.key.normalized = b.key.normalized) && a.reads.length == b.reads.length &&
   (a.reads.zip b.reads).all point.live.contains &&
   a.targets.length == point.targets.length && b.targets.length == point.targets.length &&
   (point.targets.zip (a.targets.zip b.targets)).all (fun (i, positions) =>
@@ -80,7 +104,7 @@ theorem append_checked {a b : Array Point} {check : Point → Bool}
 /-- A handler reads the ordered typed operands and reports a halt or a
 successor arm, result values by position, and the new shared state. -/
 abbrev Handler (Value State Observation : Type) :=
-  Nat → List Value → State → Except Observation (Nat × Locals Value × State)
+  ActionKey → List Value → State → Except Observation (Nat × Locals Value × State)
 
 inductive Result (Observation : Type) where
   | halted (terminal : Observation)
@@ -94,7 +118,7 @@ def run (graph : Graph) (limit : Nat) (handle : Handler Value World Observation)
     match follow graph limit cursor with
     | none => .invalid
     | some action =>
-      match handle action.key (action.reads.map locals) world with
+      match handle action.key.normalized (action.reads.map locals) world with
       | .error terminal => .halted terminal
       | .ok (arm,reply,next) =>
         match action.targets[arm]? with
@@ -147,11 +171,12 @@ theorem simulation (before after : Graph) (points : Array Point) (limit : Nat)
       cases right : follow after limit point.right with
       | none => simp [checkAt,left,right] at checked
       | some b =>
-        simp only [checkAt,left,right,compatible,Bool.and_eq_true,beq_iff_eq] at checked
+        simp only [checkAt,left,right,compatible,Bool.and_eq_true,beq_iff_eq,
+          decide_eq_true_eq] at checked
         obtain ⟨⟨⟨⟨⟨key,readsLength⟩,reads⟩,leftLength⟩,rightLength⟩,edges⟩ := checked
         have operands := map_agrees point.live old new a.reads b.reads readsLength reads same
         simp only [run,left,right,key,operands]
-        cases executed : handle b.key (b.reads.map new) world with
+        cases executed : handle b.key.normalized (b.reads.map new) world with
         | error obs => rfl
         | ok result =>
           obtain ⟨arm,reply,state⟩ := result
