@@ -2512,13 +2512,15 @@ impl<'p, 'a> Vc<'p, 'a> {
         }
     }
 
-    /// Whether `n` names a variable where the call `effects` meets runs: one the body being
-    /// walked declares (any declaration, as a call by a non-function name does not compile), or a
-    /// function-typed state variable, which may shadow a free function.
+    /// Whether `n` may name a function pointer where the call `effects` meets runs: a
+    /// function-typed variable the body being walked declares (see `fn_ptr_names`), or, in the
+    /// running body, one execution has bound (the bindings it calls through, which follow base
+    /// initializers and inlined bodies), or a function-typed state variable, which may shadow a
+    /// free function.
     fn var_named(&self, n: &str) -> bool {
         let declared = match self.effect_frames.borrow().last() {
             Some(names) => names.contains(n),
-            None => self.frame_names.contains(n),
+            None => self.env.get(n).is_some_and(|v| matches!(v.ty, Ty::Fn(_) | Ty::Opaque)),
         };
         declared || self.c.state.iter().any(|v| v.name == n && matches!(v.ty, Ty::Fn(_)))
     }
@@ -2823,11 +2825,11 @@ impl<'p, 'a> Vc<'p, 'a> {
                 stmts.extend(b.stmts.iter());
             }
         }
-        // calls in these bodies see their names, not the caller's
-        let mut names = Self::frame_of(f.item).1;
+        // calls in these bodies see their pointers, not the caller's
+        let mut names = Self::fn_ptr_names(f.item);
         for m in f.item.header.modifiers.iter() {
             if let Some(md) = self.c.modifiers.get(m.name.last().as_str()) {
-                names.extend(Self::frame_of(md).1);
+                names.extend(Self::fn_ptr_names(md));
             }
         }
         self.effect_frames.borrow_mut().push(names);
@@ -4836,6 +4838,41 @@ impl<'p, 'a> Vc<'p, 'a> {
         (cd, names)
     }
 
+    /// The function-typed parameters, returns and locals `item` declares, in any block: the only
+    /// names a call in its body can reach a function pointer by. Over-approximate, since a
+    /// nested declaration may be out of scope at the call.
+    fn fn_ptr_names(item: &'a ast::ItemFunction<'a>) -> FxHashSet<String> {
+        let ptr = |v: &ast::VariableDefinition<'_>| {
+            if matches!(v.ty.kind, ast::TypeKind::Function(_)) {
+                v.name.map(|n| n.as_str().to_string())
+            } else {
+                None
+            }
+        };
+        let mut names: FxHashSet<String> = item
+            .header
+            .parameters
+            .iter()
+            .chain(item.header.returns().iter())
+            .filter_map(ptr)
+            .collect();
+        for s in item.body.iter().flat_map(|b| b.stmts.iter()) {
+            walk::all_stmts(s, &mut |s| match &s.kind {
+                StmtKind::DeclSingle(v) => names.extend(ptr(v)),
+                StmtKind::DeclMulti(vs, _) => {
+                    names.extend(vs.iter().filter_map(|v| v.as_ref().unspan()).filter_map(&ptr))
+                }
+                StmtKind::Try(t) => {
+                    for c in t.clauses.iter() {
+                        names.extend(c.args.iter().filter_map(&ptr));
+                    }
+                }
+                _ => {}
+            });
+        }
+        names
+    }
+
     /// Whether `e` is an internal call, by name, whose every candidate callee returns a memory
     /// object it allocated (see `returns_fresh`), so that no name of the caller refers to it.
     fn fresh_call(&self, e: &'a Expr<'a>) -> bool {
@@ -5150,7 +5187,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         let mod_args: Vec<&'a Expr<'a>> =
             f.item.header.modifiers.iter().flat_map(|m| m.arguments.exprs()).collect();
         let outer = self.mem_walk.replace(Some(vec![]));
-        self.effect_frames.borrow_mut().push(Self::frame_of(f.item).1);
+        self.effect_frames.borrow_mut().push(Self::fn_ptr_names(f.item));
         let direct = self.mem_param_written_body(body, &mod_args, n);
         self.effect_frames.borrow_mut().pop();
         let calls = std::mem::replace(&mut *self.mem_walk.borrow_mut(), outer).unwrap_or_default();

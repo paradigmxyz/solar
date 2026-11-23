@@ -1186,3 +1186,20 @@ fn mem_names_shadow() {
 fn encode_modifier_args() {
     check("tests/cases/encode_modifier_args.sol")
 }
+
+#[test]
+fn encode_ptr_scope() {
+    let file = "tests/cases/encode_ptr_scope.sol";
+    check(file);
+    if z3_missing() {
+        return;
+    }
+    // `Leaf`'s constructor runs the pointer `_write` before encoding: no stale hash proof.
+    let run = run_verifier(&["--json", "--timeout", TIMEOUT, file]);
+    let json = run.stdout.lines().find_map(|l| l.strip_prefix("JSON ")).expect("no JSON line");
+    let rows: Vec<serde_json::Value> = serde_json::from_str(json).expect("bad JSON line");
+    let got: BTreeMap<&str, &str> =
+        rows.iter().map(|r| (r["fn"].as_str().unwrap(), r["status"].as_str().unwrap())).collect();
+    let f = "Leaf.constructor";
+    assert_eq!(got.get(f), Some(&"unknown"), "{f}\n{}\n{}", run.stdout, run.stderr);
+}
