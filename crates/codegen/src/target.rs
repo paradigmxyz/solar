@@ -1766,6 +1766,10 @@ impl Target {
         if self.optimization.is_size() {
             return self.cmp(lookup, switch) == Ordering::Less;
         }
+        // NOTE: Both sides assume the value hits a case, as `literal_switch` prices only hits. A
+        // value outside a stride table's span skips to the default after one bounds check, so a
+        // loop whose values mostly miss can pay more for the lookup: 26 gas per iteration for a
+        // dense 40-key switch.
         if in_loop && self.runtime_gas(lookup) > self.runtime_gas(switch) {
             return false;
         }
