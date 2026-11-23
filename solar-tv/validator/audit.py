@@ -271,6 +271,16 @@ def record(
                     "semantic effects only; abstract MIR is unpriced; no physical gas or backend layout claim",
                 ]
             )
+        elif program and program.scope == "compact-pushes":
+            bound = program.import_evidence["entry_height_bound"]
+            assumptions.extend(
+                [
+                    f"independently exported EVM region with incoming height at most {bound}; every logical execution bound",
+                    "each closed recipe produces the same words and preserves the incoming stack; every extra temporary slot is checked",
+                    "kernel-checked fork-specific execution charges for the recipes; both executions must be funded through every reached instruction and gas admission check",
+                    "gas-insensitive, position-independent handlers; no GAS, code-image observers, external messages or unresolved return targets; physical transfer charges are outside the proof",
+                ]
+            )
         elif program and program.scope == "stack-layout":
             assumptions.extend(
                 [
@@ -596,6 +606,7 @@ def record(
                 "mint-layout",
                 "burn-layout",
                 "interior-window",
+                "compact-pushes",
                 "source-identity",
                 "stack-layout",
                 "cfg-flow",
@@ -671,6 +682,7 @@ def record(
                 "effectful-prefix",
                 "shared-prefix-suffix",
                 "interior-window",
+                "compact-pushes",
             }
             else policy
         )
@@ -832,13 +844,21 @@ def record(
                     if program.scope == "cfg-flow"
                     else "kernel-checked-continuation-flow"
                     if program.scope == "continuation-flow"
+                    else "kernel-checked-compact-pushes"
+                    if program.scope == "compact-pushes"
                     else "universal-source-graph-identity",
                     "stack_height": None,
                 },
             }
             if program
             and program.scope
-            in {"source-identity", "stack-layout", "cfg-flow", "continuation-flow"}
+            in {
+                "source-identity",
+                "stack-layout",
+                "cfg-flow",
+                "continuation-flow",
+                "compact-pushes",
+            }
             else {}
         ),
         **(

@@ -6,7 +6,8 @@ Opcode signatures come from the compiler schema. The height is architectural
 state; all other state, including operand values, memory, accounts and resource
 state, is carried by arbitrary shared handlers. Successful opcodes change height
 by their signature. Branches consume one word after checking a temporary label
-slot. Unconditional transfers retain their actual zero/one-slot growth check.
+slot. Unconditional transfers retain their temporary growth checks. Recipe
+projections may also use a guard for more than one temporary slot.
 
 A finite local certificate matches source nodes under a renaming and proves an
 upper height at every reachable node. Different jump checks may match only when
@@ -72,8 +73,9 @@ def compatible (size : Nat) (rename bounds : Nat → Nat) (signatures : Signatur
       | some (inputs,outputs) => inputs ≤ 1024 && outputs ≤ 1024 &&
         (bounds pc < inputs || postHeight (bounds pc) inputs outputs ≤ bounds next)
   | .jump label growth next, some (.jump other extra target) =>
-    label == other && growth ≤ 1 && extra ≤ 1 && target == rename next && next < size &&
-      (growth == extra || bounds pc ≤ 1023) && min (bounds pc) (1024-growth) ≤ bounds next
+    label == other && growth ≤ 1024 && extra ≤ 1024 && target == rename next && next < size &&
+      (growth == extra || bounds pc + max growth extra ≤ 1024) &&
+      min (bounds pc) (1024-growth) ≤ bounds next
   | .branch label yes no, some (.branch other targetYes targetNo) =>
     label == other && targetYes == rename yes && targetNo == rename no &&
       yes < size && no < size &&
@@ -82,13 +84,14 @@ def compatible (size : Nat) (rename bounds : Nat → Nat) (signatures : Signatur
     label == other && instruction == opcode
   | _, _ => false
 
-def Valid (before after : Program) (rename bounds : Nat → Nat) (signatures : Signatures) : Prop :=
+def Valid (before after : Program) (rename bounds : Nat → Nat) (signatures : Signatures)
+    (entryBound : Nat := 1024) : Prop :=
   before.entry < before.nodes.size ∧ rename before.entry = after.entry ∧
-    bounds before.entry = 1024 ∧
+    entryBound ≤ bounds before.entry ∧
     ∀ i : Fin before.nodes.size, bounds i ≤ 1024 ∧
       compatible before.nodes.size rename bounds signatures i before.nodes[i] after.nodes[rename i]? = true
 
-instance : Decidable (Valid before after rename bounds signatures) := by
+instance : Decidable (Valid before after rename bounds signatures entryBound) := by
   unfold Valid
   infer_instance
 
@@ -100,7 +103,8 @@ theorem post_height_bound (height bound inputs outputs : Nat)
   omega
 
 theorem bounded_simulation (before after : Program) (rename bounds : Nat → Nat)
-    (signatures : Signatures) (valid : Valid before after rename bounds signatures)
+    (signatures : Signatures) {entryBound : Nat}
+    (valid : Valid before after rename bounds signatures entryBound)
     (handlers : Handlers World Observation) (fuel pc : Nat) (state : State World)
     (inside : pc < before.nodes.size) (small : state.height ≤ bounds pc) :
     execute before signatures handlers fuel pc state =
@@ -201,6 +205,6 @@ theorem contextual (before after : Program) (rename bounds : Nat → Nat)
     · simp [execute,full]
     · rw [← valid.2.1]
       exact bounded_simulation before after rename bounds signatures valid handlers _ _ state
-        valid.1 (by rw [valid.2.2.1]; omega)
+        valid.1 (by have entry := valid.2.2.1; omega)
 
 end SolarTV.EVM.StackGraph

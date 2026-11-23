@@ -2010,6 +2010,16 @@ a branch condition or a return or revert operand prevents the proof. The audit
 reports the number of resolved returns for each side. This is an unpriced
 region check. External messages and code-image observers remain unsupported.
 
+For `compact-pushes`, the kernel evaluates the literal recipes, checks each
+intermediate stack height, and accounts for every opcode's gas on the selected
+fork. The proof can include adjacent literal pushes to compare the peak of the
+entire sequence before the next effect. The audit records the entry height
+bound and each sequence's peak and charge. This check requires both
+executions to fund every reached operation and admission check, including the
+storage-write sentry. The continuation cannot observe gas through `GAS`;
+external messages and code-image observers remain unsupported.
+[Proof details](CORRECTNESS.md#compact-push-recipes)
+
 The MIR checker also validates block coalescing and jump threading on typed
 graphs, including backedges. Every selected phi group reads its predecessor's
 operands simultaneously. Direct callees are checked with their original

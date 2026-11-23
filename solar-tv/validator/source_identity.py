@@ -17,7 +17,7 @@ from . import audit, correspondence, native, regions
 from .common import Program, Unsupported, literal
 
 
-def render(model, catalog, version, entry, *, dynamic_exit=False):
+def render(model, catalog, version, entry, *, dynamic_exit=False, max_growth=1):
     if not isinstance(model, dict) or not isinstance(model.get("nodes"), list):
         raise Unsupported("invalid source-identity graph")
     rows = model.get("nodes", [])
@@ -87,7 +87,7 @@ def render(model, catalog, version, entry, *, dynamic_exit=False):
             kind == "jump"
             and set(node) == {"kind", "growth", "next"}
             and type(node["growth"]) is int
-            and node["growth"] in {0, 1}
+            and 0 <= node["growth"] <= max_growth
         ):
             nodes.append(f".jump {label} {node['growth']} {target(node['next'])}")
         elif kind == "branch" and set(node) == {"kind", "yes", "no"}:
@@ -107,12 +107,11 @@ def render(model, catalog, version, entry, *, dynamic_exit=False):
     return f"⟨{root},#[{','.join(nodes)}]⟩"
 
 
-def check(paths, solar, replay, version, timeout, entry):
-    from .check import PRELUDE, ROOT, build_model, run
+def parse_pair(paths, solar, version, timeout, entry):
+    from .check import ROOT, run
 
     if not re.fullmatch(r"bb[0-9]{1,10}", entry) or int(entry[2:]) >= 2**32:
         raise Unsupported("source identity requires a valid region label")
-    catalog = {row["name"]: row for row in native.catalog(replay, timeout)["evmir"]}
     texts, headers = [], []
     for path in paths:
         if path.suffix != ".evmir" or path.stat().st_size > 1024 * 1024:
@@ -138,6 +137,14 @@ def check(paths, solar, replay, version, timeout, entry):
         )
     if headers[0] != headers[1]:
         raise Unsupported("source identity changed shared declarations")
+    return texts
+
+
+def check(paths, solar, replay, version, timeout, entry):
+    from .check import PRELUDE, ROOT, build_model, run
+
+    catalog = {row["name"]: row for row in native.catalog(replay, timeout)["evmir"]}
+    texts = parse_pair(paths, solar, version, timeout, entry)
     try:
         models = [
             correspondence.export(text, entry, version, replay, timeout)

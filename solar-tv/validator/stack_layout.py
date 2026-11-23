@@ -38,7 +38,7 @@ def signatures(model, catalog):
     return table
 
 
-def certificate(before, after, table):
+def certificate(before, after, table, *, entry_bound=1024):
     def keys(model):
         counts, result = {}, []
         for row in model["nodes"]:
@@ -66,7 +66,7 @@ def certificate(before, after, table):
         if node != target:
             raise Unsupported("layout changed an operation, operand, terminal or edge")
     bounds = [0] * len(old)
-    bounds[before["entry"]] = 1024
+    bounds[before["entry"]] = entry_bound
     pending = deque(range(len(old)))
     updates = 0
     while pending:
@@ -104,11 +104,9 @@ def certificate(before, after, table):
     changed = []
     for row in before["nodes"]:
         node = row["node"]
-        if (
-            node["kind"] == "jump"
-            and node["growth"] != after["nodes"][rename[row["id"]]]["node"]["growth"]
-        ):
-            if bounds[row["id"]] > 1023:
+        target = after["nodes"][rename[row["id"]]]["node"]
+        if node["kind"] == "jump" and node["growth"] != target["growth"]:
+            if bounds[row["id"]] + max(node["growth"], target["growth"]) > 1024:
                 raise Unsupported("changed transfer may overflow the 1024-word stack")
             changed.append({"node": row["id"], "height_bound": bounds[row["id"]]})
     return rename, bounds, changed

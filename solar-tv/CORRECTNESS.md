@@ -502,6 +502,35 @@ smallest timed-out graphs at 25 seconds verified seven more, for 11 verified
 and eight still timed out. ABI, creation bytecode and runtime bytecode matched
 for all three corpus contracts.
 
+### Compact PUSH recipes
+
+The checker matches each recipe to consecutive instructions and successors in
+the independently exported EVM graph. It runs the recipe on a private stack,
+then `run_summary` lifts the result to every incoming stack. It proves the
+temporary peak, the words left above the unchanged incoming stack, and the
+exact local execution charge for the target fork. The projected graph retains
+that stack guard and the resulting literal pushes. Adjacent matching pushes
+can join the recipe when they reach the same peak before the next effect.
+
+The CFG simulation checks both successors of a branch and every matched
+action. It uses the supplied entry height bound, or checks every architectural
+entry height when no bound is supplied. The result assumes gas-insensitive,
+position-independent handlers and enough gas on both sides for every reached
+charge and admission check. Physical transfer prices and the compiler's
+exporter and schema binding are outside the proof.
+
+The pinned WETH `name()` capture checks the return-data path. With its next
+literal push included, the compared Cancun sequences charge 6 and 12 gas and
+both peak at two temporary words. The compiler's existing 1,023-word fixture
+has no matching push to absorb the new stack peak. The original succeeds and
+the compacted sequence overflows, confirmed by Lean and Rust execution.
+
+At eight seconds per proof, the serial recheck verified 58 of the 103 frozen
+`compact-pushes` captures that were previously unsupported. The new
+certificate verified 48 and the existing stack-prefix route verified 10.
+The other 45 remained unsupported. The ABI and creation and runtime bytecode
+matched the pinned outputs for all three contracts.
+
 ## Automatic typed source execution
 
 The scalar expression projection has a separate automatic fallback: direct

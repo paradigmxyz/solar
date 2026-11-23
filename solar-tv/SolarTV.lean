@@ -51,6 +51,7 @@ import SolarTV.EVMIR.StackGraph
 import SolarTV.EVMIR.ControlFlow
 import SolarTV.EVMIR.ContinuationFlow
 import SolarTV.EVMIR.Transforms.HeapEntry
+import SolarTV.EVMIR.Transforms.CompactPushes
 import SolarTV.MIR.Transforms.CfgFlow
 import SolarTV.EVMIR.State.Transactions.SetCode
 import SolarTV.EVMIR.State.Transactions.Reservoir

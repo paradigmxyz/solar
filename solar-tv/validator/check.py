@@ -1068,6 +1068,40 @@ def main() -> int:
                     verbose=args.verbose,
                 )
     except (Unsupported, OSError, subprocess.TimeoutExpired) as error:
+        compact = None
+        entry = (
+            args.region
+            or args.prefix
+            or (args.window if args.stack_height is not None else None)
+        )
+        if (
+            isinstance(error, Unsupported)
+            and not isinstance(error, Inconclusive)
+            and args.ir == "evmir"
+            and entry
+            and args.world is None
+            and args.gas is None
+        ):
+            from . import compact_pushes
+
+            try:
+                compact = compact_pushes.check(
+                    (args.before, args.after),
+                    solar,
+                    rust_replay,
+                    version,
+                    args.timeout,
+                    entry,
+                    args.stack_height,
+                )
+            except (
+                compact_pushes.RecipeRejected,
+                subprocess.TimeoutExpired,
+                OSError,
+            ) as retry:
+                error = retry
+            except Unsupported:
+                pass
         status = (
             "timeout"
             if isinstance(error, subprocess.TimeoutExpired)
@@ -1077,7 +1111,7 @@ def main() -> int:
             if isinstance(error, Unsupported)
             else "error"
         )
-        result = audit.Result(
+        result = compact or audit.Result(
             status,
             stderr=report.inconclusive(error, replay, verbose=args.verbose),
             program=programs[0] if len(programs) == 2 else None,
