@@ -491,6 +491,12 @@ impl<'gcx> Assembler<'gcx> {
         self.program.blocks[block].metadata.call_effect = Some(call_effect);
     }
 
+    /// Marks the block of `label` as the entry of an internal function.
+    pub(crate) fn mark_function_entry(&mut self, label: Label) {
+        let block = self.label_blocks[&label];
+        self.program.blocks[block].metadata.function_entry = true;
+    }
+
     /// Defines the entry label of an external function, which the runtime dispatch jumps to.
     pub(crate) fn define_external_entry_label(&mut self, label: Label) {
         self.define_label(label);

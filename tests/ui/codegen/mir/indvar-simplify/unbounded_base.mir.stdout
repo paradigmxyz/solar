@@ -1,0 +1,44 @@
+; === ROOT/tests/ui/codegen/mir/indvar-simplify/unbounded_base.sol:UnboundedBase ===
+@module UnboundedBase
+; function f(uint256 off, uint256 n, bool load) external pure returns (uint256 s) [selector 0x80330ef1]
+fn @f(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x80330ef1, pure, abi_params=[uint256, uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = add v0, arg0
+    v2 = and arg1, 0xffff
+    jump bb1
+  bb1:                                            ; preds = bb0, bb3
+    v3 = phi [bb0: arg0], [bb3: v3]
+    v4 = phi [bb0: v2], [bb3: v4]
+    v5 = phi [bb0: arg2], [bb3: v5]
+    v6 = phi [bb0: 0], [bb3: v17]
+    v7 = phi [bb0: v1], [bb3: v7]
+    v8 = phi [bb0: 0], [bb3: v18]
+    v9 = lt v8, v4
+    v10 = zext i1 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb4, bb5
+  bb5:                                            ; preds = bb1
+    jump bb2
+  bb2:                                            ; preds = bb5
+    ret v6
+  bb4:                                            ; preds = bb1
+    switch v5, default bb9, [0 => bb8]
+  bb8:                                            ; preds = bb4
+    v12 = add v6, 1
+    jump bb7
+  bb9:                                            ; preds = bb4
+    v13 = mul v8, 32
+    v14 = add v13, v7
+    v15 = mload v14
+    v16 = add v15, v6
+    jump bb7
+  bb7:                                            ; preds = bb8, bb9
+    v17 = phi [bb8: v12], [bb9: v16]
+    jump bb6
+  bb6:                                            ; preds = bb7
+    jump bb3
+  bb3:                                            ; preds = bb6
+    v18 = add v8, 1
+    jump bb1
+}

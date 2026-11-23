@@ -12,7 +12,8 @@
 //! scalar expressions.
 
 use crate::mir::{
-    ArithmeticKind, CheckedOp, FunctionBuilder, InstKind, MirType, Module, PanicCode, ValueId,
+    ArithmeticKind, BlockId, CheckedOp, FunctionBuilder, InstKind, MirType, Module, PanicCode,
+    ValueId,
     analysis::integers::integer_mask,
     pass::{MirPass, run_function_pass},
     transform::utils::expand_block,
@@ -35,7 +36,7 @@ impl MirPass for LowerArithmetic {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
+        run_function_pass(module, analyses, |func, analyses| {
             if !func
                 .instructions()
                 .any(|id| matches!(func.inst(id).kind, InstKind::CheckedBinary { .. }))
@@ -43,16 +44,13 @@ impl MirPass for LowerArithmetic {
                 return false;
             }
             let mut replacements = FxHashMap::default();
-            for block in func.blocks.indices() {
-                if !func.blocks[block]
-                    .instructions
-                    .iter()
-                    .any(|&id| matches!(func.inst(id).kind, InstKind::CheckedBinary { .. }))
-                {
-                    continue;
+            let mut expand = |builder: &mut FunctionBuilder<'_>, block: BlockId| {
+                if !builder.func().blocks[block].instructions.iter().any(|&id| {
+                    matches!(builder.func().inst(id).kind, InstKind::CheckedBinary { .. })
+                }) {
+                    return;
                 }
-                let mut builder = FunctionBuilder::new(func);
-                expand_block(&mut builder, block, |builder, id| {
+                expand_block(builder, block, |builder, id| {
                     let InstKind::CheckedBinary { op, arithmetic, lhs, rhs } =
                         builder.func().inst(id).kind
                     else {
@@ -68,6 +66,18 @@ impl MirPass for LowerArithmetic {
                     );
                     true
                 });
+            };
+            let blocks = func.blocks.indices();
+            if analyses.optimization().is_none() {
+                // One builder for the function, so its checks share one revert block per failure.
+                let mut builder = FunctionBuilder::new(func);
+                for block in blocks {
+                    expand(&mut builder, block);
+                }
+            } else {
+                for block in blocks {
+                    expand(&mut FunctionBuilder::new(func), block);
+                }
             }
             func.replace_uses_canonicalized(&replacements);
             true
