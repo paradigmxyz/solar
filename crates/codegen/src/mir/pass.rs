@@ -755,6 +755,11 @@ impl FunctionAnalyses {
         self.function
     }
 
+    /// Returns the objective the function's code is optimized for.
+    pub(crate) fn optimization(&self) -> OptimizationMode {
+        self.optimization
+    }
+
     /// Returns the alias analysis requested by the running transform.
     pub(crate) fn alias(&self) -> &Rc<AliasAnalysis> {
         self.alias.as_ref().expect("function pass must request alias analysis")

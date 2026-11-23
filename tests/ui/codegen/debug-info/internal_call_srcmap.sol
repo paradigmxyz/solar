@@ -2,9 +2,11 @@
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
 
-// Of the two calls to `g`, one enters it by a jump, which is `i`, and one by falling into it. The
-// return jump is `o`. The dispatcher's `JUMPI`s that enter `f` and `h` are no calls.
+// Both calls to `g` enter it by a jump, which is `i`, and its return jump is `o`. The dispatcher's
+// `JUMPI`s that enter `f` and `h` are no calls.
 // CHECK-LABEL: "srcmap-runtime"
+// CHECK-NOT: :i
+// CHECK: :i
 // CHECK-NOT: :i
 // CHECK: :o
 // CHECK-NOT: :o

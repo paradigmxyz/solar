@@ -69,6 +69,9 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
                 function.declaration.hi().0
             ));
         }
+        if metadata.function_entry && metadata.call_effect.is_none() {
+            attributes.push("function_entry".to_string());
+        }
         if let Some(effect) = metadata.call_effect {
             attributes.push(format!(
                 "ret={}, inputs={}, outputs={}",

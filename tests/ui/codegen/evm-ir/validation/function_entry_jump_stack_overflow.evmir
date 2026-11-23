@@ -1,0 +1,9 @@
+//@ compile-flags: -O none --emit=bin-runtime
+//~? WARN: `jump` in block 0 grows the EVM stack to 1025 words
+@module module
+
+bb0 [stack=1024]:
+  jump bb1
+
+bb1 [function_entry]:
+  stop

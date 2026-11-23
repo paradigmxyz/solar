@@ -16,6 +16,11 @@
 //! instructions are considered; no instructions are duplicated and protected boundaries stay
 //! intact.
 //!
+//! At `-O none` the pass keeps every branch and every block: it shares no equal halting blocks,
+//! bypasses no thunk and merges no block. It still truncates code after a terminal, turns
+//! `PUSH label; JUMP` into a jump and removes unreachable blocks; layout turns a jump to the next
+//! block into a fall through.
+//!
 //! Final cleanup exposes acyclic branch triangles as structural conditional terminators so
 //! layout can place their taken arm before the join. The `jumpi` keeps its origin and the removed
 //! jump and pushed label take theirs with them. It excludes glued instructions. Keeping this after
@@ -383,6 +388,9 @@ fn truncate_after_terminal(module: &mut Module) -> bool {
 fn simplify_degenerate_branches(module: &mut Module) -> bool {
     let mut changed = false;
     for block_id in module.blocks.indices() {
+        if module.blocks[block_id].metadata.optimization.unwrap_or(module.optimization).is_none() {
+            continue;
+        }
         // A branch whose edges reach equal halting blocks runs the same code either way: fold it
         // into the else edge, whose code the taken copy's paths then share.
         if let Some(Terminator { kind: TerminatorKind::JumpI { then_block, else_block }, .. }) =
@@ -480,6 +488,9 @@ fn redirect_jump_thunks(
             None => {
                 if let Some(terminator) = &block.terminator
                     && let TerminatorKind::Jump(next) = terminator.kind
+                    && !block.metadata.optimization.unwrap_or(module.optimization).is_none()
+                    && !(module.optimization.is_none()
+                        && (block.metadata.function_entry || block.metadata.call_effect.is_some()))
                 {
                     thunks
                         .insert(block_id, Thunk { next, entered: None, exit: Metadata::default() });
@@ -732,6 +743,19 @@ fn coalesce_blocks(module: &mut Module, state: &mut RunState) -> bool {
         {
             let target = *target;
             if target == predecessor || references[target] != 1 || !retained.contains(target) {
+                break;
+            }
+            if module.blocks[predecessor]
+                .metadata
+                .optimization
+                .unwrap_or(module.optimization)
+                .is_none()
+                || module.blocks[target]
+                    .metadata
+                    .optimization
+                    .unwrap_or(module.optimization)
+                    .is_none()
+            {
                 break;
             }
 

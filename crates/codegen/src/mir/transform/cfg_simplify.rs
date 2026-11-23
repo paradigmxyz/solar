@@ -18,6 +18,11 @@
 //! unreachable-block removal. It leaves block merging and terminal sharing to the backend to
 //! preserve stack lifetimes.
 //!
+//! ## `-O none`
+//! The pass merges no block, forwards no empty block, shares no equal terminal blocks and folds no
+//! branch except on a constant, so each statement keeps its block and its jump. It still removes
+//! unreachable blocks and trivial phis. It decides this by the optimization level alone.
+//!
 //! ## Dead Function Elimination
 //! Remove functions that are never called, starting from entry points
 //! (public/external functions, constructor, fallback, receive).
@@ -72,7 +77,9 @@ impl MirPass for CfgSimplify {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| simplify_function(func))
+        run_function_pass(module, analyses, |func, analyses| {
+            run_to_fixpoint(func, analyses.optimization().is_none())
+        })
     }
 }
 
@@ -91,7 +98,7 @@ impl MirPass for BranchSimplify {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
-            let changed = simplify_degenerate_terminators(func);
+            let changed = simplify_degenerate_terminators(func, false);
             if changed {
                 let _ = remove_unreachable_blocks(func);
             }
@@ -102,7 +109,7 @@ impl MirPass for BranchSimplify {
 
 /// Cleans a function after a local transform changes its control flow.
 pub(super) fn simplify_function(func: &mut Function) -> bool {
-    run_to_fixpoint(func)
+    run_to_fixpoint(func, false)
 }
 
 /// Function pass that only replaces trivial phis by their unique incoming value.
@@ -235,8 +242,14 @@ pub(super) fn remove_unreachable_blocks(func: &mut Function) -> usize {
 }
 
 /// Runs one round of CFG simplification on a function and returns whether it rewrote anything.
-fn run(func: &mut Function) -> bool {
-    let mut changed = simplify_degenerate_terminators(func);
+///
+/// `unoptimized` is the `-O none` mode: every block and branch stays, except the branches on a
+/// constant, the unreachable code and the trivial phis.
+fn run(func: &mut Function, unoptimized: bool) -> bool {
+    let mut changed = simplify_degenerate_terminators(func, unoptimized);
+    if unoptimized {
+        return changed | simplify_trivial_phis(func);
+    }
     changed |= merge_blocks(func);
     changed |= eliminate_empty_blocks(func);
     changed |= deduplicate_terminal_blocks(func);
@@ -463,12 +476,14 @@ fn trivial_phi_replacement(
     incoming_values.all(|value| value == phi_value || value == first).then_some(first)
 }
 
-fn simplify_degenerate_terminators(func: &mut Function) -> bool {
+fn simplify_degenerate_terminators(func: &mut Function, constant_only: bool) -> bool {
     let mut changed = false;
     for block_id in func.blocks.indices() {
         let Some(term) = &func.blocks[block_id].terminator else { continue };
-        let terminator = if let Some(target) = known_branch_target(func, block_id) {
+        let terminator = if let Some(target) = known_branch_target(func, block_id, constant_only) {
             Terminator::Jump(target)
+        } else if constant_only {
+            continue;
         } else {
             match term {
                 Terminator::Branch { then_block, else_block, .. } if then_block == else_block => {
@@ -501,7 +516,7 @@ fn simplify_degenerate_terminators(func: &mut Function) -> bool {
     changed
 }
 
-fn known_branch_target(func: &Function, block: BlockId) -> Option<BlockId> {
+fn known_branch_target(func: &Function, block: BlockId, constant_only: bool) -> Option<BlockId> {
     let Terminator::Branch { condition, then_block, else_block } =
         func.blocks[block].terminator.as_ref()?
     else {
@@ -509,6 +524,8 @@ fn known_branch_target(func: &Function, block: BlockId) -> Option<BlockId> {
     };
     let taken = if let Some(value) = func.value_u256(*condition) {
         !value.is_zero()
+    } else if constant_only {
+        return None;
     } else {
         let definition = match func.value(*condition) {
             Value::Inst(id) => Some(*id),
@@ -542,7 +559,7 @@ fn known_branch_target(func: &Function, block: BlockId) -> Option<BlockId> {
 }
 
 /// Runs CFG simplification iteratively until no more changes.
-fn run_to_fixpoint(func: &mut Function) -> bool {
+fn run_to_fixpoint(func: &mut Function, unoptimized: bool) -> bool {
     if func.blocks.len() == 1
         && !func.block_has_phi(BlockId::ENTRY)
         && !matches!(
@@ -554,7 +571,7 @@ fn run_to_fixpoint(func: &mut Function) -> bool {
     }
 
     let mut changed = false;
-    while run(func) {
+    while run(func, unoptimized) {
         changed = true;
     }
     changed | (remove_unreachable_blocks(func) != 0)

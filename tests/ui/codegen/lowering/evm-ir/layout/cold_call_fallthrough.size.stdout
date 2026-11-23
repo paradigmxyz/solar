@@ -48,7 +48,7 @@ bb8 [entry]:                                      ; function belowLimit(uint256 
   dup 2
   lt
   jump bb19
-bb11 [cold]:                                      ; function abort(uint256 value) internal pure
+bb11 [cold, function_entry]:                      ; function abort(uint256 value) internal pure
   dup 1
   iszero
   push bb17
@@ -67,7 +67,7 @@ bb11 [cold]:                                      ; function abort(uint256 value
   shl
   push 5
   jump bb18
-bb18 [cold]:                                      ; revert_error (synthesized)
+bb18 [cold, function_entry]:                      ; revert_error (synthesized)
   push 32
   dup 1
   mstore
