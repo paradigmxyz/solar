@@ -52,7 +52,13 @@
 //! successor's phis on the join's edge may read its results, or code that the other successor
 //! dominates when the join is its only predecessor, since the join still dominates that code. A
 //! join that dominates one of its predecessors heads a loop and is never skipped: a new edge into
-//! its body would enter the loop a second way. The rewrite copies no instructions.
+//! its body would enter the loop a second way. The rewrite copies no instructions, but the target
+//! prices it: the edge no longer runs the join's code and branch, and is priced as needing a jump
+//! of its own, since the backend's layout, stack scheduling and tail copies can add one even for a
+//! taken branch arm; a join that loses every edge gives back its code. Below
+//! `LOOP_COPY_MIN_RUNS` and in size builds a redirect must add no bytes, which in practice admits
+//! only joins that every edge skips; from it on, the gas it saves on each execution, ten times
+//! over inside a loop, must repay the deposit of its jump.
 //!
 //! The same edge facts propagate equalities, as GVN's `propagateEquality` does: where a unique
 //! predecessor proves `x == C` for an immediate `C` (the true edge of `eq x, C`, the false edge of
@@ -240,7 +246,7 @@ use crate::{
         },
         utils::{IndexLists, eval, fold_terminator_to_jump, invalidate_unreachable_blocks},
     },
-    target::Target,
+    target::{Cost, Target},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -266,8 +272,10 @@ impl MirPass for CheckElim {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, analyses| {
+            let target = analyses.runtime_target(gcx);
             let eliminator = CheckEliminator {
-                propagate_equalities: Some(analyses.runtime_target(gcx)),
+                propagate_equalities: Some(target),
+                thread_target: Some(target),
                 ..Default::default()
             };
             let cfg = CfgInfo::new(func);
@@ -393,7 +401,11 @@ impl MirPass for LateCheckElim {
             {
                 return false;
             }
-            let changed = CheckEliminator::default().run(func, analyses.cfg(), selected) != 0;
+            let eliminator = CheckEliminator {
+                thread_target: Some(analyses.runtime_target(gcx)),
+                ..Default::default()
+            };
+            let changed = eliminator.run(func, analyses.cfg(), selected) != 0;
             if changed {
                 // branch proven_condition, checked, panic => jump checked
                 // Remove unreachable panic blocks and merge the successful continuation.
@@ -438,8 +450,11 @@ impl MirPass for ImmutableCheckElim {
             }
         }
         run_selected_function_pass(module, analyses, &loading, |func, analyses| {
-            let eliminator =
-                CheckEliminator { immutable_ranges: Some(&bounds), ..Default::default() };
+            let eliminator = CheckEliminator {
+                immutable_ranges: Some(&bounds),
+                thread_target: Some(analyses.runtime_target(gcx)),
+                ..Default::default()
+            };
             eliminator.run(func, analyses.cfg(), None) != 0
         }) || narrowed
     }
@@ -959,6 +974,9 @@ struct CheckEliminator<'a> {
     /// Records constants that dominating branches prove equal to a value, when the target
     /// prices the constant as cheap to read.
     propagate_equalities: Option<Target>,
+    /// The cost model that prices redirecting an edge past a join whose branch it decides;
+    /// without it, no edge is redirected.
+    thread_target: Option<Target>,
     /// Values proven equal to a constant in the current scope.
     equalities: FxHashMap<ValueId, Equality>,
     equality_undo: Vec<ValueId>,
@@ -1138,7 +1156,9 @@ impl<'a> CheckEliminator<'a> {
                 *condition = reduced;
             }
         }
-        let threaded = thread_decided_edges(func, cfg, &self.threads);
+        let threaded = self
+            .thread_target
+            .map_or(0, |target| thread_decided_edges(func, cfg, &target, &self.threads));
         removed
             + folds.len()
             + checks.count()
@@ -1317,7 +1337,7 @@ impl<'a> CheckEliminator<'a> {
                             _ => {}
                         }
                     }
-                    if !self.collect_masks && selected.is_none() {
+                    if self.thread_target.is_some() && !self.collect_masks && selected.is_none() {
                         let folded = folds.last().is_some_and(|&(folded, _)| folded == block);
                         self.collect_threads(func, cfg, block, folded);
                     }
@@ -3859,6 +3879,7 @@ fn condition_reads_phi(func: &Function, block: BlockId, condition: ValueId) -> b
 fn thread_decided_edges(
     func: &mut Function,
     cfg: &CfgInfo,
+    target: &Target,
     threads: &[(BlockId, BlockId, BlockId)],
 ) -> usize {
     let successor_phis = |func: &Function, block: BlockId| {
@@ -3911,10 +3932,12 @@ fn thread_decided_edges(
         .collect::<SmallVec<[_; 4]>>();
     // Both arms of a branch entering one block would need two inputs for each of its phis.
     let mut entered = FxHashSet::default();
-    let threads = threads
-        .into_iter()
-        .filter(|&(pred, _, successor)| entered.insert((pred, successor)))
-        .collect::<SmallVec<[_; 4]>>();
+    let threads = priced_threads(
+        func,
+        cfg,
+        target,
+        threads.into_iter().filter(|&(pred, _, successor)| entered.insert((pred, successor))),
+    );
     // Every input is read before any rewrite: a thread out of a join can redirect the edge another
     // thread reads its successor's inputs on.
     let mut inputs = Vec::new();
@@ -3944,6 +3967,56 @@ fn thread_decided_edges(
         redirect_edge(func, pred, join, successor);
     }
     threads.len()
+}
+
+/// The threads that `target` prices as paying. A redirected edge no longer runs its join's code
+/// and branch, and is priced as adding a jump, the label push and `JUMP` of an edge that loses its
+/// fall-through. The backend's layout, stack scheduling and tail copies decide whether it does, and
+/// a taken branch arm that keeps its label grew the code as well when measured, so every edge
+/// pays the jump. A join that loses every edge gives back its code, priced over all its edges.
+fn priced_threads(
+    func: &Function,
+    cfg: &CfgInfo,
+    target: &Target,
+    threads: impl Iterator<Item = (BlockId, BlockId, BlockId)>,
+) -> SmallVec<[(BlockId, BlockId, BlockId); 4]> {
+    let mut by_join = FxIndexMap::<BlockId, SmallVec<[(BlockId, BlockId); 2]>>::default();
+    for (pred, join, successor) in threads {
+        by_join.entry(join).or_default().push((pred, successor));
+    }
+    let jump = target.label_push() + target.opcode(op::JUMP);
+    let cyclic = cfg.cyclic_blocks();
+    let mut priced = SmallVec::new();
+    for (join, edges) in by_join {
+        let skipped = target.block_instructions_estimate(func, join) + target.branch();
+        let in_loop = |pred| cyclic.contains(pred) && cyclic.contains(join);
+        let cold = |pred: BlockId| func.blocks[pred].hotness.is_cold();
+        if edges.len() == func.blocks[join].predecessors.len() {
+            let freed = Cost { bytes: target.block_code_estimate(func, join).bytes, ..skipped };
+            let added = Cost { bytes: jump.bytes.saturating_mul(edges.len() as u32), ..jump };
+            if target
+                .priced_for_cold(edges.iter().all(|&(pred, _)| cold(pred)))
+                .threads_decided_edge(freed, added, edges.iter().all(|&(pred, _)| in_loop(pred)))
+            {
+                priced.extend(edges.iter().map(|&(pred, successor)| (pred, join, successor)));
+                continue;
+            }
+        }
+        let skipped = Cost { bytes: 0, ..skipped };
+        priced.extend(
+            edges
+                .into_iter()
+                .filter(|&(pred, _)| {
+                    target.priced_for_cold(cold(pred)).threads_decided_edge(
+                        skipped,
+                        jump,
+                        in_loop(pred),
+                    )
+                })
+                .map(|(pred, successor)| (pred, join, successor)),
+        );
+    }
+    priced
 }
 
 #[cfg(test)]

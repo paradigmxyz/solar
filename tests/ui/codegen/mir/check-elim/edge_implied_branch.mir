@@ -1,22 +1,28 @@
-//@compile-flags: -Zmir-pipeline=check-elim
-//@filecheck:
+//@ revisions: runs200 runs10000
+//@ compile-flags: -Zmir-pipeline=check-elim
+//@[runs10000] compile-flags: --optimize-runs 10000
+//@[runs200] filecheck: --check-prefixes=CHECK,RUNS200
+//@[runs10000] filecheck: --check-prefixes=CHECK,RUNS10000
 @module EdgeImpliedBranch
 
 // Sequential tests over exclusive ranges: after `x < 9` neither later test can
 // hold, and after `8 < x < 17` the last cannot. Each arm jumps past the joins
 // whose branch it decides, and the phis of the join it enters take the values
 // the skipped join's phis would have passed on. The arm of the last test reads
-// a phi of its join, which still dominates it.
+// a phi of its join, which still dominates it. Each redirect may add a jump, so
+// only a build for 10,000 runs, where the tests it skips repay the deposit,
+// takes them.
 // CHECK-LABEL: {{^[ +].*}}fn @chain{{[( ]}}
-// CHECK: bb3:
-// CHECK-NEXT: v6 = shr arg1, 3
-// CHECK-NEXT: + jump bb6
-// CHECK-NEXT: + bb1:
-// CHECK-NEXT: + v1 = and arg1, 255
-// CHECK-NEXT: jump bb4
-// CHECK: + v7 = phi [bb2: v2], [bb1: v1]
-// CHECK: + v10 = phi [bb5: v9], [bb4: v7], [bb3: v6]
-// CHECK-NEXT: + v11 = phi [bb5: 1], [bb4: arg1], [bb3: arg1]
+// RUNS200-NOT: {{^[-+]}}
+// RUNS10000: bb3:
+// RUNS10000-NEXT: v6 = shr arg1, 3
+// RUNS10000-NEXT: + jump bb6
+// RUNS10000-NEXT: + bb1:
+// RUNS10000-NEXT: + v1 = and arg1, 255
+// RUNS10000-NEXT: jump bb4
+// RUNS10000: + v7 = phi [bb2: v2], [bb1: v1]
+// RUNS10000: + v10 = phi [bb5: v9], [bb4: v7], [bb3: v6]
+// RUNS10000-NEXT: + v11 = phi [bb5: 1], [bb4: arg1], [bb3: arg1]
 fn @chain(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = lt arg0, 9
@@ -48,7 +54,8 @@ fn @chain(arg0: i256, arg1: i256) -> i256 {
 }
 
 // Each edge of a branch decides the next test too: the false edge enters the
-// second arm directly, and the join is left without predecessors.
+// second arm directly, and the join is left without predecessors. Its code
+// pays for both jumps, so every build takes them.
 // CHECK-LABEL: {{^[ +].*}}fn @branch_edge{{[( ]}}
 // CHECK: + jumpi v0, bb1, bb3
 // CHECK: + v5 = phi [bb3: v4], [bb2: v2], [bb1: v1]
@@ -134,10 +141,12 @@ fn @escaping_result(arg0: i256, arg1: i256) -> i256 {
 
 // Threads out of a join and into it share an edge: `bb3`'s true edge skips
 // `bb4`, while `bb1` skips `bb3` into `bb4`. Either order reads the inputs
-// before any edge moves.
+// before any edge moves. At 200 runs only the edges into `bb3`, which they
+// leave without predecessors, move.
 // CHECK-LABEL: {{^[ +].*}}fn @order{{[( ]}}
-// CHECK: + v3 = phi [bb4: 7], [bb1: 1]
-// CHECK: + v5 = phi [bb5: v3], [bb3: v1]
+// RUNS200: + v3 = phi [bb3: v1], [bb4: 7], [bb1: 1]
+// RUNS10000: + v3 = phi [bb4: 7], [bb1: 1]
+// RUNS10000: + v5 = phi [bb5: v3], [bb3: v1]
 fn @order(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 5

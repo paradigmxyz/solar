@@ -428,6 +428,33 @@ impl Target {
         (u64::from(copy.bytes.saturating_sub(removed.bytes)), saved)
     }
 
+    /// Whether redirecting an edge past a join whose branch the edge decides pays. `saved` is the
+    /// gas the edge no longer spends on each traversal, the join's code and branch, with the bytes
+    /// the rewrite removes, the join's code once it loses its last edge. `added` is what the
+    /// redirected edge may cost on each traversal and in bytes, a jump where it loses its
+    /// fall-through. A traversal inside a loop repeats [`Self::UNCOUNTED_LOOP_ITERATIONS`] times
+    /// an execution. From [`Self::LOOP_COPY_MIN_RUNS`] on, the deposit of the bytes it adds must
+    /// not repay the gas it saves; below them, as at the default 200, a gas build takes a thread
+    /// only when it adds no bytes. Size builds take one that removes bytes, or saves gas for none.
+    pub(crate) fn threads_decided_edge(&self, saved: Cost, added: Cost, in_loop: bool) -> bool {
+        let iterations = if in_loop { Self::UNCOUNTED_LOOP_ITERATIONS } else { 1 };
+        let gas = (i128::from(self.runtime_gas(saved)) - i128::from(self.runtime_gas(added)))
+            * i128::from(iterations);
+        let byte_saving = i64::from(saved.bytes) - i64::from(added.bytes);
+        if self.optimization.is_size() {
+            return byte_saving > 0 || byte_saving == 0 && gas > 0;
+        }
+        if gas <= 0 {
+            return false;
+        }
+        byte_saving >= 0
+            || self.copies_loops()
+                && !self.deposit_repays_gas(
+                    byte_saving.unsigned_abs(),
+                    u64::try_from(gas).unwrap_or(u64::MAX),
+                )
+    }
+
     /// The most bytes the copies of loop blocks may add to a module of `code_bytes` bytes. From
     /// [`Self::LOOP_COPY_MIN_RUNS`] on, and in a module of at least [`Self::SMALL_CODE_BYTES`],
     /// every copy that pays goes. Below those runs, as at the default 200, a build still values
@@ -2502,6 +2529,43 @@ mod tests {
         assert!(!once.duplicates_loop_block(Cost::new(0, 5), 1));
         let size = Target::with(EvmVersion::Cancun, OptimizationMode::Size, 200);
         assert!(!size.duplicates_loop_block(Cost::new(30, 12), 1));
+    }
+
+    #[test]
+    fn decided_edges_are_threaded_by_lifetime_gas() {
+        let target = |optimization, runs| Target::with(EvmVersion::Cancun, optimization, runs);
+        let gas = target(OptimizationMode::Gas, 200);
+        let hot = target(OptimizationMode::Gas, Target::LOOP_COPY_MIN_RUNS);
+        let size = target(OptimizationMode::Size, 200);
+        // A redirected edge skips a 22-gas test and branch and may add a 4-byte, 11-gas jump.
+        let jump = gas.label_push() + gas.opcode(op::JUMP);
+        assert_eq!((jump.gas, jump.bytes), (11, 4));
+        let test = Cost::new(22, 0);
+        // At 200 runs a build keeps its size, in a loop too, as size builds do.
+        for target in [gas, size] {
+            assert!(!target.threads_decided_edge(test, jump, false));
+            assert!(!target.threads_decided_edge(test, jump, true));
+            // A join that loses both edges gives back 12 bytes for their two jumps.
+            assert!(target.threads_decided_edge(
+                Cost::new(22, 12),
+                jump.plus(Cost::new(0, 4)),
+                false
+            ));
+        }
+        // At 10,000 runs, 11 gas saved on each execution outweigh 800 gas of deposit.
+        assert!(hot.threads_decided_edge(test, jump, false));
+        // An edge that saves less gas than its jump costs never pays, nor in a loop.
+        assert!(!hot.threads_decided_edge(Cost::new(10, 12), jump, false));
+        assert!(!hot.threads_decided_edge(Cost::new(10, 12), jump, true));
+        // One gas saved on each execution repays 50 bytes of deposit, ten times that in a loop.
+        assert!(hot.threads_decided_edge(Cost::new(12, 0), Cost::new(11, 49), false));
+        assert!(!hot.threads_decided_edge(Cost::new(12, 0), Cost::new(11, 100), false));
+        assert!(hot.threads_decided_edge(Cost::new(12, 0), Cost::new(11, 100), true));
+        // A size build takes an edge that removes bytes even when it costs gas, and one that
+        // saves gas for no bytes.
+        assert!(size.threads_decided_edge(Cost::new(0, 5), jump, false));
+        assert!(!size.threads_decided_edge(Cost::new(0, 4), jump, false));
+        assert!(size.threads_decided_edge(Cost::new(22, 4), jump, false));
     }
 
     #[test]
