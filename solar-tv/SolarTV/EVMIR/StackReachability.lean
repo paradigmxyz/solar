@@ -115,6 +115,32 @@ theorem cap {graph : ProofTable.View Node} {signatures : Signatures} {bounds : N
   rw [Bool.and_eq_true] at checked
   exact Nat.le_trans fits (of_decide_eq_true checked.1)
 
+/-- At a literal table transfer the conservative lowering peak must fit.
+Equal overflow in two abstract projections would not establish this room:
+their chosen encodings can use different amounts of scratch stack. -/
+def indexedRoomAt (nodes : ProofTable.View ContinuationFlow.Node)
+    (points : ProofTable.View ContinuationFlow.Point) (bounds : Nat → Nat) (pc : Nat) : Bool :=
+  match (points.get? pc).bind (fun point => nodes.get? point.pc) with
+  | some (.indexedLiteral growth _ _) => bounds pc + (1 + growth) ≤ 1024
+  | _ => true
+
+theorem indexed_room {nodes : ProofTable.View ContinuationFlow.Node}
+    {points : ProofTable.View ContinuationFlow.Point} {edges : ProofTable.View ControlFlow.Edges}
+    {signatures : Signatures} {bounds : Nat → Nat} {limit : Nat}
+    (entry : 0 < points.size)
+    (closed : ∀ i < points.size, closedAt (project nodes points edges) signatures bounds limit i = true)
+    (room : ∀ i < points.size, indexedRoomAt nodes points bounds i = true)
+    {pc height growth : Nat} {selector : EvmRules.Word} {targets : List Nat}
+    {point : ContinuationFlow.Point}
+    (reaches : Reaches (project nodes points edges) signatures pc height)
+    (here : points.get? pc = some point)
+    (instruction : nodes.get? point.pc = some (.indexedLiteral growth selector targets)) :
+    height + (1 + growth) ≤ 1024 := by
+  obtain ⟨inside,fits⟩ := invariant entry closed reaches
+  have checked := room pc inside
+  simp [indexedRoomAt, here, instruction] at checked
+  omega
+
 /-- The source at index zero is bound to the raw entry with an empty shadow
 stack. Every successor of every admitted point closes under `projectRow`. -/
 theorem projected_cap {nodes : ProofTable.View ContinuationFlow.Node}

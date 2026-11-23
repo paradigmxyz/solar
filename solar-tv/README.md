@@ -2052,6 +2052,8 @@ The layout proof checks the strongest stack requirement of each jump chain,
 including when a fallthrough becomes a physical jump. It reports changes to
 those requirements and checks each against the reachable stack bound.
 It also checks a branch that swaps its successors while exchanging EQ and SUB.
+For an indexed jump immediately after a literal PUSH, it checks the selected
+table entry and proves that the temporary stack peak fits on both sides.
 With `-Zsolar-tv`, the compiler tries this proof once per changed EVM IR
 module for `block-layout`, `loop-layout` and `compact-pushes`. An inconclusive
 entry check falls back to the regional checks. Priced audits continue to

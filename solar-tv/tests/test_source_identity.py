@@ -94,7 +94,7 @@ class SourceIdentityTests(unittest.TestCase):
         prefix = "@module Growth\nbb0 [stack=1]:\n sload\n jump bb2\n"
         paths[0].write_text(prefix + "bb2:\n stop\nbb1:\n stop\n")
         paths[1].write_text(prefix + "bb1:\n stop\nbb2:\n stop\n")
-        with self.assertRaisesRegex(Unsupported, "graphs differ"):
+        with self.assertRaisesRegex(Unsupported, "changed transfer may overflow"):
             source_identity.check(paths, SOLAR, self.replay, "cancun", 30, "bb0")
         result, record = self.cli(paths)
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
@@ -162,14 +162,9 @@ class SourceIdentityTests(unittest.TestCase):
         records = [
             json.loads(path.read_text()) for path in (folder / "audits").glob("*.json")
         ]
-        self.assertTrue(
-            any(
-                r["status"] == "verified"
-                and r.get("region", {}).get("proof")
-                == "universal-source-graph-identity"
-                for r in records
-            )
-        )
+        (entry,) = records
+        self.assertEqual(entry["status"], "verified")
+        self.assertEqual(entry["region"]["proof"], "kernel-checked-entry-layout")
 
     def test_native_full_entries_preserve_effects_and_failures(self):
         for slot, gas, static in (
@@ -244,8 +239,8 @@ example : Correspondence.evalGraph (graph transfer handlers) 2 0 1024 = some 0 :
     def test_changed_branches_terminals_and_shared_headers_still_fail(self):
         text = self.paths[1].read_text()
         for old, new, diagnostic in (
-            ("push bb4", "push bb2", "graphs differ"),
-            ("revert", "invalid", "graphs differ"),
+            ("push bb4", "push bb3", "changed an action or terminal"),
+            ("revert", "invalid", "changed an action or terminal"),
             ("@module SourceIdentity", "@module Other", "shared declarations"),
         ):
             with self.subTest(change=old):
@@ -261,6 +256,15 @@ example : Correspondence.evalGraph (graph transfer handlers) 2 0 1024 = some 0 :
                         30,
                         "bb0",
                     )
+
+    def test_branch_can_reach_a_different_identical_revert(self):
+        changed = self.tmp / "same-revert.evmir"
+        changed.write_text(self.paths[1].read_text().replace("push bb4", "push bb2", 1))
+        result, record = self.cli([self.paths[0], changed])
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            record["region"]["proof"], "kernel-checked-jump-chain-projection"
+        )
 
     def test_failed_import_certificates_cannot_select_identity(self):
         path = self.tmp / "supported.evmir"

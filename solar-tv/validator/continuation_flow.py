@@ -66,7 +66,9 @@ def instruction_role(
     return f".ordinary {inputs} {outputs}", (inputs, outputs)
 
 
-def source_rows(model, catalog, version, *, interactions, from_entry):
+def source_rows(
+    model, catalog, version, *, interactions, from_entry, indexed_literals=False
+):
     source = []
     roles = {}
     for row in model["nodes"]:
@@ -85,6 +87,13 @@ def source_rows(model, catalog, version, *, interactions, from_entry):
                 source.append(f".pushLabel {target} {successor}")
             case {"kind": "jump", "growth": growth, "next": target}:
                 source.append(f".jump {growth} {target}")
+            case {
+                "kind": "indexed_literal",
+                "growth": growth,
+                "index": selector,
+                "targets": targets,
+            } if indexed_literals:
+                source.append(f".indexedLiteral {growth} {selector}#256 {targets}")
             case {"kind": "branch", "yes": yes, "no": no}:
                 source.append(f".branch {yes} {no}")
             case {"kind": "terminal", "operation": "jump"}:
@@ -107,9 +116,23 @@ def source_rows(model, catalog, version, *, interactions, from_entry):
     return source, roles
 
 
-def project(model, catalog, version, *, interactions=False, from_entry=False, mask=()):
+def project(
+    model,
+    catalog,
+    version,
+    *,
+    interactions=False,
+    from_entry=False,
+    mask=(),
+    indexed_literals=False,
+):
     source, roles = source_rows(
-        model, catalog, version, interactions=interactions, from_entry=from_entry
+        model,
+        catalog,
+        version,
+        interactions=interactions,
+        from_entry=from_entry,
+        indexed_literals=indexed_literals,
     )
 
     points = []
@@ -117,6 +140,7 @@ def project(model, catalog, version, *, interactions=False, from_entry=False, ma
     output = []
     returns = 0
     branches = 0
+    tables = []
     handoffs = 0
 
     limit = 16384 if from_entry else 2048
@@ -177,6 +201,14 @@ def project(model, catalog, version, *, interactions=False, from_entry=False, ma
                 }
             case "jump":
                 node["next"] = index(node["next"], shape)
+            case "indexed_literal":
+                target = node["targets"][node["index"]]
+                node = {
+                    "kind": "jump",
+                    "growth": 1 + node["growth"],
+                    "next": index(target, shape),
+                }
+                tables.append(len(output))
             case "branch":
                 check_inputs(shape, 1)
                 node["yes"] = index(node["yes"], shape[1:])
@@ -227,6 +259,7 @@ def project(model, catalog, version, *, interactions=False, from_entry=False, ma
             if model["nodes"][pc]["node"]["kind"] == "push_label"
         },
         "block_labels": {model["nodes"][pc]["label"] for pc, _ in points},
+        "indexed_tables": tables,
         "evidence": {
             "source_sha256": hashlib.sha256(
                 json.dumps(model, sort_keys=True).encode()
@@ -234,6 +267,7 @@ def project(model, catalog, version, *, interactions=False, from_entry=False, ma
             "provenance_states": len(points),
             "resolved_returns": returns,
             **({"resolved_branches": branches} if branches else {}),
+            **({"resolved_literal_tables": len(tables)} if tables else {}),
             **({"inherited_returns": handoffs} if mask else {}),
         },
     }
@@ -318,6 +352,7 @@ def check_entry(
                 interactions=interactions,
                 from_entry=True,
                 mask=mask,
+                indexed_literals=region is None,
             )
             for source in normalized
         ),
@@ -331,7 +366,12 @@ def check_entry(
         )
         if comparisons:
             original, _ = source_rows(
-                raw, catalog, version, interactions=interactions, from_entry=True
+                raw,
+                catalog,
+                version,
+                interactions=interactions,
+                from_entry=True,
+                indexed_literals=region is None,
             )
             witness["comparison"] = original, comparisons
             witness["evidence"]["checked_branch_tests"] = len(comparisons)

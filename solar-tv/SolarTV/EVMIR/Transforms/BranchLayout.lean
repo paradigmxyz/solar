@@ -30,6 +30,7 @@ def enters (target : Nat) : Node → Bool
   | .branchAfterAddress next => next == target
   | .branch yes no | .pushLabel yes no => yes == target || no == target
   | .terminal .. | .dynamicJump => false
+  | .indexedLiteral _ selector targets => IndexedJump.target targets selector == some target
 
 def site (entry : Nat) (nodes : ProofTable.View Node) (pc : Nat) : Option Site := do
   let .operation "sub" (.ordinary 2 1) branch ← nodes.get? pc | none

@@ -47,14 +47,14 @@ def ranges(start, count, check="check"):
     return f"(joinRanges {ranges(start, middle, check)} {ranges(start + middle, count - middle, check)})"
 
 
-def certificate(namespace, proposal, catalog, limit):
+def certificate(namespace, proposal, catalog, limit, *, indexed=False):
     witness, signatures, bounds = proposal.witness, proposal.signatures, proposal.bounds
     shapes = {}
     points = []
     for pc, shape in witness["point_data"]:
         index = shapes.setdefault(shape, len(shapes))
         points.append(f"({pc},{index})")
-    return (
+    code = (
         f"\nnamespace {namespace}\n"
         + cfg_flow.table(
             "rootNodes", "EVM.ContinuationFlow.Node", witness["source"], lookup=False
@@ -87,9 +87,24 @@ theorem entryFits {{pc height : Nat}}
     (reaches : Reaches graph signatures pc height) : height ≤ {limit} :=
   projected_cap (source := {witness["entry"]}) (by decide +kernel) (by decide +kernel)
     (fun point inside => checked point (Nat.zero_le _) inside) reaches
-end {namespace}
 """
     )
+    if indexed:
+        code += f"""
+def checkTables := indexedRoomAt rootNodes.view points ceilingAt
+theorem tablesChecked : CheckedRange checkTables 0 points.size :=
+  {ranges(0, len(bounds), "checkTables")}
+theorem indexedFits {{pc height growth : Nat}} {{selector : EvmRules.Word}}
+    {{targets : List Nat}} {{point : EVM.ContinuationFlow.Point}}
+    (reaches : Reaches graph signatures pc height)
+    (here : points.get? pc = some point)
+    (term : rootNodes.get? point.pc = some (.indexedLiteral growth selector targets)) :
+    height + (1 + growth) ≤ 1024 :=
+  indexed_room (edges := rootEdges.view) (limit := {limit}) (by decide +kernel)
+    (fun i inside => checked i (Nat.zero_le _) inside)
+    (fun i inside => tablesChecked i (Nat.zero_le _) inside) reaches here term
+"""
+    return code + f"end {namespace}\n"
 
 
 def evidence(proposal):

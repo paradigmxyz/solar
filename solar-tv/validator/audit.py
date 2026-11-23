@@ -277,6 +277,10 @@ def record(
                 assumptions.append(
                     "constructor reads use the checked sole data suffix and identical appended arguments"
                 )
+            if program.import_evidence.get("resolved_literal_tables"):
+                assumptions.append(
+                    "literal indexed transfers use the checked table entry and proven scratch room; emitted table encoding remains a separate obligation"
+                )
             if program.import_evidence.get("caller_return_slots"):
                 assumptions.append(
                     "verified inherited return slots refer to corresponding logical continuations; a return exposes its slot and live state at the region boundary"

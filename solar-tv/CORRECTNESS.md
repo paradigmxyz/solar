@@ -854,6 +854,15 @@ operations. A stack-carried conditional jump requires a known local
 destination and an ordinary condition. The projection consumes the address
 before branching, checks both successors against the remaining stack, and
 proves the same two-word admission check even at the 1024-word limit.
+An indexed jump preceded by a literal PUSH retains the complete table in
+the source export. Lean picks the indexed destination, proves that the
+transfer preserves the incoming stack, and independently bounds the peak
+on both entry graphs. This includes the pushed selector and scratch space
+for the table expansion. The tests exercise real block layout, replay the
+wrong table entry on assembled code, and reject a peak above 1024 words.
+Arbitrary stack-derived table indices and table encoding correspondence
+are separate proof obligations.
+
 The normalized graph keeps the largest temporary stack
 requirement along each chain of jumps and checks that changed requirements
 are safe on every reachable path. The proof shares immutable slots and
@@ -1443,7 +1452,7 @@ token revert and a false result.
 | General loop proof support | Cutpoint invariants over typed MIR preserve ordered effects, exits and divergence. Real certificates cover calldata, memory and storage loops, including a runtime-bounded fill. | Apply the framework to more changed CFGs. Automatic recognition currently covers supported shapes. |
 | Arbitrary state and aliases | Automatic universal caller-state proofs within the defined 64 KiB domain; explicit fixtures for broader operation families | Universal account/memory relation with aliasing, reentry, rollback and fresh allocation obligations. |
 | Whole-function MIR interfaces | Automatic typed products/slices, void/multiple results, acyclic calls and recursive direct-call graphs with checked logical bodies | ABI entry, physical frame and allocation correspondence, recursion that needs different logical actions and broader defined memory domains. |
-| EVM entry stacks and indirect transfers | Fixed or symbolic entry stacks, checked physical-entry bounds and stack-carried jump and conditional targets | Indexed jump tables, more stateful context/window correspondences and physical stack and gas correspondence. |
+| EVM entry stacks and indirect transfers | Fixed or symbolic entry stacks, checked physical-entry bounds, stack-carried jump and conditional targets, and literal indexed transfers | Symbolic indexed selectors, table encoding correspondence, more stateful context/window correspondences and physical stack and gas correspondence. |
 | Importer correctness | Certificates for acyclic EVM regions and acyclic typed scalar MIR | Extend independently checked imports to calls, memory, state, ABI entries and symbolic checked powers; audit the remaining Rust and opcode boundaries. |
 | Physical code and resource correspondence | Explicit layout assumptions and selected priced execution | Backend layout certificates, complete caller work pricing and gas-sensitive transfers; observable code locations and resource failures must agree. |
 | Fork and transaction completeness | Signed set-code authorization processing through Osaka, Amsterdam reservoir initialization, debits and rollback | Other transaction envelopes, fee and block settlement, Amsterdam stateful opcode and nested-frame gas accounting. |

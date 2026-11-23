@@ -1,5 +1,6 @@
 import SolarTV.EVMIR.ControlFlow
 import SolarTV.EVMIR.Ops
+import SolarTV.EVMIR.Transforms.IndexedJump
 
 /-! Resolve stack-carried continuations before comparing two EVM CFGs.
 
@@ -34,6 +35,7 @@ inductive Node
   | dynamicJump
   | branchAddress (branch : Nat)
   | branchAfterAddress (otherwise : Nat)
+  | indexedLiteral (growth : Nat) (selector : Word) (targets : List Nat)
   deriving DecidableEq
 
 structure Program where
@@ -241,6 +243,9 @@ def projectRow (nodes : ProofTable.View Node) (points : ProofTable.View Point)
     if target ≥ nodes.size || (tagAt point.shape 1).isSome then none else
     let tail := point.shape.drop 2
     return .branch 0 (← find target tail trueEdge) (← find otherwise tail falseEdge)
+  | .indexedLiteral growth selector targets, .next successor =>
+    let target ← IndexedJump.target targets selector
+    return .jump 0 (1 + growth) (← find target point.shape successor)
   | _, _ => none
 
 def projectFromView (source : Nat) (nodes : ProofTable.View Node) (points : ProofTable.View Point)

@@ -568,15 +568,9 @@ theorem afterOverflows (incoming : EVM.Stack) (height : incoming.length = 1023) 
             for flags in ([], [f"-Zsolar-tv={directory}"])
         ]
         self.assertEqual(*outputs)
-        records = [
-            json.loads(path.read_text())
-            for path in (directory / "audits").glob("*.json")
-        ]
-        self.assertTrue(
-            any(
-                record["status"] == "verified"
-                and record.get("region", {}).get("proof")
-                == "kernel-checked-compact-pushes"
-                for record in records
-            )
+        (path,) = (directory / "audits").glob("*.json")
+        record = json.loads(path.read_text())
+        self.assertEqual(record["status"], "verified")
+        self.assertEqual(
+            record["region"]["proof"], "kernel-checked-compact-pushes-entry-trace"
         )

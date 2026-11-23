@@ -372,6 +372,38 @@ theorem newNodesLookup : newNodes.view = EVM.ProofTable.ofArray new.nodes := old
         provenance += f"#print axioms {theorem}\n"
         provenance_theorems.append(theorem)
     if continuations is not None:
+        checked_tables = False
+        for side, (model, (_, witness)) in enumerate(
+            zip(models, continuations, strict=True)
+        ):
+            tables = witness["indexed_tables"]
+            if not tables:
+                continue
+            signatures = stack_layout.signatures(model, catalog)
+            _, heights, _ = stack_layout.certificate(
+                model, model, signatures, entry_bound=0
+            )
+            if any(
+                heights[pc] + model["nodes"][pc]["node"]["growth"] > 1024
+                for pc in tables
+            ):
+                raise Unsupported("literal indexed jump may exceed the stack limit")
+            witness["evidence"]["literal_table_entry_bounds"] = [
+                heights[pc] for pc in tables
+            ]
+            name = f"IndexedTables{side}"
+            scope = entry_stack.Caller(witness, signatures, heights, 0)
+            theorem = f"{name}.indexedFits"
+            import_code.append(
+                entry_stack.certificate(name, scope, catalog, 1024, indexed=True)
+                + f"#print axioms {theorem}\n"
+            )
+            provenance_theorems.append(theorem)
+            checked_tables = True
+        if checked_tables:
+            theorem = "SolarTV.EVM.IndexedJump.literal_transfer"
+            provenance += f"#print axioms {theorem}\n"
+            provenance_theorems.append(theorem)
         imports = []
         import_theorems = []
         for lemma in (

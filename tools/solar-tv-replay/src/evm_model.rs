@@ -7,6 +7,7 @@
 //! deployment slots in an entry trace. Recognized code reads carry an explicit
 //! stack guard and the declared data suffix. A stack-carried JUMPI is split at
 //! the address pop so the checker can track both architectural operands.
+//! An adjacent literal PUSH and indexed jump retain the full table for checking.
 
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -118,7 +119,20 @@ fn graph(module: &Module, entry: BlockId, labels: bool, from_entry: bool) -> Res
             read_code = true;
             json!({"kind":"jump","growth":read.peak,"next":edge(id,offset+1)})
         } else if let Some(inst) = block.instructions.get(offset) {
-            if let Some(target) = inst.pushed_block() {
+            if labels
+                && offset + 1 == block.instructions.len()
+                && let Some(term) = &block.terminator
+                && let TerminatorKind::IndexedJump(targets) = &term.kind
+                && let Some(selector) = inst.pushed_value()
+            {
+                let selector = usize::try_from(selector)
+                    .ok()
+                    .filter(|&index| index < targets.len())
+                    .ok_or("literal indexed jump is outside its table")?;
+                let targets: Vec<_> = targets.iter().map(|&target| edge(target, 0)).collect();
+                let growth = term.kind.lowering_stack_growth(module.next_block(id));
+                json!({"kind":"indexed_literal","index":selector,"growth":growth,"targets":targets})
+            } else if let Some(target) = inst.pushed_block() {
                 let next = block.instructions.get(offset + 1).map(|i| i.opcode).or_else(|| {
                     match block.terminator.as_ref()?.kind {
                         TerminatorKind::Op(opcode) => Some(opcode),
@@ -184,6 +198,12 @@ fn graph(module: &Module, entry: BlockId, labels: bool, from_entry: bool) -> Res
         for key in ["next", "yes", "no", "target"] {
             if let Some(old) = row["node"][key].as_u64() {
                 row["node"][key] = (*dense.get(&old).ok_or("unresolved EVM source edge")?).into();
+            }
+        }
+        if let Some(targets) = row["node"].get_mut("targets").and_then(Value::as_array_mut) {
+            for target in targets {
+                let old = target.as_u64().ok_or("invalid indexed EVM edge")?;
+                *target = (*dense.get(&old).ok_or("unresolved indexed EVM edge")?).into();
             }
         }
     }

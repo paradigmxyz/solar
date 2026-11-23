@@ -105,6 +105,95 @@ class StackLayoutTests(unittest.TestCase):
             self.assertEqual(len(side["changed_growth_checks"]), 2)
             self.assertLess(max(side["stack_height_bounds"]), 1024)
 
+    def test_literal_indexed_jump_checks_the_selected_edge_and_peak(self):
+        before, after, broken = (
+            self.tmp / f"{name}.evmir" for name in ("before", "after", "broken")
+        )
+        header, body = self.paths[0].read_text().split("\n", 1)
+        dispatch = "  push 0\n  indexed_jump bb1, bb99"
+        source = (
+            f"{header}\nbb0 [stack=0]:\n{dispatch}\n"
+            + body.replace("bb0 [stack=0]:", "bb1:")
+            + """bb99 [cold]:
+  push 66
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+"""
+        )
+        before.write_text(source)
+        text = subprocess.check_output(
+            [
+                SOLAR,
+                before,
+                "-j1",
+                "-Ogas",
+                "--evm-version=cancun",
+                "-Zevm-ir-pipeline=block-layout",
+            ],
+            text=True,
+            timeout=20,
+        )
+        self.assertNotEqual(list(regions.blocks(source)), list(regions.blocks(text)))
+        after.write_text(text)
+        result, record = self.cli([before, after], flags=("--entry-trace",))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(record["region"]["proof"], "kernel-checked-entry-layout")
+        for side in record["import_correspondence"]:
+            self.assertEqual(side["resolved_literal_tables"], 1)
+            self.assertEqual(side["literal_table_entry_bounds"], [0])
+
+        folder = self.tmp / "indexed-audit"
+        command = [
+            SOLAR,
+            before,
+            "-j1",
+            "-Ogas",
+            "--evm-version=cancun",
+            "-Zevm-ir-pipeline=block-layout",
+            "--emit=bin",
+        ]
+        env = {**os.environ, "SOLAR_TV": CLI, "SOLAR": SOLAR}
+        env.pop("SOLAR_TV_GAS", None)
+        plain = subprocess.check_output(command, env=env, text=True, timeout=20)
+        audited = subprocess.check_output(
+            [*command, f"-Zsolar-tv={folder}"], env=env, text=True, timeout=90
+        )
+        self.assertEqual(audited, plain)
+        (receipt,) = (folder / "audits").glob("*.json")
+        self.assertEqual(json.loads(receipt.read_text())["region"]["kind"], "entry")
+
+        wrong = text.replace("indexed_jump bb1, bb99", "indexed_jump bb99, bb1")
+        self.assertNotEqual(wrong, text)
+        broken.write_text(wrong)
+        result, record = self.cli([after, broken], flags=("--entry-trace",))
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(record["status"], "unsupported")
+        result, record = self.cli([after, broken], world=True)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+        self.assertEqual(
+            record["witness"]["observations"],
+            record["witness"]["native_observations"],
+        )
+
+        broken.write_text(
+            source.replace(dispatch, dispatch.replace("push 0", "push 2"))
+        )
+        result, record = self.cli([before, broken], flags=("--entry-trace",))
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("literal indexed jump is outside its table", result.stderr)
+
+        # The literal alone and the table's peak fit individually, but their
+        # combined peak does not fit on an incoming 1,021-word stack.
+        overfull = source.replace(dispatch, "  push 1\n" * 1021 + dispatch)
+        broken.write_text(overfull)
+        result, record = self.cli([broken, broken], flags=("--entry-trace",))
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("literal indexed jump may exceed the stack limit", result.stderr)
+
     def test_entry_trace_resolves_both_edges_of_stack_carried_jumpi(self):
         before, after, broken = (
             self.tmp / f"{name}.evmir" for name in ("before", "after", "broken")
