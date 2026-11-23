@@ -1121,6 +1121,7 @@ def main() -> int:
                     and str(error)
                     in {
                         "symbolic MIR cycles require an invariant",
+                        "recursive symbolic MIR calls require an invariant",
                         "MIR source: GAS requires an isolated opcode window",
                     }
                 ):

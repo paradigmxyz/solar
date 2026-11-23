@@ -14,6 +14,7 @@ inductive ActionKey where
   | opaque (id : Nat)
   | addConstant (value : Word)
   | subConstant (value : Word)
+  | directCall (callee signature : Nat) (tail : Bool)
   deriving DecidableEq
 
 def ActionKey.normalized : ActionKey → ActionKey
@@ -22,9 +23,9 @@ def ActionKey.normalized : ActionKey → ActionKey
 
 def ActionKey.wordResult (key : ActionKey) (input : Word) : Option Word :=
   match key with
-  | .opaque _ => none
   | .addConstant constant => some (MIR.eval .add input constant)
   | .subConstant constant => some (MIR.eval .sub input constant)
+  | _ => none
 
 /-- The normalized key retains the result of the actual wrapped word
 operation for every scalar operand. -/

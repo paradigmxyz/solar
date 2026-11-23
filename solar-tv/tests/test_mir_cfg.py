@@ -453,3 +453,101 @@ fn @step() -> i256 {
                 record["witness"]["observations"],
                 record["witness"]["native_observations"],
             )
+
+    def test_cfg_simplify_checks_mutually_recursive_callees(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{name}.mir" for name in ("before", "after"))
+            before.write_text("""@module RecursiveCalls
+fn @entry() -> i256 {
+  bb0:
+    v0 = sload 1
+    v1 = icall @count, v0
+    ret v1
+}
+
+fn @count(arg0: i256) -> i256 {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    v1 = sub arg0, 1
+    v2 = icall @next, v1
+    v3 = add v2, arg0
+    ret v3
+  bb3:
+    ret 0
+}
+
+fn @next(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @count, arg0
+    ret v0
+}
+""")
+            output = subprocess.check_output(
+                [SOLAR, before, "-j1", "-Ogas", "-Zmir-pipeline=cfg-simplify"],
+                text=True,
+                timeout=20,
+            )
+            after.write_text(output)
+            report = root / "report.json"
+            command = [
+                CLI,
+                "mir",
+                before,
+                after,
+                "--function=entry",
+                "--solar",
+                SOLAR,
+                "--timeout=30",
+                "--report",
+                report,
+            ]
+            result = subprocess.run(
+                command, text=True, capture_output=True, timeout=90, check=False
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            record = json.loads(report.read_text())
+            self.assertEqual(
+                record["region"]["proof"], "kernel-checked-typed-jump-chain"
+            )
+            self.assertEqual(record["region"]["functions"], ["count", "entry", "next"])
+            evidence = record["import_correspondence"][0]
+            self.assertTrue(evidence["nested_calls"]["recursive"])
+            self.assertEqual(len(evidence["nested_calls"]["functions"]), 3)
+            self.assertEqual(
+                evidence["correspondence"]["count"]["proof"], "path-correspondence"
+            )
+
+            broken = root / "broken.mir"
+            wrong, count = re.subn(r"\bret 0\b", "ret 1", output)
+            self.assertEqual(count, 1)
+            broken.write_text(wrong)
+            command[3] = broken
+            result = subprocess.run(
+                command, text=True, capture_output=True, timeout=90, check=False
+            )
+            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            self.assertEqual(json.loads(report.read_text())["status"], "unsupported")
+
+            fixture = root / "world.json"
+            fixture.write_text(
+                '{"version":1,"accounts":[{"address":65536,"storage":{"1":"4"}}]}'
+            )
+            result = subprocess.run(
+                [*command, "--world", fixture],
+                text=True,
+                capture_output=True,
+                timeout=90,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            record = json.loads(report.read_text())
+            self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+            self.assertEqual(
+                record["witness"]["observations"],
+                record["witness"]["native_observations"],
+            )

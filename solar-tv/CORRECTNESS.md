@@ -685,6 +685,15 @@ They cover ERC20Mock `name`, `symbol` and the storage-bytes load and store
 helpers. The regression replays a wrong subtraction through a two-iteration
 loop in both interpreters.
 
+The checked MIR call table also supports direct recursive calls. A request
+identifies its callee and typed operands, and the state resumes from that
+callee's result. The kernel composes the checked bodies by induction on
+the number of unfolded calls, with shared argument, entry and resume
+handlers. The proof uses the logical MIR frames. ABI, physical frame
+placement and gas follow their separate certificates. A real
+`cfg-simplify` pair exercises a mutual recursion and independently replays
+a wrong base-case value.
+
 ## Automatic typed source execution
 
 The scalar expression projection has a separate automatic fallback: direct

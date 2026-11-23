@@ -278,7 +278,12 @@ def render(nodes, symbols):
             symbol = symbols.setdefault(
                 (kind, dead_ssa.stable(dead_ssa.signature(data))), len(symbols)
             )
-            key = f"(.opaque {symbol})"
+            operation = data.get("operation", data) if isinstance(data, dict) else {}
+            if operation.get("kind") in {"call", "tail_call"}:
+                tail = str(operation["kind"] == "tail_call").lower()
+                key = f"(.directCall {operation['function']} {symbol} {tail})"
+            else:
+                key = f"(.opaque {symbol})"
         return f".action ⟨{key},{reads(data)},{writes(data)},{edges}⟩"
 
     return "#[" + ",".join(row(*node) for node in nodes) + "]"
@@ -336,6 +341,34 @@ theorem preserved{i} {{V S T : Type}} (handle : Handler V S T) (work : Nat)
     )
 
 
+def recursive(calls):
+    remaining = set(calls)
+    while remaining:
+        leaves = {i for i in remaining if not calls[i] & remaining}
+        if not leaves:
+            return True
+        remaining -= leaves
+    return False
+
+
+def call_proof(pairs, entry):
+    return f"""
+open MIR.RecursiveCalls (ProcedurePair runRecursive procedures)
+def relatedProcedures : List ProcedurePair := [{",".join(pairs)}]
+theorem matchedCalls {{Value World Observation : Type}}
+    (handlers : MIR.RecursiveCalls.Handlers Value World Observation)
+    (argumentLocals : Nat → List Value → Locals Value) (work callLimit : Nat)
+    (args : List Value) (state : World) :
+    runRecursive (procedures relatedProcedures false) handlers argumentLocals work callLimit
+        {entry} args state =
+      runRecursive (procedures relatedProcedures true) handlers argumentLocals work callLimit
+        {entry} args state :=
+  MIR.RecursiveCalls.simulation relatedProcedures handlers argumentLocals work callLimit
+    {entry} args state
+#print axioms matchedCalls
+"""
+
+
 def check(paths, solar, executable, version, timeout, function):
     from .check import PRELUDE, ROOT, build_model, run
 
@@ -390,6 +423,8 @@ set_option maxHeartbeats 2000000
     )
     work = [function]
     checked = {}
+    calls = {}
+    procedure_pairs = []
     axioms_checks = 8
     while work:
         name = work.pop()
@@ -407,6 +442,7 @@ set_option maxHeartbeats 2000000
             raise Unsupported("MIR CFG proof requires defined function bodies")
         i = len(checked)
         old, new = map(import_graph, (a, b))
+        calls[a["id"]] = set()
         for kind, data, _ in old:
             if kind == "action" and isinstance(data, dict):
                 op = data["operation"]
@@ -416,6 +452,7 @@ set_option maxHeartbeats 2000000
                 continue
             if op["kind"] in {"call", "tail_call"}:
                 index = op["function"]
+                calls[a["id"]].add(index)
                 targets = [
                     name for name, body in tables[0].items() if body["id"] == index
                 ]
@@ -444,6 +481,11 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 "source_points": len(old),
                 "literal_branches": literal_branches,
             }
+            limit = len(old) + 1
+            matched = (
+                f"fun handle work locals state => congrArg "
+                f"(fun graph => run graph {limit} handle work 0 locals state) identical{i}"
+            )
         else:
             try:
                 points, edges, live, limit, word_rewrites = pairing(old, new)
@@ -465,6 +507,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 for point, targets, locals_ in zip(points, edges, live, strict=True)
             ]
             code += certificate(i, old, new, witnesses, limit)
+            matched = f"fun handle work locals state => preserved{i} handle work locals locals state"
             axioms_checks += 2
             checked[name] = {
                 "proof": "path-correspondence",
@@ -478,6 +521,18 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 "literal_branches": literal_branches,
             }
         checked[name]["product_initialization"] = product_initialization
+        procedure_pairs.append(
+            f"⟨{a['id']},⟨before{i},{limit}⟩,⟨after{i},{limit}⟩,{matched}⟩"
+        )
+    nested = any(calls.values()) and len(procedure_pairs) == len(checked)
+    recursive_calls = recursive(calls)
+    if recursive_calls and not nested:
+        raise Unsupported(
+            "recursive MIR requires path certificates for all direct callees"
+        )
+    if nested:
+        code += call_proof(procedure_pairs, tables[0][function]["id"])
+        axioms_checks += 1
     entry_proof.success(build_model(timeout), "MIR CFG proof model")
     with tempfile.TemporaryDirectory(prefix="solar-tv-mir-cfg-") as folder:
         output = entry_proof.success(
@@ -490,6 +545,11 @@ theorem identical{i} : before{i} = after{i} := by rfl
         "correspondence": checked,
         "proof_sha256": hashlib.sha256(code.encode()).hexdigest(),
         "boundary": "trusted structural exporter and action-constructor binding; unpriced shared effect handlers including calls and GAS; independent caller/ABI and backend correspondence remain separate",
+        **(
+            {"nested_calls": {"recursive": recursive_calls, "functions": sorted(calls)}}
+            if nested
+            else {}
+        ),
     }
     programs = tuple(
         Program(

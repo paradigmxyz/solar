@@ -408,6 +408,10 @@ def record(
                 assumptions.append(
                     "both callee graphs check full-word carrier copies against the common erasure; overwrites invalidate captured values across loops"
                 )
+            if program.import_evidence.get("nested_calls"):
+                assumptions.append(
+                    "direct calls execute the checked callee graph and pass its result to shared entry and resume handlers, for every logical work and call-unfolding bound"
+                )
         elif program and program.scope == "source-identity":
             assumptions.extend(
                 [
@@ -664,6 +668,9 @@ def record(
                 if program.symbolic_mir is not None
                 else "region-local proof over resolved internal return paths"
                 if program.scope in {"continuation-flow", "interaction-flow"}
+                else "selected entry and reachable direct callees in shared logical frames"
+                if program.scope == "mir-cfg-flow"
+                and program.import_evidence.get("nested_calls")
                 else "region-local proof; no whole-pass or interprocedural claim"
             )
         if (program and program.memory) or (
