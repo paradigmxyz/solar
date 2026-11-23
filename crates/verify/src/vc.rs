@@ -2016,8 +2016,21 @@ impl<'p, 'a> Vc<'p, 'a> {
         // The names this block declares go out of scope at its end: each names again what it
         // named before (a shadowed storage pointer, or nothing), so a storage pointer of an
         // inner block never stands for a later memory local of its name.
+        let saved = self.save_pointers(b.stmts.iter());
+        let r = self.exec_block_stmts(b);
+        self.restore_pointers(saved);
+        r
+    }
+
+    /// What the names the statements `stmts` declare (at their own level) stand for as storage
+    /// pointers now, for `restore_pointers` once those declarations go out of scope.
+    #[allow(clippy::type_complexity)]
+    fn save_pointers(
+        &self,
+        stmts: impl Iterator<Item = &'a Stmt<'a>>,
+    ) -> Vec<(String, bool, Option<&'a Expr<'a>>, Option<Env>)> {
         let mut declared: Vec<String> = vec![];
-        for s in b.stmts.iter() {
+        for s in stmts {
             match &s.kind {
                 StmtKind::DeclSingle(v) => declared.extend(v.name.map(|n| n.as_str().to_string())),
                 StmtKind::DeclMulti(vs, _) => declared.extend(
@@ -2028,7 +2041,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 _ => {}
             }
         }
-        let saved: Vec<_> = declared
+        declared
             .into_iter()
             .map(|n| {
                 let sl = self.slocals.contains(&n);
@@ -2036,8 +2049,11 @@ impl<'p, 'a> Vc<'p, 'a> {
                 let ae = self.alias_env.get(&n).cloned();
                 (n, sl, al, ae)
             })
-            .collect();
-        let r = self.exec_block_stmts(b);
+            .collect()
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn restore_pointers(&mut self, saved: Vec<(String, bool, Option<&'a Expr<'a>>, Option<Env>)>) {
         for (n, sl, al, ae) in saved {
             if sl {
                 self.slocals.insert(n.clone());
@@ -2053,7 +2069,6 @@ impl<'p, 'a> Vc<'p, 'a> {
                 None => self.alias_env.remove(&n),
             };
         }
-        r
     }
 
     /// A memory or value local of `name` names no storage pointer while it is in scope.
@@ -2261,10 +2276,15 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             StmtKind::While(c, body) => self.exec_loop(s, Some(c), None, body)?,
             StmtKind::For { init, cond, next, body } => {
-                if let Some(i) = init {
-                    self.exec_stmt(i)?;
+                // The init declaration is in scope for the loop only.
+                let saved = self.save_pointers(init.as_deref().into_iter());
+                let r = match init {
+                    Some(i) => self.exec_stmt(i),
+                    None => Ok(()),
                 }
-                self.exec_loop(s, cond.as_deref(), next.as_deref(), body)?;
+                .and_then(|()| self.exec_loop(s, cond.as_deref(), next.as_deref(), body));
+                self.restore_pointers(saved);
+                r?;
             }
             StmtKind::Return(e) => {
                 let rets = self.frames.last().map(|f| f.rets.clone()).unwrap_or_default();

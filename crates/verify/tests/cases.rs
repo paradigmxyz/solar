@@ -1255,3 +1255,8 @@ fn encode_overload_key() {
 fn storage_pointer_scope() {
     check("tests/cases/storage_pointer_scope.sol")
 }
+
+#[test]
+fn for_init_shadow() {
+    check("tests/cases/for_init_shadow.sol")
+}
