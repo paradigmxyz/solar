@@ -331,38 +331,48 @@ bb1:
                 )
 
     def test_live_audit_keeps_bytecode(self):
-        folder = self.tmp / "audit"
-        command = [
-            SOLAR,
-            self.paths[0],
-            "-j1",
-            "-Ogas",
-            "-Zevm-ir-pipeline=block-layout",
-            "--emit=bin",
-        ]
-        outputs = [
-            subprocess.run(
-                [*command, *flags],
-                env={**os.environ, "SOLAR_TV": CLI, "SOLAR": SOLAR},
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=120,
-            )
-            for flags in ([], [f"-Zsolar-tv={folder}"])
-        ]
-        self.assertEqual(outputs[0].stdout, outputs[1].stdout)
-        records = [
-            json.loads(path.read_text()) for path in (folder / "audits").glob("*.json")
-        ]
-        self.assertTrue(
-            any(
-                r["status"] == "verified"
-                and r.get("region", {}).get("proof")
-                == "kernel-checked-schema-stack-layout"
-                for r in records
-            )
+        fallback = self.tmp / "code-observer.evmir"
+        header, body = self.paths[0].read_text().split("\n", 1)
+        fallback.write_text(
+            f"{header}\nbb99 [stack=0]:\n  codesize\n  pop\n  jump bb0\n{body}"
         )
+        env = {**os.environ, "SOLAR_TV": CLI, "SOLAR": SOLAR}
+        env.pop("SOLAR_TV_GAS", None)
+        for source, proof in (
+            (self.paths[0], "kernel-checked-entry-layout"),
+            (fallback, "kernel-checked-schema-stack-layout"),
+        ):
+            with self.subTest(source=source):
+                folder = self.tmp / source.stem
+                command = [
+                    SOLAR,
+                    source,
+                    "-j1",
+                    "-Ogas",
+                    "-Zevm-ir-pipeline=block-layout",
+                    "--emit=bin",
+                ]
+                outputs = [
+                    subprocess.run(
+                        [*command, *flags],
+                        env=env,
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                        timeout=120,
+                    )
+                    for flags in ([], [f"-Zsolar-tv={folder}"])
+                ]
+                self.assertEqual(outputs[0].stdout, outputs[1].stdout)
+                records = [
+                    json.loads(path.read_text())
+                    for path in (folder / "audits").glob("*.json")
+                ]
+                verified = [r["region"] for r in records if r["status"] == "verified"]
+                self.assertIn(proof, [r.get("proof") for r in verified])
+                if source == self.paths[0]:
+                    self.assertEqual(len(records), 1)
+                    self.assertEqual(verified[0]["kind"], "entry")
 
     def test_kernel_rejects_forged_bounds_and_exhibits_overflow(self):
         path = self.tmp / "Bounds.lean"

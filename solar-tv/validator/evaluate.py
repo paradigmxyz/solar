@@ -180,6 +180,76 @@ def final_call_case(case, row):
     )
 
 
+def audit_command(solar, row, target, timeout):
+    replay = Path(solar).with_name(
+        "solar-tv-replay" + (".exe" if os.name == "nt" else "")
+    )
+    return [
+        str(TV / "solar-tv"),
+        row["layer"],
+        *row["paths"],
+        "--solar",
+        solar,
+        "--replay",
+        str(replay),
+        "--timeout",
+        str(timeout),
+        "--evm-version",
+        row["target"],
+        "--report",
+        target,
+    ]
+
+
+def checked_status(process, record):
+    status = record.get("status")
+    if status not in audit.STATUSES:
+        raise ValueError("checker returned an unknown status")
+    expected = 0 if status == "verified" else 1 if status == "counterexample" else 2
+    if record.get("version") != 1 or process.returncode != expected:
+        raise ValueError("checker failed outside its status protocol")
+    return status
+
+
+def check_entry(solar, row, target, timeout):
+    log = target.with_suffix(".log")
+    try:
+        process = run(
+            [*audit_command(solar, row, target, timeout), "--entry-trace"],
+            ROOT,
+            timeout * 8,
+        )
+    except subprocess.TimeoutExpired as error:
+        log.write_text(str(error))
+        record = {
+            "version": 1,
+            "status": "timeout",
+            "diagnostic": "entry checker wall-time budget",
+        }
+        audit.write(target, record)
+        return record
+    log.write_text(process.stdout + process.stderr)
+    record = json.loads(target.read_text())
+    checked_status(process, record)
+    return record
+
+
+def covers_region(record, region):
+    if record["status"] == "counterexample":
+        return True
+    if (
+        record["status"] != "verified"
+        or record.get("region", {}).get("kind") != "entry"
+    ):
+        return False
+    label = int(region["name"].removeprefix("bb"))
+    sides = record.get("import_correspondence", [])
+    return len(sides) == 2 and all(
+        side.get("physical_entry") and label in side.get("block_labels", ())
+        for side in sides
+    )
+
+
 def evaluate_case(case, solar, folder, limit, seed, timeout):
     folder.mkdir()
     source = inputs(case)
@@ -194,6 +264,7 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
     chosen = select(rows, limit, seed)
     results = []
     dispatch_reports = {}
+    entry_reports = {}
     for index, row in enumerate(chosen):
         target = folder / f"check-{index:03}.json"
         start = time.monotonic()
@@ -221,7 +292,25 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
                 "shared MIR declarations or phase changed; no function-local claim",
             }
         )
-        if dispatch and dispatch_key in dispatch_reports:
+        entry = None
+        if (
+            row["layer"] == "evmir"
+            and row["pass"] in {"block-layout", "loop-layout", "compact-pushes"}
+            and region
+        ):
+            key = (*row["paths"], row["target"])
+            if key not in entry_reports:
+                entry_path = folder / f"entry-{index:03}.json"
+                entry_reports[key] = (
+                    entry_path,
+                    check_entry(solar, row, entry_path, timeout),
+                )
+            candidate = entry_reports[key]
+            if covers_region(candidate[1], region):
+                entry = candidate
+        if entry is not None:
+            target, record = entry
+        elif dispatch and dispatch_key in dispatch_reports:
             target, record = dispatch_reports[dispatch_key]
         elif row["rejection"] and not (prefix or universal_region or prune):
             record = {
@@ -231,25 +320,7 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
             }
             audit.write(target, record)
         else:
-            command = [
-                str(TV / "solar-tv"),
-                row["layer"],
-                *row["paths"],
-                "--solar",
-                solar,
-                "--replay",
-                str(
-                    Path(solar).with_name(
-                        "solar-tv-replay" + (".exe" if os.name == "nt" else "")
-                    )
-                ),
-                "--timeout",
-                str(timeout),
-                "--evm-version",
-                row["target"],
-                "--report",
-                target,
-            ]
+            command = audit_command(solar, row, target, timeout)
             if prune:
                 command.append("--prune")
                 if debug_reverts:
@@ -297,17 +368,7 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
                         }
                     audit.write(target, record)
                 record = json.loads(target.read_text())
-                if record.get("status") not in audit.STATUSES:
-                    raise ValueError("checker returned an unknown status")
-                expected = (
-                    0
-                    if record["status"] == "verified"
-                    else 1
-                    if record["status"] == "counterexample"
-                    else 2
-                )
-                if process.returncode != expected:
-                    raise ValueError("checker failed outside its status protocol")
+                checked_status(process, record)
             except subprocess.TimeoutExpired as error:
                 (folder / f"check-{index:03}.log").write_text(str(error))
                 record = {

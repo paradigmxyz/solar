@@ -50,14 +50,17 @@ impl<'a> Snapshot<'a> {
         module: impl Display,
         text: impl Display,
         (region, rejection): (Option<&Region>, Option<&str>),
-    ) -> Result {
+    ) -> Result<bool> {
         let after = text.to_string();
         if self.before == after {
-            return Ok(());
+            return Ok(false);
         }
+        let entry = region.is_some_and(|r| r.kind == "entry");
         let gas_policy = (layer == "evmir").then(|| env::var_os("SOLAR_TV_GAS")).flatten();
         let mut context = format!("solar-tv: {layer} pass `{pass}` on `{module}`");
-        if let Some(region) = region {
+        if entry {
+            context.push_str(" at physical entry");
+        } else if let Some(region) = region {
             context.push_str(&format!(" {} `{}`", region.kind, region.name));
         }
         if let Some(policy) = &gas_policy {
@@ -90,7 +93,7 @@ impl<'a> Snapshot<'a> {
             if debug_dispatch {
                 record["debug_reverts"] = true.into();
             }
-            return self.capture_pair(layer, &after, &record).map_err(io_error);
+            return self.capture_pair(layer, &after, &record).map(|()| false).map_err(io_error);
         }
         // Capture keeps the original selection and rejection for stable corpus sampling.
         // Universal prefix and terminal-region proofs need no guessed stack height.
@@ -136,7 +139,9 @@ impl<'a> Snapshot<'a> {
                     command.arg(layer).arg(before_path).arg(after_path).arg("--solar").arg(solar);
                     command.arg("--report").arg(pair.path().join("result.json"));
                     command.arg("--evm-version").arg(gcx.sess.opts.evm_version.to_string());
-                    if prune {
+                    if entry {
+                        command.arg("--entry-trace");
+                    } else if prune {
                         command.arg("--prune");
                         if debug_dispatch {
                             command.arg("--debug-reverts");
@@ -229,6 +234,11 @@ impl<'a> Snapshot<'a> {
                 }
             }
         };
+        let inconclusive = matches!(outcome, "unsupported" | "timeout" | "inconclusive");
+        if entry && inconclusive {
+            // The regional checks will report their own results and retain replay pairs.
+            return Ok(false);
+        }
         let mut record = record.unwrap_or_else(|| serde_json::json!({"version": 1}));
         record["context"] = serde_json::Value::String(context.clone());
         record["layer"] = layer.into();
@@ -238,6 +248,7 @@ impl<'a> Snapshot<'a> {
             record["diagnostic"] = reason.into();
         }
         if let Some(region) = region
+            && !entry
             && !prune
         {
             if !record["region"].is_object() {
@@ -253,7 +264,7 @@ impl<'a> Snapshot<'a> {
         if outcome == "verified" {
             archive_record(self.directory, &record).map_err(io_error)?;
             eprintln!("{context}: verified");
-            return Ok(());
+            return Ok(true);
         }
         let path = pair.keep();
         let message = format!("{context}: {outcome}");
@@ -264,9 +275,9 @@ impl<'a> Snapshot<'a> {
         fs::write(path.join("result.json"), json).map_err(io_error)?;
         archive_record(self.directory, &record).map_err(io_error)?;
         let saved = format!("pair and checker output saved in `{}`", path.display());
-        if matches!(outcome, "unsupported" | "timeout" | "inconclusive") {
+        if inconclusive {
             gcx.dcx().warn(message).note(diagnostic).note(saved).emit();
-            Ok(())
+            Ok(false)
         } else {
             Err(gcx.dcx().err(message).note(diagnostic).note(saved).emit())
         }

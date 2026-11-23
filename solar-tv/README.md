@@ -1992,7 +1992,9 @@ by IR layer, pass and EVM target. It preserves the separate checker statuses,
 including unsupported inputs and timeouts. The counts cover the captured
 corpus; a pass that never changes that corpus needs other inputs.
 Selected records for the same dispatch pair share the module-level proof
-report. The evaluator retains each capture ID in the coverage totals.
+report. Layout and compact PUSH captures can also share a physical-entry proof
+when it covers the label on both sides. The evaluator retains each capture ID
+in the coverage totals. CI checks 24 selected records per pinned contract.
 
 EVM IR regions can verify after block coalescing or jump threading when both
 source graphs retain the same actions and branches. The checker contracts
@@ -2050,6 +2052,10 @@ The layout proof checks the strongest stack requirement of each jump chain,
 including when a fallthrough becomes a physical jump. It reports changes to
 those requirements and checks each against the reachable stack bound.
 It also checks a branch that swaps its successors while exchanging EQ and SUB.
+With `-Zsolar-tv`, the compiler tries this proof once per changed EVM IR
+module for `block-layout`, `loop-layout` and `compact-pushes`. An inconclusive
+entry check falls back to the regional checks. Priced audits continue to
+use their configured gas policy.
 
 For a region inside a larger pass output, derive the incoming stack bound
 from both physical entries:

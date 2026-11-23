@@ -30,27 +30,29 @@ impl<'a> MirSnapshot<'a> {
             && module.dispatch_entry().is_some()
             && module.functions.len() == self.before.functions.len() + 1
         {
-            return self.snapshot.check(
+            self.snapshot.check(
                 gcx,
                 "mir",
                 pass,
                 module.name,
                 &after,
                 (None, Some("runtime dispatch was materialized")),
-            );
+            )?;
+            return Ok(());
         }
         let prefix = |text: &str| {
             text.lines().take_while(|line| !line.starts_with("fn @")).collect::<Vec<_>>().join("\n")
         };
         if prefix(&self.snapshot.before) != prefix(&after) {
-            return self.snapshot.check(
+            self.snapshot.check(
                 gcx,
                 "mir",
                 pass,
                 module.name,
                 &after,
                 (None, Some("shared MIR declarations or phase changed; no function-local claim")),
-            );
+            )?;
+            return Ok(());
         }
         for (id, before) in self.before.functions.iter_enumerated() {
             let region = Region { kind: "function", name: before.name.to_string(), height: None };

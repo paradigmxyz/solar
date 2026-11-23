@@ -66,6 +66,21 @@ class EvaluationTests(unittest.TestCase):
             # Many function regions share a single immutable module pair.
             self.assertLess(len(list((path / "captures").iterdir())), len(rows))
 
+    def test_entry_proof_covers_only_shared_reachable_labels(self):
+        source = ROOT / "examples/evmir/stack-layout"
+        row = {
+            "layer": "evmir",
+            "target": "cancun",
+            "paths": [source / f"{side}.evmir" for side in ("before", "after")],
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "entry.json"
+            record = evaluate.check_entry(SOLAR, row, target, 30)
+        self.assertEqual(record["status"], "verified", record)
+        self.assertTrue(evaluate.covers_region(record, {"name": "bb0"}))
+        self.assertTrue(evaluate.covers_region(record, {"name": "bb2"}))
+        self.assertFalse(evaluate.covers_region(record, {"name": "bb3"}))
+
     def test_pinned_archives_resolve_real_import_closures(self):
         manifest = json.loads((ROOT / "evaluation.json").read_text())
         for case in manifest["cases"]:

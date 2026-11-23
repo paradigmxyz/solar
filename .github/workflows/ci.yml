@@ -122,7 +122,7 @@ jobs:
         working-directory: solar-tv
         run: lake build
       - name: Evaluate pinned real-contract pass samples
-        run: uv run --locked python solar-tv/evaluate --limit 4 --timeout 10 --output target/tv-evaluation
+        run: uv run --locked python solar-tv/evaluate --limit 24 --timeout 15 --output target/tv-evaluation
       - name: Retain translation-validation evaluation
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
