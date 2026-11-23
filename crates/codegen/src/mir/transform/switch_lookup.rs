@@ -295,11 +295,6 @@ fn site(
         .flat_map(|&block| func.blocks[block].instructions.iter())
         .filter_map(|&inst| func.inst_result_value(inst))
         .collect::<FxHashSet<_>>();
-    // The forwarders go with the switch, so nothing else may read what they compute: a forwarder
-    // that dominates a loop header reaches every block below it.
-    if !forwarded.is_empty() && used_outside(func, &forwarders, &forwarded) {
-        return None;
-    }
     let mut fields = Vec::new();
     let mut block_literals = vec![Vec::new(); blocks.len()];
     for &phi in &func.blocks[join].instructions {
@@ -335,6 +330,12 @@ fn site(
             }
         }
         fields.push(Field { phi, ty, value: field });
+    }
+    // The forwarders go with the switch, so nothing else may read what they compute: a forwarder
+    // that dominates a loop header reaches every block below it. This scans the function, so it
+    // runs after the phis' cheaper checks.
+    if !forwarded.is_empty() && used_outside(func, &forwarders, &forwarded) {
+        return None;
     }
     let present =
         present_keys.iter().fold(U256::ZERO, |bits, &(index, _)| bits | U256::ONE << index);
