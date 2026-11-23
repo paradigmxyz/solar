@@ -93,6 +93,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &jump_threading::JumpThreading,
     &cfg_simplify::BranchSimplify,
     &cfg_simplify::CfgSimplify,
+    &cfg_simplify::CfgCleanup,
     &frame_promotion::FrameSlotPromotion,
     &function_compaction::DeadArgElim,
     &function_compaction::MergeEquivalentFunctions,
@@ -103,6 +104,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &sroa::Sroa,
     &dce::Dce,
     &lower_arithmetic::LowerArithmetic,
+    &lower_arithmetic::LowerArithmeticShared,
     &lower_builtins::LowerBuiltins,
     &lower_checks::LowerChecks,
     &lower_abi::LowerAbi,
@@ -156,50 +158,6 @@ impl<P: MirPass> MirPass for GasOnly<P> {
 
     fn is_required(&self) -> bool {
         self.0.is_required()
-    }
-
-    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-        self.0.run_pass(gcx, module, analyses)
-    }
-
-    fn preserves_debugify_sites(&self) -> bool {
-        self.0.preserves_debugify_sites()
-    }
-}
-
-/// Runs one pipeline slot at `-O none` too, for cheap cleanups whose bytecode savings repay their
-/// compile time. Wrap single slots, not every occurrence of a pass.
-struct RunsAtNone<P>(P);
-
-impl<P> RunsAtNone<P> {
-    const fn new(pass: P) -> Self {
-        Self(pass)
-    }
-}
-
-impl<P: MirPass> MirPass for RunsAtNone<P> {
-    fn name(&self) -> &'static str {
-        self.0.name()
-    }
-
-    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
-        self.covers(module) || self.0.is_enabled(gcx, module)
-    }
-
-    fn is_contract_wide(&self) -> bool {
-        self.0.is_contract_wide()
-    }
-
-    fn runs_on(&self, objective: OptimizationMode) -> bool {
-        objective.is_none() || self.0.runs_on(objective)
-    }
-
-    fn is_required(&self) -> bool {
-        self.0.is_required()
-    }
-
-    fn cache_key(&self) -> Option<(&'static str, &'static str)> {
-        self.0.cache_key()
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
@@ -291,6 +249,7 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
 static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_checks::LowerChecks,
     &lower_builtins::LowerBuiltins,
+    &lower_arithmetic::LowerArithmeticShared,
     &lower_arithmetic::LowerArithmetic,
     // Expansion exposes scalar checks and object copies to this bounded cleanup group.
     // Peel the last groups of lookahead loops so the main loop's bound folds
@@ -301,9 +260,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &word_sequence::WordSequence::Early,
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
-    // Runs at `-O none` too: it removes the empty blocks lowering leaves, which shrinks every
-    // later pass's input and the bytecode.
-    &RunsAtNone::new(cfg_simplify::CfgSimplify),
+    &cfg_simplify::CfgSimplify,
+    // `-O none` only removes unreachable blocks, trivial phis and constant branches.
+    &cfg_simplify::CfgCleanup,
     // Small pure diamonds become selects once folded conditions are gone.
     &if_convert::IfConvert,
     // Searches written with branches or checked additions are straight-line now.
@@ -753,11 +712,6 @@ impl FunctionAnalyses {
     /// Returns the id of the function the running transform edits.
     pub(crate) fn function(&self) -> FunctionId {
         self.function
-    }
-
-    /// Returns the objective the function's code is optimized for.
-    pub(crate) fn optimization(&self) -> OptimizationMode {
-        self.optimization
     }
 
     /// Returns the alias analysis requested by the running transform.

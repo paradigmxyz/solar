@@ -237,8 +237,6 @@ fn lower_evm_ir_once(
     let mut program = Program::with_debug_info(capture_debug_info);
     let valid_lent_invokes = module.valid_lent_invokes();
     let mut pending_block_invoke = None;
-    // Whether the block that left `pending_block_invoke` pending is unoptimized.
-    let mut pending_unoptimized = false;
     for (block_id, block) in module.blocks.iter_enumerated() {
         program.set_source_span(None);
         let block_modifier_depth = block.instructions.first().map_or_else(
@@ -252,19 +250,9 @@ fn lower_evm_ir_once(
         let lent =
             valid_lent_invokes.contains(block_id).then_some(block.metadata.lent_invoke).flatten();
         if let Some(function) = block.metadata.function_invoke.or(lent) {
-            // NOTE: `-O none` keeps the empty blocks of a function that only tail-calls another,
-            // and layout makes them fall through, so a chain of them can enter two functions. The
-            // last block of the chain marks the entry.
-            let unoptimized = block.metadata.optimization.unwrap_or(module.optimization).is_none();
-            debug_assert!(
-                pending_block_invoke.is_none()
-                    || pending_block_invoke == Some(function)
-                    || unoptimized
-                    || pending_unoptimized,
-                "an instruction-free block cannot enter two functions"
-            );
+            // NOTE: Empty blocks that fall through can chain, so one instruction can enter two
+            // functions. The last block of the chain marks the entry.
             pending_block_invoke = Some(function);
-            pending_unoptimized = unoptimized;
         }
         if let Some(label) = labels.get(original).copied().flatten() {
             // The label's own origin.
@@ -456,14 +444,9 @@ fn lower_terminator(
                 program.push_op(op::JUMP);
                 return;
             }
-            // `-O none` keeps the jump of a call, which is the call statement's only instruction.
-            let unoptimized = module.blocks[block_id]
-                .metadata
-                .optimization
-                .unwrap_or(module.optimization)
-                .is_none();
-            let calls = module.blocks[*target].metadata.call_effect.is_some();
-            if !(unoptimized && calls) && module.next_block(block_id) == Some(*target) {
+            let keeps_jump = assembler.keep_function_entry_jumps
+                && module.blocks[*target].metadata.call_effect.is_some();
+            if !keeps_jump && module.next_block(block_id) == Some(*target) {
                 // NOTE: Fallthrough emits no instruction for this edge's source span.
                 // If the successor is shared, its unique source location stays unknown.
                 // Do not retain a jump or duplicate code for it, or move the span onto an

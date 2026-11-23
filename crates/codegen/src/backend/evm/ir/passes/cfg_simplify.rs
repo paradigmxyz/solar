@@ -16,7 +16,7 @@
 //! instructions are considered; no instructions are duplicated and protected boundaries stay
 //! intact.
 //!
-//! At `-O none` the pass keeps every branch and every block: it shares no equal halting blocks,
+//! `cfg-keep-blocks` keeps every branch and every block: it shares no equal halting blocks,
 //! bypasses no thunk and merges no block. It still truncates code after a terminal, turns
 //! `PUSH label; JUMP` into a jump and removes unreachable blocks; layout turns a jump to the next
 //! block into a fall through.
@@ -82,34 +82,45 @@ use crate::backend::evm::{
     },
     op,
 };
-use solar_config::OptimizationMode;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
 pub(super) struct CfgSimplify {
     thread_shared_jumps: bool,
+    /// Keeps every branch and block: no equal-block fold, thunk bypass or block merge.
+    keep_blocks: bool,
 }
 
 impl CfgSimplify {
-    pub(super) const EARLY: Self = Self { thread_shared_jumps: false };
-    pub(super) const FINAL: Self = Self { thread_shared_jumps: true };
+    pub(super) const EARLY: Self = Self { thread_shared_jumps: false, keep_blocks: false };
+    pub(super) const FINAL: Self = Self { thread_shared_jumps: true, keep_blocks: false };
+    pub(super) const KEEP_BLOCKS: Self = Self { thread_shared_jumps: false, keep_blocks: true };
 }
 
 impl EvmPass for CfgSimplify {
     fn name(&self) -> &'static str {
-        if self.thread_shared_jumps { "cfg-simplify" } else { "cfg-simplify-early" }
+        match (self.keep_blocks, self.thread_shared_jumps) {
+            (true, _) => "cfg-keep-blocks",
+            (false, true) => "cfg-simplify",
+            (false, false) => "cfg-simplify-early",
+        }
     }
 
     fn cache_config(&self) -> u64 {
-        u64::from(self.thread_shared_jumps)
+        u64::from(self.thread_shared_jumps) | u64::from(self.keep_blocks) << 1
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        simplify_cfg(gcx, module, self.thread_shared_jumps)
+        simplify_cfg(gcx, module, self.thread_shared_jumps, self.keep_blocks)
     }
 }
 
-fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) -> bool {
+fn simplify_cfg(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    thread_shared_jumps: bool,
+    keep_blocks: bool,
+) -> bool {
     let mut state = RunState::new(module.blocks.len());
     let mut changed =
         module.optimization.is_gas() && rotate_loop_exits(module, &mut state.references);
@@ -117,15 +128,15 @@ fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) ->
     changed |= truncate_after_terminal(module);
     loop {
         let direct = simplify_known_jumps(module);
-        let degenerate = simplify_degenerate_branches(module);
-        let redirected = redirect_jump_thunks(module, thread_shared_jumps, &mut state);
+        let degenerate = !keep_blocks && simplify_degenerate_branches(module);
+        let redirected = redirect_jump_thunks(module, thread_shared_jumps, keep_blocks, &mut state);
         let inlined = thread_shared_jumps
             && module.optimization.is_gas()
             && inline_shared_return_thunks(gcx, module, &mut state.references);
         let branches =
             thread_shared_jumps && module.optimization.is_size() && expose_shared_branches(module);
         let swept = remove_unreachable_blocks(module, &mut state);
-        let coalesced = coalesce_blocks(module, &mut state);
+        let coalesced = !keep_blocks && coalesce_blocks(module, &mut state);
         let round = direct || degenerate || redirected || inlined || branches || swept || coalesced;
         changed |= round;
         if !round {
@@ -386,17 +397,9 @@ fn truncate_after_terminal(module: &mut Module) -> bool {
     changed
 }
 
-/// Returns whether the block's code is not optimized, so it keeps its branches and its blocks.
-fn is_unoptimized(optimization: OptimizationMode, block: &Block) -> bool {
-    block.metadata.optimization.unwrap_or(optimization).is_none()
-}
-
 fn simplify_degenerate_branches(module: &mut Module) -> bool {
     let mut changed = false;
     for block_id in module.blocks.indices() {
-        if is_unoptimized(module.optimization, &module.blocks[block_id]) {
-            continue;
-        }
         // A branch whose edges reach equal halting blocks runs the same code either way: fold it
         // into the else edge, whose code the taken copy's paths then share.
         if let Some(Terminator { kind: TerminatorKind::JumpI { then_block, else_block }, .. }) =
@@ -473,6 +476,7 @@ fn take_thunk_exit(metadata: &mut Metadata, exit: &Metadata) {
 fn redirect_jump_thunks(
     module: &mut Module,
     thread_shared_jumps: bool,
+    keep_blocks: bool,
     state: &mut RunState,
 ) -> bool {
     let RunState {
@@ -494,7 +498,7 @@ fn redirect_jump_thunks(
             None => {
                 if let Some(terminator) = &block.terminator
                     && let TerminatorKind::Jump(next) = terminator.kind
-                    && !is_unoptimized(module.optimization, block)
+                    && !keep_blocks
                 {
                     thunks
                         .insert(block_id, Thunk { next, entered: None, exit: Metadata::default() });
@@ -747,11 +751,6 @@ fn coalesce_blocks(module: &mut Module, state: &mut RunState) -> bool {
         {
             let target = *target;
             if target == predecessor || references[target] != 1 || !retained.contains(target) {
-                break;
-            }
-            if is_unoptimized(module.optimization, &module.blocks[predecessor])
-                || is_unoptimized(module.optimization, &module.blocks[target])
-            {
                 break;
             }
 

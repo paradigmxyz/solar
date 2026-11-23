@@ -180,6 +180,8 @@ pub struct EvmCodegen<'gcx> {
     /// The objective of the module being generated, which its `@custom:solar-optimize` tag may
     /// select, or of the function being emitted, which its own tag may select.
     optimization: OptimizationMode,
+    /// Whether blocks that only jump on are forwarded to their target.
+    forward_empty_blocks: bool,
     /// The objective of the module being generated, which the layout of its immutables follows
     /// in every function.
     module_optimization: OptimizationMode,
@@ -240,6 +242,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             stack_return_sites: FxHashMap::default(),
             entry_frame_ends: FxHashMap::default(),
             optimization: gcx.sess.opts.optimization,
+            forward_empty_blocks: true,
             module_optimization: gcx.sess.opts.optimization,
         }
     }
@@ -247,9 +250,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Clears state that belongs to one lowered MIR module.
     fn reset_for_module(&mut self, module: &Module) {
         self.optimization = module.optimization;
+        self.forward_empty_blocks = !module.optimization.is_none();
         self.module_optimization = module.optimization;
         self.asm.clear();
         self.asm.set_optimization(module.optimization);
+        self.asm.set_keep_function_entry_jumps(module.optimization.is_none());
         self.reset_artifact(module);
         self.empty_stop_functions.clear_to(module.functions.len());
         self.heap_pointer_return_functions.clear_to(module.functions.len());

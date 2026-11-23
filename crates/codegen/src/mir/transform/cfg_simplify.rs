@@ -18,10 +18,10 @@
 //! unreachable-block removal. It leaves block merging and terminal sharing to the backend to
 //! preserve stack lifetimes.
 //!
-//! ## `-O none`
-//! The pass merges no block, forwards no empty block, shares no equal terminal blocks and folds no
-//! branch except on a constant, so each statement keeps its block and its jump. It still removes
-//! unreachable blocks and trivial phis. It decides this by the optimization level alone.
+//! ## Cleanup
+//! `cfg-cleanup` merges no block, forwards no empty block, shares no equal terminal blocks and
+//! folds no branch except on a constant, so each statement keeps its block and its jump. It still
+//! removes unreachable blocks and trivial phis.
 //!
 //! ## Dead Function Elimination
 //! Remove functions that are never called, starting from entry points
@@ -55,6 +55,7 @@ use crate::mir::{
     utils::{eval, invalidate_unreachable_block, replace_terminator, retain_blocks},
 };
 use alloy_primitives::U256;
+use solar_config::OptimizationMode;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
@@ -77,9 +78,30 @@ impl MirPass for CfgSimplify {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
-            run_to_fixpoint(func, analyses.optimization().is_none())
-        })
+        run_function_pass(module, analyses, |func, _| simplify_function(func))
+    }
+}
+
+/// Function pass that keeps every block and branch: it folds the branches on a constant and
+/// removes unreachable blocks and trivial phis.
+pub(crate) struct CfgCleanup;
+
+impl MirPass for CfgCleanup {
+    fn name(&self) -> &'static str {
+        "cfg-cleanup"
+    }
+
+    fn runs_on(&self, objective: OptimizationMode) -> bool {
+        objective.is_none()
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| run_to_fixpoint(func, true))
     }
 }
 
@@ -243,11 +265,11 @@ pub(super) fn remove_unreachable_blocks(func: &mut Function) -> usize {
 
 /// Runs one round of CFG simplification on a function and returns whether it rewrote anything.
 ///
-/// `unoptimized` is the `-O none` mode: every block and branch stays, except the branches on a
-/// constant, the unreachable code and the trivial phis.
-fn run(func: &mut Function, unoptimized: bool) -> bool {
-    let mut changed = simplify_degenerate_terminators(func, unoptimized);
-    if unoptimized {
+/// `cleanup` keeps every block and branch, except the branches on a constant, the unreachable code
+/// and the trivial phis.
+fn run(func: &mut Function, cleanup: bool) -> bool {
+    let mut changed = simplify_degenerate_terminators(func, cleanup);
+    if cleanup {
         return changed | simplify_trivial_phis(func);
     }
     changed |= merge_blocks(func);
@@ -559,7 +581,7 @@ fn known_branch_target(func: &Function, block: BlockId, constant_only: bool) -> 
 }
 
 /// Runs CFG simplification iteratively until no more changes.
-fn run_to_fixpoint(func: &mut Function, unoptimized: bool) -> bool {
+fn run_to_fixpoint(func: &mut Function, cleanup: bool) -> bool {
     if func.blocks.len() == 1
         && !func.block_has_phi(BlockId::ENTRY)
         && !matches!(
@@ -571,7 +593,7 @@ fn run_to_fixpoint(func: &mut Function, unoptimized: bool) -> bool {
     }
 
     let mut changed = false;
-    while run(func, unoptimized) {
+    while run(func, cleanup) {
         changed = true;
     }
     changed | (remove_unreachable_blocks(func) != 0)

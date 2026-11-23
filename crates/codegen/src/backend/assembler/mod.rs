@@ -140,6 +140,8 @@ pub(crate) struct Assembler<'gcx> {
     /// The objective of the function being emitted when it differs from the module's: its blocks
     /// are marked with it.
     pub(in crate::backend) block_optimization: Option<OptimizationMode>,
+    /// Whether a jump to a function entry stays a jump when the entry is the next block.
+    pub(in crate::backend) keep_function_entry_jumps: bool,
     /// Unresolved block references emitted as push operands.
     /// Ordered by (block, instruction); EVM IR construction uses binary search.
     pub(in crate::backend) label_relocations: Vec<(ir::BlockId, usize, Label)>,
@@ -213,6 +215,7 @@ impl<'gcx> Assembler<'gcx> {
             loop_labels: GrowableBitSet::new_empty(),
             repeating_code: false,
             block_optimization: None,
+            keep_function_entry_jumps: false,
             label_relocations: Vec::new(),
             deferred_relocations: Vec::new(),
             indexed_jump_relocations: Vec::new(),
@@ -231,6 +234,11 @@ impl<'gcx> Assembler<'gcx> {
     /// Sets the objective the program's code is optimized for.
     pub(crate) fn set_optimization(&mut self, optimization: OptimizationMode) {
         self.program.optimization = optimization;
+    }
+
+    /// Sets whether a jump to a function entry stays a jump when the entry is the next block.
+    pub(crate) fn set_keep_function_entry_jumps(&mut self, keep: bool) {
+        self.keep_function_entry_jumps = keep;
     }
 
     /// Clears all emitted instructions and local identifiers.

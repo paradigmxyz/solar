@@ -184,11 +184,13 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// first label's included, when its tag selects one.
     fn enter_function(&mut self, module: &Module, func: &Function) {
         self.optimization = module.objective_of(func);
+        self.forward_empty_blocks = !self.optimization.is_none();
         self.asm.block_optimization = func.attributes.optimization;
     }
 
     fn leave_function(&mut self, module: &Module) {
         self.optimization = module.optimization;
+        self.forward_empty_blocks = !module.optimization.is_none();
         self.asm.block_optimization = None;
     }
 
@@ -302,11 +304,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.block_labels.insert(block, label);
         }
 
-        // A block that only jumps on is never emitted; edges into it go to its final target.
-        // `-O none` emits every block.
+        // A block that only jumps on is never emitted; edges into it go to its final target, unless
+        // `forward_empty_blocks` is off.
         let mut forward = FxHashMap::default();
         for (block, block_plan) in plan.blocks.iter_enumerated() {
-            if !self.optimization.is_none()
+            if self.forward_empty_blocks
                 && block != BlockId::ENTRY
                 && let Some(block_plan) = block_plan
                 && block_plan.steps.is_empty()
