@@ -218,6 +218,8 @@ def check(
             "checked_operands",
             "swap_encoding",
             "return_word",
+            "conditional_words",
+            "conditional_admission",
         ):
             theorem = f"SolarTV.EVM.ContinuationFlow.{lemma}"
             provenance += f"#print axioms {theorem}\n"

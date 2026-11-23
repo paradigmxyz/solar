@@ -804,7 +804,11 @@ The `--entry-trace` layout route starts with an empty stack at the first
 physical block on each side. `ControlFlow.contextual_entry` combines the
 checked path projection with the stack simulation at that entry height.
 Continuation provenance tracks logical return addresses through stack
-operations. The normalized graph keeps the largest temporary stack
+operations. A stack-carried conditional jump requires a known local
+destination and an ordinary condition. The projection consumes the address
+before branching, checks both successors against the remaining stack, and
+proves the same two-word admission check even at the 1024-word limit.
+The normalized graph keeps the largest temporary stack
 requirement along each chain of jumps and checks that changed requirements
 are safe on every reachable path. The proof shares immutable slots and
 supported interaction replies. For recognized constructor reads it also

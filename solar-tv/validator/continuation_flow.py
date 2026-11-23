@@ -82,6 +82,10 @@ def project(model, catalog, version, *, interactions=False, from_entry=False, ma
                 source.append(f".branch {yes} {no}")
             case {"kind": "terminal", "operation": "jump"}:
                 source.append(".dynamicJump")
+            case {"kind": "branch_address", "next": target}:
+                source.append(f".branchAddress {target}")
+            case {"kind": "branch_after_address", "no": otherwise}:
+                source.append(f".branchAfterAddress {otherwise}")
             case {"kind": "terminal", "operation": operation} if operation in {
                 "stop",
                 "invalid",
@@ -98,6 +102,7 @@ def project(model, catalog, version, *, interactions=False, from_entry=False, ma
     indices = {}
     output = []
     returns = 0
+    branches = 0
     handoffs = 0
 
     limit = 16384 if from_entry else 2048
@@ -118,6 +123,13 @@ def project(model, catalog, version, *, interactions=False, from_entry=False, ma
             raise Unsupported("continuation label escapes into an observable operand")
 
     source_size = len(model["nodes"])
+
+    def branch_target(shape):
+        if not shape or shape[0] is None or shape[0] >= source_size:
+            raise Unsupported("dynamic branch has no resolved local stack label")
+        check_inputs(shape[1:], 1)
+        return shape[0]
+
     index(
         model["entry"],
         tuple(source_size + i if tagged else None for i, tagged in enumerate(mask)),
@@ -155,6 +167,20 @@ def project(model, catalog, version, *, interactions=False, from_entry=False, ma
                 check_inputs(shape, 1)
                 node["yes"] = index(node["yes"], shape[1:])
                 node["no"] = index(node["no"], shape[1:])
+            case "branch_address":
+                branch_target(shape)
+                node = {
+                    "kind": "operation",
+                    "operation": "pop",
+                    "next": index(node["next"], shape),
+                }
+            case "branch_after_address":
+                node = {
+                    "kind": "branch",
+                    "yes": index(branch_target(shape), shape[2:]),
+                    "no": index(node["no"], shape[2:]),
+                }
+                branches += 1
             case "terminal":
                 if node["operation"] == "jump":
                     if not shape or shape[0] is None:
@@ -193,6 +219,7 @@ def project(model, catalog, version, *, interactions=False, from_entry=False, ma
             ).hexdigest(),
             "provenance_states": len(points),
             "resolved_returns": returns,
+            **({"resolved_branches": branches} if branches else {}),
             **({"inherited_returns": handoffs} if mask else {}),
         },
     }
@@ -224,8 +251,11 @@ def check(texts, replay, catalog, version, timeout, entry, *, interactions=False
             if not requests:
                 raise Unsupported("interaction trace requires a reachable interaction")
             witness["evidence"]["interactions"] = sorted(requests)
-    elif not any(c["evidence"]["resolved_returns"] for c in certificates):
-        raise Unsupported("continuation proof needs a resolved dynamic return")
+    elif not any(
+        c["evidence"]["resolved_returns"] or c["evidence"].get("resolved_branches")
+        for c in certificates
+    ):
+        raise Unsupported("continuation proof needs a resolved dynamic jump")
     return cfg_flow.check(
         texts,
         projected,

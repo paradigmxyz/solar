@@ -5,7 +5,8 @@
 //! The continuation export retains other block-label pushes and their targets
 //! for stack provenance checking. Immutable pushes can be exported as symbolic
 //! deployment slots in an entry trace. Recognized code reads carry an explicit
-//! stack guard and the declared data suffix.
+//! stack guard and the declared data suffix. A stack-carried JUMPI is split at
+//! the address pop so the checker can track both architectural operands.
 
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -134,6 +135,17 @@ fn graph(module: &Module, entry: BlockId, labels: bool, from_entry: bool) -> Res
                     }
                     _ => return Err("escaping label in EVM source graph".into()),
                 }
+            } else if labels && inst.as_evm_opcode() == Some(op::JUMPI) {
+                if nodes.len() + 1 >= limit {
+                    return Err(format!("reachable EVM model exceeds {limit} nodes"));
+                }
+                // Synthetic points have no physical entry or label relocation.
+                let branch = total + point;
+                nodes.push(json!({
+                    "id":branch,"label":block.label,
+                    "node":{"kind":"branch_after_address","no":edge(id,offset+1)}
+                }));
+                json!({"kind":"branch_address","next":branch})
             } else if labels
                 && let Some(immutable) = inst.immutable_push()
                 && let Some(size) = inst.immutable_type_size()

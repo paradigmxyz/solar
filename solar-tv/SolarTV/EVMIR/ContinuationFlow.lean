@@ -31,6 +31,8 @@ inductive Node
   | branch (yes no : Nat)
   | terminal (name : String) (inputs : Nat)
   | dynamicJump
+  | branchAddress (branch : Nat)
+  | branchAfterAddress (otherwise : Nat)
 
 structure Program where
   entry : Nat
@@ -226,6 +228,17 @@ def projectRow (nodes : ProofTable.View Node) (points : ProofTable.View Point)
     if inherited && nodes.size ≤ target then
       some (.terminal 0 s!"resume {target - nodes.size}")
     else none
+  | .branchAddress branch, .next successor =>
+    let .branchAfterAddress _ ← nodes.get? branch | none
+    let target ← tagAt point.shape 0
+    if target ≥ nodes.size || (tagAt point.shape 1).isSome then none else
+    -- Keep the address tag in the certificate until checking both successors.
+    return .operation 0 "pop" (← find branch point.shape successor)
+  | .branchAfterAddress otherwise, .branch trueEdge falseEdge =>
+    let target ← tagAt point.shape 0
+    if target ≥ nodes.size || (tagAt point.shape 1).isSome then none else
+    let tail := point.shape.drop 2
+    return .branch 0 (← find target tail trueEdge) (← find otherwise tail falseEdge)
   | _, _ => none
 
 def projectFromView (source : Nat) (nodes : ProofTable.View Node) (points : ProofTable.View Point)
@@ -371,6 +384,40 @@ theorem return_word (shape : Shape) (slots : List Slot) (target : Nat)
       cases shape with
       | nil => simp at top
       | cons tag tail => simpa using related (depth+1)
+
+/-- The destination is a tracked address and the branch condition is an
+ordinary word. Neither the decision nor the remaining stack depends on the
+physical address of the continuation. -/
+theorem conditional_words (shape : Shape) (slots : List Slot) (target : Nat)
+    (address : Nat → Word) (related : Matches shape slots) (enough : 2 ≤ slots.length)
+    (top : tagAt shape 0 = some target) (condition : tagAt shape 1 = none) :
+    ∃ word rest, slots.map (Slot.encode address) =
+      address target :: word :: rest.map (Slot.encode address) ∧ Matches (shape.drop 2) rest := by
+  cases slots with
+  | nil => simp at enough
+  | cons dst slots =>
+    cases slots with
+    | nil => simp at enough
+    | cons cond rest =>
+      have destination := (related 0).symm.trans top
+      have ordinary := (related 1).symm.trans condition
+      cases dst with
+      | word _ => simp [Slot.tag] at destination
+      | label label =>
+        simp [Slot.tag] at destination
+        subst label
+        cases cond with
+        | label _ => simp [Slot.tag] at ordinary
+        | word value =>
+          refine ⟨value, rest, rfl, ?_⟩
+          intro depth
+          have corresponding := related (2+depth)
+          simpa [tagAt, List.getElem?_drop, Nat.add_comm] using corresponding
+
+/-- The projected POP and branch consume two words. The branch's temporary
+address slot reuses the slot just popped, even at the stack limit. -/
+theorem conditional_admission (height : Nat) (fits : height ≤ 1024) :
+    (1 ≤ height ∧ 1 ≤ height - 1 ∧ height - 1 + 1 ≤ 1024) ↔ 2 ≤ height := by omega
 
 /-- At a regional exit, the token selects the caller's original address
 and the actual JUMP removes that address from the live stack. -/

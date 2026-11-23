@@ -38,7 +38,7 @@ class StackLayoutTests(unittest.TestCase):
         ]
         if world:
             command += ["--world", self.folder / "world.json", "--gas=exact"]
-        elif "--entry-trace" not in flags:
+        elif "--entry-trace" not in flags and "--world" not in flags:
             command += ["--region=bb0"]
         result = subprocess.run(
             command, capture_output=True, text=True, check=False, timeout=120
@@ -100,6 +100,59 @@ class StackLayoutTests(unittest.TestCase):
             self.assertEqual(side["entry_height_bound"], 0)
             self.assertEqual(len(side["changed_growth_checks"]), 2)
             self.assertLess(max(side["stack_height_bounds"]), 1024)
+
+    def test_entry_trace_resolves_both_edges_of_stack_carried_jumpi(self):
+        before, after, broken = (
+            self.tmp / f"{name}.evmir" for name in ("before", "after", "broken")
+        )
+        entry = """@module DynamicBranch
+bb0 [stack=0]:
+  push bb3
+  push 0
+  calldataload
+  swap 1
+  jump bb1
+"""
+        branch = """bb1:
+  jumpi
+  push 11
+  jump bb4
+"""
+        invalid = """bb2:
+  invalid
+"""
+        body = """bb3:
+  push 29
+  jump bb4
+bb4:
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+"""
+        before.write_text(entry + invalid + branch + body)
+        after.write_text(entry + branch + invalid + body)
+        broken.write_text(after.read_text().replace("push bb3", "push bb2"))
+        result, record = self.cli([before, after], flags=("--entry-trace",))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(record["region"]["proof"], "kernel-checked-entry-layout")
+        self.assertEqual(
+            [side["resolved_branches"] for side in record["import_correspondence"]],
+            [1, 1],
+        )
+        result, record = self.cli([before, broken], flags=("--entry-trace",))
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(record["status"], "unsupported")
+
+        fixture = self.tmp / "destination-world.json"
+        fixture.write_text('{"version":1,"calldata":"0x01"}')
+        result, record = self.cli([after, broken], flags=("--world", fixture))
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+        self.assertEqual(
+            record["witness"]["observations"], record["witness"]["native_observations"]
+        )
 
     def test_unproved_growth_is_not_hidden_by_an_entry_hint(self):
         paths = [self.tmp / f"{side}.evmir" for side in ("before", "after")]
