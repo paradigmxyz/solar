@@ -619,6 +619,51 @@ fn @choose(arg0: slice<memory>, arg1: i1) -> i256 {
                 [["9"], ["1"]],
             )
 
+    def test_egraph_composes_memory_offsets_through_word_copies(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{name}.mir" for name in ("before", "after"))
+            source = """@module MemoryOffsets
+fn @choose(arg0: ptr<memory>, arg1: i1) -> i256 {
+  bb0:
+    v0 = ptrtoint ptr<memory> arg0 to i256
+    jump bb1
+  bb1:
+    v1 = phi [bb0: arg1], [bb1: false]
+    v2 = add v0, 64
+    v3 = inttoptr i256 v2 to ptr<memory>
+    v4 = ptrtoint ptr<memory> v3 to i256
+    v5 = add v4, 32
+    mstore v5, 7
+    v6 = add v0, 96
+    v7 = mload v6
+    jumpi v1, bb1, bb2
+  bb2:
+    ret v7
+}
+"""
+            before.write_text(source)
+            output = subprocess.check_output(
+                [SOLAR, before, "-j1", "-Ogas", "-Zmir-pipeline=egraph"],
+                text=True,
+                timeout=20,
+            )
+            after.write_text(output)
+            record = self.check_loop(root, 0)
+            relation = record["import_correspondence"][0]["correspondence"]["choose"]
+            self.assertEqual(relation["proof"], "carrier-copies")
+            self.assertGreater(relation["offsets"], 0)
+            self.assertEqual(
+                self.replay_loop(root, source, output, [128, 1]), [["7"], ["7"]]
+            )
+            wrong, count = re.subn(r"\bmstore v\d+, 7\b", "mstore 256, 7", output)
+            self.assertEqual(count, 1)
+            after.write_text(wrong)
+            self.check_loop(root, 2)
+            self.assertEqual(
+                self.replay_loop(root, source, wrong, [128, 1]), [["7"], ["0"]]
+            )
+
     def test_cfg_simplify_checks_mutually_recursive_callees(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

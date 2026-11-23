@@ -76,4 +76,45 @@ theorem normalized (key : Key) (input : Word) :
         exact (BitVec.neg_zero (n := 256)).symm
       · simp only [Word.shift, wide, ite_false, BitVec.shiftLeft_neg]
 
+inductive Offset where
+  | add (amount : Word)
+  | sub (amount : Word)
+
+def Offset.signed : Offset → Word
+  | .add amount => amount
+  | .sub amount => -amount
+
+def Offset.apply : Offset → Word → Word
+  | .add amount, input => MIR.eval .add input amount
+  | .sub amount, input => MIR.eval .sub input amount
+
+theorem Offset.apply_eq (step : Offset) (input : Word) :
+    step.apply input = input + step.signed := by
+  cases step
+  · rfl
+  · exact BitVec.sub_eq_add_neg _ _
+
+def offsetTotal : List Offset → Word
+  | [] => 0
+  | step :: rest => step.signed + offsetTotal rest
+
+def applyOffsets (steps : List Offset) (input : Word) : Word :=
+  steps.foldl (fun value step => step.apply value) input
+
+/-- Offsets are composed modulo the word width, including through full-word
+carrier copies. The main graph checks the unchanged base and resulting uses. -/
+theorem apply_offsets (steps : List Offset) (input : Word) :
+    applyOffsets steps input = input + offsetTotal steps := by
+  induction steps generalizing input with
+  | nil => exact (BitVec.add_zero input).symm
+  | cons step rest ih =>
+    simp only [applyOffsets, List.foldl_cons, offsetTotal]
+    rw [← applyOffsets, ih, Offset.apply_eq, BitVec.add_assoc]
+
+theorem checked_offsets (cases : List (List Offset × Word))
+    (checked : cases.all (fun row => offsetTotal row.1 == row.2) = true)
+    (input : Word) (row : List Offset × Word) (member : row ∈ cases) :
+    applyOffsets row.1 input = input + row.2 := by
+  rw [apply_offsets, beq_iff_eq.mp (List.all_eq_true.mp checked row member)]
+
 end SolarTV.MIR.WordRewrite

@@ -636,14 +636,15 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 )
             except Unsupported as error:
                 try:
-                    proof, copies = phase_carriers.paired_proof(i, a, b)
+                    proof, copies, offsets = phase_carriers.paired_proof(i, a, b)
                 except Unsupported:
                     raise error from None
                 code += proof
-                axioms_checks += 1
+                axioms_checks += 1 + bool(offsets)
                 checked[name] = {
-                    "proof": "carrier-copies",
+                    "proof": "carrier-copies" if copies else "word-offsets",
                     "copies": copies,
+                    **({"offsets": offsets} if offsets else {}),
                     "product_initialization": product_initialization,
                 }
                 continue

@@ -188,7 +188,48 @@ def align(before, after, tail_rewrites, *, erase_both=False):
     return renaming
 
 
-def project(body, symbols, renaming, tail_rewrites, *, same_phase=False):
+def affine_word(inst, offsets, checks):
+    """Compose offsets from earlier definitions in this block."""
+    kind = inst["operation"]
+    if (
+        inst["result"] is None
+        or inst["type"].get("kind") != "word"
+        or inst["type"].get("bits") != 256
+        or kind["kind"] != "opcode"
+        or kind["name"] not in {"add", "sub"}
+        or len(kind["args"]) != 2
+    ):
+        return kind
+    base, delta = kind["args"]
+    if (
+        base["kind"] not in {"local", "arg"}
+        or delta["kind"] != "constant"
+        or any(operand["type"] != inst["type"] for operand in (base, delta))
+    ):
+        return kind
+    source, previous, steps = (
+        offsets.get(base.get("index"), (base, 0, ()))
+        if (base["kind"] == "local")
+        else (base, 0, ())
+    )
+    # A long block can have overlapping chains. Bound each expanded witness.
+    if len(steps) == 64:
+        source, previous, steps = base, 0, ()
+    amount = int(delta["value"])
+    if not 0 <= amount < 1 << 256:
+        raise Unsupported("affine word offset is outside i256")
+    op = kind["name"]
+    value = (previous + (amount if op == "add" else -amount)) % (1 << 256)
+    chain = (*steps, (op, amount))
+    offsets[inst["result"]] = (source, value, chain)
+    if steps or op == "sub":
+        checks.setdefault((chain, value), None)
+    return {**kind, "name": "add", "args": [source, {**delta, "value": str(value)}]}
+
+
+def project(body, symbols, renaming, tail_rewrites, *, affine=None):
+    same_phase = affine is not None
+
     def local(index):
         if renaming is None:
             return index
@@ -252,6 +293,7 @@ def project(body, symbols, renaming, tail_rewrites, *, same_phase=False):
                     tuple(local(phi["result"]) for phi in group),
                 )
         code = []
+        offsets = {}
         instructions = block["instructions"]
         term = block["terminator"]
         if index in tail_rewrites:
@@ -264,11 +306,20 @@ def project(body, symbols, renaming, tail_rewrites, *, same_phase=False):
                 operand := source_copy(inst)
             ) is not None:
                 code.append(Copy(local(inst["result"]), read(operand)))
+                if (
+                    same_phase
+                    and operand["kind"] == "local"
+                    and operand["index"] in offsets
+                ):
+                    offsets[inst["result"]] = offsets[operand["index"]]
                 continue
             result = inst["result"]
+            kind = (
+                affine_word(inst, offsets, affine) if same_phase else inst["operation"]
+            )
             code.append(
                 action(
-                    {"operation": inst["operation"], "type": inst["type"]},
+                    {"operation": kind, "type": inst["type"]},
                     () if result is None else (local(result),),
                 )
             )
@@ -353,9 +404,10 @@ def render_block(block):
 def paired_proof(index, old, new):
     renaming = align(old, new, {}, erase_both=True)
     symbols = {}
+    affine = {}
     graphs = (
-        project(old, symbols, None, {}, same_phase=True),
-        project(new, symbols, renaming, {}, same_phase=True),
+        project(old, symbols, None, {}, affine=affine),
+        project(new, symbols, renaming, {}, affine=affine),
     )
     names = ("before", "after")
     count = 0
@@ -371,8 +423,22 @@ def {name}Copies : Copies := [{mapping}]
 def {name}Live : List (List Nat) := {live}
 def {name} : List Block := [{",".join(map(render_block, graph))}]
 """
-    if count == 0:
-        raise Unsupported("no full-word carrier can be erased")
+    if not count and not affine:
+        raise Unsupported("no full-word carrier or offset chain to normalize")
+    if affine:
+        cases = [
+            "(["
+            + ",".join(f".{op} {value}#256" for op, value in chain)
+            + f"],{total}#256)"
+            for chain, total in affine
+        ]
+        code += f"""
+open MIR.WordRewrite
+def offsetCases : List (List Offset × EvmRules.Word) := [{",".join(cases)}]
+theorem checkedOffsets (word : EvmRules.Word) (row : List Offset × EvmRules.Word)
+    (member : row ∈ offsetCases) : applyOffsets row.1 word = word + row.2 :=
+  checked_offsets offsetCases (by decide +kernel) word row member
+"""
     code += f"""
 theorem preserved {{Value State Terminal : Type}} (handlers : Handlers Value State Terminal)
     (fixed regs : Registers Value) (fuel : Nat) (state : State) :
@@ -383,7 +449,9 @@ theorem preserved {{Value State Terminal : Type}} (handlers : Handlers Value Sta
 end CarrierPair{index}
 #print axioms CarrierPair{index}.preserved
 """
-    return code, count
+    if affine:
+        code += f"#print axioms CarrierPair{index}.checkedOffsets\n"
+    return code, count, len(affine)
 
 
 def check(left, right, changed, definitions, timeout):

@@ -699,6 +699,13 @@ the source uses show they are private or dead. This verifies a sixth frozen
 egraph loop capture, the word-scaled ERC20Mock storage-bytes store. The
 regression independently replays a wrong shift count.
 
+Same-phase carrier proofs also compose additive and subtractive word
+offsets through full-width pointer casts within a block. The kernel checks
+the original offset sequence against its proposed total at every input
+word. The graph checks that the base and ordered memory effects match.
+This verifies the frozen ERC20Mock constructor and another Morpho
+`extSloads` rewrite. A changed store address is rejected and replayed.
+
 Same-phase carrier proofs retain the exact types of slice and product
 operations. That lets them prove all six frozen MIR CSE loop captures,
 including the storage-bytes helper passed a slice and the constructor
