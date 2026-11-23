@@ -39,9 +39,11 @@
 //! empty blocks are gone, and before inlining prices the helpers that hold such switches.
 //!
 //! Omissions: tables wider than eight words, key spans over 256 values, and case blocks that pass
-//! a computed value stay switches. Tables are never read from program data: MIR's `datacopy`
-//! copies a data object from its start, with no runtime source offset, and a `CODECOPY` of one
-//! entry would also need a scratch-memory store and load.
+//! a computed value stay switches. The pass is disabled before Constantinople, where
+//! `lower-shifts` turns each variable shift into `EXP` and `DIV`, whose gas grows with the byte
+//! length of the shift amount, up to 1,610 gas for a wrapped one. Tables are never read from
+//! program data: MIR's `datacopy` copies a data object from its start, with no runtime source
+//! offset, and a `CODECOPY` of one entry would also need a scratch-memory store and load.
 //!
 //! Debug locations follow `if-convert`: the code that replaces the switch takes the switch's
 //! location, and each phi's value takes that phi's, or none when the phi has none. The new
@@ -69,6 +71,10 @@ pub(crate) struct SwitchLookup;
 impl MirPass for SwitchLookup {
     fn name(&self) -> &'static str {
         "switch-lookup"
+    }
+
+    fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, _module: &Module) -> bool {
+        gcx.sess.opts.evm_version.has_bitwise_shifting()
     }
 
     fn run_pass(
