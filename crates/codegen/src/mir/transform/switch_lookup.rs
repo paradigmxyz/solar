@@ -302,6 +302,8 @@ fn site(
         .collect::<FxHashSet<_>>();
     let mut fields = Vec::new();
     let mut block_literals = vec![Vec::new(); blocks.len()];
+    // The bits of all tables' entries together, and of the widest entry.
+    let (mut slot, mut widest) = (0, 0);
     for &phi in &func.blocks[join].instructions {
         let InstKind::Phi(incoming) = &func.inst(phi).kind else { continue };
         let incoming_from =
@@ -318,14 +320,22 @@ fn site(
             FieldValue::Same(shared)
         } else {
             let base = func.value_u256(shared)?;
-            let mut entries = vec![U256::ZERO; len];
+            let mut present = Vec::with_capacity(values.len());
             for &(index, value) in &values {
-                entries[index] = func.value_u256(value)? ^ base;
+                present.push((index, func.value_u256(value)? ^ base));
             }
-            let bits = entries.iter().map(|entry| entry.bit_len()).max().unwrap_or(0);
+            let bits = present.iter().map(|(_, entry)| entry.bit_len()).max().unwrap_or(0);
             if bits == 0 {
                 FieldValue::Literal(base)
             } else {
+                // Give up before building another `len`-entry table that no encoding can hold.
+                slot += bits;
+                widest = widest.max(bits);
+                encodings(len, slot, widest).next()?;
+                let mut entries = vec![U256::ZERO; len];
+                for (index, entry) in present {
+                    entries[index] = entry;
+                }
                 FieldValue::Table { base, entries, bits }
             }
         };
@@ -403,18 +413,8 @@ fn count_reads(func: &Function, site: &Site, uses: &mut IndexVec<ValueId, u32>, 
 /// The cheapest encoding of the site, when it pays for the switch it replaces.
 fn choose(target: &Target, site: &Site, in_loop: bool) -> Option<Encoding> {
     let slot = site.tables().map(|(_, _, bits)| bits).sum::<usize>();
-    let mut candidates = Vec::with_capacity(2);
-    if site.len <= WORD_BYTES && site.tables().all(|(_, _, bits)| bits <= 8) {
-        candidates.push(Encoding::Bytes);
-    }
-    if slot <= WORD_BITS {
-        let per_word = WORD_BITS.checked_div(slot).unwrap_or(site.len);
-        if site.len.div_ceil(per_word) <= MAX_TABLE_WORDS {
-            candidates.push(Encoding::Shifts { slot, per_word });
-        }
-    }
-    let (encoding, cost) = candidates
-        .into_iter()
+    let widest = site.tables().map(|(_, _, bits)| bits).max().unwrap_or(0);
+    let (encoding, cost) = encodings(site.len, slot, widest)
         .map(|encoding| (encoding, price(target, site, encoding)))
         .min_by(|&(_, a), &(_, b)| target.cmp(a, b))?;
     let blocks = site
@@ -425,6 +425,17 @@ fn choose(target: &Target, site: &Site, in_loop: bool) -> Option<Encoding> {
         })
         .collect::<Vec<_>>();
     target.switch_lookup_pays(&site.keys, &blocks, cost, in_loop).then_some(encoding)
+}
+
+/// The encodings that hold `len` slots of tables whose entries take `slot` bits together and
+/// at most `widest` bits each.
+fn encodings(len: usize, slot: usize, widest: usize) -> impl Iterator<Item = Encoding> {
+    let bytes = (len <= WORD_BYTES && widest <= 8).then_some(Encoding::Bytes);
+    let shifts = (slot <= WORD_BITS)
+        .then(|| WORD_BITS.checked_div(slot).unwrap_or(len))
+        .filter(|&per_word| len.div_ceil(per_word) <= MAX_TABLE_WORDS)
+        .map(|per_word| Encoding::Shifts { slot, per_word });
+    bytes.into_iter().chain(shifts)
 }
 
 impl Site {
