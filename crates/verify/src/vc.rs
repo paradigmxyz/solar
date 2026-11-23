@@ -5220,12 +5220,25 @@ impl<'p, 'a> Vc<'p, 'a> {
     /// may return its argument. Allocating builtins (`abi.encode` and its kin, `new`)
     /// give a fresh object, and operators compute values, which hold no reference.
     fn may_alias<'x>(e: &'x Expr<'x>, n: &str) -> bool {
+        let mentions = |e: &'x Expr<'x>| {
+            let mut m = false;
+            walk::sub_exprs(e, &mut |x| {
+                m |= matches!(&x.kind, ExprKind::Ident(i) if i.as_str() == n)
+            });
+            m
+        };
+        // An assignment anywhere in `e` may bind another name to `n`'s object (or part of it)
+        // before `e`'s value is taken, as `(b = n[0])[0] == 0 ? b : b` does.
+        let mut assigns = false;
+        walk::sub_exprs(e, &mut |x| assigns |= matches!(x.kind, ExprKind::Assign(..)));
+        if assigns {
+            return mentions(e);
+        }
         let e = e.peel_parens();
         match &e.kind {
             ExprKind::Ident(i) => i.as_str() == n,
             ExprKind::Ternary(_, a, b) => Self::may_alias(a, n) || Self::may_alias(b, n),
             ExprKind::Index(b, _) | ExprKind::Member(b, _) => Self::may_alias(b, n),
-            ExprKind::Assign(_, None, r) => Self::may_alias(r, n),
             ExprKind::Tuple(xs) => {
                 xs.iter().filter_map(|x| x.as_ref().unspan()).any(|x| Self::may_alias(x, n))
             }
@@ -5242,13 +5255,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             {
                 false
             }
-            _ => {
-                let mut m = false;
-                walk::sub_exprs(e, &mut |x| {
-                    m |= matches!(&x.kind, ExprKind::Ident(i) if i.as_str() == n)
-                });
-                m
-            }
+            _ => mentions(e),
         }
     }
 

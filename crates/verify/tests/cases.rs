@@ -1218,3 +1218,8 @@ fn encode_library_modifier() {
 fn encode_modifier_fresh() {
     check("tests/cases/encode_modifier_fresh.sol")
 }
+
+#[test]
+fn modifier_rebind() {
+    check("tests/cases/modifier_rebind.sol")
+}
