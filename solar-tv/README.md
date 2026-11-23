@@ -2049,6 +2049,7 @@ funding conditions still apply when interactions are present.
 The layout proof checks the strongest stack requirement of each jump chain,
 including when a fallthrough becomes a physical jump. It reports changes to
 those requirements and checks each against the reachable stack bound.
+It also checks a branch that swaps its successors while exchanging EQ and SUB.
 
 For a region inside a larger pass output, derive the incoming stack bound
 from both physical entries:

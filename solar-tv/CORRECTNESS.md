@@ -834,6 +834,13 @@ remaining captures reach the Morpho dispatcher branch whose test changes
 from EQ to SUB with swapped successors. The three contracts' ABI and
 creation and runtime bytecode matched the frozen compiler outputs.
 
+For EQ/SUB inversions, `EVM.BranchLayout` checks the exact comparison and
+branch against the independently exported graph. The branch must consume
+the comparison result and have no other incoming edge or entry. The
+word-level theorem checks both transfer directions, the live stack and
+stack failure for all inputs. The projected graphs then check the matched
+paths, including the stack requirements of their relocated jump chains.
+
 ## Remaining obligations
 
 The empty-runtime branch of `lower-dispatch` now has a kernel-checked proof.

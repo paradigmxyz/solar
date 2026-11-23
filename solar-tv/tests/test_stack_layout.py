@@ -195,6 +195,47 @@ bb1:
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertEqual(record["status"], "unsupported")
 
+    def test_real_layout_checks_comparison_and_swapped_successors(self):
+        before = ROOT.parent / "tests/ui/codegen/evm-ir/jumpi-fallthrough/equal.evmir"
+        after = self.tmp / "after.evmir"
+        output = subprocess.check_output(
+            [
+                SOLAR,
+                before,
+                "-j1",
+                "-Ogas",
+                "--evm-version=cancun",
+                "-Zevm-ir-pipeline=jumpi-fallthrough",
+            ],
+            text=True,
+            timeout=20,
+        )
+        after.write_text(output)
+        result, record = self.cli([before, after], flags=("--entry-trace",))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(record["region"]["proof"], "kernel-checked-entry-layout")
+        self.assertEqual(
+            [side["checked_branch_tests"] for side in record["import_correspondence"]],
+            [1, 1],
+        )
+        broken = self.tmp / "broken.evmir"
+        broken.write_text(output.replace("\n  sub\n", "\n  eq\n", 1))
+        result, record = self.cli([before, broken], flags=("--entry-trace",))
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(record["status"], "unsupported")
+
+        fixture = self.tmp / "comparison-world.json"
+        calldata = bytes(4) + (7).to_bytes(32, "big") + (8).to_bytes(32, "big")
+        fixture.write_text(
+            json.dumps({"version": 1, "calldata": "0x" + calldata.hex()})
+        )
+        result, record = self.cli([after, broken], flags=("--world", fixture))
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+        self.assertEqual(
+            record["witness"]["observations"], record["witness"]["native_observations"]
+        )
+
     def test_unproved_growth_is_not_hidden_by_an_entry_hint(self):
         paths = [self.tmp / f"{side}.evmir" for side in ("before", "after")]
         text = "@module Unsafe\nbb0 [stack=1]:\n sload\n jump bb2\n"

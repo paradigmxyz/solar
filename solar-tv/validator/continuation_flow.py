@@ -10,7 +10,14 @@ import hashlib
 import json
 import re
 
-from . import cfg_flow, code_relocations, correspondence, native, stack_layout
+from . import (
+    branch_layout,
+    cfg_flow,
+    code_relocations,
+    correspondence,
+    native,
+    stack_layout,
+)
 from .common import Unsupported, literal
 from .source_identity import INTERACTION_OPS, parse_pair
 
@@ -59,7 +66,7 @@ def instruction_role(
     return f".ordinary {inputs} {outputs}", (inputs, outputs)
 
 
-def project(model, catalog, version, *, interactions=False, from_entry=False, mask=()):
+def source_rows(model, catalog, version, *, interactions, from_entry):
     source = []
     roles = {}
     for row in model["nodes"]:
@@ -97,6 +104,13 @@ def project(model, catalog, version, *, interactions=False, from_entry=False, ma
                 source.append(f".terminal {json.dumps(operation)} {inputs}")
             case _:
                 raise Unsupported("unmodeled terminal or edge in continuation proof")
+    return source, roles
+
+
+def project(model, catalog, version, *, interactions=False, from_entry=False, mask=()):
+    source, roles = source_rows(
+        model, catalog, version, interactions=interactions, from_entry=from_entry
+    )
 
     points = []
     indices = {}
@@ -294,6 +308,7 @@ def check_entry(
     code_layout = code_relocations.bind(
         sources, texts, solar, version, timeout, catalog
     )
+    normalized, sites = branch_layout.propose(*sources)
     projected, witnesses = zip(
         *(
             project(
@@ -304,14 +319,25 @@ def check_entry(
                 from_entry=True,
                 mask=mask,
             )
-            for source in sources
+            for source in normalized
         ),
         strict=True,
     )
-    for model, witness in zip(projected, witnesses, strict=True):
+    for raw, model, witness, comparisons in zip(
+        sources, projected, witnesses, sites, strict=True
+    ):
         witness["evidence"]["interactions"] = sorted(
             {row["node"].get("operation") for row in model["nodes"]} & INTERACTION_OPS
         )
+        if comparisons:
+            original, _ = source_rows(
+                raw, catalog, version, interactions=interactions, from_entry=True
+            )
+            witness["comparison"] = original, comparisons
+            witness["evidence"]["checked_branch_tests"] = len(comparisons)
+            witness["evidence"]["original_graph_sha256"] = hashlib.sha256(
+                json.dumps(raw, sort_keys=True).encode()
+            ).hexdigest()
     entry = sources[0]["nodes"][sources[0]["entry"]]["label"]
     return cfg_flow.check(
         texts,

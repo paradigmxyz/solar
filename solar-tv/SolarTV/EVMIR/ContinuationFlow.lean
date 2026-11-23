@@ -23,6 +23,7 @@ inductive StackOp
   | dup (depth : Nat)
   | swap (depth : Nat)
   | pop
+  deriving DecidableEq
 
 inductive Node
   | operation (name : String) (op : StackOp) (next : Nat)
@@ -33,6 +34,7 @@ inductive Node
   | dynamicJump
   | branchAddress (branch : Nat)
   | branchAfterAddress (otherwise : Nat)
+  deriving DecidableEq
 
 structure Program where
   entry : Nat

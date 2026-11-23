@@ -6,7 +6,7 @@ import re
 import tempfile
 from pathlib import Path
 
-from . import audit, regions, stack_layout
+from . import audit, branch_layout, regions, stack_layout
 from .common import Program, Unsupported
 
 
@@ -236,6 +236,8 @@ def check(
         provenance += f"#print axioms {theorem}\n"
         provenance_theorems.append(theorem)
     if continuations is not None:
+        imports = []
+        import_theorems = []
         for lemma in (
             "transfer_tags",
             "checked_operands",
@@ -252,19 +254,43 @@ def check(
             provenance_theorems.append(theorem)
             provenance += continuation_proof(name, witness, name, inherited=bool(mask))
             provenance += f"#print axioms {theorem}\n"
+            comparison = witness.get("comparison")
+            projection = (
+                f"EVM.ContinuationFlow.{continuation_project} "
+                f"{{source}} {name}Points.rows.toArray {name}Edges.rows.toArray{mask_argument}"
+            )
+            if comparison:
+                provenance += branch_layout.certificate(name, *comparison)
+                provenance_theorems.append(f"{name}Comparisons")
+                provenance += f"#print axioms {name}Comparisons\n"
+                provenance += f"""
+def {name}Imported : Option Program :=
+  (EVM.BranchLayout.normalize {name}Original {name}Sites).bind (fun source =>
+    {projection.format(source="source")})
+theorem {name}Import : {name}Imported = some {name} := by
+  rw [{name}Imported, {name}Comparisons]
+  exact {theorem}
+"""
+                imports.append(f"{name}Imported")
+                import_theorems.append(f"{name}Import")
+            else:
+                imports.append(f"({projection.format(source=f'{name}Source')})")
+                import_theorems.append(theorem)
+        before_import, after_import = imports
+        before_theorem, after_theorem = import_theorems
+        if any(witness.get("comparison") for _, witness in continuations):
+            theorem = "SolarTV.EVM.BranchLayout.eq_sub_swapped"
+            provenance += f"#print axioms {theorem}\n"
+            provenance_theorems.append(theorem)
         provenance_theorems.append("matchedContinuations")
         contextual = f"""
 theorem matchedContinuations {{World Observation : Type}} (handlers : Handlers World Observation)
     (work : Nat) {state_argument} :
-    ((EVM.ContinuationFlow.{continuation_project} beforeSource beforePoints.rows.toArray
-        beforeEdges.rows.toArray{mask_argument}).bind
-        (fun p => project p sources edges {jump_limit})).map
+    ({before_import}.bind (fun p => project p sources edges {jump_limit})).map
         (fun p => execute p signatures handlers work p.entry {state_value}) =
-      ((EVM.ContinuationFlow.{continuation_project} afterSource afterPoints.rows.toArray
-        afterEdges.rows.toArray{mask_argument}).bind
-        (fun p => project p targets edges {jump_limit})).map
+      ({after_import}.bind (fun p => project p targets edges {jump_limit})).map
         (fun p => execute p signatures handlers work p.entry {state_value}) :=
-  EVM.ControlFlow.compose beforeProvenance afterProvenance
+  EVM.ControlFlow.compose {before_theorem} {after_theorem}
     (fun p => project p sources edges {jump_limit}) (fun p => project p targets edges {jump_limit})
     (fun p => execute p signatures handlers work p.entry {state_value})
     (matched handlers work {argument})
@@ -293,14 +319,10 @@ theorem matchingRequests {{Payload Halt : Type}} (view : Payload → EVM.Interac
     (ordinary : Handlers Payload Halt)
     (reply : EVM.InteractionTrace.Request → Payload → Except Halt Payload)
     (work : Nat) {trace_argument} :
-    ((EVM.ContinuationFlow.{continuation_project} beforeSource beforePoints.rows.toArray
-        beforeEdges.rows.toArray{mask_argument}).bind
-        (fun p => project p sources edges {jump_limit})).map
+    ({before_import}.bind (fun p => project p sources edges {jump_limit})).map
         (fun p => execute p signatures (EVM.InteractionTrace.handlers view ordinary reply)
           work p.entry {state_value}) =
-      ((EVM.ContinuationFlow.{continuation_project} afterSource afterPoints.rows.toArray
-        afterEdges.rows.toArray{mask_argument}).bind
-        (fun p => project p targets edges {jump_limit})).map
+      ({after_import}.bind (fun p => project p targets edges {jump_limit})).map
         (fun p => execute p signatures (EVM.InteractionTrace.handlers view ordinary reply)
           work p.entry {state_value}) :=
   matchedContinuations (EVM.InteractionTrace.handlers view ordinary reply) work {argument}
@@ -389,13 +411,9 @@ theorem matchedAtCaller {{World Observation : Type}} (handlers : Handlers World 
     (work : Nat) (state : State World) {{pc : Nat}}
     (reaches : EVM.StackReachability.Reaches BeforeFrame.graph BeforeFrame.signatures
       pc state.height) :
-    ((EVM.ContinuationFlow.{continuation_project} beforeSource beforePoints.rows.toArray
-        beforeEdges.rows.toArray{mask_argument}).bind
-        (fun p => project p sources edges {jump_limit})).map
+    ({before_import}.bind (fun p => project p sources edges {jump_limit})).map
         (fun p => execute p signatures handlers work p.entry state) =
-      ((EVM.ContinuationFlow.{continuation_project} afterSource afterPoints.rows.toArray
-        afterEdges.rows.toArray{mask_argument}).bind
-        (fun p => project p targets edges {jump_limit})).map
+      ({after_import}.bind (fun p => project p targets edges {jump_limit})).map
         (fun p => execute p signatures handlers work p.entry state) :=
   matchedContinuations handlers work state (BeforeFrame.entryFits reaches)
 #print axioms matchedAtCaller

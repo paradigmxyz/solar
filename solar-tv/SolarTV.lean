@@ -15,6 +15,7 @@ import SolarTV.MIR.Transforms.PhiEdges
 import SolarTV.MIR.Transforms.LowerAlloc
 import SolarTV.MIR.Transforms.LowerAllocPrefix
 import SolarTV.EVMIR.Transforms.EqIszeroJumpi
+import SolarTV.EVMIR.Transforms.BranchLayout
 import SolarTV.EVMIR.Transforms.StackPeephole
 import SolarTV.EVMIR.Transforms.RelocatedReturn
 import SolarTV.EVMIR.Transforms.ERC20Layout
