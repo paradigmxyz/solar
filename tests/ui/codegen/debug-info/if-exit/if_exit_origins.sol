@@ -1,5 +1,9 @@
-//@ compile-flags: -Onone --emit=srcmap-runtime -Zevm-ir-pipeline=none -Zdump=evm-ir-runtime-scheduled
-//@ filecheck:
+//@ revisions: none gas
+//@[none] compile-flags: -Onone
+//@[gas] compile-flags: -Ogas
+//@ compile-flags: --emit=srcmap-runtime -Zevm-ir-pipeline=none -Zdump=evm-ir-runtime-scheduled
+//@[none] filecheck: --check-prefixes=CHECK,NONE
+//@[gas] filecheck: --check-prefixes=CHECK,GAS
 //@ normalize-stdout-test: "(?s).+" -> ""
 
 // Leaving an arm of an `if` and starting the code after it implement no source construct, so the
@@ -10,15 +14,23 @@
 contract C {
     uint256 stored;
 
+    // At `-O none` the push of each constant sits in the arm, at its assignment. Optimized, it sits
+    // on the edge out of the arm, whose jump is the only instruction there without an origin.
     // CHECK-LABEL: ; function arms(
-    // CHECK: push 3 !metadata(span=
-    // CHECK: sstore
-    // CHECK-NEXT: jump [[JOIN:bb[0-9]+]]{{$}}
-    // CHECK: push 2 !metadata(span=
-    // CHECK: sstore
-    // CHECK-NEXT: jump [[JOIN]]{{$}}
-    // CHECK-NEXT: [[JOIN]]:
-    // CHECK-NEXT: push 0 !metadata(span=
+    // NONE: push 3 !metadata(span=
+    // NONE: sstore
+    // NONE-NEXT: jump [[JOIN:bb[0-9]+]]{{$}}
+    // NONE: push 2 !metadata(span=
+    // NONE: sstore
+    // NONE-NEXT: jump [[JOIN]]{{$}}
+    // NONE-NEXT: [[JOIN]]:
+    // NONE-NEXT: push 0 !metadata(span=
+    // GAS: push 3 !metadata(span=
+    // GAS-NEXT: jump [[JOIN:bb[0-9]+]]{{$}}
+    // GAS: push 2 !metadata(span=
+    // GAS-NEXT: jump [[JOIN]]{{$}}
+    // GAS-NEXT: [[JOIN]]:
+    // GAS-NEXT: push 0 !metadata(span=
     function arms(bool c) external returns (uint256 r) {
         if (c) {
             r = 2;
@@ -32,11 +44,11 @@ contract C {
 
     // An arm that only assigns a local leaves no code of its own: the edge from the branch to the
     // join holds the push of the assignment, which has its origin, and the jump, which has none.
-    // CHECK-LABEL: ; function phiArm(
-    // CHECK: push 1 !metadata(span={{[0-9]+\.\.[0-9]+}})
-    // CHECK-NEXT: swap 2{{$}}
-    // CHECK-NEXT: pop{{$}}
-    // CHECK-NEXT: jump {{bb[0-9]+}}{{$}}
+    // NONE-LABEL: ; function phiArm(
+    // NONE: push 1 !metadata(span={{[0-9]+\.\.[0-9]+}})
+    // NONE-NEXT: swap 2{{$}}
+    // NONE-NEXT: pop{{$}}
+    // NONE-NEXT: jump {{bb[0-9]+}}{{$}}
     function phiArm(uint256 n) external pure returns (uint256) {
         uint256 state = 0;
         for (uint256 i = 0; i < n; i++) {
@@ -51,9 +63,9 @@ contract C {
 
     // The jump of a `break` is a source construct. `-Onone` keeps its block, so the jump keeps the
     // origin of the `break` and is not dropped.
-    // CHECK-LABEL: ; function breakArm(
-    // CHECK: push 1 !metadata(span=
-    // CHECK-NEXT: jump {{bb[0-9]+}} !metadata(span={{[0-9]+}}..{{[0-9]+}})
+    // NONE-LABEL: ; function breakArm(
+    // NONE: push 1 !metadata(span=
+    // NONE-NEXT: jump {{bb[0-9]+}} !metadata(span={{[0-9]+}}..{{[0-9]+}})
     function breakArm(uint256 n, uint256 m) external pure returns (uint256 r) {
         for (uint256 i = 0; i < n; i++) {
             if (i == m) {
