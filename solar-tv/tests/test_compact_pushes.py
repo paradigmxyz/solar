@@ -12,6 +12,7 @@ from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
 from validator import compact_pushes, native, prefix
+from validator.check import build_model
 from validator.common import Program
 
 MAX = "0x" + "ff" * 32
@@ -127,6 +128,80 @@ bb0 [stack=0]:
             self.assertEqual(side["entry_height_bound"], 1024)
             self.assertEqual(side["recipes"][0]["shared_pushes"], 1)
             self.assertEqual(side["recipes"][0]["peak"], 2)
+
+    def test_recipe_preserves_requests_across_an_internal_return(self):
+        self.before.write_text(f"""@module CallRecipe
+bb0 [stack=0]:
+  push bb2
+  jump bb1
+bb1 [ret=0, inputs=1, outputs=0]:
+  push {MAX}
+  push 0
+  mstore
+  push 0
+  push 0
+  push 32
+  push 0
+  push 0
+  push 0x30000
+  gas
+  call
+  pop
+  jump
+bb2 [continuation]:
+  push 32
+  push 0
+  return
+""")
+        after = self.compact("cancun")
+        result, record = self.check("cancun", "--region=bb0")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        result, record = self.check("cancun", "--region=bb0", "--interaction-trace")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            record["region"]["proof"], "kernel-checked-compact-pushes-interaction-trace"
+        )
+        self.assertEqual(record["gas_policy"], "unpriced-shared-interactions")
+        left, right = record["import_correspondence"]
+        for side in (left, right):
+            self.assertEqual(side["interactions"], ["call", "gas"])
+            self.assertEqual(side["resolved_returns"], 1)
+        self.assertEqual([side["recipes"][0]["gas"] for side in (left, right)], [3, 5])
+
+        wrong = after.replace("  not\n", "  iszero\n")
+        self.assertNotEqual(wrong, after)
+        self.after.write_text(wrong)
+        result, _ = self.check("cancun", "--region=bb0", "--interaction-trace")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        world = self.root / "world.json"
+        world.write_text('{"version":1}')
+        result, record = self.check("cancun", "--world", world)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+
+    def test_relocation_placeholder_cannot_be_a_recipe_literal(self):
+        built = build_model(30)
+        self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
+        proof = self.root / "Relocation.lean"
+        proof.write_text("""import SolarTV
+open SolarTV EVM
+def original : ProofTable.Tree ContinuationFlow.Node := .leaf [.pushLabel 1 1]
+def points : ProofTable.Tree ContinuationFlow.Point := .leaf [⟨0,[]⟩]
+def projected : ProofTable.Tree SourceGraph.Node := .leaf [.operation 0 "push 0" 1]
+def relocated := ContinuationFlow.pushesLabel original.view points.view
+example : relocated 0 = true := by decide +kernel
+example : CompactPushes.scan projected.view .cancun relocated [.push 0] 0 = none :=
+  by decide +kernel
+""")
+        checked = subprocess.run(
+            ["lake", "env", "lean", "-j1", proof],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+        self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
 
     def test_emitted_recipe_overflows_the_real_stack_limit_fixture(self):
         fixture = (

@@ -162,6 +162,11 @@ def project(model, catalog, version, *, interactions=False):
         "source": source,
         "points": point_terms,
         "edges": [edges_text(row["node"]) for row in output],
+        "label_pushes": {
+            i
+            for i, (pc, _) in enumerate(points)
+            if model["nodes"][pc]["node"]["kind"] == "push_label"
+        },
         "evidence": {
             "source_sha256": hashlib.sha256(
                 json.dumps(model, sort_keys=True).encode()

@@ -184,6 +184,14 @@ theorem transfer_tags (op : StackOp) (shape full : Shape)
 def resolve (points : ProofTable.View Point) (target : Point) (index : Nat) : Option Nat :=
   if points.get? index = some target then some index else none
 
+/-- The projected zero at a label push represents a relocation. A literal
+recipe must leave this instruction in the shared continuation. -/
+def pushesLabel (nodes : ProofTable.View Node) (points : ProofTable.View Point)
+    (index : Nat) : Bool :=
+  match (points.get? index).bind (fun point => nodes.get? point.pc) with
+  | some (.pushLabel ..) => true
+  | _ => false
+
 def projectRow (nodes : ProofTable.View Node) (points : ProofTable.View Point)
     (edges : ProofTable.View ControlFlow.Edges)
     (index : Nat) : Option SourceGraph.Node := do

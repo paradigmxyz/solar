@@ -565,10 +565,18 @@ can join the recipe when they reach the same peak before the next effect.
 
 The CFG simulation checks both successors of a branch and every matched
 action. It uses the supplied entry height bound, or checks every architectural
-entry height when no bound is supplied. The result assumes gas-insensitive,
-position-independent handlers and enough gas on both sides for every reached
+entry height when no bound is supplied. The default check uses gas-insensitive,
+position-independent handlers. Both modes require enough gas for every reached
 charge and admission check. Physical transfer prices and the compiler's
 exporter and schema binding are outside the proof.
+
+The recipe checker can compose its proof with continuation provenance.
+Lean checks each stack-carried return from the original labeled graph.
+Every recipe scan excludes the projected zeros used as relocation
+placeholders. The opt-in interaction trace gives the continuation shared
+replies to `GAS`, `EXTCODESIZE`, `CALL`, and `STATICCALL`. Recipe charges and
+stack peaks remain checked. The proof compares the ordered requests under
+those replies.
 
 The pinned WETH `name()` capture checks the return-data path. With its next
 literal push included, the compared Cancun sequences charge 6 and 12 gas and
@@ -581,6 +589,13 @@ At eight seconds per proof, the serial recheck verified 58 of the 103 frozen
 certificate verified 48 and the existing stack-prefix route verified 10.
 The other 45 remained unsupported. The ABI and creation and runtime bytecode
 matched the pinned outputs for all three contracts.
+
+A serial recheck of those 45 captures used an 80-second limit. All 45
+remained unsupported with the original flags. The explicit interaction trace
+verified eight captures, one WETH and seven Morpho, at every architectural
+incoming height. Of the remaining 37, 20 lacked a sufficient entry-height
+bound for the added stack slot and 12 had unresolved dynamic returns. The
+normal and capture compiler outputs matched for all three pinned contracts.
 
 ### Shared MIR tails
 

@@ -2,9 +2,9 @@
 
 Python proposes runs of closed instructions. Lean checks the actual nodes,
 the words they produce, their peak stack use and their charge on the selected
-fork. The matched graph preserves the entire continuation and excludes gas
-and code observers and external messages. It assumes both executions can
-pay every reached charge, including the unchanged effects' sentries.
+fork. The matched graph retains the continuation. The explicit interaction
+mode also checks requests under shared replies. Both executions must be
+funded through all reached charges and admission checks.
 """
 
 import hashlib
@@ -13,7 +13,15 @@ import re
 import tempfile
 from pathlib import Path
 
-from . import audit, correspondence, native, source_identity, stack_layout
+from . import (
+    audit,
+    cfg_flow,
+    continuation_flow,
+    correspondence,
+    native,
+    source_identity,
+    stack_layout,
+)
 from .common import Program, Unsupported, literal
 
 RECIPE_OPS = {"not", "shl", "shr", "div", "mul"}
@@ -45,11 +53,13 @@ def instruction(name, catalog, version):
     return f".{name}", price["base_gas"], None
 
 
-def replacement(model, pc, expected, catalog, version):
+def replacement(model, pc, expected, catalog, version, protected):
     """Find a short closed suffix producing exactly the old PUSH word."""
     stack, ops = [], []
     peak = gas = 0
     for _ in range(RECIPE_LIMIT):
+        if pc in protected:
+            break
         node = model["nodes"][pc]["node"]
         if node["kind"] != "operation":
             break
@@ -82,7 +92,7 @@ def replacement(model, pc, expected, catalog, version):
     raise Unsupported("compact PUSH recipe does not produce the literal's word")
 
 
-def pair(models, catalog, version):
+def pair(models, catalog, version, protected=(frozenset(), frozenset())):
     points, indices = [], {}
     witnesses = [[], []]
     nodes, pushes, meters = [[], []], [[], []], [[], []]
@@ -123,12 +133,16 @@ def pair(models, catalog, version):
                 rows.append(node)
                 terms.append(f"⟨{pc},[],{edge}⟩")
             continue
-        if left["kind"] != "operation" or not left["operation"].startswith("push "):
+        if (
+            positions[0] in protected[0]
+            or left["kind"] != "operation"
+            or not left["operation"].startswith("push ")
+        ):
             raise Unsupported("compact PUSH pair changes a reachable nonliteral action")
         name = left["operation"]
         term, old_gas, value = instruction(name, catalog, version)
         recipe, peak, gas, after = replacement(
-            models[1], positions[1], value, catalog, version
+            models[1], positions[1], value, catalog, version, protected[1]
         )
         before = left["next"]
         old_recipe, outputs = [term], [name]
@@ -142,6 +156,8 @@ def pair(models, catalog, version):
                 or next_right["kind"] != "operation"
                 or next_left["operation"] != next_right["operation"]
                 or not next_left["operation"].startswith("push ")
+                or before in protected[0]
+                or after in protected[1]
             ):
                 break
             outputs.append(next_left["operation"])
@@ -198,7 +214,7 @@ def pair(models, catalog, version):
     return projected, witnesses, meters
 
 
-def check(paths, solar, replay, version, timeout, entry, height):
+def check(paths, solar, replay, version, timeout, entry, height, *, interactions=False):
     from .check import PRELUDE, ROOT, build_model, run
 
     bound = 1024 if height is None else height
@@ -208,81 +224,171 @@ def check(paths, solar, replay, version, timeout, entry, height):
         )
     texts = source_identity.parse_pair(paths, solar, version, timeout, entry)
     catalog = {row["name"]: row for row in native.catalog(replay, timeout)["evmir"]}
-    sources = [
-        correspondence.export(text, entry, version, replay, timeout) for text in texts
-    ]
-    raw = [source_identity.render(model, catalog, version, entry) for model in sources]
-    projected, witnesses, meters = pair(sources, catalog, version)
-    table = stack_layout.signatures(projected[0], catalog)
+    witnesses = None
+    sources = None
+    if not interactions:
+        try:
+            sources = [
+                correspondence.export(text, entry, version, replay, timeout)
+                for text in texts
+            ]
+        except Unsupported as error:
+            if str(error) != "EVM source graph: escaping label in EVM source graph":
+                raise
+        else:
+            graphs = sources
+    if sources is None:
+        sources = [
+            correspondence.export(text, entry, version, replay, timeout, labels=True)
+            for text in texts
+        ]
+        graphs, witnesses = zip(
+            *(
+                continuation_flow.project(
+                    model, catalog, version, interactions=interactions
+                )
+                for model in sources
+            ),
+            strict=True,
+        )
+    protected = (
+        tuple(w["label_pushes"] for w in witnesses)
+        if witnesses
+        else (frozenset(), frozenset())
+    )
+    projected, points, meters = pair(graphs, catalog, version, protected)
+    signatures = stack_layout.signatures(projected[0], catalog)
+    requests = sorted(source_identity.INTERACTION_OPS & signatures.keys())
+    if interactions and not requests:
+        raise Unsupported(
+            "compact PUSH interaction trace requires a reachable interaction"
+        )
     try:
-        _, bounds, _ = stack_layout.certificate(*projected, table, entry_bound=bound)
+        _, bounds, _ = stack_layout.certificate(
+            *projected, signatures, entry_bound=bound
+        )
     except Unsupported as error:
         raise RecipeRejected(f"compact PUSH stack certificate: {error}") from error
-    signatures = ",".join(
-        f"({json.dumps(name)},({inputs},{outputs}))"
-        for name, (inputs, outputs) in table.items()
-    )
     code = (
         PRELUDE
         + """
 open EVM.SourceGraph (Program)
-open EVM.CompactPushes
-open EVM.StackGraph
+open EVM.ControlFlow (Edges)
+open EVM.CompactPushes EVM.StackGraph
+noncomputable section
 set_option maxRecDepth 16384
 set_option maxHeartbeats 3500000
 """
     )
-    for name, source, model, points, meter in zip(
-        ("before", "after"), raw, projected, witnesses, meters, strict=True
-    ):
-        terms = source_identity.render(
-            model, catalog, version, "bb0", max_growth=RECIPE_LIMIT
-        )
-        prices = ",".join(str(step["gas"]) for step in meter)
+    proof_names = [
+        "matched",
+        "SolarTV.EVM.CompactPushes.exact",
+        "SolarTV.EVM.CompactPushes.funded",
+    ]
+    for side, name in enumerate(("before", "after")):
+        for label, graph, root in (
+            (f"{name}Graph", graphs[side], "bb0" if witnesses else entry),
+            (name, projected[side], "bb0"),
+        ):
+            start, rows = source_identity.render_nodes(
+                graph,
+                catalog,
+                version,
+                root,
+                max_growth=RECIPE_LIMIT,
+                interactions=interactions,
+            )
+            code += cfg_flow.table(f"{label}Nodes", "EVM.SourceGraph.Node", rows)
+            code += f"def {label} : Program := ⟨{start},{label}Nodes.rows.toArray⟩\n"
+        code += cfg_flow.table(f"{name}Recipes", "Point", points[side])
+        guard = "fun _ => false"
+        if witnesses:
+            code += cfg_flow.continuation_proof(name, witnesses[side], f"{name}Graph")
+            guard = f"EVM.ContinuationFlow.pushesLabel {name}SourceNodes.view {name}Points.view"
+        prices = ",".join(str(step["gas"]) for step in meters[side])
         code += f"""
-def {name}Source : Program := {source}
-def {name}Points : Array Point := #[{",".join(points)}]
-def {name} : Program := {terms}
-theorem {name}Checked : project {name}Source .{version} {name}Points =
-    some ({name},#[{prices}]) := by decide +kernel
+def {name}Protected : Nat → Bool := {guard}
+def {name}RecipeProjection (source : Program) : Option (Program × List Nat) :=
+  project source .{version} {name}Recipes.rows.toArray {name}Protected {str(interactions).lower()}
+def {name}Prices : List Nat := [{prices}]
+theorem {name}Checked : {name}RecipeProjection {name}Graph = some ({name},{name}Prices) :=
+  project_checked {name}Graph .{version} {name}Recipes.rows.toArray
+    {name}GraphNodes.view {name}Recipes.view {name}Protected {str(interactions).lower()} {name} {name}Prices
+    {name}GraphNodesLookup {name}RecipesLookup (by decide +kernel)
 """
+    code += cfg_flow.table("stackBounds", "Nat", list(map(str, bounds)))
+    code += cfg_flow.signatures_declaration(signatures, catalog)
     code += f"""
-def heights (i : Nat) : Nat := (#{bounds} : Array Nat)[i]?.getD 0
-def signatures (name : String) : Option (Nat × Nat) :=
-  ([{signatures}] : List (String × (Nat × Nat))).lookup name
-theorem valid : Valid before after id heights signatures {bound} := by decide +kernel
+def heights (i : Nat) : Nat := (stackBounds.get? i).getD 0
+theorem valid : Valid before after id heights signatures {bound} :=
+  valid_views before after beforeNodes.view afterNodes.view id heights signatures {bound}
+    beforeNodesLookup afterNodesLookup (by decide +kernel) (by rfl)
+    (by decide +kernel) (by decide +kernel)
+def observe {{World Observation : Type}} (handlers : Handlers World Observation)
+    (fuel : Nat) (state : State World) (p : Program × List Nat) :=
+  execute p.1 signatures handlers fuel p.1.entry state
+theorem matchedRecipes {{World Observation : Type}} (handlers : Handlers World Observation)
+    (fuel : Nat) (state : State World) (fits : state.height ≤ {bound}) :
+    (beforeRecipeProjection beforeGraph).map (observe handlers fuel state) =
+      (afterRecipeProjection afterGraph).map (observe handlers fuel state) :=
+  contextual _ _ before after beforePrices afterPrices signatures heights {bound}
+    beforeChecked afterChecked valid handlers fuel state fits
+"""
+    if witnesses:
+        for name in ("before", "after"):
+            code += f"""
+def {name}Projected : Option (Program × List Nat) :=
+  (EVM.ContinuationFlow.project {name}Source {name}Points.rows.toArray
+    {name}Edges.rows.toArray).bind {name}RecipeProjection
+"""
+        match_proof = """EVM.ControlFlow.compose beforeProvenance afterProvenance
+    beforeRecipeProjection afterRecipeProjection (observe handlers fuel state)
+    (matchedRecipes handlers fuel state fits)"""
+    else:
+        code += """
+def beforeProjected := beforeRecipeProjection beforeGraph
+def afterProjected := afterRecipeProjection afterGraph
+"""
+        match_proof = "matchedRecipes handlers fuel state fits"
+    code += f"""
 theorem matched {{World Observation : Type}} (handlers : Handlers World Observation)
     (fuel : Nat) (state : State World) (fits : state.height ≤ {bound}) :
-    (project beforeSource .{version} beforePoints).map
-      (fun p => execute p.1 signatures handlers fuel p.1.entry state) =
-    (project afterSource .{version} afterPoints).map
-      (fun p => execute p.1 signatures handlers fuel p.1.entry state) := by
-  rw [beforeChecked, afterChecked]
-  change some (execute before signatures handlers fuel before.entry state) =
-    some (execute after signatures handlers fuel after.entry state)
-  rw [← valid.2.1]
-  exact congrArg some (bounded_simulation before after id heights signatures valid
-    handlers fuel before.entry state valid.1 (Nat.le_trans fits valid.2.2.1))
-#print axioms matched
-#print axioms EVM.CompactPushes.exact
-#print axioms EVM.CompactPushes.funded
+    beforeProjected.map (observe handlers fuel state) =
+      afterProjected.map (observe handlers fuel state) :=
+  {match_proof}
 """
+    if interactions:
+        names = ",".join(map(json.dumps, requests))
+        code += f"""
+theorem traceSignatures :
+    ([{names}] : List String).all (EVM.InteractionTrace.signatureFits signatures) = true :=
+  by decide +kernel
+theorem matchingRequests {{Payload Halt : Type}} (view : Payload → EVM.InteractionTrace.View)
+    (ordinary : Handlers Payload Halt)
+    (reply : EVM.InteractionTrace.Request → Payload → Except Halt Payload)
+    (fuel : Nat) (state : State (EVM.InteractionTrace.Cursor Payload)) (fits : state.height ≤ {bound}) :
+    beforeProjected.map (observe (EVM.InteractionTrace.handlers view ordinary reply) fuel state) =
+      afterProjected.map (observe (EVM.InteractionTrace.handlers view ordinary reply) fuel state) :=
+  matched (EVM.InteractionTrace.handlers view ordinary reply) fuel state fits
+"""
+        proof_names += [
+            "traceSignatures",
+            "matchingRequests",
+            "SolarTV.EVM.InteractionTrace.stable_request",
+        ]
+    code += "".join(f"#print axioms {name}\n" for name in proof_names)
     built = build_model(timeout)
     if built.returncode:
         raise Unsupported(built.stdout + built.stderr)
     with tempfile.TemporaryDirectory(prefix="solar-tv-compact-pushes-") as folder:
         proof = Path(folder) / "Pair.lean"
         proof.write_text(code)
-        result = run(["lake", "env", "lean", proof], ROOT, timeout)
+        result = run(["lake", "env", "lean", "-j1", proof], ROOT, timeout)
     if result.returncode:
         raise RecipeRejected(
             "compact PUSH certificate did not close\n" + result.stdout + result.stderr
         )
-    for theorem in (
-        "matched",
-        "SolarTV.EVM.CompactPushes.exact",
-        "SolarTV.EVM.CompactPushes.funded",
-    ):
+    for theorem in proof_names:
         axioms = re.search(rf"'{theorem}' depends on axioms: \[(.*?)\]", result.stdout)
         if not (
             f"'{theorem}' does not depend on any axioms" in result.stdout
@@ -291,6 +397,11 @@ theorem matched {{World Observation : Type}} (handlers : Handlers World Observat
             <= {"propext", "Classical.choice", "Quot.sound"}
         ):
             raise Unsupported("unexpected compact PUSH proof axioms")
+    proof_kind = (
+        "kernel-checked-compact-pushes-interaction-trace"
+        if interactions
+        else "kernel-checked-compact-pushes"
+    )
     programs = tuple(
         Program(
             ("evm-compact-pushes", str(bound)),
@@ -301,18 +412,22 @@ theorem matched {{World Observation : Type}} (handlers : Handlers World Observat
             replay_ir=text,
             selector=entry,
             scope="compact-pushes",
-            gas="sufficient",
+            gas="unpriced-shared-interactions" if interactions else "sufficient",
             evm_version=version,
             import_evidence={
-                "kind": "kernel-checked-compact-pushes",
+                "kind": proof_kind,
                 "source_sha256": hashlib.sha256(
                     json.dumps(model, sort_keys=True).encode()
                 ).hexdigest(),
                 "recipes": recipes,
                 "entry_height_bound": bound,
+                **(witnesses[side]["evidence"] if witnesses else {}),
+                **({"interactions": requests} if interactions else {}),
             },
         )
-        for text, model, recipes in zip(texts, sources, meters, strict=True)
+        for side, (text, model, recipes) in enumerate(
+            zip(texts, sources, meters, strict=True)
+        )
     )
     return audit.Result(
         "verified", stdout="verified\n", program=programs[0], pair=programs

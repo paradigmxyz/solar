@@ -2030,8 +2030,9 @@ fork. The proof can include adjacent literal pushes to compare the peak of the
 entire sequence before the next effect. The audit records the entry height
 bound and each sequence's peak and charge. This check requires both
 executions to fund every reached operation and admission check, including the
-storage-write sentry. The continuation cannot observe gas through `GAS`;
-external messages and code-image observers remain unsupported.
+storage-write sentry. With `--interaction-trace`, the same recipe proof also
+covers regions with resolved internal returns and shared replies to supported
+interactions. Relocation placeholders stay outside literal recipes.
 [Proof details](CORRECTNESS.md#compact-push-recipes)
 
 The MIR checker validates block coalescing, jump threading and shared tails

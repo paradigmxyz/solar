@@ -805,17 +805,37 @@ def main() -> int:
                 raise Unsupported(
                     "--interaction-trace requires an unpriced EVM IR region with symbolic stack and world"
                 )
-            from . import source_identity
+            from . import compact_pushes, source_identity
 
-            result = source_identity.check(
-                (args.before, args.after),
-                solar,
-                rust_replay,
-                version,
-                args.timeout,
-                args.region,
-                interactions=True,
-            )
+            paths = (args.before, args.after)
+            try:
+                result = source_identity.check(
+                    paths,
+                    solar,
+                    rust_replay,
+                    version,
+                    args.timeout,
+                    args.region,
+                    interactions=True,
+                )
+            except Inconclusive:
+                raise
+            except Unsupported as error:
+                try:
+                    result = compact_pushes.check(
+                        paths,
+                        solar,
+                        rust_replay,
+                        version,
+                        args.timeout,
+                        args.region,
+                        None,
+                        interactions=True,
+                    )
+                except compact_pushes.RecipeRejected as retry:
+                    raise retry from None
+                except Unsupported:
+                    raise error from None
             programs = list(result.pair)
         elif args.prune:
             if (

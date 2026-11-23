@@ -278,9 +278,21 @@ def record(
                     f"independently exported EVM region with incoming height at most {bound}; every logical execution bound",
                     "each closed recipe produces the same words and preserves the incoming stack; every extra temporary slot is checked",
                     "kernel-checked fork-specific execution charges for the recipes; both executions must be funded through every reached instruction and gas admission check",
-                    "gas-insensitive, position-independent handlers; no GAS, code-image observers, external messages or unresolved return targets; physical transfer charges are outside the proof",
+                    "position-independent handlers; no unresolved return targets; physical transfer charges are outside the proof",
                 ]
             )
+            if program.import_evidence.get("interactions"):
+                assumptions.extend(
+                    [
+                        "checked continuation provenance; relocation placeholders cannot appear in literal recipes or in interaction operands",
+                        "kernel-checked equality of every interaction prefix under shared preceding replies",
+                        "actual GAS and code-size replies, forwarded gas, and child behavior remain environment obligations",
+                    ]
+                )
+            else:
+                assumptions.append(
+                    "gas-insensitive handlers; GAS, code-image observers and external messages excluded"
+                )
         elif program and program.scope == "stack-layout":
             assumptions.extend(
                 [
@@ -868,7 +880,7 @@ def record(
                     if program.scope == "continuation-flow"
                     else "kernel-checked-interaction-trace"
                     if program.scope == "interaction-flow"
-                    else "kernel-checked-compact-pushes"
+                    else program.import_evidence["kind"]
                     if program.scope == "compact-pushes"
                     else "universal-source-graph-identity",
                     "stack_height": None,

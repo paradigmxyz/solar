@@ -169,15 +169,17 @@ theorem funded (ctx : Context) (fork : Fork) (before after : List Instruction)
 open SourceGraph (Program Node)
 open ControlFlow (Edges)
 
-/-- The witness is checked against actual opcode names and physical
-successors. It cannot skip an operation, cross a transfer or use an opcode
-that is unavailable at the selected fork. -/
-def scan (program : Program) (fork : Fork) : List Instruction → Nat → Option Nat
+/-- Match the recipe to actual consecutive opcodes. Relocation placeholders
+are ordinary zero words in the continuation projection, but do not belong to
+a closed constant recipe. -/
+def scan (nodes : ProofTable.View Node) (fork : Fork) (relocated : Nat → Bool) :
+    List Instruction → Nat → Option Nat
   | [], pc => some pc
   | instruction :: rest, pc => do
-    match ← program.nodes[pc]? with
+    if relocated pc then none else
+    match ← nodes.get? pc with
     | .operation _ name next =>
-      if name == instruction.text && instruction.available fork then scan program fork rest next
+      if name == instruction.text && instruction.available fork then scan nodes fork relocated rest next
       else none
     | _ => none
 
@@ -186,24 +188,30 @@ structure Point where
   recipe : List Instruction
   edges : Edges
 
-def resolve (points : Array Point) (pc destination : Nat) : Option Nat := do
-  if (← points[destination]?).pc == pc then some destination else none
+def resolve (points : ProofTable.View Point) (pc destination : Nat) : Option Nat := do
+  if (← points.get? destination).pc == pc then some destination else none
 
-/-- Each compacted recipe becomes a stack guard followed by literal pushes.
-Keep the measured charge as evidence; the logical CFG is used only with
-sufficient gas on both sides. All visited actions must be gas-insensitive. -/
-def project (program : Program) (fork : Fork) (points : Array Point) :
-    Option (Program × Array Nat) := do
-  let entry ← resolve points program.entry 0
-  let empty : Array Node × Array Node × Array Nat := (#[],#[],#[])
-  let (nodes,pushes,prices) ← points.toList.foldlM (init := empty)
-    fun (nodes,pushes,prices) point => do
+private structure Projection where
+  nodes : List Node := []
+  pushes : List Node := []
+  prices : List Nat := []
+  pushCount : Nat := 0
+
+/-- Each recipe becomes a stack guard followed by its literal outputs. Gas
+reads outside recipes are allowed only as explicit shared interactions. -/
+def projectView (source : Nat) (nodes : ProofTable.View Node) (fork : Fork)
+    (points : ProofTable.View Point) (relocated : Nat → Bool) (interactions : Bool) :
+    Option (Nat × List Node × List Nat) := do
+  let entry ← resolve points source 0
+  let view ← (List.range points.size).foldlM (init := ({} : Projection))
+    fun view index => do
+      let point ← points.get? index
       let find (pc destination : Nat) := resolve points pc destination
       match point.recipe with
       | [] =>
-        let node ← match ← program.nodes[point.pc]?, point.edges with
+        let node ← match ← nodes.get? point.pc, point.edges with
         | .operation _ name next, .next destination =>
-          if name == "gas" then none else
+          if name == "gas" && !interactions then none else
           pure (.operation 0 name (← find next destination))
         | .jump _ growth next, .next destination =>
           if growth > 1 then none else pure (.jump 0 growth (← find next destination))
@@ -212,19 +220,59 @@ def project (program : Program) (fork : Fork) (points : Array Point) :
         | .terminal _ name, .terminal =>
           if name == "jump" then none else pure (.terminal 0 name)
         | _, _ => none
-        return (nodes.push node,pushes,prices)
+        return {view with nodes := node :: view.nodes}
       | recipe =>
         match ← summarize recipe [], point.edges with
         | ⟨word :: rest,peak⟩, .next successor =>
-          let next ← find (← scan program fork recipe point.pc) successor
-          let start := points.size + pushes.size
+          let next ← find (← scan nodes fork relocated recipe point.pc) successor
+          let start := points.size + view.pushCount
           let words := (word :: rest).reverse
           let literals := words.zipIdx |>.map fun (value,index) =>
             .operation 0 (Instruction.push value).text
               (if index + 1 = words.length then next else start + index + 1)
-          return (nodes.push (.jump 0 peak start),pushes ++ literals.toArray,
-            prices.push (charge fork recipe))
+          return {
+            nodes := .jump 0 peak start :: view.nodes
+            pushes := literals.reverseAux view.pushes
+            prices := charge fork recipe :: view.prices
+            pushCount := view.pushCount + words.length
+          }
         | _, _ => none
-  return (⟨entry,nodes ++ pushes⟩,prices)
+  return (entry, view.nodes.reverse ++ view.pushes.reverse, view.prices.reverse)
+
+def project (program : Program) (fork : Fork) (points : Array Point)
+    (relocated : Nat → Bool) (interactions : Bool) : Option (Program × List Nat) :=
+  (projectView program.entry (ProofTable.ofArray program.nodes) fork
+    (ProofTable.ofArray points) relocated interactions).map
+    (fun (entry, nodes, prices) => (⟨entry,nodes.toArray⟩,prices))
+
+theorem project_checked (program : Program) (fork : Fork) (points : Array Point)
+    (nodesView : ProofTable.View Node) (pointsView : ProofTable.View Point)
+    (relocated : Nat → Bool) (interactions : Bool) (result : Program) (prices : List Nat)
+    (nodesEq : nodesView = ProofTable.ofArray program.nodes)
+    (pointsEq : pointsView = ProofTable.ofArray points)
+    (checked : projectView program.entry nodesView fork pointsView relocated interactions =
+      some (result.entry,result.nodes.toList,prices)) :
+    project program fork points relocated interactions = some (result,prices) := by
+  rw [nodesEq, pointsEq] at checked
+  rw [project, checked]
+  cases result
+  rfl
+
+open StackGraph
+
+theorem contextual (left right : Option (Program × List Nat)) (before after : Program)
+    (oldPrices newPrices : List Nat) (signatures : Signatures) (bounds : Nat → Nat)
+    (bound : Nat) (old : left = some (before,oldPrices)) (new : right = some (after,newPrices))
+    (valid : Valid before after id bounds signatures bound)
+    (handlers : Handlers World Observation) (fuel : Nat) (state : State World)
+    (fits : state.height ≤ bound) :
+    left.map (fun p => StackGraph.execute p.1 signatures handlers fuel p.1.entry state) =
+    right.map (fun p => StackGraph.execute p.1 signatures handlers fuel p.1.entry state) := by
+  rw [old, new]
+  change some (StackGraph.execute before signatures handlers fuel before.entry state) =
+    some (StackGraph.execute after signatures handlers fuel after.entry state)
+  rw [← valid.2.1]
+  exact congrArg some (bounded_simulation before after id bounds signatures valid
+    handlers fuel before.entry state valid.1 (Nat.le_trans fits valid.2.2.1))
 
 end SolarTV.EVM.CompactPushes

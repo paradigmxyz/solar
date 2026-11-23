@@ -104,6 +104,43 @@ theorem {name} : {module}.project {prefix} = some {result} :=
 """
 
 
+def continuation_proof(name, witness, result):
+    """Bind the continuation projection to the independently exported graph."""
+    return (
+        table(f"{name}SourceNodes", "EVM.ContinuationFlow.Node", witness["source"])
+        + table(f"{name}Points", "EVM.ContinuationFlow.Point", witness["points"])
+        + table(f"{name}Edges", "Edges", witness["edges"])
+        + f"""
+def {name}Source : EVM.ContinuationFlow.Program :=
+  ⟨{witness["entry"]},{name}SourceNodes.rows.toArray⟩
+"""
+        + projection_proof(
+            f"{name}Provenance",
+            "EVM.ContinuationFlow",
+            f"{name}Source",
+            f"{name}SourceNodes",
+            f"{name}Points",
+            f"{name}Edges",
+            result,
+        )
+    )
+
+
+def signatures_declaration(signature_table, catalog):
+    # Keep literal operands in the graph without searching through them for arities.
+    push = catalog["push1"]["stack"]
+    rows = ",".join(
+        f"({json.dumps(name)},({inputs},{outputs}))"
+        for name, (inputs, outputs) in signature_table.items()
+        if not name.startswith("push ")
+    )
+    return f"""
+def signatures (name : String) : Option (Nat × Nat) :=
+  if name.startsWith "push " then some ({push[0]},{push[1]}) else
+    ([{rows}] : List (String × (Nat × Nat))).lookup name
+"""
+
+
 def check(
     texts,
     models,
@@ -125,14 +162,6 @@ def check(
         bounds, changed = [], []
     else:
         _, bounds, changed = stack_layout.certificate(*normalized, signature_table)
-    # The schema lookup assigns every literal push the same signature.
-    # Keep the operand in the node, and avoid a linear search through literals.
-    push = catalog["push1"]["stack"]
-    signatures = ",".join(
-        f"({json.dumps(name)},({inputs},{outputs}))"
-        for name, (inputs, outputs) in signature_table.items()
-        if not name.startswith("push ")
-    )
     program_declarations = ""
     for name, model in zip(
         ("before", "after", "old", "new"), (*models, *normalized), strict=True
@@ -168,25 +197,7 @@ def check(
         for name, (_, witness) in zip(("before", "after"), continuations, strict=True):
             theorem = f"{name}Provenance"
             provenance_theorems.append(theorem)
-            provenance += table(
-                f"{name}SourceNodes", "EVM.ContinuationFlow.Node", witness["source"]
-            )
-            provenance += table(
-                f"{name}Points", "EVM.ContinuationFlow.Point", witness["points"]
-            )
-            provenance += table(f"{name}Edges", "Edges", witness["edges"])
-            provenance += f"""
-def {name}Source : EVM.ContinuationFlow.Program := ⟨{witness["entry"]},{name}SourceNodes.rows.toArray⟩
-"""
-            provenance += projection_proof(
-                theorem,
-                "EVM.ContinuationFlow",
-                f"{name}Source",
-                f"{name}SourceNodes",
-                f"{name}Points",
-                f"{name}Edges",
-                name,
-            )
+            provenance += continuation_proof(name, witness, name)
             provenance += f"#print axioms {theorem}\n"
         provenance_theorems.append("matchedContinuations")
         contextual = f"""
@@ -288,9 +299,7 @@ set_option maxHeartbeats 2500000
 def sources : Array Nat := sourcePoints.rows.toArray
 def targets : Array Nat := targetPoints.rows.toArray
 def edges : Array Edges := transferEdges.rows.toArray
-def signatures (name : String) : Option (Nat × Nat) :=
-  if name.startsWith "push " then some ({push[0]},{push[1]}) else
-    ([{signatures}] : List (String × (Nat × Nat))).lookup name
+{signatures_declaration(signature_table, catalog)}
 {projections_code}
 {validity}
 theorem matched {{World Observation : Type}} (handlers : Handlers World Observation)

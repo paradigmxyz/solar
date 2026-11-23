@@ -141,9 +141,9 @@ theorem contextual (before after old new : Program) (sourcePoints targetPoints :
   exact congrArg some (StackGraph.contextual old new id bounds signatures valid handlers work state)
 
 /-- Compose the two projection checks without re-evaluating either source graph. -/
-theorem compose {before after : Option Program} {old new : Program} {Observation : Type}
+theorem compose {before after : Option Program} {old new : Program} {Projected Observation : Type}
     (left : before = some old) (right : after = some new)
-    (projectLeft projectRight : Program → Option Program) (observe : Program → Observation)
+    (projectLeft projectRight : Program → Option Projected) (observe : Projected → Observation)
     (same : (projectLeft old).map observe = (projectRight new).map observe) :
     (before.bind projectLeft).map observe = (after.bind projectRight).map observe := by
   simpa [left, right] using same
