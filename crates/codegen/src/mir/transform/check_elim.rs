@@ -3977,7 +3977,8 @@ fn thread_decided_edges(
 /// and branch, and is priced as adding a jump, the label push and `JUMP` of an edge that loses its
 /// fall-through. The backend's layout, stack scheduling and tail copies decide whether it does, and
 /// a taken branch arm that keeps its label grew the code as well when measured, so every edge
-/// pays the jump. A join that loses every edge gives back its code, priced over all its edges.
+/// pays the jump. A join that loses every edge gives back its code, priced over all its edges,
+/// unless another thread enters it and keeps it.
 fn priced_threads(
     func: &Function,
     cfg: &CfgInfo,
@@ -3988,6 +3989,8 @@ fn priced_threads(
     for (pred, join, successor) in threads {
         by_join.entry(join).or_default().push((pred, successor));
     }
+    let entered =
+        by_join.values().flatten().map(|&(_, successor)| successor).collect::<FxHashSet<_>>();
     let jump = target.label_push() + target.opcode(op::JUMP);
     let cyclic = cfg.cyclic_blocks();
     let mut priced = SmallVec::new();
@@ -3995,7 +3998,7 @@ fn priced_threads(
         let skipped = target.block_instructions_estimate(func, join) + target.branch();
         let in_loop = |pred| cyclic.contains(pred) && cyclic.contains(join);
         let cold = |pred: BlockId| func.blocks[pred].hotness.is_cold();
-        if edges.len() == func.blocks[join].predecessors.len() {
+        if edges.len() == func.blocks[join].predecessors.len() && !entered.contains(&join) {
             let freed = Cost { bytes: target.block_code_estimate(func, join).bytes, ..skipped };
             let added = Cost { bytes: jump.bytes.saturating_mul(edges.len() as u32), ..jump };
             if target
