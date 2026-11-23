@@ -84,7 +84,7 @@ bb9:
   return
 bb10:
   jump bb17
-bb17:                                             ; function abort(uint256 value) internal pure
+bb17 [function_entry]:                            ; function abort(uint256 value) internal pure
   dup 1
   iszero
   push bb29
@@ -117,7 +117,7 @@ bb24:
   shl
   push 5
   jump bb31
-bb31:                                             ; revert_error (synthesized)
+bb31 [function_entry]:                            ; revert_error (synthesized)
   push 32
   push 32
   mstore

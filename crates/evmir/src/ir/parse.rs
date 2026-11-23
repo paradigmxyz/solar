@@ -23,6 +23,7 @@ struct ParsedBlockHeader {
     in_loop: bool,
     is_continuation: bool,
     external_entry: bool,
+    function_entry: bool,
     function_invoke: Option<DebugFunction>,
     lent_invoke: Option<DebugFunction>,
     entry_depth: Option<u16>,
@@ -114,6 +115,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 module.blocks[block_id].metadata.in_loop = header.in_loop;
                 module.blocks[block_id].metadata.is_continuation = header.is_continuation;
                 module.blocks[block_id].metadata.external_entry = header.external_entry;
+                module.blocks[block_id].metadata.function_entry = header.function_entry;
                 module.blocks[block_id].metadata.function_invoke = header.function_invoke;
                 module.blocks[block_id].metadata.lent_invoke = header.lent_invoke;
                 module.blocks[block_id].metadata.entry_depth = header.entry_depth;
@@ -144,6 +146,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut in_loop = false;
         let mut is_continuation = false;
         let mut external_entry = false;
+        let mut function_entry = false;
         let mut function_invoke = None;
         let mut dispatched = false;
         let mut lent_invoke = None;
@@ -161,6 +164,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     is_continuation = true;
                 } else if self.parser.eat_keyword(sym::entry) {
                     external_entry = true;
+                } else if self.parser.eat_keyword(sym::function_entry) {
+                    function_entry = true;
                 } else if self.parser.eat_keyword(sym::dispatch) {
                     dispatched = true;
                 } else if self.parser.eat_keyword(sym::invoke) {
@@ -197,8 +202,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     outputs = Some(self.parser.parse_uint_as()?);
                 } else {
                     return Err(self.parser.error(
-                        "expected `cold`, `loop`, `continuation`, `entry`, `dispatch`, `invoke`, \
-                         `lent_invoke`, \
+                        "expected `cold`, `loop`, `continuation`, `entry`, `function_entry`, `dispatch`, \
+                         `invoke`, `lent_invoke`, \
                          `stack`, `ret`, `inputs`, or `outputs` block attribute",
                     ));
                 }
@@ -234,6 +239,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             in_loop,
             is_continuation,
             external_entry,
+            function_entry,
             // NOTE: The dispatcher enters exactly the blocks marked `entry`; any other block that
             // it enters, such as a constructor, spells `dispatch`.
             function_invoke: function_invoke.map(|function| DebugFunction {
