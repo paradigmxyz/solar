@@ -63,4 +63,15 @@ contract Shadow {
         _fill(_mk(keep));
         result = keep[0];
     }
+
+    // A memory local in an inner block that shadows a calldata parameter.
+    /// @custom:ensures result == 0
+    // expect: postcondition not satisfied
+    function bad_inner_calldata_shadow(uint256[3] calldata data) external pure returns (uint256 result) {
+        {
+            uint256[3] memory data;
+            _fill(data);
+            result = data[0];
+        }
+    }
 }

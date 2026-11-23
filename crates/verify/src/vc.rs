@@ -4784,21 +4784,24 @@ impl<'p, 'a> Vc<'p, 'a> {
                 names.insert(n);
             }
         }
+        let mut body_names = FxHashSet::default();
         for s in item.body.iter().flat_map(|b| b.stmts.iter()) {
             walk::all_stmts(s, &mut |s| match &s.kind {
-                StmtKind::DeclSingle(v) => names.extend(name(v)),
-                StmtKind::DeclMulti(vs, _) => {
-                    names.extend(vs.iter().filter_map(|v| v.as_ref().unspan()).filter_map(&name))
-                }
+                StmtKind::DeclSingle(v) => body_names.extend(name(v)),
+                StmtKind::DeclMulti(vs, _) => body_names
+                    .extend(vs.iter().filter_map(|v| v.as_ref().unspan()).filter_map(&name)),
                 StmtKind::Try(t) => {
                     for c in t.clauses.iter() {
-                        names.extend(c.args.iter().filter_map(&name));
+                        body_names.extend(c.args.iter().filter_map(&name));
                     }
                 }
                 _ => {}
             });
         }
-        // a calldata name declared again in the body is not the parameter
+        // a calldata name declared again in the body is not the parameter wherever that
+        // declaration is in scope, so it is no longer known to name calldata
+        cd.retain(|n| !body_names.contains(n));
+        names.extend(body_names);
         (cd, names)
     }
 
