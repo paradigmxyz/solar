@@ -102,3 +102,47 @@ fn @find_last(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb11:
     ret v16
 }
+
+// A loop's blocks include unreachable predecessors, so the dead `bb9` sits in the first loop,
+// entered before the table loop. Its read is rebuilt in place, not in that loop's preheader,
+// where the pointer is not defined yet.
+// CHECK-LABEL: {{^[ +].*}}fn @dead_read{{[( ]}}
+// CHECK: bb0:
+// CHECK-NEXT: jump bb1
+// CHECK: bb9:
+// CHECK: + [[DELTA:v[0-9]+]] = sub {{v[0-9]+}}, arg0
+// CHECK-NEXT: + {{v[0-9]+}} = shr [[DELTA]], 5
+fn @dead_read(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v20 = phi [bb0: 0], [bb2: v21]
+    v22 = lt v20, arg1
+    jumpi v22, bb2, bb3
+  bb2:
+    v21 = add v20, 1
+    jump bb1
+  bb3:
+    jump bb4
+  bb4:
+    v1 = phi [bb3: 0], [bb6: v4]
+    v2 = lt v1, 16
+    jumpi v2, bb5, bb7
+  bb5:
+    v3 = shl v1, 5
+    v5 = add arg0, v3
+    v6 = mload v5
+    v7 = eq v6, arg1
+    jumpi v7, bb8, bb6
+  bb6:
+    v4 = add v1, 1
+    jump bb4
+  bb7:
+    ret 0
+  bb8:
+    ret 1
+  bb9:
+    v30 = add v1, 1
+    mstore arg2, v30
+    jump bb2
+}

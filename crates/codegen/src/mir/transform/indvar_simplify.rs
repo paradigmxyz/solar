@@ -658,7 +658,7 @@ impl IndVarSimplifier {
             && let Some(reads) = &exit_reads
             && let Some((pointer, key, _)) = &test_pointer
         {
-            self.rebuild_exit_reads(func, loop_data, &iv, *pointer, key.scale, reads);
+            self.rebuild_exit_reads(func, cfg, loop_data, &iv, *pointer, key.scale, reads);
         }
         if test_rewritten {
             self.remove_dead_counter(func, loop_data, iv.value, iv.update_inst);
@@ -1168,9 +1168,11 @@ impl IndVarSimplifier {
     ///
     /// A read inside another loop, such as a search that returns from a loop it enters after
     /// this one, is rebuilt once in that loop's preheader instead of on every iteration.
+    #[expect(clippy::too_many_arguments)]
     fn rebuild_exit_reads(
         &self,
         func: &mut Function,
+        cfg: &CfgInfo,
         loop_data: &Loop,
         iv: &InductionVariable,
         pointer: ValueId,
@@ -1209,7 +1211,7 @@ impl IndVarSimplifier {
         let mut at_end = FxHashMap::default();
         for &(phi, from) in &reads.phis {
             // from: ...; counter = rebuild; jump  ->  phi [from: counter]
-            let at = self.outer_preheader(loop_data.header, from).unwrap_or(from);
+            let at = self.outer_preheader(cfg, loop_data.header, from).unwrap_or(from);
             let counter = *at_end.entry(at).or_insert_with(|| rebuild(self, func, at));
             if let InstKind::Phi(incoming) = &mut func.inst_mut(phi).kind {
                 for (block, value) in incoming.iter_mut() {
@@ -1221,7 +1223,7 @@ impl IndVarSimplifier {
         }
         for &block in &reads.blocks {
             let phis = func.block_phi_count(block);
-            let counter = match self.outer_preheader(loop_data.header, block) {
+            let counter = match self.outer_preheader(cfg, loop_data.header, block) {
                 // preheader: ...; counter = rebuild; jump loop
                 // block: phis; ...reads of counter
                 Some(at) => *at_end.entry(at).or_insert_with(|| rebuild(self, func, at)),
@@ -1253,12 +1255,15 @@ impl IndVarSimplifier {
 
     /// The preheader of the outermost loop with one that holds `block` but not `header`, where
     /// a value that the loop at `header` leaves behind is computed once per entry instead of on
-    /// every iteration of the loop around `block`.
-    fn outer_preheader(&self, header: BlockId, block: BlockId) -> Option<BlockId> {
+    /// every iteration of the loop around `block`. `header` must dominate that preheader: a
+    /// loop's blocks include unreachable predecessors, so an unreachable `block` may sit in a
+    /// loop entered before `header`.
+    fn outer_preheader(&self, cfg: &CfgInfo, header: BlockId, block: BlockId) -> Option<BlockId> {
         self.loops
             .iter()
             .filter(|l| l.blocks.contains(block) && !l.blocks.contains(header))
             .filter_map(|l| Some((l.blocks.count(), l.preheader?)))
+            .filter(|&(_, preheader)| cfg.dominators().dominates(header, preheader))
             .max_by_key(|&(blocks, _)| blocks)
             .map(|(_, preheader)| preheader)
     }
