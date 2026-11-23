@@ -1267,9 +1267,25 @@ excluded. Changed operations or unsafe transfer growth remain unsupported.
 
 ### Indexed jumps in emitted bytecode
 
-Check the emitted table against the ordered destination PCs from the logical
-table. The example uses a two-entry EVM IR fixture, whose destinations in
-the deployed image are at byte offsets 11 and 13.
+With `-Zsolar-tv`, the compiler checks indexed transfers at byte emission.
+Each `indexed-tables/artifact-*` bundle contains the finalized EVM IR before
+table stubs are inserted, the emitted byte image, and the measured label and
+table offsets. The validator reads the logical target list independently.
+Lean checks that the emitted table selects those destinations in order,
+including repeated targets. Counterexamples report the selector and both PCs.
+
+```sh
+SOLAR_TV="$PWD/solar-tv/solar-tv" target/debug/solar \
+  tests/ui/codegen/evm-ir/none/indexed_jump.evmir -j1 -Ogas \
+  -Zevm-ir-pipeline=none --evm-version=cancun --emit=bin-runtime \
+  -Zsolar-tv=target/indexed-audit
+```
+
+`-Zsolar-tv-capture` saves the bundle for later checking. Run
+`solar-tv/solar-tv indexed-tables <bundle>/layout.json` to check it.
+
+For a standalone byte image, supply the ordered destination PCs. The
+fixture below has destinations at byte offsets 11 and 13.
 
 ```sh
 target/debug/solar tests/ui/codegen/evm-ir/none/indexed_jump.evmir \

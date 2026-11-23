@@ -38,6 +38,8 @@ struct Input {
     window: bool,
     #[serde(default)]
     labels: bool,
+    #[serde(default)]
+    indexed_tables: bool,
 }
 
 pub(super) fn export() -> Result<Value, String> {
@@ -62,6 +64,9 @@ pub(super) fn export() -> Result<Value, String> {
         if sess.dcx.has_errors().is_err() {
             return Err("invalid EVM model".into());
         }
+        if input.indexed_tables {
+            return Ok(indexed_tables(&module));
+        }
         let (entry, _) = module
             .blocks
             .iter_enumerated()
@@ -73,6 +78,30 @@ pub(super) fn export() -> Result<Value, String> {
             graph(&module, entry, input.labels, input.entry.is_none())
         }
     })
+}
+
+fn indexed_tables(module: &Module) -> Value {
+    let tables: Vec<_> = module
+        .blocks
+        .iter()
+        .filter_map(|block| {
+            let TerminatorKind::IndexedJump(targets) = &block.terminator.as_ref()?.kind else {
+                return None;
+            };
+            let mask = match block.instructions.as_slice() {
+                [.., push, and] if and.as_evm_opcode() == Some(op::AND) => push
+                    .pushed_value()
+                    .and_then(|value| usize::try_from(value).ok())
+                    .filter(|&value| value < targets.len()),
+                _ => None,
+            };
+            let targets: Vec<_> =
+                targets.iter().map(|&target| module.blocks[target].label).collect();
+            Some(json!({"block": block.label, "targets": targets, "mask": mask}))
+        })
+        .collect();
+    let blocks: Vec<_> = module.blocks.iter().map(|block| block.label).collect();
+    json!({"blocks": blocks, "tables": tables})
 }
 
 fn graph(module: &Module, entry: BlockId, labels: bool, from_entry: bool) -> Result<Value, String> {

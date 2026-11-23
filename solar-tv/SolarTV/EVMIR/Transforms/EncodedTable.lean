@@ -84,6 +84,22 @@ private def boundary (code : State.CodeChunks) (target : Nat) : Nat → Nat → 
     | none => false
     | some inst => boundary code target fuel inst.next
 
+/-- The current image decoder handles PUSH payloads. On forks where the
+extended stack opcodes have immediates, reject those layouts until the
+fork-specific decoder can distinguish their payloads from JUMPDESTs. -/
+private def legacyBoundaries (code : State.CodeChunks) : Nat → Nat → Bool
+  | 0, pc => pc == code.size
+  | fuel+1, pc =>
+    if pc == code.size then true else
+    match RelocatedReturn.decode code pc with
+    | none => false
+    | some inst =>
+      if [0xe6,0xe7,0xe8].contains inst.opcode then false
+      else legacyBoundaries code fuel inst.next
+
+private def decodedBoundaries (cfg : State.Config) (code : State.CodeChunks) : Bool :=
+  !(cfg.fork.atLeast .amsterdam) || legacyBoundaries code code.size 0
+
 structure Summary where
   pc : Nat
   stack : Stack
@@ -211,7 +227,8 @@ def execute (cfg : State.Config) (code : State.CodeChunks) (entry fuel jumps : N
 
 def check (cfg : State.Config) (code : State.CodeChunks) (entry fuel jumps : Nat)
     (targets : List Nat) (rows : List (Nat × Nat)) : Bool :=
-  !targets.isEmpty && targets.length == rows.length && 0 < jumps &&
+  decodedBoundaries cfg code && !targets.isEmpty &&
+    targets.length == rows.length && 0 < jumps &&
     boundary code entry (entry+1) 0 && (List.range targets.length).all fun i =>
     match targets[i]?, rows[i]? with
     | some target, some (peak,gas) =>
@@ -230,7 +247,7 @@ private theorem checked_route (cfg : State.Config) (code : State.CodeChunks) (en
     boundary code entry (entry+1) 0 = true ∧
       route cfg code fuel jumps entry [selector] = some ⟨pc,[],peak,charge⟩ := by
   simp only [check, Bool.and_eq_true, decide_eq_true_eq] at checked
-  obtain ⟨⟨⟨⟨_,_⟩,_⟩,start⟩,each⟩ := checked
+  obtain ⟨⟨⟨⟨⟨_,_⟩,_⟩,_⟩,start⟩,each⟩ := checked
   have selected := (List.getElem?_eq_some_iff.mp logical).1
   have row := List.all_eq_true.mp each selector.toNat (List.mem_range.mpr selected)
   unfold IndexedJump.target at logical
@@ -338,5 +355,62 @@ theorem masked_correspondence (cfg : State.Config) (code : State.CodeChunks)
   have full : route cfg code (fuel+2) (jumps+1) start (input :: tail) =
       some ((Summary.prepend 2 price ⟨pc,[],peak,charge⟩).frame tail) := frame
   simp [execute, boundary, full, Summary.prepend, Summary.frame, Bind.bind, Option.bind]
+
+def bindTargets (positions : List (Nat × Nat)) (labels : List Nat) : Option (List Nat) :=
+  labels.mapM (fun label => positions.lookup label)
+
+/-- A table preserves the order of logical edges, including repeated labels.
+Resolve them against label definitions measured during byte emission. -/
+theorem bound_target (positions : List (Nat × Nat)) (labels targets : List Nat)
+    (bound : bindTargets positions labels = some targets) (index label : Nat)
+    (selected : labels[index]? = some label) :
+    targets[index]? = positions.lookup label := by
+  induction labels generalizing index targets with
+  | nil => simp at selected
+  | cons head rest ih =>
+    cases pos : positions.lookup head with
+    | none => simp [bindTargets, pos, Bind.bind, Option.bind] at bound
+    | some pc =>
+      cases tail : bindTargets positions rest with
+      | none => simp [bindTargets, pos, show rest.mapM (fun label => positions.lookup label) = none from tail,
+          Bind.bind, Option.bind] at bound
+      | some actual =>
+        have same : pc :: actual = targets := by
+          simpa [bindTargets, pos, show rest.mapM (fun label => positions.lookup label) = some actual from tail,
+            Bind.bind, Option.bind, Option.pure_def] using bound
+        subst targets
+        cases index with
+        | zero =>
+          simp at selected
+          subst label
+          exact pos.symm
+        | succ index => exact ih actual tail index selected
+
+def validDestinations (code : State.CodeChunks) (targets : List Nat) : Bool :=
+  targets.all (fun pc => pc < code.size && (code.jumps 0).contains pc)
+
+/-- Resolved targets are instruction boundaries in the actual image, including
+when arbitrary opaque data follows the executable prefix. -/
+theorem destination_in_image (code : State.CodeChunks) (targets : List Nat)
+    (checked : validDestinations code targets = true) (data : List Execution.Byte)
+    (target : Word) (member : target.toNat ∈ targets) :
+    State.validJump (code.bytes ++ data) target = true := by
+  have valid := List.all_eq_true.mp checked target.toNat member
+  rw [Bool.and_eq_true] at valid
+  rw [← code.jump_eq_with_data data target (of_decide_eq_true valid.1)]
+  exact valid.2
+
+/-- Discover a differing route only after checking the same decoder boundary
+obligations as a positive proof. The runner extracts a specific witness and
+checks it with a separate kernel theorem. -/
+def mismatch (cfg : State.Config) (code : State.CodeChunks) (entry fuel jumps : Nat)
+    (targets : List Nat) : Option (Nat × Nat × Nat × Nat) :=
+  if !decodedBoundaries cfg code || !boundary code entry (entry+1) 0 || jumps == 0
+  then none
+  else (targets.zipIdx).findSome? fun (expected,index) => do
+    let actual ← route cfg code fuel jumps entry [BitVec.ofNat 256 index]
+    if actual.pc != expected && actual.stack.isEmpty && actual.peak ≤ 1024 then
+      some (index,expected,actual.pc,actual.gas)
+    else none
 
 end SolarTV.EVM.EncodedTable

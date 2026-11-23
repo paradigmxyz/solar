@@ -17,7 +17,26 @@ MODULE = "SolarTV.EVMIR.Transforms.EncodedTable"
 FUEL = 64
 
 
-def certificate(image, pc, targets, jumps, catalog, version, mask_pc):
+class WrongDestination(Unsupported):
+    def __init__(self, witness):
+        self.witness = witness
+        super().__init__(
+            f"selector {witness['selector']} reaches PC {witness['actual_pc']}, "
+            f"expected PC {witness['expected_pc']}"
+        )
+
+
+def start_image(image, catalog, version):
+    return (
+        f"import {MODULE}\n"
+        + entry_proof.HEADER.replace(" MIR.TransferFromEntry", "")
+        + "open EVM.EncodedTable\n"
+        + entry_proof.image_definitions(image)
+        + f"def cfg : EVM.State.Config := ⟨.{version}, {world.opcode_rows(catalog, version)}, 0, {{}}, none⟩\n"
+    )
+
+
+def certificate(image, pc, targets, jumps, catalog, version, mask_pc, binding, mask):
     if mask_pc is None:
         proof = f"""
 theorem validated (selector : Word) (tail : EVM.Stack) (gas pc peak charge : Nat)
@@ -29,6 +48,12 @@ theorem validated (selector : Word) (tail : EVM.Stack) (gas pc peak charge : Nat
   correspondence cfg code {pc} {FUEL} {jumps} targets bounds certified selector tail gas pc peak charge logical row
 """
     else:
+        matched_mask = (
+            f"theorem sourceMask : proposed.1 = {mask}#256 := by decide +kernel\n"
+            "#print axioms sourceMask\n"
+            if mask is not None
+            else ""
+        )
         proof = f"""
 def proposed := (maskPrefix cfg code {mask_pc} {pc}).getD (0,0)
 theorem decoded : maskPrefix cfg code {mask_pc} {pc} = some proposed := by decide +kernel
@@ -42,17 +67,32 @@ theorem validated (input : Word) (tail : EVM.Stack) (gas : Nat) :
         then some (pc,tail,gas-(proposed.2+charge)) else none :=
   masked_correspondence cfg code {mask_pc} {pc} {FUEL} {jumps - 1} targets bounds
     certified input proposed.1 tail gas proposed.2 decoded inRange
-
+{matched_mask}
 #eval IO.println ("mask producer " ++ reprStr [proposed.1.toNat, proposed.2])
 """
+    labels = f"def targets : List Nat := {targets}\n"
+    if binding is not None:
+        positions, logical = binding
+        rows = ", ".join(f"({label},{offset})" for label, offset in positions)
+        labels += f"""
+def positions : List (Nat × Nat) := [{rows}]
+def logical : List Nat := {logical}
+theorem resolved : bindTargets positions logical = some targets := by decide +kernel
+theorem logicalEdge (i label : Nat) (edge : logical[i]? = some label) :
+    targets[i]? = positions.lookup label :=
+  bound_target positions logical targets resolved i label edge
+theorem checkedDestinations : validDestinations code targets = true := by decide +kernel
+theorem destination (suffix : List Execution.Byte) (target : Word)
+    (selected : target.toNat ∈ targets) :
+    EVM.State.validJump (code.bytes ++ suffix) target = true :=
+  destination_in_image code targets checkedDestinations suffix target selected
+#print axioms logicalEdge
+#print axioms destination
+"""
     return (
-        f"import {MODULE}\n"
-        + entry_proof.HEADER.replace(" MIR.TransferFromEntry", "")
-        + "open EVM.EncodedTable\n"
-        + entry_proof.image_definitions(image)
+        start_image(image, catalog, version)
+        + labels
         + f"""
-def cfg : EVM.State.Config := ⟨.{version}, {world.opcode_rows(catalog, version)}, 0, {{}}, none⟩
-def targets : List Nat := {targets}
 def bounds := limits cfg code {pc} {FUEL} {jumps} targets.length
 theorem certified : check cfg code {pc} {FUEL} {jumps} targets bounds = true := by decide +kernel
 
@@ -64,7 +104,51 @@ theorem certified : check cfg code {pc} {FUEL} {jumps} targets bounds = true := 
     )
 
 
-def check(image, pc, targets, jumps, replay, version, timeout, mask_pc=None):
+def confirm_mismatch(directory, image, pc, targets, jumps, catalog, version, timeout):
+    proof = entry_proof.lean(
+        directory,
+        "WrongDestination",
+        start_image(image, catalog, version)
+        + f"""
+def targets : List Nat := {targets}
+def proposal := mismatch cfg code {pc} {FUEL} {jumps} targets
+theorem checkedCounterexample :
+    (proposal.map fun (index, expected, actual, gas) =>
+      targets[index]? == some expected && expected != actual &&
+        execute cfg code {pc} {FUEL} {jumps} [BitVec.ofNat 256 index] gas == some (actual, [], 0)) =
+    some true := by decide +kernel
+#print axioms checkedCounterexample
+#eval IO.println ("counterexample " ++ reprStr (match proposal with
+  | some (index, expected, actual, gas) => [index, expected, actual, gas]
+  | none => []))
+""",
+        timeout,
+    )
+    if proof.returncode:
+        return
+    theorem, witness = proof.stdout.splitlines()
+    entry_proof.check_axioms([theorem], 1)
+    selector, expected, actual, gas = json.loads(
+        witness.removeprefix("counterexample ")
+    )
+    raise WrongDestination(
+        {"selector": selector, "expected_pc": expected, "actual_pc": actual, "gas": gas}
+    )
+
+
+def check(
+    image,
+    pc,
+    targets,
+    jumps,
+    replay,
+    version,
+    timeout,
+    mask_pc=None,
+    *,
+    binding=None,
+    mask=None,
+):
     if (
         not image
         or len(image) > 65536
@@ -77,10 +161,17 @@ def check(image, pc, targets, jumps, replay, version, timeout, mask_pc=None):
     ):
         raise Unsupported("table image or target map is outside the supported bounds")
     catalog = native.catalog(replay, timeout)
-    code = certificate(image, pc, targets, jumps, catalog, version, mask_pc)
+    code = certificate(
+        image, pc, targets, jumps, catalog, version, mask_pc, binding, mask
+    )
     entry_proof.success(build_model(timeout, MODULE), "encoded table model build")
     with tempfile.TemporaryDirectory(prefix="solar-tv-table-") as directory:
-        proof = entry_proof.lean(Path(directory), "Table", code, timeout)
+        directory = Path(directory)
+        proof = entry_proof.lean(directory, "Table", code, timeout)
+        if proof.returncode and binding is not None:
+            confirm_mismatch(
+                directory, image, pc, targets, jumps, catalog, version, timeout
+            )
     if proof.returncode:
         raise Unsupported(
             "encoded table did not verify against the supplied map\n"
@@ -89,7 +180,8 @@ def check(image, pc, targets, jumps, replay, version, timeout, mask_pc=None):
         )
     lines = proof.stdout.splitlines()
     entry_proof.check_axioms(
-        [line for line in lines if line.startswith("'validated'")], 1
+        [line for line in lines if "axioms" in line],
+        1 + 2 * (binding is not None) + (mask is not None),
     )
     values = {}
     for line in lines:

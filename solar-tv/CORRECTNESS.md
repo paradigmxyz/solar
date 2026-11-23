@@ -894,19 +894,28 @@ transfer preserves the incoming stack, and independently bounds the peak
 on both entry graphs. This includes the pushed selector and scratch space
 for the table expansion. The tests exercise real block layout, replay the
 wrong table entry on assembled code, and reject a peak above 1024 words.
-For emitted code, `EncodedTable.correspondence` checks each in-range
-selector against the ordered physical destinations supplied by the caller.
-The kernel decodes the bytes from an instruction boundary and follows valid
-`JUMPDEST` edges, including an outlined stub. The proof lifts each local
-execution to any live stack suffix and records the exact static charge and
-stack peak for that route. Raw-bytecode replays exercise every selector in
-five compiler-generated encodings and test an underfunded path and a corrupt
-packed entry. The `--mask-pc` route derives the selector bound from the
-encoded `PUSH` and `AND`, including their stack and gas costs. Independent
-replay checks high-bit inputs and an altered mask that leaves the table.
-This local bytecode proof takes the destination map as input. The
-pass-manager projection still needs general symbolic selector invariants
-and independently bound destination PCs.
+During byte emission, the indexed-table audit measures original block
+label definitions in the byte stream. The independent Rust IR export reads
+the ordered logical table before outlined stubs are appended. Lean binds
+each logical target to its measured `JUMPDEST`, including repeated targets.
+The label-definition and terminator marks from the emitter remain inputs to
+this certificate. They are recorded separately from the relocation offsets
+used to encode the table.
+
+`EncodedTable.correspondence` checks every in-range selector, follows the
+actual edges through packed code or outlined stubs, and lifts the transfer
+to any live stack suffix with the exact static charge and stack peak.
+Trailing program data cannot invalidate a target in the decoded prefix.
+The mask route derives the bound from an encoded `PUSH` and `AND` and
+checks their costs and literal against the logical producer. Raw replay
+covers high-bit inputs, low gas, and changed entries and masks. The
+compiler-bound regression checks an actual Solidity dense switch and a
+corrupted table that sends a selector to a different valid block.
+
+The reports are local assembly certificates. Most compiler-produced
+range guards still need a selector invariant from the enclosing graph.
+Images with Amsterdam extended-stack immediates remain unsupported by
+this decoder, which must distinguish those bytes from `JUMPDEST`.
 
 The normalized graph keeps the largest temporary stack
 requirement along each chain of jumps and checks that changed requirements
@@ -1497,7 +1506,7 @@ token revert and a false result.
 | General loop proof support | Cutpoint invariants over typed MIR preserve ordered effects, exits and divergence. Real certificates cover calldata, memory and storage loops, including a runtime-bounded fill. | Apply the framework to more changed CFGs. Automatic recognition currently covers supported shapes. |
 | Arbitrary state and aliases | Automatic universal caller-state proofs within the defined 64 KiB domain; explicit fixtures for broader operation families | Universal account/memory relation with aliasing, reentry, rollback and fresh allocation obligations. |
 | Whole-function MIR interfaces | Automatic typed products/slices, void/multiple results, acyclic calls and recursive direct-call graphs with checked logical bodies | ABI entry, physical frame and allocation correspondence, recursion that needs different logical actions and broader defined memory domains. |
-| EVM entry stacks and indirect transfers | Fixed or symbolic entry stacks, checked physical-entry bounds, stack-carried jump and conditional targets, literal indexed transfers, and local emitted table proofs with mask producers | General selector invariants, destination-map binding, and broader physical stack, gas and state correspondence. |
+| EVM entry stacks and indirect transfers | Fixed or symbolic entry stacks, checked physical-entry bounds, stack-carried jump and conditional targets, literal indexed transfers, and compiler-bound emitted table proofs with mask producers | General selector invariants, independent certification of block placement, and broader physical stack, gas and state correspondence. |
 | Importer correctness | Certificates for acyclic EVM regions and acyclic typed scalar MIR | Extend independently checked imports to calls, memory, state, ABI entries and symbolic checked powers; audit the remaining Rust and opcode boundaries. |
 | Physical code and resource correspondence | Explicit layout assumptions and selected priced execution | Backend layout certificates, complete caller work pricing and gas-sensitive transfers; observable code locations and resource failures must agree. |
 | Fork and transaction completeness | Signed set-code authorization processing through Osaka, Amsterdam reservoir initialization, debits and rollback | Other transaction envelopes, fee and block settlement, Amsterdam stateful opcode and nested-frame gas accounting. |

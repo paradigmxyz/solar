@@ -1,6 +1,8 @@
 """Check each assembler encoding against the actual deployed byte image."""
 
+import hashlib
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -17,6 +19,7 @@ from validator.common import Program
 VERSION = "cancun"
 SENTINEL = 71
 FIRST_MARKER = 101
+SWITCH = ROOT.parent / "tests/ui/codegen/lowering/evm-ir/switch/dense_table.sol"
 
 
 class EncodedTableTests(unittest.TestCase):
@@ -91,7 +94,7 @@ class EncodedTableTests(unittest.TestCase):
             [labels_by_marker[FIRST_MARKER + index] for index in range(count)],
         )
 
-    def cli(self, image, targets, jumps, *, entry=4, mask_pc=None):
+    def cli(self, image, targets, jumps, *, entry=4, mask_pc=None, version=VERSION):
         self.hex_file.write_text(image.hex() + "\n")
         result = subprocess.run(
             [
@@ -102,6 +105,7 @@ class EncodedTableTests(unittest.TestCase):
                 "--targets=" + ",".join(map(str, targets)),
                 f"--jumps={jumps}",
                 f"--replay={self.replay}",
+                f"--evm-version={version}",
                 "--timeout=30",
                 f"--report={self.report}",
                 *(() if mask_pc is None else (f"--mask-pc={mask_pc}",)),
@@ -134,6 +138,60 @@ class EncodedTableTests(unittest.TestCase):
             replay_ir=text,
             gas="exact",
         )
+
+    def compile_with_audit(self, path, *flags, capture=False):
+        directory = self.directory / "table-audits"
+        env = {
+            **os.environ,
+            "SOLAR_TV": CLI,
+            "SOLAR": SOLAR,
+            "SOLAR_TV_REPLAY": self.replay,
+        }
+        command = [
+            SOLAR,
+            path,
+            "-j1",
+            "--emit=bin,bin-runtime",
+            "--allow=2264",
+            f"--evm-version={VERSION}",
+            *flags,
+        ]
+        plain = subprocess.check_output(command, env=env, text=True, timeout=30)
+        audited = subprocess.run(
+            [
+                *command,
+                f"-Zsolar-tv={directory}",
+                *(("-Zsolar-tv-capture",) if capture else ()),
+            ],
+            env=env,
+            text=True,
+            capture_output=True,
+            timeout=180,
+            check=False,
+        )
+        self.assertEqual(audited.returncode, 0, audited.stderr)
+        self.assertEqual(plain, audited.stdout)
+        (layout,) = list((directory / "indexed-tables").glob("*/layout.json"))
+        (contract,) = json.loads(plain)["contracts"].values()
+        return layout, bytes.fromhex(contract["bin-runtime"])
+
+    def check_bundle(self, layout):
+        result = subprocess.run(
+            [
+                CLI,
+                "indexed-tables",
+                layout,
+                "--replay",
+                self.replay,
+                "--report",
+                self.report,
+            ],
+            timeout=90,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        return result, json.loads(self.report.read_text())
 
     def test_compiler_emitted_encodings_have_total_in_range_routes(self):
         cases = (
@@ -265,3 +323,103 @@ class EncodedTableTests(unittest.TestCase):
             )
             stops.append(json.loads(observed["observations"][0])[0])
         self.assertEqual(stops, ["success", "exception"])
+
+    def test_live_assembly_binds_repeated_labels_with_opaque_data(self):
+        path = self.directory / "sparse.evmir"
+        text = """@module Sparse
+@data
+  literal_0: hex"5b7f"
+bb7 [stack=0]:
+  push 0
+  calldataload
+  push 3
+  and
+  indexed_jump bb42, bb19, bb42, bb88
+bb19:
+  push_data literal_0
+  pop
+  stop
+bb42:
+  invalid
+bb88:
+  stop
+"""
+        path.write_text(text)
+        layout, runtime = self.compile_with_audit(
+            path, "-Ogas", "-Zevm-ir-pipeline=none"
+        )
+        emission = json.loads(layout.read_text())
+        record = json.loads((layout.parent / "result.json").read_text())
+        self.assertEqual(record["status"], "verified")
+        self.assertEqual(record["evidence"], "kernel-checked-logical-indexed-tables")
+        self.assertEqual(record["bytecode_sha256"], hashlib.sha256(runtime).hexdigest())
+        self.assertEqual(runtime[emission["code_end"] :], bytes.fromhex("5b7f"))
+        table = record["tables"][0]
+        self.assertEqual(table["logical_targets"], [2, 1, 2, 3])
+        physical = dict(emission["labels"])
+        self.assertEqual(
+            [e["pc"] for e in table["entries"]], [physical[i] for i in (2, 1, 2, 3)]
+        )
+        self.assertEqual(table["producer"]["mask"], 3)
+
+        instructions = decode_runtime(runtime[: emission["code_end"]], self.catalog)
+        start = next(pc for pc, row in instructions.items() if row[0] == "push4")
+        slot = start + 1 + runtime[start + 1 : start + 5].index(physical[2])
+        broken = runtime[:slot] + bytes([physical[1]]) + runtime[slot + 1 :]
+        (layout.parent / "bytecode.hex").write_text(broken.hex())
+        result, record = self.check_bundle(layout)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(record["status"], "counterexample")
+        witness = record["tables"][0]["witness"]
+        self.assertEqual(
+            (witness["selector"], witness["expected_pc"], witness["actual_pc"]),
+            (0, physical[2], physical[1]),
+        )
+        stops = []
+        for image in (runtime, broken):
+            program = self.program(text, image, witness["selector"], 500)
+            replay = native.replay(
+                program,
+                program,
+                [],
+                raw_runtime=True,
+                executable=self.replay,
+                timeout=30,
+            )
+            stops.append(json.loads(replay["observations"][0])[0])
+        self.assertEqual(stops, ["exception", "success"])
+
+    def test_real_solidity_switch_emits_a_replayable_bundle(self):
+        layout, runtime = self.compile_with_audit(SWITCH, "-Osize", capture=True)
+        self.assertFalse((layout.parent / "result.json").exists())
+        image = bytes.fromhex((layout.parent / "bytecode.hex").read_text())
+        self.assertTrue(runtime.startswith(image))
+        result, record = self.check_bundle(layout)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(record["status"], "verified")
+        self.assertGreaterEqual(len(record["tables"][0]["entries"]), 24)
+
+    def test_live_outlined_transfer_uses_the_original_targets(self):
+        path = (
+            ROOT.parent / "tests/ui/codegen/disasm/indexed_jump_two_byte_entries.evmir"
+        )
+        layout, _ = self.compile_with_audit(path, "-Onone", "-Zevm-ir-pipeline=none")
+        artifact = json.loads(layout.read_text())
+        self.assertEqual(artifact["sites"][0]["jumps"], 2)
+        record = json.loads((layout.parent / "result.json").read_text())
+        self.assertEqual(record["status"], "verified")
+        table = record["tables"][0]
+        self.assertEqual(table["logical_targets"], list(range(2, 12)))
+        self.assertEqual(
+            [row["pc"] for row in table["entries"]],
+            list(dict(artifact["labels"]).values()),
+        )
+        self.assertTrue(all(row["gas"] > 24 for row in table["entries"]))
+
+    def test_extended_stack_payload_is_not_certified_as_jumpdest(self):
+        # The local cut adds one to selector zero and jumps. Under Amsterdam
+        # byte one is an extended DUP immediate, even though it equals 0x5b.
+        image = bytes.fromhex("e65b60010156")
+        result, record = self.cli(image, [1], 1, entry=2, version="amsterdam")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(record["status"], "unsupported")

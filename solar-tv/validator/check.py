@@ -639,6 +639,10 @@ def main() -> int:
         from . import encoded_table
 
         return encoded_table.main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "indexed-tables":
+        from . import indexed_tables
+
+        return indexed_tables.main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "summarize":
         return audit.summarize(sys.argv[2:])
     parser = argparse.ArgumentParser(

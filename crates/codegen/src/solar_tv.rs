@@ -20,6 +20,7 @@ use std::{
 };
 
 mod evm;
+pub(crate) mod indexed;
 mod mir;
 pub(crate) use evm::EvmSnapshot;
 pub(crate) use mir::MirSnapshot;

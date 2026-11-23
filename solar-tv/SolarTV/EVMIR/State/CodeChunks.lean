@@ -179,6 +179,35 @@ theorem jump_eq (code : CodeChunks) (target : Word) :
   simpa only [List.append_nil, scanEmpty, validJump, jumpDestinations, List.drop_zero, size_eq] using
     congrArg (·.contains target.toNat) whole.symm
 
+private theorem scanJumps_lower (fuel pc : Nat) (bytes : List Byte) (target : Nat)
+    (found : target ∈ scanJumps fuel pc bytes) : pc ≤ target := by
+  induction fuel generalizing pc bytes with
+  | zero => simp [scanJumps] at found
+  | succ fuel ih =>
+    cases bytes with
+    | nil => simp [scanJumps] at found
+    | cons byte rest =>
+      simp only [scanJumps] at found
+      split at found
+      · rcases List.mem_cons.mp found with equal | later
+        · omega
+        · have bound := ih _ _ later
+          omega
+      · have bound := ih _ _ found
+        omega
+
+/-- Opaque assembly data follows the instruction stream. Any jump destination
+in that suffix has a larger offset than every byte in the checked code. -/
+theorem jump_eq_with_data (code : CodeChunks) (data : List Byte) (target : Word)
+    (inside : target.toNat < code.size) :
+    (code.jumps 0).contains target.toNat = validJump (code.bytes ++ data) target := by
+  unfold validJump jumpDestinations
+  rw [List.drop_zero, jumps_append code 0 _ _ (by simp [size_eq]; exact Nat.le_trans code.used_le (Nat.le_add_right ..))]
+  have absent : target.toNat ∉
+      scanJumps (code.bytes.length + data.length - code.used) code.size data :=
+    fun found => by have := scanJumps_lower _ _ _ _ found; omega
+  simp [absent]
+
 def immediate (code : CodeChunks) (pc count : Nat) : Word :=
   ((List.range count).map (fun i => (code.get? (pc+1+i)).getD 0)).foldl
     (fun value byte => (value <<< 8) ||| byte.setWidth 256) 0
