@@ -211,6 +211,12 @@ impl Target {
     /// The code size below which a module counts as small when its copies are weighed against
     /// it: a contract built around a loop or two, a sixth of EIP-170's limit.
     pub(crate) const SMALL_CODE_BYTES: u64 = 4_096;
+    /// Bounds cumulative bytecode growth per artifact of the switches the backend lowers under
+    /// the runtime-gas objective without an execution estimate. The external selector switch
+    /// weighs its deposit against its expected calls instead.
+    ///
+    /// Keep this a round policy limit rather than fitting it to a corpus transition.
+    pub(crate) const MAX_SWITCH_GAS_CODE_GROWTH: usize = 192;
 
     /// The optimizer runs from which loop unrolling and peeling pay under [`Tune::Jit`], the
     /// default 200: a JIT compiles the copies to straight-line machine code, so an unrolled loop
@@ -1736,17 +1742,19 @@ impl Target {
 
     /// Whether a packed lookup that costs `lookup` (the gas of one execution and its bytes)
     /// replaces a switch on the sorted `keys` whose case blocks only pass literals to one join.
-    /// Each entry of `blocks` is one case block: the keys that reach it and the pushes of its
-    /// literals. A default block that the lookup also replaces reaches no key.
+    /// Each entry of `blocks` is one case target: the keys that reach it and the pushes of its
+    /// literals. A default block that the lookup also replaces reaches no key. A case that enters
+    /// the join directly counts as a block too: the scan keeps the switch value on the stack, so
+    /// the edge lands on a block that pops it.
     ///
     /// The switch is priced by [`Self::literal_switch`]. Size builds take the fewer bytes. Gas
     /// builds weigh both over the deployment's lifetime, the gas of each expected execution
     /// against the deposit of the bytes, with [`Self::UNCOUNTED_LOOP_ITERATIONS`] executions a
-    /// run for a switch inside a loop, so a hot switch at high runs keeps its jump table when
-    /// the lookup costs more gas each time. Inside a loop, whose trip count is unknown, a gas
-    /// build never trades more gas per execution for bytes: in a decoder's sequence loop, lookups
-    /// of four and five words saved 909 bytes and cost 1.1% more gas at 200 runs. Ties keep the
-    /// switch.
+    /// run for a switch that runs repeatedly, inside a loop or in a function that a loop calls,
+    /// so a hot switch at high runs keeps its jump table when the lookup costs more gas each
+    /// time. There, since the trip count is unknown, a gas build never trades more gas per
+    /// execution for bytes: in a decoder's sequence loop, lookups of four and five words saved
+    /// 909 bytes and cost 1.1% more gas at 200 runs. Ties keep the switch.
     pub(crate) fn switch_lookup_pays(
         &self,
         keys: &[U256],
@@ -1771,15 +1779,19 @@ impl Target {
         lifetime(lookup) < lifetime(switch)
     }
 
-    /// Cost of a switch on the sorted `keys` whose case `blocks`, as in
-    /// [`Self::switch_lookup_pays`], only push literals and jump to one join: the bytes of the
-    /// dispatch and the blocks, and the gas of a hit averaged over the keys. The dispatch is the
-    /// cheapest under the objective of the shapes the switch planner weighs for a dense range: a
-    /// linear scan, a binary search, and a bounds check with an indexed jump into a stride table
-    /// of `JUMPDEST PUSH2 case JUMP` stubs, which the planner prices when it plans with the widest
-    /// label. Each block lands, pushes its literals, and jumps to the join, except one laid out
-    /// before the join, which falls through. Misses and the default's own jump are left out, so
-    /// the price bounds the switch from below.
+    /// Estimated cost of a switch on the sorted `keys` whose case `blocks`, as in
+    /// [`Self::switch_lookup_pays`], only push literals and reach one join: the bytes of the
+    /// dispatch and the blocks, and the gas of a hit averaged over the keys. The dispatch follows
+    /// the switch planner among three of its shapes: a linear scan, a binary search, and a bounds
+    /// check with an indexed jump into a stride table of `JUMPDEST PUSH2 case JUMP` stubs, which
+    /// the planner prices when it plans with the widest label. Size builds take the fewest bytes;
+    /// gas builds take the least gas among the shapes no more than
+    /// [`Self::MAX_SWITCH_GAS_CODE_GROWTH`] bytes larger than the scan, as the planner does for a
+    /// switch without an execution estimate when the artifact's growth budget is untouched; and
+    /// `-O none` scans. Each block lands, pushes its literals, and jumps to the join, except one
+    /// laid out before the join, which falls through. Misses, the default's own jump, the
+    /// planner's other shapes, and the budget that earlier switches of the artifact spent are
+    /// left out.
     fn literal_switch(&self, keys: &[U256], blocks: &[(u32, Cost)]) -> Cost {
         let (Some(&low), Some(&high)) = (keys.first(), keys.last()) else { return Cost::ZERO };
         let count = keys.len() as u32;
@@ -1835,7 +1847,21 @@ impl Target {
             + stub;
         let table = Cost::new(0, stub.bytes).times(u32::try_from(range).unwrap_or(u32::MAX) - 1);
         let dense = priced(indexed + table, indexed.times(count));
-        let dispatch = [linear, binary, dense].into_iter().min_by(|&a, &b| self.cmp(a, b)).unwrap();
+        let shapes = [linear, binary, dense];
+        let dispatch = match self.optimization {
+            OptimizationMode::None => linear,
+            OptimizationMode::Size => shapes.into_iter().min_by(|&a, &b| self.cmp(a, b)).unwrap(),
+            // The least gas among the shapes at most `MAX_SWITCH_GAS_CODE_GROWTH` bytes larger
+            // than the scan, which always qualifies.
+            _ => {
+                let limit = linear.bytes.saturating_add(Self::MAX_SWITCH_GAS_CODE_GROWTH as u32);
+                shapes
+                    .into_iter()
+                    .filter(|shape| shape.bytes <= limit)
+                    .min_by_key(|&shape| (self.runtime_gas(shape), shape.bytes))
+                    .unwrap()
+            }
+        };
         // jumpdest; push literals; push join; jump
         let jump = self.label_push() + self.opcode(op::JUMP);
         let mut code = Cost::ZERO;
@@ -2911,16 +2937,16 @@ mod tests {
 
     #[test]
     fn switch_lookups_replace_literal_switches_by_objective() {
-        let switch = |n: u64| {
-            let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
-            let keys = (0..n).map(U256::from).collect::<Vec<_>>();
-            let mut blocks =
-                (0..n).map(|k| (1, target.push(U256::from(k * 300 + 1)))).collect::<Vec<_>>();
-            blocks.push((0, target.push(U256::ZERO)));
-            (keys, blocks)
-        };
         let target = |optimization, runs| Target::with(EvmVersion::Osaka, optimization, runs);
-        let (keys, blocks) = switch(30);
+        // One case block per key, pushing a literal, and a default pushing zero.
+        let switch = |keys: &[u64]| {
+            let target = target(OptimizationMode::Gas, 200);
+            let mut blocks =
+                keys.iter().map(|&k| (1, target.push(U256::from(k * 300 + 1)))).collect::<Vec<_>>();
+            blocks.push((0, target.push(U256::ZERO)));
+            (keys.iter().copied().map(U256::from).collect::<Vec<_>>(), blocks)
+        };
+        let (keys, blocks) = switch(&(0..30).collect::<Vec<_>>());
         // Thirty keys take the stride table: a 71-gas hit through 150 bytes of stubs, and 407
         // bytes with the case blocks.
         let gas = target(OptimizationMode::Gas, 200);
@@ -2943,12 +2969,20 @@ mod tests {
         assert!(size.switch_lookup_pays(&keys, &blocks, five_words, true));
         // Two keys take a linear scan of 45 gas and 31 bytes; a lookup one byte larger loses a
         // size build and wins a gas build.
-        let (keys, blocks) = switch(2);
+        let (keys, blocks) = switch(&[0, 1]);
         assert_eq!(gas.literal_switch(&keys, &blocks), Cost::new(45, 31).with_steps(10));
         let lookup = Cost::new(40, 32);
         assert!(!size.switch_lookup_pays(&keys, &blocks, lookup, false));
         assert!(gas.switch_lookup_pays(&keys, &blocks, lookup, false));
         // Ties keep the switch.
         assert!(!gas.switch_lookup_pays(&keys, &blocks, Cost::new(45, 31), false));
+        // Six keys spread over 256 values would need a 1,280-byte stride table, past the planner's
+        // gas growth budget, so a gas build scans or searches them: an 89-gas hit through 96
+        // bytes. A 146-byte lookup of 195 gas, as measured for them, loses under both objectives.
+        let (keys, blocks) = switch(&[0, 50, 100, 150, 200, 255]);
+        assert_eq!(gas.literal_switch(&keys, &blocks), Cost::new(89, 96).with_steps(20));
+        let lookup = Cost::new(195, 146);
+        assert!(!gas.switch_lookup_pays(&keys, &blocks, lookup, false));
+        assert!(!size.switch_lookup_pays(&keys, &blocks, lookup, false));
     }
 }

@@ -30,9 +30,10 @@
 //! test, so a one-case switch to a block without phis becomes a branch. The lookup runs in the
 //! switching block before that branch, on the default's path too, since it is pure.
 //!
-//! [`Target::switch_lookup_pays`] compares the cheaper encoding with the switch as the backend
-//! lowers it, gas and bytes under the objective and optimizer runs. A switch inside a loop counts
-//! as running several times per call, and a gas build never pays more gas per execution there.
+//! [`Target::switch_lookup_pays`] compares the cheaper encoding with an estimate of the switch as
+//! the backend's planner lowers it, gas and bytes under the objective and optimizer runs. A switch
+//! inside a loop, or in a function that a loop or recursion calls, counts as running several times
+//! per call, and a gas build never pays more gas per execution there.
 //!
 //! The pass runs in the lowering pipeline right after `if-convert`, once folded conditions and
 //! empty blocks are gone, and before inlining prices the helpers that hold such switches.
@@ -52,14 +53,14 @@ use crate::{
     mir::{
         BlockId, EffectKind, Function, FunctionBuilder, Immediate, InstId, InstKind,
         InstructionMetadata, MirType, Module, Terminator, Value, ValueId,
-        analysis::CfgInfo,
+        analysis::{CallGraphInfo, CfgInfo},
         pass::{MirPass, run_function_pass},
         utils::{invalidate_unreachable_block, replace_terminator},
     },
     target::{Cost, Target},
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::FxHashSet;
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashSet};
 use solar_evmir::debug::DebugLocKind;
 
 /// Function pass that replaces switches selecting literals with packed table lookups.
@@ -76,8 +77,25 @@ impl MirPass for SwitchLookup {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        // Inlining comes later, so a switch in a helper that a loop calls runs repeatedly too.
+        let has_switch = module.functions.iter().any(|func| {
+            func.blocks
+                .iter()
+                .any(|block| matches!(block.terminator, Some(Terminator::Switch { .. })))
+        });
+        if !has_switch {
+            return false;
+        }
+        let mut bodies = DenseBitSet::new_empty(module.functions.len());
+        for (id, func) in module.functions.iter_enumerated() {
+            if !func.blocks.is_empty() {
+                bodies.insert(id);
+            }
+        }
+        let repeated = module.repeated_functions(&bodies, &CallGraphInfo::new(module));
         run_function_pass(module, analyses, |func, analyses| {
-            switch_lookup_function(func, &analyses.loop_aware_target(gcx))
+            let repeated = repeated.contains(analyses.function());
+            switch_lookup_function(func, &analyses.loop_aware_target(gcx), repeated)
         })
     }
 
@@ -111,7 +129,7 @@ struct Site {
     fields: Vec<Field>,
     /// The sorted keys.
     keys: Vec<U256>,
-    /// The case blocks the backend would lower, with the keys reaching each and the literals it
+    /// The case targets the backend would lower, with the keys reaching each and the literals it
     /// passes.
     blocks: Vec<(u32, Vec<U256>)>,
 }
@@ -142,7 +160,7 @@ enum Encoding {
     Shifts { slot: usize, per_word: usize },
 }
 
-fn switch_lookup_function(func: &mut Function, target: &Target) -> bool {
+fn switch_lookup_function(func: &mut Function, target: &Target, repeated: bool) -> bool {
     let cfg = CfgInfo::new(func);
     let mut changed = false;
     for block in func.blocks.indices() {
@@ -150,7 +168,7 @@ fn switch_lookup_function(func: &mut Function, target: &Target) -> bool {
             continue;
         }
         let Some(site) = find_site(func, block) else { continue };
-        let in_loop = cfg.cyclic_blocks().contains(block);
+        let in_loop = repeated || cfg.cyclic_blocks().contains(block);
         if let Some(encoding) = choose(target, &site, in_loop) {
             rewrite(func, &site, encoding);
             changed = true;
