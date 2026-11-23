@@ -827,11 +827,11 @@ positions of any inherited return labels. The region compares equal
 live-in ordinary state, and a return exposes the inherited continuation
 slot and remaining stack.
 
-The serial rechecks verified 68 of the 70 previously unsupported frozen
+The serial rechecks verified all 70 previously unsupported frozen
 `block-layout` captures. They covered layout from physical entry,
-stack-carried branches and regions with checked caller bounds. The two
-remaining captures reach the Morpho dispatcher branch whose test changes
-from EQ to SUB with swapped successors. The three contracts' ABI and
+stack-carried branches and regions with checked caller bounds. The final
+two captures reach the same Morpho dispatcher branch and share a proof of
+15,954 matched actions from physical entry. The three contracts' ABI and
 creation and runtime bytecode matched the frozen compiler outputs.
 
 For EQ/SUB inversions, `EVM.BranchLayout` checks the exact comparison and
@@ -840,6 +840,12 @@ the comparison result and have no other incoming edge or entry. The
 word-level theorem checks both transfer directions, the live stack and
 stack failure for all inputs. The projected graphs then check the matched
 paths, including the stack requirements of their relocated jump chains.
+
+Large entry graphs check each continuation or control-flow row against its
+expected result in small kernel-checked ranges. The row lemmas assemble
+those results into the same projection checked for small graphs. Each
+large proof stage compiles in its own Lean process and imports the
+previously checked declarations.
 
 ## Remaining obligations
 

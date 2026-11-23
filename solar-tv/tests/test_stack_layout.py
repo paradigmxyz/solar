@@ -236,6 +236,33 @@ bb1:
             record["witness"]["observations"], record["witness"]["native_observations"]
         )
 
+    def test_large_entry_layout_checks_every_row_in_batches(self):
+        before, after = (self.tmp / f"{name}.evmir" for name in ("before", "after"))
+        body = "".join(f"  push {word}\n  pop\n" for word in range(1, 1025))
+        before.write_text(
+            self.paths[0].read_text().replace("  sload\n", f"  sload\n{body}", 1)
+        )
+        after.write_text(
+            subprocess.check_output(
+                [
+                    SOLAR,
+                    before,
+                    "-j1",
+                    "-Ogas",
+                    "--evm-version=cancun",
+                    "-Zevm-ir-pipeline=block-layout",
+                ],
+                text=True,
+                timeout=20,
+            )
+        )
+        result, record = self.cli([before, after], flags=("--entry-trace",))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(record["region"]["proof"], "kernel-checked-entry-layout")
+        for evidence in record["import_correspondence"]:
+            self.assertGreater(evidence["logical_actions"], 2048)
+            self.assertEqual(len(evidence["changed_growth_checks"]), 2)
+
     def test_unproved_growth_is_not_hidden_by_an_entry_hint(self):
         paths = [self.tmp / f"{side}.evmir" for side in ("before", "after")]
         text = "@module Unsafe\nbb0 [stack=1]:\n sload\n jump bb2\n"

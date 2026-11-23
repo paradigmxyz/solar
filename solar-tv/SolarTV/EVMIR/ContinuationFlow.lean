@@ -275,6 +275,28 @@ theorem project_checked (program : Program) (points : Array Point) (edges : Arra
   cases result
   rfl
 
+/-- Validate each continuation row independently before assembling the
+checked graph. This avoids reducing a whole projected list in one kernel
+equality. -/
+theorem project_rows (program : Program) (points : Array Point) (edges : Array ControlFlow.Edges)
+    (nodesView : ProofTable.View Node) (pointsView : ProofTable.View Point)
+    (edgesView : ProofTable.View ControlFlow.Edges) (result : SourceGraph.Program)
+    (resultView : ProofTable.View SourceGraph.Node)
+    (nodesEq : nodesView = ProofTable.ofArray program.nodes)
+    (pointsEq : pointsView = ProofTable.ofArray points)
+    (edgesEq : edgesView = ProofTable.ofArray edges)
+    (resultEq : resultView = ProofTable.ofArray result.nodes)
+    (entry : resolve pointsView ⟨program.entry,[]⟩ 0 = some result.entry)
+    (edgeCount : edgesView.size = pointsView.size) (rowCount : pointsView.size = resultView.size)
+    (checked : ∀ pc < resultView.size,
+      ProofTable.checkedRow resultView (fun i => projectRow nodesView pointsView edgesView i) pc = true) :
+    project program points edges = some result := by
+  apply project_checked program points edges nodesView pointsView edgesView result nodesEq pointsEq edgesEq
+  have rows := ProofTable.gather result.nodes.toList resultView (by simpa using resultEq)
+    (fun i => projectRow nodesView pointsView edgesView i) checked
+  rw [← rowCount] at rows
+  simp [projectView, projectFromView, entry, edgeCount, rows, Bind.bind, Option.bind]
+
 /-- An inherited continuation is identified by its original stack depth.
 Only label pushes introduce local targets, whose indices are below the graph size. -/
 def inheritedShape (size : Nat) (mask : List Bool) : Shape :=

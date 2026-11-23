@@ -123,6 +123,40 @@ theorem project_checked (program : Program) (points : Array Nat) (edges : Array 
   cases result
   rfl
 
+def checkRow (nodes : ProofTable.View Node) (points : ProofTable.View Nat)
+    (edges : ProofTable.View Edges) (result : ProofTable.View Node) (limit i : Nat) : Bool :=
+  decide (projectRow nodes points edges limit i = ProofTable.readPair result.get? i)
+
+/-- Each logical action contributes its transfer guard and the action itself.
+The paired row checks bind both nodes without a monolithic list comparison. -/
+theorem project_rows (program : Program) (points : Array Nat) (edges : Array Edges) (limit : Nat)
+    (nodesView : ProofTable.View Node) (pointsView : ProofTable.View Nat)
+    (edgesView : ProofTable.View Edges) (result : Program)
+    (resultView : ProofTable.View Node)
+    (nodesEq : nodesView = ProofTable.ofArray program.nodes)
+    (pointsEq : pointsView = ProofTable.ofArray points)
+    (edgesEq : edgesView = ProofTable.ofArray edges)
+    (resultEq : resultView = ProofTable.ofArray result.nodes)
+    (entry : resolve pointsView program.entry 0 = some result.entry)
+    (edgeCount : edgesView.size = pointsView.size) (rowCount : resultView.size = 2*pointsView.size)
+    (checked : ∀ pc < pointsView.size, checkRow nodesView pointsView edgesView resultView limit pc = true) :
+    project program points edges limit = some result := by
+  apply project_checked program points edges nodesView pointsView edgesView limit result nodesEq pointsEq edgesEq
+  have length : result.nodes.toList.length = 2*pointsView.size := by
+    rw [resultEq] at rowCount
+    simpa [ProofTable.ofArray] using rowCount
+  have agrees (i : Nat) (inside : i < pointsView.size) :
+      projectRow nodesView pointsView edgesView limit i =
+        ProofTable.readPair (fun k => result.nodes.toList[k]?) i := by
+    have found := of_decide_eq_true (checked i inside)
+    simpa [resultEq, ProofTable.ofArray] using found
+  have flattened := ProofTable.gatherPairs _ _ _ length agrees
+  cases computed : (List.range pointsView.size).mapM (projectRow nodesView pointsView edgesView limit) with
+  | none => simp [computed] at flattened
+  | some rows =>
+    simp only [computed, Option.map_some, Option.some.injEq] at flattened
+    simp [projectView, entry, edgeCount, computed, flattened, Bind.bind, Option.bind]
+
 /-- Equality after checking the projection from both independent source
 graphs. A logical step covers a finite transfer chain and its first
 non-jump operation. Position-independent handlers carry the concrete

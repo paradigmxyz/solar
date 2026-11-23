@@ -126,6 +126,17 @@ theorem valid_views (before after : Program) (left right : ProofTable.View Node)
   rw [leftEq, rightEq] at checked
   exact valid_checked before after rename bounds signatures entryBound entry mapped height checked
 
+theorem valid_rows (before after : Program) (left right : ProofTable.View Node)
+    (rename bounds : Nat → Nat) (signatures : Signatures) (entryBound : Nat)
+    (leftEq : left = ProofTable.ofArray before.nodes)
+    (rightEq : right = ProofTable.ofArray after.nodes)
+    (entry : before.entry < before.nodes.size) (mapped : rename before.entry = after.entry)
+    (height : entryBound ≤ bounds before.entry)
+    (checked : ∀ i < left.size, checkIndex left right rename bounds signatures i = true) :
+    Valid before after rename bounds signatures entryBound :=
+  valid_views before after left right rename bounds signatures entryBound leftEq rightEq
+    entry mapped height (List.all_eq_true.mpr (fun i inside => checked i (List.mem_range.mp inside)))
+
 theorem post_height_bound (height bound inputs outputs : Nat)
     (small : height ≤ bound) (enough : inputs ≤ height)
     (fits : height - inputs + outputs ≤ 1024) :

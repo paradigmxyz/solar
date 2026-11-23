@@ -2,7 +2,9 @@
 
 import hashlib
 import json
+import os
 import re
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -10,7 +12,7 @@ from . import audit, branch_layout, regions, stack_layout
 from .common import Program, Unsupported
 
 
-def projections(models):
+def projections(models, *, limit=2048):
     """Propose a reachable pairing. Lean checks all paths and edges separately."""
     indices = {}
     points = []
@@ -20,9 +22,8 @@ def projections(models):
     def index(pair):
         # Index pairs, so one source point can match several on the other side.
         if pair not in indices:
-            # Two projected nodes per pair, within the 4096-node graph limit.
-            if len(points) >= 2048:
-                raise Unsupported("paired control-flow graph exceeds 2048 points")
+            if len(points) >= limit:
+                raise Unsupported(f"paired control-flow graph exceeds {limit} points")
             indices[pair] = len(points)
             points.append(pair)
         return indices[pair]
@@ -101,8 +102,97 @@ theorem {name}Lookup : {name}.view = EVM.ProofTable.ofArray {name}.rows.toArray 
     )
 
 
-def projection_proof(name, module, program, nodes, points, edges, result, limit=""):
+def check_rows(name, check, size):
+    """Give each kernel reduction a separate declaration and join the ranges."""
+    declarations = [f"def {name}At : Nat → Bool := {check}\n"]
+
+    def visit(start, count):
+        if count <= 128:
+            part = f"{name}At{start}"
+            declarations.append(f"""
+theorem {part} : EVM.StackReachability.CheckedRange {name}At {start} {count} :=
+  EVM.StackReachability.checkedRange {name}At {start} {count} (by decide +kernel)
+""")
+            return part
+        middle = count // 2
+        left = visit(start, middle)
+        right = visit(start + middle, count - middle)
+        return f"(EVM.StackReachability.joinRanges {left} {right})"
+
+    expression = visit(0, size)
+    declarations.append(f"""
+theorem {name} : EVM.StackReachability.CheckedRange {name}At 0 {size} :=
+  {expression}
+""")
+    return "".join(declarations)
+
+
+def check_stages(directory, prelude, stages, timeout):
+    """Release each large certificate's elaboration state before the next."""
+    from .check import ROOT, run
+
+    env = os.environ.copy()
+    env["LEAN_PATH"] = os.pathsep.join(
+        [str(directory), *filter(None, [env.get("LEAN_PATH")])]
+    )
+    previous = None
+    stdout = []
+    for index, stage in enumerate(stages):
+        if not stage.strip():
+            continue
+        path = directory / f"CfgStage{index}.lean"
+        header = (
+            prelude.replace(
+                "import SolarTV\n", f"import SolarTV\nimport {previous}\n", 1
+            )
+            if previous
+            else prelude
+        )
+        path.write_text(header + stage)
+        result = run(
+            [
+                "lake",
+                "env",
+                "lean",
+                "-j1",
+                f"--root={directory}",
+                "-o",
+                path.with_suffix(".olean"),
+                path,
+            ],
+            ROOT,
+            timeout,
+            env=env,
+        )
+        stdout.append(result.stdout)
+        if result.returncode:
+            return subprocess.CompletedProcess(
+                result.args, result.returncode, "".join(stdout), result.stderr
+            )
+        previous = path.stem
+    return subprocess.CompletedProcess([], 0, "".join(stdout), "")
+
+
+def projection_proof(
+    name, module, program, nodes, points, edges, result, limit="", *, size=None
+):
     prefix = f"{program} {points}.rows.toArray {edges}.rows.toArray {limit}"
+    if size is not None:
+        check = (
+            f"{module}.checkRow {nodes}.view {points}.view {edges}.view "
+            f"{result}Nodes.view {limit}"
+        )
+        return (
+            check_rows(f"{name}Rows", check, size)
+            + f"""
+theorem {name} : {module}.project {prefix} = some {result} :=
+  {module}.project_rows {prefix}
+    {nodes}.view {points}.view {edges}.view {result} {result}Nodes.view
+    {nodes}Lookup {points}Lookup {edges}Lookup {result}NodesLookup
+    (by decide +kernel) (by rfl) (by rfl)
+    (fun i inside => {name}Rows i (Nat.zero_le _) inside)
+"""
+        )
     return f"""
 theorem {name} : {module}.project {prefix} = some {result} :=
   {module}.project_checked {program} {points}.rows.toArray {edges}.rows.toArray
@@ -111,11 +201,27 @@ theorem {name} : {module}.project {prefix} = some {result} :=
 """
 
 
-def continuation_proof(name, witness, result, *, inherited=False):
+def continuation_proof(name, witness, result, *, inherited=False, chunked=False):
     """Bind the continuation projection to the independently exported graph."""
+    points = witness["points"]
+    shapes = ""
+    if chunked:
+        ids = {}
+        points = []
+        for pc, shape in witness["point_data"]:
+            type_name = f"{name}Shape{len(ids)}"
+            shape = tuple(shape)
+            if shape not in ids:
+                ids[shape] = type_name
+                tags = ",".join(
+                    "none" if tag is None else f"some {tag}" for tag in shape
+                )
+                shapes += f"def {type_name} : EVM.ContinuationFlow.Shape := [{tags}]\n"
+            points.append(f"⟨{pc},{ids[shape]}⟩")
     tables = (
-        table(f"{name}SourceNodes", "EVM.ContinuationFlow.Node", witness["source"])
-        + table(f"{name}Points", "EVM.ContinuationFlow.Point", witness["points"])
+        shapes
+        + table(f"{name}SourceNodes", "EVM.ContinuationFlow.Node", witness["source"])
+        + table(f"{name}Points", "EVM.ContinuationFlow.Point", points)
         + table(f"{name}Edges", "Edges", witness["edges"])
         + f"""
 def {name}Source : EVM.ContinuationFlow.Program :=
@@ -132,6 +238,27 @@ theorem {name}Provenance :
   EVM.ContinuationFlow.inherited_checked {name}Source {name}Points.rows.toArray
     {name}Edges.rows.toArray callerMask {name}SourceNodes.view {name}Points.view {name}Edges.view
     {result} {name}SourceNodesLookup {name}PointsLookup {name}EdgesLookup (by decide +kernel)
+"""
+        )
+    if chunked:
+        check = (
+            f"EVM.ProofTable.checkedRow {result}Nodes.view "
+            f"(fun i => EVM.ContinuationFlow.projectRow {name}SourceNodes.view "
+            f"{name}Points.view {name}Edges.view i)"
+        )
+        return (
+            tables
+            + check_rows(f"{name}ProvenanceRows", check, len(points))
+            + f"""
+theorem {name}Provenance :
+    EVM.ContinuationFlow.project {name}Source {name}Points.rows.toArray
+      {name}Edges.rows.toArray = some {result} :=
+  EVM.ContinuationFlow.project_rows {name}Source {name}Points.rows.toArray
+    {name}Edges.rows.toArray {name}SourceNodes.view {name}Points.view {name}Edges.view
+    {result} {result}Nodes.view
+    {name}SourceNodesLookup {name}PointsLookup {name}EdgesLookup {result}NodesLookup
+    (by decide +kernel) (by rfl) (by rfl)
+    (fun i inside => {name}ProvenanceRows i (Nat.zero_le _) inside)
 """
         )
     return tables + projection_proof(
@@ -179,7 +306,10 @@ def check(
     from .check import PRELUDE, ROOT, build_model, run
     from .source_identity import INTERACTION_OPS, render_nodes
 
-    points, normalized, edges, jump_limit = projections(models)
+    points, normalized, edges, jump_limit = projections(
+        models, limit=16384 if from_entry else 2048
+    )
+    chunked = len(points[0]) > 2048
     signature_table = stack_layout.signatures(normalized[0], catalog)
     entry_bound = (
         0
@@ -202,12 +332,18 @@ def check(
         _, bounds, changed = stack_layout.certificate(
             *normalized, signature_table, entry_bound=entry_bound
         )
-    program_declarations = ""
+    programs_code = []
     for name, model in zip(
         ("before", "after", "old", "new"), (*models, *normalized), strict=True
     ):
         if name == "new" and identical:
-            program_declarations += "def new : Program := old\n"
+            declaration = "def new : Program := old\n"
+            if chunked:
+                declaration += """
+def newNodes := oldNodes
+theorem newNodesLookup : newNodes.view = EVM.ProofTable.ofArray new.nodes := oldNodesLookup
+"""
+            programs_code.append(declaration)
             continue
         root, rows = render_nodes(
             model,
@@ -220,11 +356,11 @@ def check(
             max_growth=4 if bounded else 1,
             inherited=bool(mask),
         )
-        program_declarations += table(f"{name}Nodes", "EVM.SourceGraph.Node", rows)
-        program_declarations += (
-            f"def {name} : Program := ⟨{root},{name}Nodes.rows.toArray⟩\n"
-        )
+        declaration = table(f"{name}Nodes", "EVM.SourceGraph.Node", rows)
+        declaration += f"def {name} : Program := ⟨{root},{name}Nodes.rows.toArray⟩\n"
+        programs_code.append(declaration)
     provenance = ""
+    import_code = []
     provenance_theorems = []
     contextual = ""
     continuation_project = "projectInherited" if mask else "project"
@@ -252,26 +388,30 @@ def check(
         for name, (_, witness) in zip(("before", "after"), continuations, strict=True):
             theorem = f"{name}Provenance"
             provenance_theorems.append(theorem)
-            provenance += continuation_proof(name, witness, name, inherited=bool(mask))
-            provenance += f"#print axioms {theorem}\n"
+            proof = continuation_proof(
+                name, witness, name, inherited=bool(mask), chunked=chunked
+            )
+            proof += f"#print axioms {theorem}\n"
+            import_code.append(proof)
             comparison = witness.get("comparison")
             projection = (
                 f"EVM.ContinuationFlow.{continuation_project} "
                 f"{{source}} {name}Points.rows.toArray {name}Edges.rows.toArray{mask_argument}"
             )
             if comparison:
-                provenance += branch_layout.certificate(name, *comparison)
+                proof = branch_layout.certificate(name, *comparison)
                 provenance_theorems.append(f"{name}Comparisons")
-                provenance += f"#print axioms {name}Comparisons\n"
-                provenance += f"""
-def {name}Imported : Option Program :=
-  (EVM.BranchLayout.normalize {name}Original {name}Sites).bind (fun source =>
-    {projection.format(source="source")})
-theorem {name}Import : {name}Imported = some {name} := by
-  rw [{name}Imported, {name}Comparisons]
-  exact {theorem}
-"""
-                imports.append(f"{name}Imported")
+                proof += f"#print axioms {name}Comparisons\n"
+                import_code.append(proof)
+                source = f"EVM.BranchLayout.normalize {name}Original {name}Sites"
+                project = f"fun source => {projection.format(source='source')}"
+                imported = f"(({source}).bind ({project}))"
+                import_code.append(f"""
+theorem {name}Import : {imported} = some {name} :=
+  (Option.bind_eq_some_iff (x := {source}) (f := {project}) (b := {name})).mpr
+    ⟨{name}Source, {name}Comparisons, {theorem}⟩
+""")
+                imports.append(imported)
                 import_theorems.append(f"{name}Import")
             else:
                 imports.append(f"({projection.format(source=f'{name}Source')})")
@@ -335,7 +475,7 @@ theorem matchingRequests {{Payload Halt : Type}} (view : Payload → EVM.Interac
         + table("targetPoints", "Nat", list(map(str, points[1])))
         + table("transferEdges", "Edges", edges)
     )
-    projections_code = "".join(
+    projections_code = [
         projection_proof(
             f"{name}Projection",
             "EVM.ControlFlow",
@@ -345,12 +485,13 @@ theorem matchingRequests {{Payload Halt : Type}} (view : Payload → EVM.Interac
             "transferEdges",
             name,
             str(jump_limit),
+            size=len(points[0]) if chunked else None,
         )
         for name, source, point_table in (
             ("old", "before", "sourcePoints"),
             ("new", "after", "targetPoints"),
         )
-    )
+    ]
     if identical:
         validity = ""
         match_proof = f"""congrArg (Option.map (fun p : Program => execute p signatures handlers work p.entry {state_value}))
@@ -358,40 +499,49 @@ theorem matchingRequests {{Payload Halt : Type}} (view : Payload → EVM.Interac
     else:
         validity = (
             table("heightBounds", "Nat", list(map(str, bounds)))
-            + f"""
+            + """
 def bounds (i : Nat) : Nat := (heightBounds.get? i).getD 0
-theorem valid : Valid old new id bounds signatures {entry_bound} :=
-  valid_views old new oldNodes.view newNodes.view id bounds signatures {entry_bound}
-    oldNodesLookup newNodesLookup (by decide +kernel) (by rfl) (by decide +kernel)
-    (by decide +kernel)
 """
         )
+        if chunked:
+            validity += check_rows(
+                "matchedHeights",
+                "checkIndex oldNodes.view newNodes.view id bounds signatures",
+                len(bounds),
+            )
+            check = "(fun i inside => matchedHeights i (Nat.zero_le _) inside)"
+            validator = "valid_rows"
+        else:
+            check = "(by decide +kernel)"
+            validator = "valid_views"
+        validity += f"""
+theorem valid : Valid old new id bounds signatures {entry_bound} :=
+  {validator} old new oldNodes.view newNodes.view id bounds signatures {entry_bound}
+    oldNodesLookup newNodesLookup (by decide +kernel) (by rfl) (by decide +kernel)
+    {check}
+"""
         lemma = "contextual_bounded" if bounded else "contextual"
         admission = " (Nat.le_refl 0)" if from_entry else " fits" if callers else ""
         match_proof = f"""EVM.ControlFlow.{lemma} before after old new sources targets edges {jump_limit}
     signatures bounds oldProjection newProjection valid handlers work {state_value}{admission}"""
     prelude = (
         PRELUDE
-        + """
+        + f"""
 open EVM.SourceGraph (Program)
 open EVM.StackGraph EVM.ControlFlow
 noncomputable section
-set_option maxRecDepth 16384
+set_option maxRecDepth {65536 if chunked else 16384}
 set_option maxHeartbeats 3500000
 """
     )
-    code = (
-        prelude
-        + f"""
-{program_declarations}
-{provenance}
+    common = f"""
 {tables}
 def sources : Array Nat := sourcePoints.rows.toArray
 def targets : Array Nat := targetPoints.rows.toArray
 def edges : Array Edges := transferEdges.rows.toArray
 {signatures_declaration(signature_table, catalog)}
-{projections_code}
-{validity}
+"""
+    final = f"""
 theorem matched {{World Observation : Type}} (handlers : Handlers World Observation)
     (work : Nat) {state_argument} :
     (project before sources edges {jump_limit}).map
@@ -404,9 +554,8 @@ theorem matched {{World Observation : Type}} (handlers : Handlers World Observat
 #print axioms EVM.ControlFlow.resolve_edge
 {contextual}
 """
-    )
     if callers:
-        code += f"""
+        final += f"""
 theorem matchedAtCaller {{World Observation : Type}} (handlers : Handlers World Observation)
     (work : Nat) (state : State World) {{pc : Nat}}
     (reaches : EVM.StackReachability.Reaches BeforeFrame.graph BeforeFrame.signatures
@@ -429,22 +578,35 @@ theorem matchedAtCaller {{World Observation : Type}} (handlers : Handlers World 
             for name, caller in zip(
                 ("BeforeFrame", "AfterFrame"), callers, strict=True
             ):
-                code += entry_stack.mask_proof(name, caller)
-                code += f"#print axioms {name}.callerLayout\n"
+                final += entry_stack.mask_proof(name, caller)
+                final += f"#print axioms {name}.callerLayout\n"
                 provenance_theorems.append(f"{name}.callerLayout")
     built = build_model(timeout)
     if built.returncode:
         raise Unsupported(built.stdout + built.stderr)
     with tempfile.TemporaryDirectory(prefix="solar-tv-cfg-flow-") as folder:
-        proof = Path(folder) / "Pair.lean"
-        env = None
-        if callers:
-            imports, env = entry_stack.compile_callers(
-                proof.parent, callers, catalog, entry_bound, prelude, timeout
-            )
-            code = code.replace("import SolarTV\n", "import SolarTV\n" + imports, 1)
-        proof.write_text(code)
-        result = run(["lake", "env", "lean", "-j1", proof], ROOT, timeout, env=env)
+        stages = [
+            *programs_code,
+            provenance,
+            *import_code,
+            common,
+            *projections_code,
+            validity,
+            final,
+        ]
+        if chunked:
+            result = check_stages(Path(folder), prelude, stages, timeout)
+        else:
+            code = prelude + "\n".join(stages)
+            proof = Path(folder) / "Pair.lean"
+            env = None
+            if callers:
+                imports, env = entry_stack.compile_callers(
+                    proof.parent, callers, catalog, entry_bound, prelude, timeout
+                )
+                code = code.replace("import SolarTV\n", "import SolarTV\n" + imports, 1)
+            proof.write_text(code)
+            result = run(["lake", "env", "lean", "-j1", proof], ROOT, timeout, env=env)
     if result.returncode:
         raise Unsupported(
             "control-flow path certificate did not close\n"

@@ -58,7 +58,7 @@ def render_nodes(
     rows = model.get("nodes", [])
     if (
         set(model) != {"entry", "nodes"}
-        or not 1 <= len(rows) <= (16384 if from_entry else 4096)
+        or not 1 <= len(rows) <= (32768 if from_entry else 4096)
         or any(
             not isinstance(row, dict) or type(row.get("id")) is not int for row in rows
         )
