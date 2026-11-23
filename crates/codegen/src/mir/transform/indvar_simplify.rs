@@ -113,7 +113,7 @@ use crate::{
         ArithmeticKind, BlockId, CheckedOp, Function, FunctionBuilder, Immediate, InstId, InstKind,
         Instruction, MemoryRegion, MirType, Module, Terminator, Value, ValueId,
         analysis::{
-            AffineTerm, AliasAnalysis, CfgInfo, InductionVariable, Loop, LoopAnalyzer,
+            AffineTerm, AliasAnalysis, CfgInfo, InductionVariable, Loop, LoopAnalyzer, MemoryBase,
             ScalarEvolution, integers::unsigned_bounds,
         },
         pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
@@ -1261,11 +1261,27 @@ impl IndVarSimplifier {
         }
     }
 
-    /// Whether `value` has proven heap provenance, so scaling a bounded index cannot wrap.
+    /// Whether `value` is a constant offset from a heap root: an allocation, a read of the free
+    /// memory pointer or a heap pointer stored in memory, or the heap floor, all far below the
+    /// wrap point, so adding a bounded scaled index cannot wrap. A heap address whose base adds a
+    /// symbolic word, such as `mload(64)` plus a calldata word, may lie anywhere.
+    // NOTE: Allocations keep the free memory pointer below 2^64 and revert past it, so a pointer
+    // that assembly moves near the wrap point breaks the memory model this test relies on.
     fn is_heap_address(&self, func: &Function, value: ValueId) -> bool {
-        self.alias
-            .memory_address(func, value)
-            .is_some_and(|address| address.region == MemoryRegion::Heap)
+        self.alias.memory_address(func, value).is_some_and(|address| {
+            address.region == MemoryRegion::Heap
+                && match address.base {
+                    MemoryBase::Allocation(_)
+                    | MemoryBase::DynamicAllocation(_)
+                    | MemoryBase::FreeMemory(_) => true,
+                    MemoryBase::Value(root) => matches!(
+                        func.value(root),
+                        Value::Inst(inst)
+                            if matches!(func.inst(*inst).kind, InstKind::Load(..) | InstKind::HeapFloor)
+                    ),
+                    _ => false,
+                }
+        })
     }
 
     /// Appends to `block` the pointer's value at `index`:
