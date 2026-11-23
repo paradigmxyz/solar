@@ -2348,7 +2348,12 @@ impl<'p, 'a> Vc<'p, 'a> {
                 let mod_locals = self.split_locals();
                 self.env.extend(fn_locals);
                 self.frames.push(Frame { rets: f.rets.clone(), exits: vec![] });
-                self.exec_fn_body(f, i)?;
+                // The modifier's storage pointers stay bound across `_`: what the function body
+                // declares of their names is its own.
+                let ptrs = (self.slocals.clone(), self.aliases.clone(), self.alias_env.clone());
+                let r = self.exec_fn_body(f, i);
+                (self.slocals, self.aliases, self.alias_env) = ptrs;
+                r?;
                 let fr = self.frames.pop().unwrap();
                 let mut st = fr.exits;
                 st.push((self.guard.clone(), self.env.clone()));

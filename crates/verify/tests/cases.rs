@@ -1270,3 +1270,8 @@ fn for_init_pointer() {
 fn callee_local_scope() {
     check("tests/cases/callee_local_scope.sol")
 }
+
+#[test]
+fn modifier_pointer_scope() {
+    check("tests/cases/modifier_pointer_scope.sol")
+}
