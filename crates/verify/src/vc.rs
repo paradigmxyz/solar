@@ -130,6 +130,13 @@ pub(crate) struct Vc<'p, 'a> {
     lock_modset: std::cell::Cell<bool>,
     /// Calls `loop_targets` found writing a memory reference argument: (callee, argument root).
     mem_call_writes: std::cell::RefCell<Vec<(String, String)>>,
+    /// `mem_param_written` answers, by function item address and parameter (see there).
+    mem_written: std::cell::RefCell<FxHashMap<(usize, String), bool>>,
+    /// While `mem_param_writes` walks a body, the calls it meets that pass a memory object to
+    /// a memory parameter: callee, parameter, and the roots of the argument. Such a walk asks
+    /// only that, so `call_effects` records the call instead of asking about the callee, and
+    /// skips the callee's state writes (`modset_raw`), which never name a parameter.
+    mem_walk: std::cell::RefCell<Option<MemCalls<'p, 'a>>>,
     pub split_wins: usize,
     ranges: FxHashMap<String, crate::interval::Interval>,
     defs: FxHashMap<String, String>,
@@ -148,6 +155,8 @@ pub(crate) struct Vc<'p, 'a> {
     host: &'p Contract<'a>,
     /// storage-pointer locals (and storage return variables) of the running function
     slocals: FxHashSet<String>,
+    /// calldata parameters of the function being verified
+    cd_params: FxHashSet<String>,
     /// values of the callee's names a pointer returned by a function was built from
     alias_env: FxHashMap<String, Env>,
     /// the location a just-inlined function's storage return points at
@@ -275,6 +284,8 @@ impl<'p, 'a> Vc<'p, 'a> {
             in_ctor: false,
             lock_modset: std::cell::Cell::new(false),
             mem_call_writes: Default::default(),
+            mem_written: Default::default(),
+            mem_walk: Default::default(),
             ranges: Default::default(),
             defs: Default::default(),
             warnings: vec![],
@@ -287,6 +298,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             host: c,
             cur: vec![],
             slocals: FxHashSet::default(),
+            cd_params: FxHashSet::default(),
             alias_env: Default::default(),
             ret_alias: None,
             ret_alias_out: None,
@@ -1613,6 +1625,15 @@ impl<'p, 'a> Vc<'p, 'a> {
                 self.slocals.insert(n.clone());
             }
         }
+        self.cd_params = f
+            .item
+            .header
+            .parameters
+            .iter()
+            .zip(&f.params)
+            .filter(|(p, _)| p.data_location == Some(ast::DataLocation::Calldata))
+            .map(|(_, (n, _))| n.clone())
+            .collect();
         let c = self.c;
         if ctor {
             for sv in c.state.iter().filter(|s| !s.constant) {
@@ -2519,6 +2540,16 @@ impl<'p, 'a> Vc<'p, 'a> {
     ) {
         // A memory object passed by reference: what the callee writes through its parameter the
         // caller sees through its own name, so a loop that makes the call changes that name.
+        if let Some(calls) = self.mem_walk.borrow_mut().as_mut() {
+            for (i, p) in f.item.header.parameters.iter().enumerate() {
+                if Self::mem_ref_param(p, &f.params[i].1)
+                    && let Some(a) = args.get(i)
+                {
+                    calls.push((f, f.params[i].0.clone(), walk::root(a)));
+                }
+            }
+            return;
+        }
         for (i, p) in f.item.header.parameters.iter().enumerate() {
             if Self::mem_ref_param(p, &f.params[i].1)
                 && self.mem_param_written(f, &f.params[i].0)
@@ -4068,6 +4099,8 @@ impl<'p, 'a> Vc<'p, 'a> {
                     if bn == "abi" {
                         // the encoded bytes of abi.decode, as a term
                         let mut decode_src: Option<String> = None;
+                        // and their length, when they are bytes
+                        let mut decode_len: Option<String> = None;
                         for (ai, a) in
                             argv.iter().enumerate().take(if m == "decode" { 1 } else { argv.len() })
                         {
@@ -4087,6 +4120,11 @@ impl<'p, 'a> Vc<'p, 'a> {
                             if !fref {
                                 if m == "decode" && ai == 0 {
                                     let v = self.eval(a)?;
+                                    if v.ty == Ty::Opaque {
+                                        decode_len = Some(
+                                            v.len.clone().unwrap_or_else(|| self.opaque_len(&v.t)),
+                                        );
+                                    }
                                     if v.ty.sort() == "Int" {
                                         decode_src = Some(v.t);
                                     }
@@ -4096,9 +4134,6 @@ impl<'p, 'a> Vc<'p, 'a> {
                             }
                         }
                         if m == "decode" && argv.len() == 2 {
-                            // Decoding reverts on data too short or not of the types' ranges,
-                            // which the untracked bytes do not tell.
-                            self.reverts_if("true");
                             // decoded values are arbitrary values of their types
                             let tys: Vec<&'a Expr<'a>> = match &argv[1].peel_parens().kind {
                                 ExprKind::Tuple(xs) if xs.len() != 1 => xs
@@ -4180,6 +4215,19 @@ impl<'p, 'a> Vc<'p, 'a> {
                                 } else {
                                     out.push(self.fresh_var("decoded", &ty));
                                 }
+                            }
+                            // Decoding reverts on data too short or not of the types' ranges.
+                            // Every word is a valid `uint256`, `int256` or `bytes32`, so data of
+                            // those alone reverts exactly when it is shorter than their words; of
+                            // any other type, the untracked bytes do not tell.
+                            let words = out.iter().all(|v| {
+                                matches!(v.ty, Ty::Uint(256) | Ty::Int(256) | Ty::Bytes(256))
+                            });
+                            match &decode_len {
+                                Some(len) if words => {
+                                    self.reverts_if(&format!("(< {len} {})", 32 * out.len()))
+                                }
+                                _ => self.reverts_if("true"),
                             }
                             return Ok(out);
                         }
@@ -4615,11 +4663,15 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             // a memory object passed by reference: the caller's name for it sees the writes
             match &args[i].peel_parens().kind {
+                // storage or calldata passed to a memory parameter is copied into new memory:
+                // what the callee writes there never reaches the caller's
+                _ if self.copied_into_memory(args[i]) => {}
                 ExprKind::Ident(_) | ExprKind::Member(..) | ExprKind::Index(..) => {
                     self.assign(args[i], v)?
                 }
                 // a fresh object: nothing of the caller names it
                 ExprKind::New(_) | ExprKind::Array(_) => {}
+                _ if Self::fresh_memory(args[i]) || self.fresh_call(args[i]) => {}
                 _ if !self.mem_param_written(f, &f.params[i].0) => {}
                 _ => {
                     return Err((
@@ -4633,6 +4685,134 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
         }
         Ok(())
+    }
+
+    /// Whether `e` allocates the memory object it evaluates to, so that no other name refers to
+    /// it: `new T(..)`, and the `abi.encode*`, `bytes.concat` and `string.concat` builtins,
+    /// which copy their arguments into a new `bytes` or `string`.
+    fn fresh_memory(e: &Expr<'_>) -> bool {
+        let ExprKind::Call(callee, _) = &e.peel_parens().kind else {
+            return false;
+        };
+        match &callee.peel_parens().kind {
+            ExprKind::New(_) => true,
+            ExprKind::Member(b, m) => match &b.peel_parens().kind {
+                ExprKind::Ident(i) => {
+                    i.name == sym::abi
+                        && matches!(
+                            m.as_str(),
+                            "encode"
+                                | "encodePacked"
+                                | "encodeWithSelector"
+                                | "encodeWithSignature"
+                                | "encodeCall"
+                        )
+                }
+                ExprKind::Type(t) => {
+                    m.as_str() == "concat"
+                        && matches!(
+                            t.kind,
+                            ast::TypeKind::Elementary(
+                                ast::ElementaryType::Bytes | ast::ElementaryType::String
+                            )
+                        )
+                }
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    /// Whether `e` names storage or calldata, which passing it to a memory parameter copies: its
+    /// roots are state variables (names the verifier always reads as state, see
+    /// `split_locals`), storage pointers, or calldata parameters of the function being verified.
+    fn copied_into_memory(&self, e: &'a Expr<'a>) -> bool {
+        if !matches!(
+            e.peel_parens().kind,
+            ExprKind::Ident(_) | ExprKind::Member(..) | ExprKind::Index(..)
+        ) {
+            return false;
+        }
+        let roots = walk::root(e);
+        !roots.is_empty()
+            && roots.iter().all(|r| {
+                self.c.state.iter().any(|s| s.name == *r)
+                    || self.slocals.contains(r)
+                    || self.cd_params.contains(r)
+            })
+    }
+
+    /// Whether `e` is an internal call, by name, whose every candidate callee returns a memory
+    /// object it allocated (see `returns_fresh`), so that no name of the caller refers to it.
+    fn fresh_call(&self, e: &'a Expr<'a>) -> bool {
+        let ExprKind::Call(callee, args) = &e.peel_parens().kind else {
+            return false;
+        };
+        let ExprKind::Ident(id) = &callee.peel_parens().kind else {
+            return false;
+        };
+        let nargs = args.exprs().count();
+        let mut fs = self
+            .c
+            .funcs
+            .iter()
+            .filter(|f| {
+                f.name == id.as_str() && f.params.len() == nargs && !f.item.kind.is_modifier()
+            })
+            .peekable();
+        fs.peek().is_some() && fs.all(|f| self.returns_fresh(f))
+    }
+
+    /// Whether `f` returns one memory object that only it can name: its one return value is a
+    /// named variable (which starts as a new object) or `return e` of a fresh object, and the body
+    /// only reads and writes the variable's elements and fields, or assigns it a fresh object. Any
+    /// other use (passing it to a call, storing it, returning it from a tuple) or any assembly
+    /// could leave another name for it. Its elements or fields must be values, since reading one
+    /// that is a memory reference (`p.inner = r.inner`) would name part of it elsewhere.
+    fn returns_fresh(&self, f: &Func<'_>) -> bool {
+        let Some(body) = &f.item.body else {
+            return false;
+        };
+        let rets = f.item.header.returns();
+        if rets.len() != 1 || !Self::mem_ref_param(&rets[0], &f.rets[0].1) {
+            return false;
+        }
+        let value = |t: &Ty| !matches!(t, Ty::Arr(..) | Ty::Struct(_) | Ty::Opaque);
+        let flat = match &f.rets[0].1 {
+            Ty::Arr(e, _) => value(e),
+            Ty::Struct(n) => {
+                self.prog.struct_fields(n).is_some_and(|fs| fs.iter().all(|(_, t)| value(t)))
+            }
+            _ => true,
+        };
+        if !flat {
+            return false;
+        }
+        let name = rets[0].name.map(|n| n.as_str().to_string());
+        let is_r = |e: &Expr<'_>| matches!(&e.peel_parens().kind, ExprKind::Ident(i) if Some(i.as_str()) == name.as_deref());
+        let (mut ok, mut uses, mut allowed) = (true, 0usize, 0usize);
+        for s in body.stmts.iter() {
+            walk::all_stmts(s, &mut |s| {
+                match &s.kind {
+                    StmtKind::Assembly(_) => ok = false,
+                    StmtKind::Return(Some(e)) if is_r(e) => allowed += 1,
+                    StmtKind::Return(Some(e)) => ok &= Self::fresh_memory(e),
+                    _ => {}
+                }
+                walk::stmt_exprs(s, &mut |e| {
+                    walk::sub_exprs(e, &mut |x| match &x.kind {
+                        ExprKind::Ident(_) if is_r(x) => uses += 1,
+                        ExprKind::Index(b, _) | ExprKind::Member(b, _) if is_r(b) => allowed += 1,
+                        ExprKind::Assign(l, None, r) if is_r(l) => {
+                            ok &= Self::fresh_memory(r);
+                            allowed += 1;
+                        }
+                        _ => {}
+                    })
+                });
+            });
+        }
+        ok && uses == allowed
     }
 
     /// Memory references are values in this encoding, so two names for one memory object would
@@ -4791,10 +4971,71 @@ impl<'p, 'a> Vc<'p, 'a> {
     /// May the body of `f` change the memory object its parameter `n` refers to? Syntactic and
     /// conservative: a write rooted at `n`, passing it on to a call, any assembly, or copying the
     /// reference into another variable (which may then write it) all count.
+    ///
+    /// A callee's parameter is written when its own body writes it or passes it on to one that
+    /// is, so the answer is the least fixed point over the calls reachable from `f`: call cycles
+    /// (recursion, or a function pointer, which may hold any function of its arity) are solved
+    /// once rather than walked again at every call.
     fn mem_param_written(&self, f: &'p Func<'a>, n: &str) -> bool {
+        let key = |f: &Func<'_>, n: &str| (std::ptr::from_ref(f.item).addr(), n.to_string());
+        if let Some(&w) = self.mem_written.borrow().get(&key(f, n)) {
+            return w;
+        }
+        // Each question reachable from this one, with whether its body writes the parameter
+        // itself and the callee parameters it passes the parameter's object to.
+        let mut nodes: FxHashMap<MemKey, (bool, Vec<MemKey>)> = FxHashMap::default();
+        let mut work = vec![(f, n.to_string())];
+        while let Some((g, m)) = work.pop() {
+            let k = key(g, &m);
+            if nodes.contains_key(&k) || self.mem_written.borrow().contains_key(&k) {
+                continue;
+            }
+            let (direct, calls) = self.mem_param_writes(g, &m);
+            let succ = calls.iter().map(|(h, q)| key(h, q)).collect();
+            work.extend(calls);
+            nodes.insert(k, (direct, succ));
+        }
+        let mut written: FxHashMap<(usize, String), bool> =
+            nodes.iter().map(|(k, (d, _))| (k.clone(), *d)).collect();
+        loop {
+            let mut grew = false;
+            for (k, (_, succ)) in &nodes {
+                if !written[k]
+                    && succ.iter().any(|s| {
+                        written.get(s).or(self.mem_written.borrow().get(s)).copied() == Some(true)
+                    })
+                {
+                    written.insert(k.clone(), true);
+                    grew = true;
+                }
+            }
+            if !grew {
+                break;
+            }
+        }
+        let mut done = self.mem_written.borrow_mut();
+        done.extend(written);
+        done[&key(f, n)]
+    }
+
+    /// Whether `f`'s own body writes its memory parameter `n` (see `mem_param_written`), and
+    /// the callee parameters it passes `n`'s object to, which write it if they write theirs.
+    fn mem_param_writes(&self, f: &'p Func<'a>, n: &str) -> (bool, Vec<(&'p Func<'a>, String)>) {
         let Some(body) = &f.item.body else {
-            return true;
+            return (true, vec![]);
         };
+        let outer = self.mem_walk.replace(Some(vec![]));
+        let direct = self.mem_param_written_body(body, n);
+        let calls = std::mem::replace(&mut *self.mem_walk.borrow_mut(), outer).unwrap_or_default();
+        let calls = calls
+            .into_iter()
+            .filter(|(_, _, roots)| roots.iter().any(|r| r == n))
+            .map(|(g, q, _)| (g, q))
+            .collect();
+        (direct, calls)
+    }
+
+    fn mem_param_written_body(&self, body: &'a ast::Block<'a>, n: &str) -> bool {
         let is_n =
             |e: &Expr<'_>| matches!(&e.peel_parens().kind, ExprKind::Ident(i) if i.as_str() == n);
         let mut hit = false;
@@ -6302,3 +6543,10 @@ fn bv_view(
 
 /// Modifier lists with the parameter bindings they run under.
 type ModifierSources<'a> = Vec<(&'a [ast::Modifier<'a>], Vec<(String, Ty, Val)>)>;
+
+/// A memory parameter, by its function's item address and its name.
+type MemKey = (usize, String);
+
+/// Calls a body walk met that pass a memory object to a memory parameter: callee, parameter,
+/// and the roots of the argument.
+type MemCalls<'p, 'a> = Vec<(&'p Func<'a>, String, Vec<String>)>;

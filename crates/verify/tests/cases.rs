@@ -1147,3 +1147,13 @@ fn loop_heads() {
 fn struct_names_scoped() {
     check("tests/cases/struct_names_scoped.sol")
 }
+
+#[test]
+fn mem_alias_fresh() {
+    check("tests/cases/mem_alias_fresh.sol")
+}
+
+#[test]
+fn mem_param_cycle() {
+    check("tests/cases/mem_param_cycle.sol")
+}
