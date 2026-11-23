@@ -128,9 +128,9 @@ pub(crate) struct Vc<'p, 'a> {
     /// While computing what entry points open under the reentrancy lock may write: their external
     /// calls run under the same lock, so they reach only those entry points again.
     lock_modset: std::cell::Cell<bool>,
-    /// every name a function-typed variable declares anywhere in the program (see
-    /// `ptr_names`)
-    ptr_names: std::cell::OnceCell<FxHashSet<String>>,
+    /// Every name each body `modset_raw` or `mem_param_writes` is walking declares, innermost
+    /// last; empty while `effects` walks the running body, whose names are `frame_names`.
+    effect_frames: std::cell::RefCell<Vec<FxHashSet<String>>>,
     /// Calls `loop_targets` found writing a memory reference argument: (callee, argument root).
     mem_call_writes: std::cell::RefCell<Vec<(String, String)>>,
     /// `mem_param_written` answers, by function item address and parameter (see there).
@@ -290,7 +290,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             try_call: None,
             in_ctor: false,
             lock_modset: std::cell::Cell::new(false),
-            ptr_names: std::cell::OnceCell::new(),
+            effect_frames: Default::default(),
             mem_call_writes: Default::default(),
             mem_written: Default::default(),
             mem_walk: Default::default(),
@@ -2439,12 +2439,9 @@ impl<'p, 'a> Vc<'p, 'a> {
                             .chain(free)
                             .filter(|f| f.name == n && f.params.len() == argv.len())
                             .collect();
-                        // a function pointer, or a function-typed variable that may shadow the
-                        // functions of that name wherever this call runs (a local or parameter
-                        // of the running body or of any callee): any function it may hold
-                        if (named.is_empty() && !self.names_no_pointer(n))
-                            || self.ptr_names().contains(n)
-                        {
+                        // a function pointer, or a variable of the body this call is in that
+                        // shadows the functions of that name: any function it may hold
+                        if (named.is_empty() && !self.names_no_pointer(n)) || self.var_named(n) {
                             self.ptr_call_effects(&argv, out, all, seen);
                         }
                         for f in named {
@@ -2515,44 +2512,15 @@ impl<'p, 'a> Vc<'p, 'a> {
         }
     }
 
-    /// Every name a function-typed parameter, return, local or try/catch clause parameter of any
-    /// function, modifier or constructor declares. A bare call by such a name may run through that
-    /// variable rather than the functions of the name, wherever the variable is in scope.
-    fn ptr_names(&self) -> &FxHashSet<String> {
-        self.ptr_names.get_or_init(|| {
-            let is_ptr = |v: &ast::VariableDefinition<'_>| {
-                matches!(v.ty.kind, ast::TypeKind::Function(_))
-                    .then(|| v.name.map(|n| n.as_str().to_string()))
-                    .flatten()
-            };
-            let mut names = FxHashSet::default();
-            let items = self
-                .prog
-                .contracts
-                .iter()
-                .flat_map(|c| c.funcs.iter().chain(c.overridden.iter()))
-                .map(|f| f.item);
-            for item in items {
-                for p in item.header.parameters.iter().chain(item.header.returns().iter()) {
-                    names.extend(is_ptr(p));
-                }
-                for s in item.body.iter().flat_map(|b| b.stmts.iter()) {
-                    walk::all_stmts(s, &mut |s| match &s.kind {
-                        StmtKind::DeclSingle(v) => names.extend(is_ptr(v)),
-                        StmtKind::DeclMulti(vs, _) => names.extend(
-                            vs.iter().filter_map(|v| v.as_ref().unspan()).filter_map(is_ptr),
-                        ),
-                        StmtKind::Try(t) => {
-                            for c in t.clauses.iter() {
-                                names.extend(c.args.iter().filter_map(is_ptr));
-                            }
-                        }
-                        _ => {}
-                    });
-                }
-            }
-            names
-        })
+    /// Whether `n` names a variable where the call `effects` meets runs: one the body being
+    /// walked declares (any declaration, as a call by a non-function name does not compile), or a
+    /// function-typed state variable, which may shadow a free function.
+    fn var_named(&self, n: &str) -> bool {
+        let declared = match self.effect_frames.borrow().last() {
+            Some(names) => names.contains(n),
+            None => self.frame_names.contains(n),
+        };
+        declared || self.c.state.iter().any(|v| v.name == n && matches!(v.ty, Ty::Fn(_)))
     }
 
     /// Whether calling `n(..)` is no call through a function pointer: a builtin, a type
@@ -2852,6 +2820,14 @@ impl<'p, 'a> Vc<'p, 'a> {
                 stmts.extend(b.stmts.iter());
             }
         }
+        // calls in these bodies see their names, not the caller's
+        let mut names = Self::frame_of(f.item).1;
+        for m in f.item.header.modifiers.iter() {
+            if let Some(md) = self.c.modifiers.get(m.name.last().as_str()) {
+                names.extend(Self::frame_of(md).1);
+            }
+        }
+        self.effect_frames.borrow_mut().push(names);
         for s in &stmts {
             walk::all_stmts(s, &mut |s| {
                 walk::stmt_exprs(s, &mut |e| {
@@ -2869,6 +2845,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 }
             });
         }
+        self.effect_frames.borrow_mut().pop();
         if all {
             return None;
         }
@@ -5164,7 +5141,9 @@ impl<'p, 'a> Vc<'p, 'a> {
             return (true, vec![]);
         };
         let outer = self.mem_walk.replace(Some(vec![]));
+        self.effect_frames.borrow_mut().push(Self::frame_of(f.item).1);
         let direct = self.mem_param_written_body(body, n);
+        self.effect_frames.borrow_mut().pop();
         let calls = std::mem::replace(&mut *self.mem_walk.borrow_mut(), outer).unwrap_or_default();
         let calls = calls
             .into_iter()

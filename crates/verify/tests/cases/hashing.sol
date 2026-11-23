@@ -159,6 +159,26 @@ contract EncodeWrites {
         a[0] = x;
         r = keccak256(abi.encode(a, _peek(a)));
     }
+
+    // The pointer locals named `_touch` above are not in scope here, so this runs the no-op.
+    /// @custom:ensures r == keccak256(abi.encode(x, uint256(2)))
+    function ok_unrelated_ptr_name(uint256 x) external pure returns (bytes32 r) {
+        uint256[1] memory a;
+        a[0] = x;
+        r = keccak256(abi.encode(a, _touch(a)));
+    }
+}
+
+/// A pointer local of another contract named like `EncodeWrites._peek` leaves its calls exact.
+contract PeekPointer {
+    function id(uint256 v) internal pure returns (uint256) {
+        return v;
+    }
+
+    function unused(uint256 v) internal pure returns (uint256) {
+        function(uint256) pure returns (uint256) _peek = id;
+        return _peek(v);
+    }
 }
 
 /// The signature's selector is all `encodeWithSignature` encodes, and distinct signatures can share it.
