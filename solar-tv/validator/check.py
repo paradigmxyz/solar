@@ -685,6 +685,11 @@ def main() -> int:
         action="store_true",
         help="compare EVM region requests under shared interaction responses",
     )
+    parser.add_argument(
+        "--entry-stack",
+        action="store_true",
+        help="derive a compact PUSH region's stack bound from both physical entries",
+    )
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument(
         "--function", help="check one function in the full MIR module"
@@ -697,6 +702,11 @@ def main() -> int:
     )
     selection.add_argument(
         "--region", help="check a complete acyclic EVM CFG from a stable entry label"
+    )
+    selection.add_argument(
+        "--entry-trace",
+        action="store_true",
+        help="check compact PUSH recipes from the physical EVM entry with an empty stack",
     )
     selection.add_argument(
         "--prefix", help="prove a block prefix for every incoming stack"
@@ -758,6 +768,8 @@ def main() -> int:
         prune=args.prune,
         debug_reverts=args.debug_reverts,
         interaction_trace=args.interaction_trace,
+        entry_trace=args.entry_trace,
+        entry_stack=args.entry_stack,
     )
     programs: list[Program] = []
     model = audit.semantics()
@@ -793,8 +805,57 @@ def main() -> int:
             prune=args.prune,
             debug_reverts=args.debug_reverts,
             interaction_trace=args.interaction_trace,
+            entry_trace=args.entry_trace,
+            entry_stack=args.entry_stack,
         )
-        if args.interaction_trace:
+        if args.entry_stack:
+            if (
+                args.ir != "evmir"
+                or not args.region
+                or args.gas is not None
+                or args.world is not None
+                or args.stack_height is not None
+            ):
+                raise Unsupported("--entry-stack requires an unpriced EVM IR region")
+            from . import compact_pushes
+
+            result = compact_pushes.check(
+                (args.before, args.after),
+                solar,
+                rust_replay,
+                version,
+                args.timeout,
+                args.region,
+                None,
+                interactions=args.interaction_trace,
+                bound_from_entry=True,
+            )
+            programs = list(result.pair)
+        elif args.entry_trace:
+            if (
+                args.ir != "evmir"
+                or args.gas is not None
+                or args.world is not None
+                or args.stack_height is not None
+                or args.interaction_trace
+            ):
+                raise Unsupported(
+                    "--entry-trace requires unpriced EVM IR from an empty entry stack"
+                )
+            from . import compact_pushes
+
+            result = compact_pushes.check(
+                (args.before, args.after),
+                solar,
+                rust_replay,
+                version,
+                args.timeout,
+                None,
+                None,
+                interactions=True,
+            )
+            programs = list(result.pair)
+        elif args.interaction_trace:
             if (
                 args.ir != "evmir"
                 or not args.region

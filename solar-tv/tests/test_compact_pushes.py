@@ -203,6 +203,125 @@ example : CompactPushes.scan projected.view .cancun relocated [.push 0] 0 = none
         )
         self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
 
+    def test_physical_entry_supplies_stack_bound_and_return(self):
+        self.before.write_text(f"""@module EntryRecipe
+bb51:
+  push bb4
+  jump bb3
+bb3 [ret=0, inputs=1, outputs=0]:
+  push 0x11223344{"00" * 28}
+  dup 1
+  push 0
+  mstore
+  pop
+  jump
+bb4 [continuation]:
+  push 32
+  push 0
+  return
+""")
+        after = self.compact("cancun")
+        result, record = self.check("cancun", "--region=bb3")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        result, record = self.check("cancun", "--entry-trace")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(record["region"]["kind"], "entry")
+        self.assertEqual(record["region"]["name"], "bb51")
+        for side in record["import_correspondence"]:
+            self.assertEqual(side["block_labels"], [3, 4, 51])
+            self.assertEqual(side["entry_height_bound"], 0)
+            self.assertEqual(side["resolved_returns"], 1)
+            self.assertLess(side["max_projected_stack_bound"], 1024)
+        wrong = after.replace("push 224\n  shl", "push 223\n  shl")
+        self.assertNotEqual(wrong, after)
+        self.after.write_text(wrong)
+        result, record = self.check("cancun", "--entry-trace")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("--entry-trace", record["diagnostic"])
+        world = self.root / "world.json"
+        world.write_text('{"version":1}')
+        result, record = self.check("cancun", "--world", world)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+
+    def test_entry_trace_preserves_immutable_slot_and_width(self):
+        self.before.write_text(f"""@module ImmutableRecipe
+bb5:
+  push_immutable 3, 32
+  push {MAX}
+  and
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+""")
+        after = self.compact("cancun")
+        result, _ = self.check("cancun", "--entry-trace")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for change in ("push_immutable 4, 32", "push_immutable 3, 20", "push 3"):
+            with self.subTest(change=change):
+                self.after.write_text(after.replace("push_immutable 3, 32", change))
+                result, record = self.check("cancun", "--entry-trace")
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn(
+                    "changes a reachable nonliteral action", record["diagnostic"]
+                )
+
+    def test_region_uses_bounds_from_both_callers(self):
+        self.before.write_text(f"""@module CallerStack
+bb10:
+  push 42
+  jump bb8
+bb8:
+  push 0x11223344{"00" * 28}
+  pop
+  stop
+""")
+        after = self.compact("cancun")
+        result, record = self.check("cancun", "--region=bb8")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        result, record = self.check("cancun", "--region=bb8", "--entry-stack")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            record["region"]["proof"], "kernel-checked-compact-pushes-entry-bound"
+        )
+        left, right = record["import_correspondence"]
+        self.assertEqual(left["caller_stack"]["max_height"], 2)
+        self.assertEqual(right["caller_stack"]["max_height"], 3)
+
+        grown = after.replace("  push 42\n", "  push 42\n" * 1023)
+        self.assertNotEqual(grown, after)
+        self.after.write_text(grown)
+        result, record = self.check("cancun", "--region=bb8", "--entry-stack")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("may overflow", record["diagnostic"])
+
+    def test_kernel_rejects_an_understated_caller_bound(self):
+        checked = build_model(30)
+        self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
+        proof = self.root / "Height.lean"
+        proof.write_text("""import SolarTV
+open SolarTV.EVM StackReachability
+def rows : Array SourceGraph.Node := #[.operation 0 "push 42" 1, .terminal 0 "stop"]
+def graph := ProofTable.ofArray rows
+def signatures : StackGraph.Signatures :=
+  fun name => if name == "push 42" then some (0,1) else none
+def heights (index : Nat) := if index = 0 then 0 else 1
+example : (List.range graph.size).all (closedAt graph signatures heights 1) = true :=
+  by decide +kernel
+example : closedAt graph signatures (fun _ => 0) 0 0 = false := by decide +kernel
+""")
+        checked = subprocess.run(
+            ["lake", "env", "lean", "-j1", proof],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+        self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
+
     def test_emitted_recipe_overflows_the_real_stack_limit_fixture(self):
         fixture = (
             ROOT.parent / "tests/ui/codegen/evm-ir/compact-pushes/stack_limit.evmir"

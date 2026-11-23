@@ -210,6 +210,8 @@ def replay_command(
     prune: bool = False,
     debug_reverts: bool = False,
     interaction_trace: bool = False,
+    entry_trace: bool = False,
+    entry_stack: bool = False,
 ) -> str:
     checker = Path(__file__).resolve().parents[1] / "solar-tv"
     argv = [
@@ -234,6 +236,10 @@ def replay_command(
         argv.append("--debug-reverts")
     if interaction_trace:
         argv.append("--interaction-trace")
+    if entry_trace:
+        argv.append("--entry-trace")
+    if entry_stack:
+        argv.append("--entry-stack")
     if world is not None:
         argv.extend(["--world", str(world.resolve())])
     if gas is not None:

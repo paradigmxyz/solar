@@ -273,9 +273,26 @@ def record(
             )
         elif program and program.scope == "compact-pushes":
             bound = program.import_evidence["entry_height_bound"]
+            if program.import_evidence.get("physical_entry"):
+                assumptions.extend(
+                    [
+                        "independent import starts at the first physical block with an empty EVM call-frame stack",
+                        "each immutable PUSH reads the same deployment slot and width on both sides",
+                    ]
+                )
+            elif program.import_evidence.get("caller_stack"):
+                assumptions.extend(
+                    [
+                        f"kernel-checked height invariant from both physical entries bounds the selected region's incoming stack by {bound}",
+                        "the region proof compares equal incoming stacks and world state at the selected block",
+                    ]
+                )
+            else:
+                assumptions.append(
+                    f"independently exported EVM region with incoming height at most {bound}"
+                )
             assumptions.extend(
                 [
-                    f"independently exported EVM region with incoming height at most {bound}; every logical execution bound",
                     "each closed recipe produces the same words and preserves the incoming stack; every extra temporary slot is checked",
                     "kernel-checked fork-specific execution charges for the recipes; both executions must be funded through every reached instruction and gas admission check",
                     "position-independent handlers; no unresolved return targets; physical transfer charges are outside the proof",
@@ -870,7 +887,9 @@ def record(
             {
                 "whole_pass": False,
                 "region": {
-                    "kind": "region",
+                    "kind": "entry"
+                    if program.import_evidence.get("physical_entry")
+                    else "region",
                     "name": program.selector,
                     "proof": "kernel-checked-schema-stack-layout"
                     if program.scope == "stack-layout"

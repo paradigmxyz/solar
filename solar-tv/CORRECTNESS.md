@@ -578,6 +578,22 @@ replies to `GAS`, `EXTCODESIZE`, `CALL`, and `STATICCALL`. Recipe charges and
 stack peaks remain checked. The proof compares the ordered requests under
 those replies.
 
+The entry trace independently imports the first physical block and uses
+`matchingEntry` to instantiate the contextual theorem with an empty stack.
+The same invariant checks every reachable continuation and temporary stack
+guard. Immutable PUSH terms retain the exact slot and width, and share the
+word supplied by deployment. They cannot be evaluated as literal recipes.
+Deployed code identity and physical relocation charges remain outside the
+certificate.
+
+For `--entry-stack`, the kernel checks the two caller graphs independently.
+`StackReachability.projected_cap` binds point zero to the physical entry and
+an empty tag shape. Each projected successor preserves its certified height
+bound, including both directions of a conditional and every resolved dynamic
+return. The local compact PUSH theorem uses that cap with equal live-in
+state. The caller certificates place no equivalence requirement on unrelated
+rewrites in the prefixes.
+
 The pinned WETH `name()` capture checks the return-data path. With its next
 literal push included, the compared Cancun sequences charge 6 and 12 gas and
 both peak at two temporary words. The compiler's existing 1,023-word fixture

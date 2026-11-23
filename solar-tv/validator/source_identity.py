@@ -13,7 +13,7 @@ import re
 import tempfile
 from pathlib import Path
 
-from . import audit, correspondence, native, regions
+from . import audit, correspondence, native, regions, stack_layout
 from .common import Program, Unsupported, literal
 
 INTERACTION_OPS = frozenset({"gas", "extcodesize", "call", "staticcall"})
@@ -50,13 +50,14 @@ def render_nodes(
     dynamic_exit=False,
     max_growth=1,
     interactions=False,
+    from_entry=False,
 ):
     if not isinstance(model, dict) or not isinstance(model.get("nodes"), list):
         raise Unsupported("invalid source-identity graph")
     rows = model.get("nodes", [])
     if (
         set(model) != {"entry", "nodes"}
-        or not 1 <= len(rows) <= 4096
+        or not 1 <= len(rows) <= (16384 if from_entry else 4096)
         or any(
             not isinstance(row, dict) or type(row.get("id")) is not int for row in rows
         )
@@ -99,6 +100,8 @@ def render_nodes(
                     and catalog["push0"]["forks"][version]["available"]
                     else "push1"
                 )
+            elif from_entry and stack_layout.immutable_push(operation):
+                name = "push1"
             elif match := re.fullmatch(r"(dup|swap) (\d+)", operation):
                 name = match[1] + match[2]
             definition = catalog.get(name)
@@ -145,7 +148,9 @@ def render_nodes(
 def parse_pair(paths, solar, version, timeout, entry):
     from .check import ROOT, run
 
-    if not re.fullmatch(r"bb[0-9]{1,10}", entry) or int(entry[2:]) >= 2**32:
+    if entry is not None and (
+        not re.fullmatch(r"bb[0-9]{1,10}", entry) or int(entry[2:]) >= 2**32
+    ):
         raise Unsupported("source identity requires a valid region label")
     texts, headers = [], []
     for path in paths:

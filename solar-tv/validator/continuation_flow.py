@@ -10,7 +10,7 @@ import hashlib
 import json
 import re
 
-from . import cfg_flow, correspondence
+from . import cfg_flow, correspondence, stack_layout
 from .common import Unsupported, literal
 from .source_identity import INTERACTION_OPS
 
@@ -25,9 +25,13 @@ def edges_text(node):
             return ".terminal"
 
 
-def instruction_role(operation, catalog, version, *, interactions=False):
+def instruction_role(
+    operation, catalog, version, *, interactions=False, from_entry=False
+):
     if operation.startswith("push "):
         literal(operation[5:])
+        return ".ordinary 0 1", (0, 1)
+    if from_entry and stack_layout.immutable_push(operation):
         return ".ordinary 0 1", (0, 1)
     if operation == "pop":
         return ".pop", ("pop", 0)
@@ -53,7 +57,7 @@ def instruction_role(operation, catalog, version, *, interactions=False):
     return f".ordinary {inputs} {outputs}", (inputs, outputs)
 
 
-def project(model, catalog, version, *, interactions=False):
+def project(model, catalog, version, *, interactions=False, from_entry=False):
     source = []
     roles = {}
     for row in model["nodes"]:
@@ -61,7 +65,11 @@ def project(model, catalog, version, *, interactions=False):
         match node:
             case {"kind": "operation", "operation": operation, "next": target}:
                 op, roles[row["id"]] = instruction_role(
-                    operation, catalog, version, interactions=interactions
+                    operation,
+                    catalog,
+                    version,
+                    interactions=interactions,
+                    from_entry=from_entry,
                 )
                 source.append(f".operation {json.dumps(operation)} ({op}) {target}")
             case {"kind": "push_label", "target": target, "next": successor}:
@@ -89,13 +97,15 @@ def project(model, catalog, version, *, interactions=False):
     output = []
     returns = 0
 
+    limit = 16384 if from_entry else 2048
+
     def index(pc, shape):
         if len(shape) > 1024:
             raise Unsupported("continuation provenance exceeds the stack limit")
         key = pc, shape
         if key not in indices:
-            if len(points) >= 2048:
-                raise Unsupported("continuation provenance exceeds 2048 states")
+            if len(points) >= limit:
+                raise Unsupported(f"continuation provenance exceeds {limit} states")
             indices[key] = len(points)
             points.append(key)
         return indices[key]
@@ -152,21 +162,20 @@ def project(model, catalog, version, *, interactions=False):
                     check_inputs(shape, roles[pc][0])
         output.append({"id": len(output), "label": 0, "node": node})
 
-    point_terms = []
-    for pc, shape in points:
-        tags = ",".join("none" if tag is None else f"some {tag}" for tag in shape)
-        point_terms.append(f"⟨{pc},[{tags}]⟩")
+    point_terms = [f"⟨{pc},{shape_term(shape)}⟩" for pc, shape in points]
     projected = {"entry": 0, "nodes": output}
     return projected, {
         "entry": model["entry"],
         "source": source,
         "points": point_terms,
+        "point_data": points,
         "edges": [edges_text(row["node"]) for row in output],
         "label_pushes": {
             i
             for i, (pc, _) in enumerate(points)
             if model["nodes"][pc]["node"]["kind"] == "push_label"
         },
+        "block_labels": {model["nodes"][pc]["label"] for pc, _ in points},
         "evidence": {
             "source_sha256": hashlib.sha256(
                 json.dumps(model, sort_keys=True).encode()
@@ -175,6 +184,12 @@ def project(model, catalog, version, *, interactions=False):
             "resolved_returns": returns,
         },
     }
+
+
+def shape_term(shape):
+    return (
+        "[" + ",".join("none" if tag is None else f"some {tag}" for tag in shape) + "]"
+    )
 
 
 def check(texts, replay, catalog, version, timeout, entry, *, interactions=False):

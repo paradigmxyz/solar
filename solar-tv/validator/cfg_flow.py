@@ -86,12 +86,19 @@ def tree(rows):
     return f"(.branch {len(rows)} {tree(rows[:middle])} {tree(rows[middle:])})"
 
 
-def table(name, row_type, rows):
-    return f"""
+def table(name, row_type, rows, *, lookup=True):
+    definition = f"""
 def {name} : EVM.ProofTable.Tree {row_type} := {tree(rows)}
+"""
+    if not lookup:
+        return definition
+    return (
+        definition
+        + f"""
 theorem {name}Lookup : {name}.view = EVM.ProofTable.ofArray {name}.rows.toArray :=
   {name}.view_eq (by decide +kernel)
 """
+    )
 
 
 def projection_proof(name, module, program, nodes, points, edges, result, limit=""):

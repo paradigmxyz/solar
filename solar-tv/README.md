@@ -2035,6 +2035,31 @@ covers regions with resolved internal returns and shared replies to supported
 interactions. Relocation placeholders stay outside literal recipes.
 [Proof details](CORRECTNESS.md#compact-push-recipes)
 
+For a compact PUSH pair with helpers, check from the first physical block:
+
+```sh
+solar-tv/solar-tv evmir before.evmir after.evmir --entry-trace
+```
+
+The entry proof starts with an empty EVM stack and follows each call's
+continuation label. It checks stack bounds through the callers before using
+them at a recipe. Shared immutable pushes retain their deployment slot and
+width. The report lists the blocks in the checked graph. The shared-reply and
+funding conditions still apply when interactions are present.
+
+For a region inside a larger pass output, derive the incoming stack bound
+from both physical entries:
+
+```sh
+solar-tv/solar-tv evmir before.evmir after.evmir \
+  --region bb207 --entry-stack --interaction-trace
+```
+
+The height proof covers every possible branch from each entry. The region
+proof then compares executions with equal live-in words and world state at
+the selected block. Omit `--interaction-trace` for regions without calls or
+gas observations.
+
 The MIR checker validates block coalescing, jump threading and shared tails
 on typed graphs, including backedges. Each pair of source points tracks the
 local values its path needs. A shared block can therefore match separate

@@ -18,6 +18,11 @@ from . import audit, regions
 from .common import Program, Unsupported
 
 
+def immutable_push(instruction):
+    """A fixed-width PUSH filled from a deployment slot, not a literal."""
+    return re.fullmatch(r"push_immutable \d+, (?:[1-9]|[12]\d|3[0-2])", instruction)
+
+
 def signatures(model, catalog):
     table = {}
     for row in model["nodes"]:
@@ -25,7 +30,7 @@ def signatures(model, catalog):
         if node["kind"] != "operation":
             continue
         instruction = name = node["operation"]
-        if instruction.startswith("push "):
+        if instruction.startswith("push ") or immutable_push(instruction):
             name = "push1"
         elif match := re.fullmatch(r"(dup|swap) (\d+)", instruction):
             name = match[1] + match[2]

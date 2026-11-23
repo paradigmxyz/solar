@@ -3,7 +3,8 @@
 //! Export reachable program points without executing them or importing a Python
 //! recipe. Static label pushes are consumed only by their actual adjacent branch.
 //! The continuation export retains other block-label pushes and their targets
-//! for stack provenance checking. Other relocations remain unsupported.
+//! for stack provenance checking. Immutable pushes can be exported as symbolic
+//! deployment slots in an entry trace. Other relocations remain unsupported.
 
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -25,7 +26,8 @@ use std::{
 struct Input {
     version: u32,
     text: String,
-    entry: u32,
+    // An omitted entry selects the first block in physical order.
+    entry: Option<u32>,
     evm_version: String,
     #[serde(default)]
     window: bool,
@@ -58,13 +60,17 @@ pub(super) fn export() -> Result<Value, String> {
         let (entry, _) = module
             .blocks
             .iter_enumerated()
-            .find(|(_, b)| b.label == input.entry)
+            .find(|(_, b)| input.entry.is_none_or(|label| b.label == label))
             .ok_or("missing EVM model entry")?;
-        if input.window { window(&module, entry) } else { graph(&module, entry, input.labels) }
+        if input.window {
+            window(&module, entry)
+        } else {
+            graph(&module, entry, input.labels, input.entry.is_none())
+        }
     })
 }
 
-fn graph(module: &Module, entry: BlockId, labels: bool) -> Result<Value, String> {
+fn graph(module: &Module, entry: BlockId, labels: bool, from_entry: bool) -> Result<Value, String> {
     let mut bases = IndexVec::<BlockId, _>::new();
     let mut total = 0;
     for block in &module.blocks {
@@ -74,6 +80,7 @@ fn graph(module: &Module, entry: BlockId, labels: bool) -> Result<Value, String>
     if total > 65536 {
         return Err("EVM model point budget exceeded".into());
     }
+    let limit = if from_entry { 8192 } else { 4096 };
     let mut visited = DenseBitSet::new_empty(total);
     let mut pending = vec![(entry, 0)];
     let mut nodes = Vec::new();
@@ -86,8 +93,8 @@ fn graph(module: &Module, entry: BlockId, labels: bool) -> Result<Value, String>
         if !visited.insert(point) {
             continue;
         }
-        if nodes.len() >= 4096 {
-            return Err("reachable EVM model exceeds 4096 nodes".into());
+        if nodes.len() >= limit {
+            return Err(format!("reachable EVM model exceeds {limit} nodes"));
         }
         let mut edge = |target, position| {
             pending.push((target, position));
@@ -111,6 +118,12 @@ fn graph(module: &Module, entry: BlockId, labels: bool) -> Result<Value, String>
                     }
                     _ => return Err("escaping label in EVM source graph".into()),
                 }
+            } else if labels
+                && let Some(immutable) = inst.immutable_push()
+                && let Some(size) = inst.immutable_type_size()
+            {
+                let operation = format!("push_immutable {}, {}", immutable.index(), size.bytes());
+                json!({"kind":"operation","operation":operation,"next":edge(id,offset+1)})
             } else {
                 json!({"kind":"operation","operation":instruction(inst)?,"next":edge(id,offset+1)})
             }

@@ -18,13 +18,14 @@ from .common import Inconclusive, Unsupported
 
 def export(text, entry_label, version, executable, timeout, *, labels=False):
     """Obtain the independent reachable graph without assigning opcode semantics."""
+    entry = None if entry_label is None else int(entry_label.removeprefix("bb"))
     response = subprocess.run(
         [executable, "--evm-model"],
         input=json.dumps(
             {
                 "version": 1,
                 "text": text,
-                "entry": int(entry_label.removeprefix("bb")),
+                "entry": entry,
                 "evm_version": version,
                 "labels": labels,
             }
@@ -44,8 +45,9 @@ def export(text, entry_label, version, executable, timeout, *, labels=False):
     rows = model["nodes"]
     if (
         not rows
-        or len(rows) > 4096
+        or len(rows) > (8192 if entry is None else 4096)
         or [row["id"] for row in rows] != list(range(len(rows)))
+        or (entry is None and model["entry"] != 0)
     ):
         raise Unsupported("invalid independent EVM graph indices")
     return model

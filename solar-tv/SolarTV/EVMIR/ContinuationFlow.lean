@@ -41,6 +41,13 @@ structure Point where
   shape : Shape
   deriving DecidableEq
 
+/-- Share repeated continuation shapes across basic blocks and call sites. -/
+def internedPoints (points : ProofTable.View (Nat × Nat)) (shapes : ProofTable.View Shape) :
+    ProofTable.View Point :=
+  ⟨points.size, fun index => do
+    let (pc, shape) ← points.get? index
+    return ⟨pc, ← shapes.get? shape⟩⟩
+
 def trim : Shape → Shape
   | [] => []
   | tag :: rest =>

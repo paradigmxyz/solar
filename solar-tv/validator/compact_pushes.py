@@ -9,6 +9,7 @@ funded through all reached charges and admission checks.
 
 import hashlib
 import json
+import os
 import re
 import tempfile
 from pathlib import Path
@@ -18,6 +19,7 @@ from . import (
     cfg_flow,
     continuation_flow,
     correspondence,
+    entry_stack,
     native,
     source_identity,
     stack_layout,
@@ -92,15 +94,19 @@ def replacement(model, pc, expected, catalog, version, protected):
     raise Unsupported("compact PUSH recipe does not produce the literal's word")
 
 
-def pair(models, catalog, version, protected=(frozenset(), frozenset())):
+def pair(
+    models, catalog, version, protected=(frozenset(), frozenset()), *, from_entry=False
+):
     points, indices = [], {}
     witnesses = [[], []]
     nodes, pushes, meters = [[], []], [[], []], [[], []]
     local_edges = [[], []]
 
+    limit = 16384 if from_entry else 4096
+
     def index(point):
         if point not in indices:
-            if len(points) >= 4096:
+            if len(points) >= limit:
                 raise Unsupported("compact PUSH proof exceeds the CFG point budget")
             indices[point] = len(points)
             points.append(point)
@@ -116,7 +122,9 @@ def pair(models, catalog, version, protected=(frozenset(), frozenset())):
         same = {k: v for k, v in left.items() if k not in fields} == {
             k: v for k, v in right.items() if k not in fields
         }
-        if same:
+        before_label = positions[0] in protected[0]
+        after_label = positions[1] in protected[1]
+        if same and before_label == after_label:
             successors = [index((left[field], right[field])) for field in fields]
             match successors:
                 case [successor]:
@@ -214,19 +222,38 @@ def pair(models, catalog, version, protected=(frozenset(), frozenset())):
     return projected, witnesses, meters
 
 
-def check(paths, solar, replay, version, timeout, entry, height, *, interactions=False):
+def check(
+    paths,
+    solar,
+    replay,
+    version,
+    timeout,
+    entry,
+    height,
+    *,
+    interactions=False,
+    bound_from_entry=False,
+):
     from .check import PRELUDE, ROOT, build_model, run
 
-    bound = 1024 if height is None else height
+    from_entry = entry is None
+    bound = 0 if from_entry else 1024 if height is None else height
     if not 0 <= bound <= 1024:
         raise Unsupported(
             "compact PUSH proof requires an architectural entry stack height"
         )
     texts = source_identity.parse_pair(paths, solar, version, timeout, entry)
     catalog = {row["name"]: row for row in native.catalog(replay, timeout)["evmir"]}
+    roots = None
+    if bound_from_entry:
+        roots = [
+            entry_stack.propose(text, entry, replay, catalog, version, timeout)
+            for text in texts
+        ]
+        bound = max(max(bounds) for _, _, bounds in roots)
     witnesses = None
     sources = None
-    if not interactions:
+    if not (from_entry or interactions):
         try:
             sources = [
                 correspondence.export(text, entry, version, replay, timeout)
@@ -245,7 +272,11 @@ def check(paths, solar, replay, version, timeout, entry, height, *, interactions
         graphs, witnesses = zip(
             *(
                 continuation_flow.project(
-                    model, catalog, version, interactions=interactions
+                    model,
+                    catalog,
+                    version,
+                    interactions=interactions,
+                    from_entry=from_entry or bound_from_entry,
                 )
                 for model in sources
             ),
@@ -256,10 +287,12 @@ def check(paths, solar, replay, version, timeout, entry, height, *, interactions
         if witnesses
         else (frozenset(), frozenset())
     )
-    projected, points, meters = pair(graphs, catalog, version, protected)
+    projected, points, meters = pair(
+        graphs, catalog, version, protected, from_entry=from_entry or bound_from_entry
+    )
     signatures = stack_layout.signatures(projected[0], catalog)
     requests = sorted(source_identity.INTERACTION_OPS & signatures.keys())
-    if interactions and not requests:
+    if interactions and not requests and not (from_entry or bound_from_entry):
         raise Unsupported(
             "compact PUSH interaction trace requires a reachable interaction"
         )
@@ -269,7 +302,7 @@ def check(paths, solar, replay, version, timeout, entry, height, *, interactions
         )
     except Unsupported as error:
         raise RecipeRejected(f"compact PUSH stack certificate: {error}") from error
-    code = (
+    prelude = (
         PRELUDE
         + """
 open EVM.SourceGraph (Program)
@@ -280,6 +313,7 @@ set_option maxRecDepth 16384
 set_option maxHeartbeats 3500000
 """
     )
+    code = prelude
     proof_names = [
         "matched",
         "SolarTV.EVM.CompactPushes.exact",
@@ -297,6 +331,7 @@ set_option maxHeartbeats 3500000
                 root,
                 max_growth=RECIPE_LIMIT,
                 interactions=interactions,
+                from_entry=from_entry or bound_from_entry,
             )
             code += cfg_flow.table(f"{label}Nodes", "EVM.SourceGraph.Node", rows)
             code += f"def {label} : Program := ⟨{start},{label}Nodes.rows.toArray⟩\n"
@@ -357,7 +392,7 @@ theorem matched {{World Observation : Type}} (handlers : Handlers World Observat
       afterProjected.map (observe handlers fuel state) :=
   {match_proof}
 """
-    if interactions:
+    if requests:
         names = ",".join(map(json.dumps, requests))
         code += f"""
 theorem traceSignatures :
@@ -376,14 +411,93 @@ theorem matchingRequests {{Payload Halt : Type}} (view : Payload → EVM.Interac
             "matchingRequests",
             "SolarTV.EVM.InteractionTrace.stable_request",
         ]
+    if from_entry:
+        if requests:
+            code += """
+theorem matchingEntry {Payload Halt : Type} (view : Payload → EVM.InteractionTrace.View)
+    (ordinary : Handlers Payload Halt)
+    (reply : EVM.InteractionTrace.Request → Payload → Except Halt Payload)
+    (fuel : Nat) (world : EVM.InteractionTrace.Cursor Payload) :
+    beforeProjected.map (observe (EVM.InteractionTrace.handlers view ordinary reply) fuel ⟨0,world⟩) =
+      afterProjected.map (observe (EVM.InteractionTrace.handlers view ordinary reply) fuel ⟨0,world⟩) :=
+  matchingRequests view ordinary reply fuel ⟨0,world⟩ (Nat.le_refl 0)
+"""
+        else:
+            code += """
+theorem matchingEntry {World Observation : Type} (handlers : Handlers World Observation)
+    (fuel : Nat) (world : World) :
+    beforeProjected.map (observe handlers fuel ⟨0,world⟩) =
+      afterProjected.map (observe handlers fuel ⟨0,world⟩) :=
+  matched handlers fuel ⟨0,world⟩ (Nat.le_refl 0)
+"""
+        proof_names.append("matchingEntry")
+    if roots:
+        code += """
+theorem matchedFromEntryBound {World Observation : Type}
+    (handlers : Handlers World Observation) (fuel : Nat) (state : State World)
+    {pc : Nat}
+    (reaches : EVM.StackReachability.Reaches BeforeFrame.graph BeforeFrame.signatures
+      pc state.height) :
+    beforeProjected.map (observe handlers fuel state) =
+      afterProjected.map (observe handlers fuel state) :=
+  matched handlers fuel state (BeforeFrame.entryFits reaches)
+"""
+        proof_names += [
+            "BeforeFrame.trees",
+            "BeforeFrame.entryFits",
+            "AfterFrame.trees",
+            "AfterFrame.entryFits",
+            "matchedFromEntryBound",
+        ]
     code += "".join(f"#print axioms {name}\n" for name in proof_names)
     built = build_model(timeout)
     if built.returncode:
         raise Unsupported(built.stdout + built.stderr)
     with tempfile.TemporaryDirectory(prefix="solar-tv-compact-pushes-") as folder:
-        proof = Path(folder) / "Pair.lean"
+        directory = Path(folder)
+        env = None
+        if roots:
+            env = os.environ.copy()
+            env["LEAN_PATH"] = os.pathsep.join(
+                [folder, *filter(None, [env.get("LEAN_PATH")])]
+            )
+            imports = []
+            # Check each caller independently before importing the theorems.
+            for name, proposal in zip(
+                ("BeforeFrame", "AfterFrame"), roots, strict=True
+            ):
+                path = directory / f"{name}.lean"
+                path.write_text(
+                    prelude + entry_stack.certificate(name, proposal, catalog, bound)
+                )
+                checked = run(
+                    [
+                        "lake",
+                        "env",
+                        "lean",
+                        "-j1",
+                        f"--root={folder}",
+                        "-o",
+                        path.with_suffix(".olean"),
+                        path,
+                    ],
+                    ROOT,
+                    timeout,
+                    env=env,
+                )
+                if checked.returncode:
+                    raise RecipeRejected(
+                        f"{name} stack certificate did not close\n"
+                        + checked.stdout
+                        + checked.stderr
+                    )
+                imports.append(f"import {name}\n")
+            code = code.replace(
+                "import SolarTV\n", "import SolarTV\n" + "".join(imports), 1
+            )
+        proof = directory / "Pair.lean"
         proof.write_text(code)
-        result = run(["lake", "env", "lean", "-j1", proof], ROOT, timeout)
+        result = run(["lake", "env", "lean", "-j1", proof], ROOT, timeout, env=env)
     if result.returncode:
         raise RecipeRejected(
             "compact PUSH certificate did not close\n" + result.stdout + result.stderr
@@ -397,11 +511,13 @@ theorem matchingRequests {{Payload Halt : Type}} (view : Payload → EVM.Interac
             <= {"propext", "Classical.choice", "Quot.sound"}
         ):
             raise Unsupported("unexpected compact PUSH proof axioms")
-    proof_kind = (
-        "kernel-checked-compact-pushes-interaction-trace"
-        if interactions
-        else "kernel-checked-compact-pushes"
-    )
+    proof_kind = "kernel-checked-compact-pushes"
+    if from_entry:
+        proof_kind += "-entry-trace"
+    elif roots:
+        proof_kind += "-entry-bound"
+    elif requests:
+        proof_kind += "-interaction-trace"
     programs = tuple(
         Program(
             ("evm-compact-pushes", str(bound)),
@@ -410,9 +526,11 @@ theorem matchingRequests {{Payload Halt : Type}} (view : Payload → EVM.Interac
             "",
             canonical_ir=text,
             replay_ir=text,
-            selector=entry,
+            selector=f"bb{model['nodes'][model['entry']]['label']}"
+            if from_entry
+            else entry,
             scope="compact-pushes",
-            gas="unpriced-shared-interactions" if interactions else "sufficient",
+            gas="unpriced-shared-interactions" if requests else "sufficient",
             evm_version=version,
             import_evidence={
                 "kind": proof_kind,
@@ -422,7 +540,19 @@ theorem matchingRequests {{Payload Halt : Type}} (view : Payload → EVM.Interac
                 "recipes": recipes,
                 "entry_height_bound": bound,
                 **(witnesses[side]["evidence"] if witnesses else {}),
-                **({"interactions": requests} if interactions else {}),
+                **({"interactions": requests} if requests else {}),
+                **(
+                    {"caller_stack": entry_stack.evidence(roots[side])} if roots else {}
+                ),
+                **(
+                    {
+                        "physical_entry": True,
+                        "block_labels": sorted(witnesses[side]["block_labels"]),
+                        "max_projected_stack_bound": max(bounds),
+                    }
+                    if from_entry
+                    else {}
+                ),
             },
         )
         for side, (text, model, recipes) in enumerate(
