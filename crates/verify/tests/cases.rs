@@ -1226,7 +1226,10 @@ fn modifier_rebind() {
 
 #[test]
 fn struct_names_alike() {
-    // Refused before any query, so this needs no z3.
+    // The functions are refused before any query, but the run starts z3 for the rest.
+    if z3_missing() {
+        return;
+    }
     let run = run_verifier(&["--json", "tests/cases/struct_names_alike.sol"]);
     let want = "several structs share the name `Item`";
     assert!(run.stderr.contains(want), "missing `{want}`\n{}", run.stderr);
