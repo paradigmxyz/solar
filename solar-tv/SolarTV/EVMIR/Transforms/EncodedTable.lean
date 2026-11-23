@@ -84,6 +84,9 @@ private def boundary (code : State.CodeChunks) (target : Nat) : Nat → Nat → 
     | none => false
     | some inst => boundary code target fuel inst.next
 
+def instructionBoundary (code : State.CodeChunks) (pc : Nat) : Bool :=
+  boundary code pc (pc+1) 0
+
 /-- The current image decoder handles PUSH payloads. On forks where the
 extended stack opcodes have immediates, reject those layouts until the
 fork-specific decoder can distinguish their payloads from JUMPDESTs. -/
@@ -97,7 +100,7 @@ private def legacyBoundaries (code : State.CodeChunks) : Nat → Nat → Bool
       if [0xe6,0xe7,0xe8].contains inst.opcode then false
       else legacyBoundaries code fuel inst.next
 
-private def decodedBoundaries (cfg : State.Config) (code : State.CodeChunks) : Bool :=
+def decodedBoundaries (cfg : State.Config) (code : State.CodeChunks) : Bool :=
   !(cfg.fork.atLeast .amsterdam) || legacyBoundaries code code.size 0
 
 structure Summary where

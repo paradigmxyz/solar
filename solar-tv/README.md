@@ -1302,8 +1302,15 @@ and gas charge up to the destination, before executing its `JUMPDEST`. Use
 supplies the logical-to-physical destination map. If a literal `PUSH` and
 `AND` precede the table, pass the producer's offset as `--mask-pc`. Lean
 checks the mask in the same bytecode and proves the selector is in range
-for every incoming word. Without that producer, the selector range is an
-input obligation.
+for every incoming word. Without a checked mask or guard, the selector
+range is an input obligation.
+
+For a dense switch, the compiler bundle also checks the emitted
+`DUP1`–`GT`–`JUMPI` guard when the corresponding logical branch is present.
+This proof starts at the guard with an arbitrary selector. It checks the
+miss continuation and carries the taken edge through the table, including
+the charge for the intervening `JUMPDEST`. A changed limit produces a
+counterexample with the selector and the two successor PCs.
 
 ### Removing terminal stack discards
 

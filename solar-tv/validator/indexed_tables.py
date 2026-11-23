@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from . import audit, encoded_table, native, world
+from .call_budget import decode_runtime
 from .check import ROOT
 from .common import Unsupported
 
@@ -44,7 +45,45 @@ def source_model(source, version, replay, timeout):
     return value["model"]
 
 
-def validate_layout(layout, code_end, model):
+def guard_offsets(code, model, positions, table, catalog):
+    guards = table["guards"]
+    if not guards:
+        return ()
+    order = {label: i for i, label in enumerate(model["blocks"])}
+    table_label = dict(positions)[table["block"]]
+    decoded = list(decode_runtime(code, catalog).items())
+    candidates = []
+    for dup, limit, comparison, address, jump in zip(
+        decoded, decoded[1:], decoded[2:], decoded[3:], decoded[4:]
+    ):
+        if (
+            dup[1][0] == "dup1"
+            and limit[1][1] is not None
+            and comparison[1][0] == "gt"
+            and address[1][1] == table_label
+            and jump[1][0] == "jumpi"
+        ):
+            candidates.append(dup[0])
+    result = []
+    for guard in guards:
+        block = order[guard["block"]]
+        first = max(
+            (pc for label, pc in positions if order[label] <= block), default=-1
+        )
+        last = next((pc for label, pc in positions if order[label] > block), len(code))
+        matches = [pc for pc in candidates if first < pc < last]
+        if len(matches) != 1:
+            raise Unsupported(
+                "cannot bind the logical range guard to an emitted branch"
+            )
+        result.append((matches[0], guard["limit"]))
+    if len(result) != len({pc for pc, _ in result}):
+        raise Unsupported("multiple logical range guards use the same emitted branch")
+    return tuple(result)
+
+
+def validate_layout(layout, code, model, catalog):
+    code_end = len(code)
     positions = layout["labels"]
     sites = layout["sites"]
     tables = model["tables"]
@@ -87,7 +126,13 @@ def validate_layout(layout, code_end, model):
         logical = table["targets"]
         targets = [by_block[label] for label in logical]
         relevant = [(label, target) for label, target in positions if label in logical]
-        yield site, targets, (relevant, logical), table["mask"]
+        yield (
+            site,
+            targets,
+            (relevant, logical),
+            table["mask"],
+            guard_offsets(code, model, positions, table, catalog),
+        )
         last_pc = pc
 
 
@@ -105,7 +150,8 @@ def check(manifest, replay, timeout):
         raise Unsupported("invalid executable extent in emitted layout")
     code = image[:code_end]
     model = source_model(source, version, replay, timeout)
-    tables = list(validate_layout(layout, code_end, model))
+    catalog = {op["name"]: op for op in native.catalog(replay, timeout)["evmir"]}
+    tables = list(validate_layout(layout, code, model, catalog))
     record = {
         "version": 1,
         "status": "verified",
@@ -120,7 +166,7 @@ def check(manifest, replay, timeout):
         "code_end": code_end,
         "tables": [],
     }
-    for site, targets, binding, mask in tables:
+    for site, targets, binding, mask, guards in tables:
         try:
             receipt = encoded_table.check(
                 code,
@@ -133,6 +179,7 @@ def check(manifest, replay, timeout):
                 site["mask_pc"],
                 binding=binding,
                 mask=mask,
+                guards=guards,
             )
         except encoded_table.WrongDestination as error:
             receipt = {
@@ -148,7 +195,13 @@ def check(manifest, replay, timeout):
             {
                 "block": site["block"],
                 "logical_targets": binding[1],
-                "selector_scope": "from-mask" if mask is not None else "in-range",
+                "selector_scope": (
+                    "from-mask"
+                    if mask is not None
+                    else "from-guard-cut"
+                    if guards
+                    else "in-range"
+                ),
                 **receipt,
             }
         )

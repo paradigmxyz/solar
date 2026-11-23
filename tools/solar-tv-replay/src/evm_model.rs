@@ -12,7 +12,10 @@
 use serde::Deserialize;
 use serde_json::{Value, json};
 use solar_config::EvmVersion;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+};
 use solar_evmir::{
     ir::{BlockId, Instruction, Module, TerminatorKind, verify::Verifier},
     op::{self, StackOp},
@@ -81,10 +84,30 @@ pub(super) fn export() -> Result<Value, String> {
 }
 
 fn indexed_tables(module: &Module) -> Value {
+    let mut guards: IndexVec<BlockId, Vec<Value>> = index_vec![Vec::new(); module.blocks.len()];
+    for block in &module.blocks {
+        for instructions in block.instructions.windows(5) {
+            let [dup, push, gt, address, jumpi] = instructions else { continue };
+            if dup.as_stack_op() == Some(StackOp::Dup(1))
+                && gt.as_evm_opcode() == Some(op::GT)
+                && jumpi.as_evm_opcode() == Some(op::JUMPI)
+                && let Some(limit) =
+                    push.pushed_value().and_then(|value| usize::try_from(value).ok())
+                && let Some(target) = address.pushed_block()
+                && module.blocks[target].instructions.is_empty()
+                && matches!(
+                    module.blocks[target].terminator.as_ref().map(|term| &term.kind),
+                    Some(TerminatorKind::IndexedJump(_))
+                )
+            {
+                guards[target].push(json!({"block": block.label, "limit": limit}));
+            }
+        }
+    }
     let tables: Vec<_> = module
         .blocks
-        .iter()
-        .filter_map(|block| {
+        .iter_enumerated()
+        .filter_map(|(id, block)| {
             let TerminatorKind::IndexedJump(targets) = &block.terminator.as_ref()?.kind else {
                 return None;
             };
@@ -97,7 +120,10 @@ fn indexed_tables(module: &Module) -> Value {
             };
             let targets: Vec<_> =
                 targets.iter().map(|&target| module.blocks[target].label).collect();
-            Some(json!({"block": block.label, "targets": targets, "mask": mask}))
+            Some(json!({
+                "block": block.label, "targets": targets, "mask": mask,
+                "guards": guards[id],
+            }))
         })
         .collect();
     let blocks: Vec<_> = module.blocks.iter().map(|block| block.label).collect();

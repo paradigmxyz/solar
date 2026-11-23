@@ -117,14 +117,14 @@ class EncodedTableTests(unittest.TestCase):
         )
         return result, json.loads(self.report.read_text())
 
-    def program(self, text, image, selector, gas):
+    def program(self, text, image, selector, gas, *, prefix=b""):
         fixture = self.directory / "world.json"
         fixture.write_text(
             json.dumps(
                 {
                     "version": 1,
                     "gas": gas,
-                    "calldata": "0x" + selector.to_bytes(32, "big").hex(),
+                    "calldata": "0x" + (prefix + selector.to_bytes(32, "big")).hex(),
                 }
             )
         )
@@ -397,7 +397,68 @@ bb88:
         result, record = self.check_bundle(layout)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(record["status"], "verified")
-        self.assertGreaterEqual(len(record["tables"][0]["entries"]), 24)
+        table = record["tables"][0]
+        self.assertEqual(len(table["entries"]), 24)
+        self.assertEqual(table["selector_scope"], "from-guard-cut")
+        (guard,) = table["range_guards"]
+        self.assertEqual(guard["limit"], 24)
+        text = (layout.parent / "source.evmir").read_text()
+        selector = bytes.fromhex("839a19d9")
+
+        def replay(code, key, *, gas=50_000, pc=None):
+            program = self.program(text, code, key, gas, prefix=selector)
+            observed = native.replay(
+                program,
+                program,
+                [],
+                probe_pc=pc,
+                raw_runtime=pc is None,
+                executable=self.replay,
+                timeout=30,
+            )
+            return json.loads(observed["observations"][0])
+
+        for key in (9, 10, 33, 34, (1 << 256) - 1):
+            with self.subTest(key=key):
+                incoming = replay(runtime, key, pc=guard["pc"])
+                index = (key - 10) % (1 << 256)
+                self.assertEqual(incoming["stack"][0], str(index))
+                entry_stack = incoming["stack"]
+                if index < guard["limit"]:
+                    edge = table["entries"][index]
+                    spent = guard["gas"] + guard["marker_gas"] + edge["gas"]
+                    pc = edge["pc"]
+                    expected_stack = entry_stack[1:]
+                else:
+                    spent = guard["gas"]
+                    pc = guard["miss_pc"]
+                    expected_stack = entry_stack
+                funded = 50_000 - incoming["gas"] + spent
+                cut = replay(runtime, key, gas=funded, pc=pc)
+                self.assertEqual(cut["gas"], 0)
+                self.assertEqual(cut["stack"], expected_stack)
+                self.assertEqual(replay(runtime, key, gas=funded - 1)[0], "out-of-gas")
+
+        start = guard["pc"]
+        self.assertEqual(runtime[start : start + 3], bytes.fromhex("806018"))
+        wider = runtime[: start + 2] + bytes([25]) + runtime[start + 3 :]
+        (layout.parent / "bytecode.hex").write_text(wider[: len(image)].hex())
+        result, record = self.check_bundle(layout)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(record["status"], "counterexample")
+        self.assertEqual(
+            record["tables"][0]["witness"],
+            {
+                "selector": 24,
+                "expected_pc": guard["miss_pc"],
+                "actual_pc": table["entry_pc"] - 1,
+                "guard_pc": start,
+                "gas": guard["gas"],
+            },
+        )
+        self.assertEqual(
+            [replay(code, 34)[0] for code in (runtime, wider)], ["success", "exception"]
+        )
 
     def test_live_outlined_transfer_uses_the_original_targets(self):
         path = (

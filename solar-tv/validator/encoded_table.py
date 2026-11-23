@@ -36,7 +36,42 @@ def start_image(image, catalog, version):
     )
 
 
-def certificate(image, pc, targets, jumps, catalog, version, mask_pc, binding, mask):
+def guard_certificates(guards, entry, jumps):
+    return "".join(
+        f"""
+def guard{i} := (EVM.IndexedGuard.read cfg code {guard_pc} {entry}).getD ⟨0,0,0,0,0⟩
+theorem guard{i}Decoded : EVM.IndexedGuard.read cfg code {guard_pc} {entry} = some guard{i} :=
+  by decide +kernel
+theorem guard{i}Limit : guard{i}.limit = {limit}#256 := by decide +kernel
+theorem guard{i}Miss (selector : Word) (tail : EVM.Stack) (gas : Nat)
+    (outside : ({limit}#256).toNat ≤ selector.toNat) :
+    EVM.IndexedGuard.run cfg code {guard_pc} {entry} {FUEL} {jumps} (selector :: tail) gas =
+      if tail.length+3 ≤ 1024 && guard{i}.gas ≤ gas
+      then some (.miss guard{i}.miss.toNat,selector::tail,gas-guard{i}.gas) else none :=
+  EVM.IndexedGuard.misses cfg code {guard_pc} {entry} {FUEL} {jumps} guard{i}
+    guard{i}Decoded (by decide +kernel) selector tail gas (by simpa only [guard{i}Limit] using outside)
+theorem guard{i}Select (selector : Word) (tail : EVM.Stack) (gas : Nat)
+    (inside : selector.toNat < ({limit}#256).toNat) :
+    ∃ pc peak cost, EVM.IndexedJump.target targets selector = some pc ∧
+      bounds[selector.toNat]? = some (peak,cost) ∧
+      EVM.IndexedGuard.run cfg code {guard_pc} {entry} {FUEL} {jumps} (selector::tail) gas =
+        if max 3 peak + tail.length ≤ 1024 && guard{i}.gas + guard{i}.markerGas + cost ≤ gas
+        then some (.selected pc,tail,gas-(guard{i}.gas+guard{i}.markerGas+cost)) else none :=
+  EVM.IndexedGuard.selects cfg code {guard_pc} {entry} {FUEL} {jumps} guard{i} guard{i}Decoded
+    targets bounds certified (by decide +kernel) selector tail gas
+    (by simpa only [guard{i}Limit] using inside)
+#print axioms guard{i}Miss
+#print axioms guard{i}Select
+#eval IO.println ("range guard " ++ reprStr [{guard_pc}, guard{i}.limit.toNat,
+  guard{i}.miss.toNat, guard{i}.gas, guard{i}.markerGas])
+"""
+        for i, (guard_pc, limit) in enumerate(guards)
+    )
+
+
+def certificate(
+    image, pc, targets, jumps, catalog, version, mask_pc, binding, mask, guards
+):
     if mask_pc is None:
         proof = f"""
 theorem validated (selector : Word) (tail : EVM.Stack) (gas pc peak charge : Nat)
@@ -89,14 +124,17 @@ theorem destination (suffix : List Execution.Byte) (target : Word)
 #print axioms logicalEdge
 #print axioms destination
 """
+    imports = "import SolarTV.EVMIR.Transforms.IndexedGuard\n" if guards else ""
     return (
-        start_image(image, catalog, version)
+        imports
+        + start_image(image, catalog, version)
         + labels
         + f"""
 def bounds := limits cfg code {pc} {FUEL} {jumps} targets.length
 theorem certified : check cfg code {pc} {FUEL} {jumps} targets bounds = true := by decide +kernel
 
 {proof}
+{guard_certificates(guards, pc, jumps)}
 #print axioms validated
 #eval IO.println ("table bounds [" ++ String.intercalate "," (bounds.map fun (peak,gas) =>
   "[" ++ toString peak ++ "," ++ toString gas ++ "]") ++ "]")
@@ -124,6 +162,30 @@ theorem checkedCounterexample :
 """,
         timeout,
     )
+    raise_witness(proof)
+
+
+def confirm_guard_mismatches(directory, image, pc, catalog, version, timeout, guards):
+    for start, limit in guards:
+        proof = entry_proof.lean(
+            directory,
+            "WrongGuard",
+            "import SolarTV.EVMIR.Transforms.IndexedGuard\n"
+            + start_image(image, catalog, version)
+            + f"""
+def proposal := EVM.IndexedGuard.mismatch cfg code {start} {pc} ({limit}#256)
+theorem checkedCounterexample : proposal.isSome = true := by decide +kernel
+#print axioms checkedCounterexample
+#eval IO.println ("counterexample " ++ reprStr (match proposal with
+  | some (index, expected, actual, gas) => [index, expected, actual, gas]
+  | none => []))
+""",
+            timeout,
+        )
+        raise_witness(proof, guard_pc=start)
+
+
+def raise_witness(proof, **extra):
     if proof.returncode:
         return
     theorem, witness = proof.stdout.splitlines()
@@ -132,7 +194,13 @@ theorem checkedCounterexample :
         witness.removeprefix("counterexample ")
     )
     raise WrongDestination(
-        {"selector": selector, "expected_pc": expected, "actual_pc": actual, "gas": gas}
+        {
+            "selector": selector,
+            "expected_pc": expected,
+            "actual_pc": actual,
+            "gas": gas,
+            **extra,
+        }
     )
 
 
@@ -148,6 +216,7 @@ def check(
     *,
     binding=None,
     mask=None,
+    guards=(),
 ):
     if (
         not image
@@ -158,19 +227,27 @@ def check(
         or any(not 0 <= target < len(image) for target in targets)
         or jumps not in (1, 2)
         or (mask_pc is not None and not 0 <= mask_pc < pc)
+        or any(
+            not 0 <= start < len(image) or not 0 <= limit < 2**256
+            for start, limit in guards
+        )
     ):
         raise Unsupported("table image or target map is outside the supported bounds")
     catalog = native.catalog(replay, timeout)
     code = certificate(
-        image, pc, targets, jumps, catalog, version, mask_pc, binding, mask
+        image, pc, targets, jumps, catalog, version, mask_pc, binding, mask, guards
     )
-    entry_proof.success(build_model(timeout, MODULE), "encoded table model build")
+    module = "SolarTV.EVMIR.Transforms.IndexedGuard" if guards else MODULE
+    entry_proof.success(build_model(timeout, module), "encoded table model build")
     with tempfile.TemporaryDirectory(prefix="solar-tv-table-") as directory:
         directory = Path(directory)
         proof = entry_proof.lean(directory, "Table", code, timeout)
         if proof.returncode and binding is not None:
             confirm_mismatch(
                 directory, image, pc, targets, jumps, catalog, version, timeout
+            )
+            confirm_guard_mismatches(
+                directory, image, pc, catalog, version, timeout, guards
             )
     if proof.returncode:
         raise Unsupported(
@@ -181,13 +258,25 @@ def check(
     lines = proof.stdout.splitlines()
     entry_proof.check_axioms(
         [line for line in lines if "axioms" in line],
-        1 + 2 * (binding is not None) + (mask is not None),
+        1 + 2 * (binding is not None) + (mask is not None) + 2 * len(guards),
     )
     values = {}
+    ranges = []
     for line in lines:
         label, _, value = line.partition(" [")
         if label in {"table bounds", "mask producer"}:
             values[label] = json.loads("[" + value)
+        if label == "range guard":
+            start, limit, miss, gas, marker_gas = json.loads("[" + value)
+            ranges.append(
+                {
+                    "pc": start,
+                    "limit": limit,
+                    "miss_pc": miss,
+                    "gas": gas,
+                    "marker_gas": marker_gas,
+                }
+            )
     if "table bounds" not in values or (
         mask_pc is not None and "mask producer" not in values
     ):
@@ -208,6 +297,10 @@ def check(
     if mask_pc is not None:
         mask, price = values["mask producer"]
         result["producer"] = {"pc": mask_pc, "mask": mask, "gas": price}
+    if guards:
+        if len(ranges) != len(guards):
+            raise Unsupported("encoded table proof omitted a range guard")
+        result["range_guards"] = ranges
     return result
 
 
