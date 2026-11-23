@@ -60,6 +60,7 @@ pub(crate) mod sroa;
 pub(crate) mod static_alloc;
 pub(crate) mod storage_dse;
 pub(crate) mod storage_promotion;
+pub(crate) mod switch_lookup;
 mod utils;
 
 pub(crate) mod word_sequence;

@@ -53,6 +53,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::Inline::Physical,
     &inline::Inline::Tagged,
     &if_convert::IfConvert,
+    &switch_lookup::SwitchLookup,
     &inline::SpecializeFunctionPointers,
     &specialize::Specialize,
     &call_cleanup::CallCleanup,
@@ -306,6 +307,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &RunsAtNone::new(cfg_simplify::CfgSimplify),
     // Small pure diamonds become selects once folded conditions are gone.
     &if_convert::IfConvert,
+    // Switches whose cases only pick literals become table lookups, before inlining prices the
+    // helpers that hold them.
+    &switch_lookup::SwitchLookup,
     // Searches written with branches or checked additions are straight-line now.
     &scan_region::ScanRegion,
     &frame_promotion::FrameSlotPromotion,

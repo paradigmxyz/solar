@@ -1733,6 +1733,123 @@ impl Target {
                     .saturating_mul(Self::ABI_DECODE_NODE_BYTES)
                     > Self::MAX_ABI_DECODE_COPY_BYTES)
     }
+
+    /// Whether a packed lookup that costs `lookup` (the gas of one execution and its bytes)
+    /// replaces a switch on the sorted `keys` whose case blocks only pass literals to one join.
+    /// Each entry of `blocks` is one case block: the keys that reach it and the pushes of its
+    /// literals. A default block that the lookup also replaces reaches no key.
+    ///
+    /// The switch is priced by [`Self::literal_switch`]. Size builds take the fewer bytes. Gas
+    /// builds weigh both over the deployment's lifetime, the gas of each expected execution
+    /// against the deposit of the bytes, with [`Self::UNCOUNTED_LOOP_ITERATIONS`] executions a
+    /// run for a switch inside a loop, so a hot switch at high runs keeps its jump table when
+    /// the lookup costs more gas each time. Inside a loop, whose trip count is unknown, a gas
+    /// build never trades more gas per execution for bytes: in a decoder's sequence loop, lookups
+    /// of four and five words saved 909 bytes and cost 1.1% more gas at 200 runs. Ties keep the
+    /// switch.
+    pub(crate) fn switch_lookup_pays(
+        &self,
+        keys: &[U256],
+        blocks: &[(u32, Cost)],
+        lookup: Cost,
+        in_loop: bool,
+    ) -> bool {
+        let switch = self.literal_switch(keys, blocks);
+        if self.optimization.is_size() {
+            return self.cmp(lookup, switch) == Ordering::Less;
+        }
+        if in_loop && self.runtime_gas(lookup) > self.runtime_gas(switch) {
+            return false;
+        }
+        let iterations = if in_loop { Self::UNCOUNTED_LOOP_ITERATIONS } else { 1 };
+        let lifetime = |cost: Cost| {
+            u128::from(self.runtime_gas(cost))
+                * u128::from(self.expected_executions)
+                * u128::from(iterations)
+                + u128::from(cost.bytes) * u128::from(self.byte_gas())
+        };
+        lifetime(lookup) < lifetime(switch)
+    }
+
+    /// Cost of a switch on the sorted `keys` whose case `blocks`, as in
+    /// [`Self::switch_lookup_pays`], only push literals and jump to one join: the bytes of the
+    /// dispatch and the blocks, and the gas of a hit averaged over the keys. The dispatch is the
+    /// cheapest under the objective of the shapes the switch planner weighs for a dense range: a
+    /// linear scan, a binary search, and a bounds check with an indexed jump into a stride table
+    /// of `JUMPDEST PUSH2 case JUMP` stubs, which the planner prices when it plans with the widest
+    /// label. Each block lands, pushes its literals, and jumps to the join, except one laid out
+    /// before the join, which falls through. Misses and the default's own jump are left out, so
+    /// the price bounds the switch from below.
+    fn literal_switch(&self, keys: &[U256], blocks: &[(u32, Cost)]) -> Cost {
+        let (Some(&low), Some(&high)) = (keys.first(), keys.last()) else { return Cost::ZERO };
+        let count = keys.len() as u32;
+        // The bytes of `code`, with the gas and steps of `executed` averaged over the keys.
+        let priced = |code: Cost, executed: Cost| Cost {
+            gas: executed.gas / count,
+            bytes: code.bytes,
+            steps: executed.steps / count,
+        };
+        // dup1; push key; eq; push case; jumpi, with `iszero` for a zero key
+        let tests = keys
+            .iter()
+            .map(|&key| {
+                let compare = if key.is_zero() {
+                    self.opcode(op::ISZERO)
+                } else {
+                    self.push(key) + self.opcode(op::EQ)
+                };
+                self.dup() + compare + self.label_push() + self.opcode(op::JUMPI)
+            })
+            .collect::<Vec<_>>();
+        let all_tests = tests.iter().copied().sum::<Cost>();
+        // The i-th key runs the first i + 1 tests.
+        let mut prefix = Cost::ZERO;
+        let mut scanned = Cost::ZERO;
+        for &test in &tests {
+            prefix += test;
+            scanned += prefix;
+        }
+        let linear = priced(all_tests, scanned);
+        // A balanced tree runs an ordering test on each level and an equality test at its leaf,
+        // and holds an ordering test for every key but one besides the equality tests.
+        let depth = count.next_power_of_two().trailing_zeros();
+        let binary =
+            priced(all_tests.times(2).saturating_sub(tests[0]), all_tests.times(depth + 1));
+        // [push low; sub]; dup1; push range; gt; push default; jumpi;
+        // push stride; mul; push table; add; jump; table: (jumpdest; push case; jump) * range
+        let range = high - low + U256::ONE;
+        let normalize =
+            if low.is_zero() { Cost::ZERO } else { self.push(low) + self.opcode(op::SUB) };
+        let stub = self.opcode(op::JUMPDEST) + self.label_push() + self.opcode(op::JUMP);
+        let indexed = normalize
+            + self.dup()
+            + self.push(range)
+            + self.opcode(op::GT)
+            + self.label_push()
+            + self.opcode(op::JUMPI)
+            + self.push(U256::from(stub.bytes))
+            + self.opcode(op::MUL)
+            + self.label_push()
+            + self.opcode(op::ADD)
+            + self.opcode(op::JUMP)
+            + stub;
+        let table = Cost::new(0, stub.bytes).times(u32::try_from(range).unwrap_or(u32::MAX) - 1);
+        let dense = priced(indexed + table, indexed.times(count));
+        let dispatch = [linear, binary, dense].into_iter().min_by(|&a, &b| self.cmp(a, b)).unwrap();
+        // jumpdest; push literals; push join; jump
+        let jump = self.label_push() + self.opcode(op::JUMP);
+        let mut code = Cost::ZERO;
+        let mut executed = Cost::ZERO;
+        for &(reached, literals) in blocks {
+            let block = self.opcode(op::JUMPDEST) + literals + jump;
+            code += block;
+            executed += block.times(reached);
+        }
+        if !blocks.is_empty() {
+            code = code.saturating_sub(jump);
+        }
+        dispatch + priced(code, executed)
+    }
 }
 
 /// Estimates the instructions an `abi_encode` of `ty` expands into after `lower-abi-encode`.
@@ -2790,5 +2907,48 @@ mod tests {
             assert!(target.shares_abi_decoder(&array, 2));
             assert!(!target.shares_abi_decoder(&tree, 1));
         }
+    }
+
+    #[test]
+    fn switch_lookups_replace_literal_switches_by_objective() {
+        let switch = |n: u64| {
+            let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+            let keys = (0..n).map(U256::from).collect::<Vec<_>>();
+            let mut blocks =
+                (0..n).map(|k| (1, target.push(U256::from(k * 300 + 1)))).collect::<Vec<_>>();
+            blocks.push((0, target.push(U256::ZERO)));
+            (keys, blocks)
+        };
+        let target = |optimization, runs| Target::with(EvmVersion::Osaka, optimization, runs);
+        let (keys, blocks) = switch(30);
+        // Thirty keys take the stride table: a 71-gas hit through 150 bytes of stubs, and 407
+        // bytes with the case blocks.
+        let gas = target(OptimizationMode::Gas, 200);
+        assert_eq!(gas.literal_switch(&keys, &blocks), Cost::new(71, 407).with_steps(17));
+        let size = target(OptimizationMode::Size, 200);
+        assert_eq!(size.literal_switch(&keys, &blocks), Cost::new(71, 407).with_steps(17));
+        // A two-word lookup is smaller and cheaper everywhere.
+        let two_words = Cost::new(60, 80);
+        for in_loop in [false, true] {
+            assert!(gas.switch_lookup_pays(&keys, &blocks, two_words, in_loop));
+            assert!(size.switch_lookup_pays(&keys, &blocks, two_words, in_loop));
+        }
+        // A lookup of more words repays its gas with the deposit at 200 runs, but not inside a
+        // loop or at a million runs.
+        let five_words = Cost::new(100, 220);
+        assert!(gas.switch_lookup_pays(&keys, &blocks, five_words, false));
+        assert!(!gas.switch_lookup_pays(&keys, &blocks, five_words, true));
+        let hot = target(OptimizationMode::Gas, 1_000_000);
+        assert!(!hot.switch_lookup_pays(&keys, &blocks, five_words, false));
+        assert!(size.switch_lookup_pays(&keys, &blocks, five_words, true));
+        // Two keys take a linear scan of 45 gas and 31 bytes; a lookup one byte larger loses a
+        // size build and wins a gas build.
+        let (keys, blocks) = switch(2);
+        assert_eq!(gas.literal_switch(&keys, &blocks), Cost::new(45, 31).with_steps(10));
+        let lookup = Cost::new(40, 32);
+        assert!(!size.switch_lookup_pays(&keys, &blocks, lookup, false));
+        assert!(gas.switch_lookup_pays(&keys, &blocks, lookup, false));
+        // Ties keep the switch.
+        assert!(!gas.switch_lookup_pays(&keys, &blocks, Cost::new(45, 31), false));
     }
 }
