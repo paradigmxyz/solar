@@ -1,10 +1,11 @@
-//@ compile-flags: -Zmir-pipeline=indvar-simplify
+//@ compile-flags: -Zmir-pipeline=indvar-simplify --optimize-runs 10000
 //@ filecheck:
 @module DeepByteScan
 
 // A byte scan that returns the position of the `arg3`-th byte equal to `arg2`, in a loop that
 // carries more than four words. The pointer that takes over the exit test carries the
-// counter's word, so it pays for itself although a byte pointer beside a counter would not.
+// counter's word, so it pays for itself although a byte pointer beside a counter would not. Its
+// end adds bytes, which a build for 10,000 runs repays in gas and one for 200 does not.
 // CHECK-LABEL: {{^[ +].*}}fn @scan{{[( ]}}
 // CHECK: + [[PTR:v[0-9]+]] = phi [bb0: [[START:v[0-9]+]]], [bb6: {{v[0-9]+}}]
 // CHECK: + {{v[0-9]+}} = mload [[PTR]]
