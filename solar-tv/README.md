@@ -1997,10 +1997,11 @@ report. The evaluator retains each capture ID in the coverage totals.
 EVM IR regions can verify after block coalescing or jump threading when both
 source graphs retain the same actions and branches. The checker contracts
 finite chains of unconditional jumps and carries forward their strongest
-temporary stack-growth check. Lean checks the projection against both
-graphs and proves the matched actions preserve all incoming stack heights
-and ordered effects. The certificate counts logical work and leaves gas
-and physical return addresses outside its comparison.
+temporary stack-growth check. The same physical point may match multiple
+paths when the rewrite changes tail sharing. Lean checks each successor
+against both source graphs and proves the matched actions preserve all
+incoming stack heights and ordered effects. The certificate counts logical
+work and leaves gas and physical return addresses outside its comparison.
 
 The MIR checker also validates block coalescing and jump threading on typed
 graphs, including backedges. Every selected phi group reads its predecessor's

@@ -466,6 +466,12 @@ regions, with 175 and 103 respectively. MIR `lower-dispatch` and
 `cfg-simplify` had the most timeouts, with 73 and 71 respectively. A timeout
 reflects the three-second prover budget for this run.
 
+The shared-tail extension verifies four previously unsupported Morpho
+`cfg-simplify-early` captures (`bb431`, `bb435`, `bb439`, and `bb443`) in a
+targeted recheck of the frozen pairs with a six-second budget. When two
+paths reach one physical point in either graph, Lean checks the incoming
+edges separately. Each route retains its own temporary stack bound.
+
 ## Automatic typed source execution
 
 The scalar expression projection has a separate automatic fallback: direct

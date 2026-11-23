@@ -64,34 +64,52 @@ theorem follow_execute (program : Program) (signatures : Signatures)
         subst path
         simp [notFull]
 
-/-- Selecting a successor is part of the checked projection. Logical point
-indices identify the same physical path on both sides of the comparison. -/
-def project (program : Program) (points : Array Nat) (jumpLimit : Nat) :
-    Option Program := do
-  let resolve (pc : Nat) := (points.toList.idxOf? pc).map (· * 2)
+/-- Each logical successor selects a source point on both sides of the
+comparison. A source point can occur more than once when tails are shared. -/
+inductive Edges where
+  | next (target : Nat)
+  | branch (yes no : Nat)
+  | terminal
+
+def resolve (points : Array Nat) (source logical : Nat) : Option Nat := do
+  if (← points[logical]?) == source then some (logical * 2) else none
+
+theorem resolve_edge (points : Array Nat) (source logical : Nat)
+    (found : resolve points source logical = some (logical * 2)) :
+    points[logical]? = some source := by
+  cases point : points[logical]? <;>
+    simp_all [resolve, Bind.bind, Option.bind]
+
+/-- Check every proposed edge against the actual successor, even if two
+different logical edges use the same physical point. -/
+def project (program : Program) (points : Array Nat) (edges : Array Edges)
+    (jumpLimit : Nat) : Option Program := do
+  let entry ← resolve points program.entry 0
+  if edges.size != points.size then none else
   let rows ← (points.toList.zipIdx).mapM fun (pc,index) => do
     let path ← follow program jumpLimit pc
-    let action ← match ← program.nodes[path.destination]? with
-    | .operation _ name next => pure (.operation 0 name (← resolve next))
-    | .branch _ yes no => pure (.branch 0 (← resolve yes) (← resolve no))
-    | .terminal _ name => pure (.terminal 0 name)
-    | .jump .. => none
+    let action ← match ← program.nodes[path.destination]?, ← edges[index]? with
+    | .operation _ name next, .next target => pure (.operation 0 name (← resolve points next target))
+    | .branch _ yes no, .branch yesTarget noTarget =>
+      pure (.branch 0 (← resolve points yes yesTarget) (← resolve points no noTarget))
+    | .terminal _ name, .terminal => pure (.terminal 0 name)
+    | _, _ => none
     return [.jump 0 path.growth (2*index+1),action]
-  return ⟨← resolve program.entry, rows.flatten.toArray⟩
+  return ⟨entry, rows.flatten.toArray⟩
 
 /-- Equality after checking the projection from both independent source
 graphs. A logical step covers a finite transfer chain and its first
 non-jump operation. Position-independent handlers carry the concrete
 ordinary effects across the preserved action sequence. -/
 theorem contextual (before after old new : Program) (sourcePoints targetPoints : Array Nat)
-    (jumpLimit : Nat) (signatures : Signatures) (bounds : Nat → Nat)
-    (oldProjection : project before sourcePoints jumpLimit = some old)
-    (newProjection : project after targetPoints jumpLimit = some new)
+    (edges : Array Edges) (jumpLimit : Nat) (signatures : Signatures) (bounds : Nat → Nat)
+    (oldProjection : project before sourcePoints edges jumpLimit = some old)
+    (newProjection : project after targetPoints edges jumpLimit = some new)
     (valid : Valid old new id bounds signatures)
     (handlers : Handlers World Observation) (work : Nat) (state : State World) :
-    (project before sourcePoints jumpLimit).map
+    (project before sourcePoints edges jumpLimit).map
         (fun p => execute p signatures handlers work p.entry state) =
-      (project after targetPoints jumpLimit).map
+      (project after targetPoints edges jumpLimit).map
         (fun p => execute p signatures handlers work p.entry state) := by
   rw [oldProjection,newProjection]
   exact congrArg some (StackGraph.contextual old new id bounds signatures valid handlers work state)

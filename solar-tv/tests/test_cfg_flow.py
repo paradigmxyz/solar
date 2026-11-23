@@ -102,3 +102,68 @@ bb0 [stack=1]:
         result, report = self.check(["--region=bb0"])
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertEqual(report["status"], "unsupported")
+
+    def test_shared_tail_checks_both_incoming_edges(self):
+        self.before.write_text("""@module SharedTail
+bb0 [stack=0]:
+  push 1
+  push 0
+  sload
+  jumpi bb3, bb1
+bb1:
+  push 2
+  push 1
+  sload
+  jumpi bb4, bb2
+bb2:
+  invalid
+bb3:
+  jump bb5
+bb4:
+  jump bb5
+bb5:
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+""")
+        output = subprocess.check_output(
+            [
+                SOLAR,
+                self.before,
+                "-j1",
+                "-Ogas",
+                "--evm-version=cancun",
+                "-Zevm-ir-pipeline=cfg-simplify-early",
+            ],
+            text=True,
+            timeout=20,
+        )
+        self.after.write_text(output)
+        result, report = self.check(["--region=bb0"])
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            report["region"]["proof"], "kernel-checked-jump-chain-projection"
+        )
+        self.assertEqual(
+            [side["reused_points"] for side in report["import_correspondence"]],
+            [0, 1],
+        )
+
+        # The first branch must send a nonzero condition to the shared tail.
+        self.after.write_text(output.replace("jumpi bb5, bb1", "jumpi bb2, bb1"))
+        self.assertNotEqual(self.after.read_text(), output)
+        result, report = self.check(["--region=bb0"])
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(report["status"], "unsupported")
+        world = self.root / "world.json"
+        world.write_text(
+            '{"version":1,"accounts":[{"address":65536,"storage":{"0":"1"}}]}'
+        )
+        result, report = self.check(["--world", world])
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(report["status"], "counterexample")
+        self.assertEqual(
+            report["witness"]["observations"], report["witness"]["native_observations"]
+        )
