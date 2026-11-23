@@ -2813,6 +2813,9 @@ impl<'p, 'a> Vc<'p, 'a> {
         if let Some(b) = &f.item.body {
             stmts.extend(b.stmts.iter());
         }
+        // Modifier arguments run before the body, and may call functions that write state.
+        let mod_args: Vec<&'a Expr<'a>> =
+            f.item.header.modifiers.iter().flat_map(|m| m.arguments.exprs()).collect();
         for m in f.item.header.modifiers.iter() {
             if let Some(md) = self.c.modifiers.get(m.name.last().as_str())
                 && let Some(b) = &md.body
@@ -2828,6 +2831,9 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
         }
         self.effect_frames.borrow_mut().push(names);
+        for a in &mod_args {
+            walk::sub_exprs(a, &mut |x| self.effects(x, &mut out, &mut all, seen));
+        }
         for s in &stmts {
             walk::all_stmts(s, &mut |s| {
                 walk::stmt_exprs(s, &mut |e| {
@@ -5140,9 +5146,12 @@ impl<'p, 'a> Vc<'p, 'a> {
         let Some(body) = &f.item.body else {
             return (true, vec![]);
         };
+        // Modifier arguments run in the function's scope before its body.
+        let mod_args: Vec<&'a Expr<'a>> =
+            f.item.header.modifiers.iter().flat_map(|m| m.arguments.exprs()).collect();
         let outer = self.mem_walk.replace(Some(vec![]));
         self.effect_frames.borrow_mut().push(Self::frame_of(f.item).1);
-        let direct = self.mem_param_written_body(body, n);
+        let direct = self.mem_param_written_body(body, &mod_args, n);
         self.effect_frames.borrow_mut().pop();
         let calls = std::mem::replace(&mut *self.mem_walk.borrow_mut(), outer).unwrap_or_default();
         let calls = calls
@@ -5153,46 +5162,64 @@ impl<'p, 'a> Vc<'p, 'a> {
         (direct, calls)
     }
 
-    fn mem_param_written_body(&self, body: &'a ast::Block<'a>, n: &str) -> bool {
+    fn mem_param_written_body(
+        &self,
+        body: &'a ast::Block<'a>,
+        mod_args: &[&'a Expr<'a>],
+        n: &str,
+    ) -> bool {
         let is_n =
             |e: &Expr<'_>| matches!(&e.peel_parens().kind, ExprKind::Ident(i) if i.as_str() == n);
         let mut hit = false;
         let mut out = BTreeSet::new();
         let mut all = false;
+        let mut expr = |x: &'a Expr<'a>| {
+            self.effects(x, &mut out, &mut all, &mut FxHashSet::default());
+            match &x.kind {
+                ExprKind::Call(callee, args) => {
+                    if args.exprs().any(is_n) {
+                        hit = true;
+                    }
+                    if let ExprKind::Member(b, _) = &callee.peel_parens().kind
+                        && is_n(b)
+                    {
+                        hit = true;
+                    }
+                }
+                ExprKind::Assign(_, _, r) if is_n(r) => hit = true,
+                ExprKind::Ternary(_, a, b) if is_n(a) || is_n(b) => hit = true,
+                _ => {}
+            }
+        };
+        // A modifier argument may write `n` itself, or hand `n` to the modifier, whose body may
+        // then write it through its own parameter.
+        let mut passed = false;
+        for a in mod_args {
+            // A call's result is a new value; anything else may be (part of) `n` itself.
+            passed |= !matches!(a.peel_parens().kind, ExprKind::Call(..))
+                && walk::root(a).iter().any(|r| r == n);
+            walk::sub_exprs(a, &mut expr);
+        }
         for s in body.stmts.iter() {
             walk::all_stmts(s, &mut |s| {
                 match &s.kind {
-                    StmtKind::Assembly(_) => hit = true,
+                    StmtKind::Assembly(_) => passed = true,
                     StmtKind::DeclSingle(v) if v.initializer.as_deref().is_some_and(is_n) => {
-                        hit = true
+                        passed = true
                     }
-                    StmtKind::DeclMulti(_, e) if walk::root(e).iter().any(|r| r == n) => hit = true,
-                    StmtKind::Return(Some(e)) if walk::root(e).iter().any(|r| r == n) => hit = true,
+                    StmtKind::DeclMulti(_, e) if walk::root(e).iter().any(|r| r == n) => {
+                        passed = true
+                    }
+                    StmtKind::Return(Some(e)) if walk::root(e).iter().any(|r| r == n) => {
+                        passed = true
+                    }
                     _ => {}
                 }
-                walk::stmt_exprs(s, &mut |e| {
-                    walk::sub_exprs(e, &mut |x| {
-                        self.effects(x, &mut out, &mut all, &mut FxHashSet::default());
-                        match &x.kind {
-                            ExprKind::Call(callee, args) => {
-                                if args.exprs().any(is_n) {
-                                    hit = true;
-                                }
-                                if let ExprKind::Member(b, _) = &callee.peel_parens().kind
-                                    && is_n(b)
-                                {
-                                    hit = true;
-                                }
-                            }
-                            ExprKind::Assign(_, _, r) if is_n(r) => hit = true,
-                            ExprKind::Ternary(_, a, b) if is_n(a) || is_n(b) => hit = true,
-                            _ => {}
-                        }
-                    })
-                });
+                walk::stmt_exprs(s, &mut |e| walk::sub_exprs(e, &mut expr));
             });
         }
-        hit || out.contains(n)
+        drop(expr);
+        hit || passed || out.contains(n)
     }
 
     fn cast(&mut self, ty: Ty, v: Val) -> Val {

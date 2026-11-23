@@ -1181,3 +1181,8 @@ fn struct_names_base_ctor() {
 fn mem_names_shadow() {
     check("tests/cases/mem_names_shadow.sol")
 }
+
+#[test]
+fn encode_modifier_args() {
+    check("tests/cases/encode_modifier_args.sol")
+}
