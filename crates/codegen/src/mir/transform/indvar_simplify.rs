@@ -1493,7 +1493,11 @@ impl IndVarSimplifier {
         };
         let end = 2 + scaling + offset + clamp;
         let rebuild = 2 + scaling + if init_is_zero { 0 } else { 2 };
-        start + end + reads.map_or(0, |reads| reads.blocks.len() + reads.phis.len()) * rebuild
+        // A read on a critical edge costs what it will as a phi read once the edge is split, so
+        // the visit after the split makes the same choice.
+        let read_count =
+            reads.map_or(0, |reads| reads.blocks.len() + reads.phis.len() + reads.edges.len());
+        start + end + read_count * rebuild
     }
 
     /// Operations a family's pointer uses cost: one duplication per primary use and three per
