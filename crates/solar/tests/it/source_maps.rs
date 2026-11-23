@@ -315,7 +315,7 @@ fn tail_call_entry_label_maps_to_definition() {
     let path =
         Path::new(FIXTURES).join("../../ui/codegen/run-call/dispatch/internal_stop_runtime.sol");
     let source = RealFileLoader.load_file(&path).unwrap();
-    let start = source.find("function haltThenRevert()").unwrap();
+    let start = source.find("function halt()").unwrap();
     let end = start + source[start..].find("\n    }").unwrap() + "\n    }".len();
     let compile = |outputs: &str| {
         let output = Command::new(SOLAR)
@@ -336,8 +336,6 @@ fn tail_call_entry_label_maps_to_definition() {
     }
     let entries = source_entries(contract["srcmap-runtime"].as_str().unwrap());
     let instructions = contract["ethdebug-runtime"]["instructions"].as_array().unwrap();
-    // `haltThenRevert` tail-calls `halt` and layout falls through into it, so the chain keeps one
-    // entry label, which maps to the definition of the outer function.
     assert!(instructions.iter().enumerate().any(|(index, inst)| {
         inst["operation"]["mnemonic"] == "JUMPDEST"
             && in_statement(entries[index], 0, start, end)

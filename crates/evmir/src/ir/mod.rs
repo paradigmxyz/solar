@@ -204,7 +204,8 @@ impl Module {
     pub fn jump_falls_through(&self, block: BlockId, target: BlockId) -> bool {
         let unoptimized =
             self.blocks[block].metadata.optimization.unwrap_or(self.optimization).is_none();
-        let calls = self.blocks[target].metadata.call_effect.is_some();
+        let metadata = &self.blocks[target].metadata;
+        let calls = metadata.call_effect.is_some() || metadata.function_entry;
         self.next_block(block) == Some(target) && !(unoptimized && calls)
     }
 
@@ -360,6 +361,9 @@ pub struct BlockMetadata {
     /// Direct jumps to the block are calls, and the return address is a block's address that the
     /// caller pushed before them. See [`CallEffect`].
     pub call_effect: Option<CallEffect>,
+    /// This block is the entry of an internal function, which a jump to it calls. Unlike
+    /// [`Self::call_effect`] it is set for a function that never returns.
+    pub function_entry: bool,
     /// A function entry lent to this block by a bypassed conditional thunk.
     ///
     /// NOTE: The event marks the callee's entry, so it sits on the destination only while the

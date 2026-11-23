@@ -169,6 +169,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 Some(effect) => self.asm.define_function_label(label, effect),
                 None => self.asm.define_label(label),
             }
+            self.asm.mark_function_entry(label);
             self.mark_block_label_origin(label, &func.blocks[BlockId::ENTRY].label_metadata);
             self.mark_debug_function_invoke(func, false);
             self.comment_function_entry(func, false, false);
