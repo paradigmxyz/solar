@@ -3,11 +3,15 @@
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from test_cli import CLI, SOLAR
+from test_cli import CLI, ROOT, SOLAR
+
+sys.path.insert(0, str(ROOT))
+from validator.check import build_model
 
 INPUT = """@module Continuation
 bb0 [stack=0]:
@@ -115,6 +119,42 @@ class ContinuationFlowTests(unittest.TestCase):
         result, record = self.check("--region=bb0")
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertEqual(record["status"], "unsupported")
+
+    def test_large_continuation_projection_closes(self):
+        # Distinct immediates keep the source table large without moving its tag.
+        actions = "".join(f"  push {value}\n  pop\n" for value in range(1, 385))
+        self.before.write_text(INPUT.replace("  swap 1\n", actions + "  swap 1\n"))
+        self.compile()
+        result, record = self.check("--region=bb0")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(record["region"]["proof"], "kernel-checked-continuation-flow")
+        for side in record["import_correspondence"]:
+            self.assertGreater(side["provenance_states"], 768)
+
+    def test_cached_sizes_must_match_the_ordered_rows(self):
+        built = build_model(30, "SolarTV.EVMIR.ProofTable")
+        self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
+        proof = self.root / "Lookup.lean"
+        proof.write_text("""import SolarTV.EVMIR.ProofTable
+open SolarTV.EVM.ProofTable
+
+def tree : Tree Nat := .branch 4 (.branch 2 (.leaf [1]) (.leaf [2])) (.leaf [3,4])
+def broken : Tree Nat := .branch 4 (.branch 3 (.leaf [1]) (.leaf [2])) (.leaf [3,4])
+
+example : tree.view = ofArray #[1,2,3,4] := tree.view_eq (by decide +kernel)
+example : broken.rows = tree.rows := rfl
+example : broken.get? 2 = none ∧ tree.get? 2 = some 3 := by decide +kernel
+example : broken.checked = false := by decide +kernel
+""")
+        result = subprocess.run(
+            ["lake", "env", "lean", "-j1", proof],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_live_check_keeps_bytecode(self):
         directory = self.root / "audit"

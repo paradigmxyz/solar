@@ -1,4 +1,5 @@
 import SolarTV.EVMIR.SourceGraph
+import SolarTV.EVMIR.ProofTable
 
 /-! Layout simulation with checked stack-height invariants.
 
@@ -95,28 +96,35 @@ instance : Decidable (Valid before after rename bounds signatures entryBound) :=
   unfold Valid
   infer_instance
 
-def checkIndex (before after : Program) (rename bounds : Nat → Nat)
+def checkIndex (before after : ProofTable.View Node) (rename bounds : Nat → Nat)
     (signatures : Signatures) (i : Nat) : Bool :=
-  match before.nodes[i]? with
+  match before.get? i with
   | none => false
   | some node => bounds i ≤ 1024 &&
-      compatible before.nodes.size rename bounds signatures i node after.nodes[rename i]?
-
-theorem append_checks {check : Nat → Bool} {a b : List Nat}
-    (left : a.all check = true) (right : b.all check = true) :
-    (a ++ b).all check = true := by
-  simp only [List.all_append, left, right, Bool.true_and]
+      compatible before.size rename bounds signatures i node (after.get? (rename i))
 
 theorem valid_checked (before after : Program) (rename bounds : Nat → Nat)
     (signatures : Signatures) (entryBound : Nat)
     (entry : before.entry < before.nodes.size) (mapped : rename before.entry = after.entry)
     (height : entryBound ≤ bounds before.entry)
-    (checked : (List.range before.nodes.size).all (checkIndex before after rename bounds signatures) = true) :
+    (checked : (List.range before.nodes.size).all (checkIndex (ProofTable.ofArray before.nodes)
+      (ProofTable.ofArray after.nodes) rename bounds signatures) = true) :
     Valid before after rename bounds signatures entryBound := by
   refine ⟨entry, mapped, height, ?_⟩
   intro i
   have part := List.all_eq_true.mp checked i (List.mem_range.mpr i.isLt)
-  simpa [checkIndex, Array.getElem?_eq_getElem i.isLt, Bool.and_eq_true] using part
+  simpa [checkIndex, ProofTable.ofArray, Array.getElem?_eq_getElem i.isLt, Bool.and_eq_true] using part
+
+theorem valid_views (before after : Program) (left right : ProofTable.View Node)
+    (rename bounds : Nat → Nat) (signatures : Signatures) (entryBound : Nat)
+    (leftEq : left = ProofTable.ofArray before.nodes)
+    (rightEq : right = ProofTable.ofArray after.nodes)
+    (entry : before.entry < before.nodes.size) (mapped : rename before.entry = after.entry)
+    (height : entryBound ≤ bounds before.entry)
+    (checked : (List.range left.size).all (checkIndex left right rename bounds signatures) = true) :
+    Valid before after rename bounds signatures entryBound := by
+  rw [leftEq, rightEq] at checked
+  exact valid_checked before after rename bounds signatures entryBound entry mapped height checked
 
 theorem post_height_bound (height bound inputs outputs : Nat)
     (small : height ≤ bound) (enough : inputs ≤ height)

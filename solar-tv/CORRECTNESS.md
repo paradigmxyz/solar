@@ -518,16 +518,21 @@ before admission and checks their requested gas. Actual parent and child
 gas, code-size replies, deployed code identity and reentry remain separate
 obligations. The CLI requires explicit `--interaction-trace` selection.
 
-The CFG certificate checks both the continuation projection and the
-jump-chain projection in bounded ranges. It also checks stack bounds in
-ranges. The kernel composes each complete table and still checks every
-successor against the full source graph.
+The CFG certificate checks both the continuation and jump-chain projections
+with indexed trees. Lean checks the subtree sizes and proves the lookups
+agree with the original ordered rows at every index. The kernel still checks
+every edge and opcode against the full source graph. Identical projections
+use graph equality. When jump growth differs, the kernel checks the local
+stack bounds before proving the projections agree. The generated tables are
+used only in the kernel, so Lean skips executable code generation for them.
 
-Of 115 eligible frozen `cfg-simplify-early` captures, 10 verified and 105
-timed out in a serial recheck. The smallest 49 had a 32-second proof limit
-and the remaining 66 had an eight-second limit. The verified captures
-included WETH and Morpho calls and code-size reads. The ABI, creation
-bytecode and runtime bytecode matched for all three pinned contracts.
+The serial recheck verified all 115 eligible frozen `cfg-simplify-early`
+captures with a single 80-second proof limit. The median check took 12.2
+seconds and the slowest took 50.5 seconds. A 230-point Morpho region that
+previously timed out at 32 seconds now verifies in 6.5 seconds. The previous
+mixed-budget run verified 10 captures and timed out on 105. Normal and
+capture builds produced identical ABI, creation bytecode and runtime
+bytecode for all three pinned contracts.
 
 ### Gas at a sampled CALL
 

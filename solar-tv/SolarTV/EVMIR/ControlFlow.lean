@@ -15,20 +15,20 @@ structure Path where
   jumps : Nat
   growth : Nat
 
-def follow (program : Program) : Nat → Nat → Option Path
+def follow (nodes : ProofTable.View Node) : Nat → Nat → Option Path
   | 0, _ => none
   | fuel+1, pc => do
-    match ← program.nodes[pc]? with
+    match ← nodes.get? pc with
     | .jump _ growth next =>
       if growth > 1 then none else
-      let path ← follow program fuel next
+      let path ← follow nodes fuel next
       return ⟨path.destination,path.jumps+1,max growth path.growth⟩
     | _ => return ⟨pc,0,0⟩
 
 /-- A finite chain performs no effects. It can fail only at a stack limit. -/
 theorem follow_execute (program : Program) (signatures : Signatures)
     (handlers : Handlers World Observation) (fuel pc : Nat) (path : Path)
-    (found : follow program fuel pc = some path) (work : Nat) (state : State World)
+    (found : follow (ProofTable.ofArray program.nodes) fuel pc = some path) (work : Nat) (state : State World)
     (fits : state.height ≤ 1024) :
     execute program signatures handlers (work+path.jumps) pc state =
       if state.height + path.growth > 1024 then some .overflow
@@ -38,14 +38,15 @@ theorem follow_execute (program : Program) (signatures : Signatures)
   | succ fuel ih =>
     have notFull : ¬state.height > 1024 := by omega
     cases node : program.nodes[pc]? with
-    | none => simp [follow,node,Bind.bind,Option.bind] at found
+    | none => simp [follow,ProofTable.ofArray,node,Bind.bind,Option.bind] at found
     | some instruction =>
       cases instruction with
       | jump label growth next =>
-        simp only [follow,node,Bind.bind,Option.bind] at found
+        have lookup : (ProofTable.ofArray program.nodes).get? pc = some (.jump label growth next) := node
+        simp only [follow,lookup,Bind.bind,Option.bind] at found
         split at found
         · contradiction
-        · cases tail : follow program fuel next with
+        · cases tail : follow (ProofTable.ofArray program.nodes) fuel next with
           | none => simp [tail] at found
           | some subpath =>
             simp only [tail,Option.pure_def,Option.some.injEq] at found
@@ -60,7 +61,7 @@ theorem follow_execute (program : Program) (signatures : Signatures)
                   (state.height + subpath.growth > 1024) := by omega
               simp only [same]
       | operation _ _ _ | branch _ _ _ | terminal _ _ =>
-        simp [follow,node,Bind.bind,Option.bind,Option.pure_def] at found
+        simp [follow,ProofTable.ofArray,node,Bind.bind,Option.bind,Option.pure_def] at found
         subst path
         simp [notFull]
 
@@ -71,20 +72,21 @@ inductive Edges where
   | branch (yes no : Nat)
   | terminal
 
-def resolve (points : Array Nat) (source logical : Nat) : Option Nat := do
-  if (← points[logical]?) == source then some (logical * 2) else none
+def resolve (points : ProofTable.View Nat) (source logical : Nat) : Option Nat := do
+  if (← points.get? logical) == source then some (logical * 2) else none
 
 theorem resolve_edge (points : Array Nat) (source logical : Nat)
-    (found : resolve points source logical = some (logical * 2)) :
+    (found : resolve (ProofTable.ofArray points) source logical = some (logical * 2)) :
     points[logical]? = some source := by
   cases point : points[logical]? <;>
-    simp_all [resolve, Bind.bind, Option.bind]
+    simp_all [resolve, ProofTable.ofArray, Bind.bind, Option.bind]
 
-def projectRow (program : Program) (points : Array Nat) (edges : Array Edges)
+def projectRow (nodes : ProofTable.View Node) (points : ProofTable.View Nat)
+    (edges : ProofTable.View Edges)
     (jumpLimit index : Nat) : Option (List Node) := do
-  let pc ← points[index]?
-  let path ← follow program jumpLimit pc
-  let action ← match ← program.nodes[path.destination]?, ← edges[index]? with
+  let pc ← points.get? index
+  let path ← follow nodes jumpLimit pc
+  let action ← match ← nodes.get? path.destination, ← edges.get? index with
   | .operation _ name next, .next target => pure (.operation 0 name (← resolve points next target))
   | .branch _ yes no, .branch yesTarget noTarget =>
     pure (.branch 0 (← resolve points yes yesTarget) (← resolve points no noTarget))
@@ -92,36 +94,34 @@ def projectRow (program : Program) (points : Array Nat) (edges : Array Edges)
   | _, _ => none
   return [.jump 0 path.growth (2*index+1),action]
 
-def projectRows (program : Program) (points : Array Nat) (edges : Array Edges)
-    (jumpLimit : Nat) (indices : List Nat) : Option (List (List Node)) :=
-  indices.mapM (projectRow program points edges jumpLimit)
-
-theorem append_projectRows (program : Program) (points : Array Nat) (edges : Array Edges)
-    (jumpLimit : Nat) {left right : List Nat} {a b : List (List Node)}
-    (l : projectRows program points edges jumpLimit left = some a)
-    (r : projectRows program points edges jumpLimit right = some b) :
-    projectRows program points edges jumpLimit (left ++ right) = some (a ++ b) := by
-  simp only [projectRows] at l r ⊢
-  simp [List.mapM_append, l, r, Bind.bind, Option.bind, Pure.pure]
-
 /-- Check every proposed edge against the actual successor, even if two
 different logical edges use the same physical point. -/
-def project (program : Program) (points : Array Nat) (edges : Array Edges)
-    (jumpLimit : Nat) : Option Program := do
-  let entry ← resolve points program.entry 0
+def projectView (source : Nat) (nodes : ProofTable.View Node) (points : ProofTable.View Nat)
+    (edges : ProofTable.View Edges)
+    (jumpLimit : Nat) : Option (Nat × List Node) := do
+  let entry ← resolve points source 0
   if edges.size != points.size then none else
-  let rows ← projectRows program points edges jumpLimit (List.range points.size)
-  return ⟨entry, rows.flatten.toArray⟩
+  let rows ← (List.range points.size).mapM (projectRow nodes points edges jumpLimit)
+  return (entry, rows.flatten)
 
-theorem project_result (program : Program) (points : Array Nat) (edges : Array Edges)
-    (jumpLimit entry : Nat) (rows : List (List Node)) (result : Program)
-    (start : resolve points program.entry 0 = some entry)
-    (size : points.size = edges.size)
-    (checked : projectRows program points edges jumpLimit (List.range points.size) = some rows)
-    (layout : result = ⟨entry, rows.flatten.toArray⟩) :
-    project program points edges jumpLimit = some result := by
-  have same : (edges.size != points.size) = false := by simp [size]
-  simp [project, start, same, checked, layout, Bind.bind, Option.bind, Option.pure_def]
+def project (program : Program) (points : Array Nat) (edges : Array Edges)
+    (jumpLimit : Nat) : Option Program :=
+  (projectView program.entry (ProofTable.ofArray program.nodes) (ProofTable.ofArray points)
+    (ProofTable.ofArray edges) jumpLimit).map (fun (entry, nodes) => ⟨entry, nodes.toArray⟩)
+
+theorem project_checked (program : Program) (points : Array Nat) (edges : Array Edges)
+    (nodesView : ProofTable.View Node) (pointsView : ProofTable.View Nat)
+    (edgesView : ProofTable.View Edges) (limit : Nat) (result : Program)
+    (nodesEq : nodesView = ProofTable.ofArray program.nodes)
+    (pointsEq : pointsView = ProofTable.ofArray points)
+    (edgesEq : edgesView = ProofTable.ofArray edges)
+    (checked : projectView program.entry nodesView pointsView edgesView limit =
+      some (result.entry,result.nodes.toList)) :
+    project program points edges limit = some result := by
+  rw [nodesEq, pointsEq, edgesEq] at checked
+  rw [project, checked]
+  cases result
+  rfl
 
 /-- Equality after checking the projection from both independent source
 graphs. A logical step covers a finite transfer chain and its first

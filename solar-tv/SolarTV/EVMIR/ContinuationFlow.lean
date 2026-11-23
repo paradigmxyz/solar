@@ -181,18 +181,19 @@ theorem transfer_tags (op : StackOp) (shape full : Shape)
     simp only [tagAt_trim]
     simpa only [tagAt, List.getElem?_tail] using agreement (index+1)
 
-def resolve (points : Array Point) (target : Point) (index : Nat) : Option Nat :=
-  if points[index]? = some target then some index else none
+def resolve (points : ProofTable.View Point) (target : Point) (index : Nat) : Option Nat :=
+  if points.get? index = some target then some index else none
 
-def projectRow (program : Program) (points : Array Point) (edges : Array ControlFlow.Edges)
+def projectRow (nodes : ProofTable.View Node) (points : ProofTable.View Point)
+    (edges : ProofTable.View ControlFlow.Edges)
     (index : Nat) : Option SourceGraph.Node := do
-  let point ← points[index]?
+  let point ← points.get? index
   let find (pc : Nat) (shape : Shape) := resolve points ⟨pc,shape⟩
-  match ← program.nodes[point.pc]?, ← edges[index]? with
+  match ← nodes.get? point.pc, ← edges.get? index with
   | .operation name op next, .next successor =>
     return .operation 0 name (← find next (← transfer op point.shape) successor)
   | .pushLabel target next, .next successor =>
-    if target ≥ program.nodes.size then none else
+    if target ≥ nodes.size then none else
     return .operation 0 "push 0" (← find next (some target :: point.shape) successor)
   | .jump growth next, .next successor =>
     return .jump 0 growth (← find next point.shape successor)
@@ -206,36 +207,32 @@ def projectRow (program : Program) (points : Array Point) (edges : Array Control
     return .operation 0 "pop" (← find target point.shape.tail successor)
   | _, _ => none
 
-def projectRows (program : Program) (points : Array Point) (edges : Array ControlFlow.Edges)
-    (indices : List Nat) : Option (List SourceGraph.Node) :=
-  indices.mapM (projectRow program points edges)
-
-theorem append_projectRows (program : Program) (points : Array Point)
-    (edges : Array ControlFlow.Edges) {left right : List Nat}
-    {a b : List SourceGraph.Node}
-    (l : projectRows program points edges left = some a)
-    (r : projectRows program points edges right = some b) :
-    projectRows program points edges (left ++ right) = some (a ++ b) := by
-  simp only [projectRows] at l r ⊢
-  simp [List.mapM_append, l, r, Bind.bind, Option.bind, Pure.pure]
+def projectView (source : Nat) (nodes : ProofTable.View Node) (points : ProofTable.View Point)
+    (edges : ProofTable.View ControlFlow.Edges) :
+    Option (Nat × List SourceGraph.Node) := do
+  let entry ← resolve points ⟨source, []⟩ 0
+  if points.size != edges.size then none else
+  let rows ← (List.range points.size).mapM (projectRow nodes points edges)
+  return (entry, rows)
 
 def project (program : Program) (points : Array Point) (edges : Array ControlFlow.Edges) :
-    Option SourceGraph.Program := do
-  let entry ← resolve points ⟨program.entry, []⟩ 0
-  if points.size != edges.size then none else
-  let rows ← projectRows program points edges (List.range points.size)
-  return ⟨entry, rows.toArray⟩
+    Option SourceGraph.Program :=
+  (projectView program.entry (ProofTable.ofArray program.nodes) (ProofTable.ofArray points)
+    (ProofTable.ofArray edges)).map (fun (entry, nodes) => ⟨entry, nodes.toArray⟩)
 
-theorem project_result (program : Program) (points : Array Point)
-    (edges : Array ControlFlow.Edges) (entry : Nat) (rows : List SourceGraph.Node)
-    (result : SourceGraph.Program)
-    (start : resolve points ⟨program.entry, []⟩ 0 = some entry)
-    (size : points.size = edges.size)
-    (checked : projectRows program points edges (List.range points.size) = some rows)
-    (layout : result = ⟨entry, rows.toArray⟩) :
+theorem project_checked (program : Program) (points : Array Point) (edges : Array ControlFlow.Edges)
+    (nodesView : ProofTable.View Node) (pointsView : ProofTable.View Point)
+    (edgesView : ProofTable.View ControlFlow.Edges) (result : SourceGraph.Program)
+    (nodesEq : nodesView = ProofTable.ofArray program.nodes)
+    (pointsEq : pointsView = ProofTable.ofArray points)
+    (edgesEq : edgesView = ProofTable.ofArray edges)
+    (checked : projectView program.entry nodesView pointsView edgesView =
+      some (result.entry,result.nodes.toList)) :
     project program points edges = some result := by
-  have same : (points.size != edges.size) = false := by simp [size]
-  simp [project, start, same, checked, layout, Bind.bind, Option.bind, Option.pure_def]
+  rw [nodesEq, pointsEq, edgesEq] at checked
+  rw [project, checked]
+  cases result
+  rfl
 
 
 inductive Slot

@@ -12,7 +12,7 @@ import re
 
 from . import cfg_flow, correspondence
 from .common import Unsupported, literal
-from .source_identity import INTERACTION_OPS, render
+from .source_identity import INTERACTION_OPS
 
 
 def edges_text(node):
@@ -156,12 +156,12 @@ def project(model, catalog, version, *, interactions=False):
     for pc, shape in points:
         tags = ",".join("none" if tag is None else f"some {tag}" for tag in shape)
         point_terms.append(f"⟨{pc},[{tags}]⟩")
-    edge_terms = ",".join(edges_text(row["node"]) for row in output)
     projected = {"entry": 0, "nodes": output}
     return projected, {
-        "source": f"⟨{model['entry']},#[{','.join(source)}]⟩",
-        "points": f"#[{','.join(point_terms)}]",
-        "edges": f"#[{edge_terms}]",
+        "entry": model["entry"],
+        "source": source,
+        "points": point_terms,
+        "edges": [edges_text(row["node"]) for row in output],
         "evidence": {
             "source_sha256": hashlib.sha256(
                 json.dumps(model, sort_keys=True).encode()
@@ -194,14 +194,9 @@ def check(texts, replay, catalog, version, timeout, entry, *, interactions=False
             witness["evidence"]["interactions"] = sorted(requests)
     elif not any(c["evidence"]["resolved_returns"] for c in certificates):
         raise Unsupported("continuation proof needs a resolved dynamic return")
-    expressions = [
-        render(model, catalog, version, "bb0", interactions=interactions)
-        for model in projected
-    ]
     return cfg_flow.check(
         texts,
         projected,
-        expressions,
         entry,
         catalog,
         version,

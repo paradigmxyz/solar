@@ -213,9 +213,7 @@ def check(paths, solar, replay, version, timeout, entry, *, interactions=False):
                 texts, models, expressions, entry, catalog, version, timeout
             )
         except Unsupported:
-            return cfg_flow.check(
-                texts, models, expressions, entry, catalog, version, timeout
-            )
+            return cfg_flow.check(texts, models, entry, catalog, version, timeout)
     expressions = [render(model, catalog, version, entry) for model in models]
     code = (
         PRELUDE
