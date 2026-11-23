@@ -580,16 +580,58 @@ fn run_to_fixpoint(func: &mut Function, unoptimized: bool) -> bool {
 /// Merges blocks where A unconditionally jumps to B and B has only A as predecessor.
 ///
 /// A merge only changes the merged block's terminator and the predecessors of its new successors,
-/// so it cannot make an earlier block mergeable, and one forward sweep reaches the fixpoint.
+/// so it cannot make an earlier block mergeable, and one forward sweep reaches the fixpoint. The
+/// uses of the folded phis are replaced after the sweep, since a rewrite of the function per merge
+/// costs quadratic time in a function with many of them.
 fn merge_blocks(func: &mut Function) -> bool {
-    let mut merged = false;
+    let mut merges = 0;
+    // The value each folded phi takes and the merge that folded it.
+    let mut folds = FxHashMap::default();
     for block_id in func.blocks.indices() {
         while let Some(target) = can_merge(func, block_id) {
-            do_merge(func, block_id, target);
-            merged = true;
+            do_merge(func, block_id, target, merges, &mut folds);
+            merges += 1;
         }
     }
-    merged
+    replace_folded_phis(func, &folds);
+    merges != 0
+}
+
+/// Replaces the uses of the folded phis as a rewrite after each merge would: an instruction takes
+/// the replacements of one merge at a time, in order, and goes back to canonical operand order
+/// after each, which can order its operands differently from replacing them all at once.
+fn replace_folded_phis(func: &mut Function, folds: &FxHashMap<ValueId, (ValueId, u32)>) {
+    if folds.is_empty() {
+        return;
+    }
+    for block in func.blocks.indices() {
+        for index in 0..func.blocks[block].instructions.len() {
+            let inst = func.blocks[block].instructions[index];
+            let mut applied = None;
+            loop {
+                let mut next = None::<u32>;
+                func.inst(inst).kind.visit_operands(|value| {
+                    if let Some(&(_, merge)) = folds.get(&value)
+                        && applied.is_none_or(|applied| merge > applied)
+                    {
+                        next = Some(next.map_or(merge, |next| next.min(merge)));
+                    }
+                });
+                let Some(merge) = next else { break };
+                func.rewrite_inst_operands(inst, |value| {
+                    if let Some(&(folded, by)) = folds.get(value)
+                        && by == merge
+                    {
+                        *value = folded;
+                    }
+                });
+                applied = Some(merge);
+            }
+        }
+    }
+    // Terminators keep their operand order, so they take the end of each chain at once.
+    let ends = folds.iter().map(|(&phi, &(value, _))| (phi, value)).collect();
+    func.replace_uses_canonicalized(&ends);
 }
 
 /// Checks if block_id can be merged with its successor.
@@ -626,9 +668,16 @@ fn can_merge(func: &Function, block_id: BlockId) -> Option<BlockId> {
     Some(*target)
 }
 
-/// Merges block_id with target, appending target's instructions and terminator to block_id.
-fn do_merge(func: &mut Function, block_id: BlockId, target: BlockId) {
-    let phi_replacements = fold_target_phis_for_merge(func, block_id, target);
+/// Merges block_id with target, appending target's instructions and terminator to block_id, and
+/// records the values of target's phis in `folds` as folded by `merge`.
+fn do_merge(
+    func: &mut Function,
+    block_id: BlockId,
+    target: BlockId,
+    merge: u32,
+    folds: &mut FxHashMap<ValueId, (ValueId, u32)>,
+) {
+    fold_target_phis_for_merge(func, block_id, target, merge, folds);
     let mut target_instructions = std::mem::take(&mut func.blocks[target].instructions);
     target_instructions.retain(|&inst_id| !matches!(func.inst(inst_id).kind, InstKind::Phi(_)));
     let (terminator, metadata) = func.blocks[target].take_terminator();
@@ -642,16 +691,15 @@ fn do_merge(func: &mut Function, block_id: BlockId, target: BlockId) {
 
     func.blocks[target].terminator = Some(Terminator::Invalid);
     func.blocks[target].predecessors.clear();
-
-    func.replace_uses(&phi_replacements);
 }
 
 fn fold_target_phis_for_merge(
     func: &Function,
     pred: BlockId,
     target: BlockId,
-) -> FxHashMap<ValueId, ValueId> {
-    let mut replacements = FxHashMap::default();
+    merge: u32,
+    folds: &mut FxHashMap<ValueId, (ValueId, u32)>,
+) {
     for &inst_id in &func.blocks[target].instructions {
         let InstKind::Phi(incoming) = &func.inst(inst_id).kind else {
             continue;
@@ -664,9 +712,15 @@ fn fold_target_phis_for_merge(
         else {
             continue;
         };
-        replacements.insert(phi_value, *incoming_value);
+        // The incoming value as the earlier merges' rewrites leave it.
+        let mut value = *incoming_value;
+        while let Some(&(folded, _)) = folds.get(&value)
+            && folded != value
+        {
+            value = folded;
+        }
+        folds.insert(phi_value, (value, merge));
     }
-    replacements
 }
 
 /// Eliminates empty blocks that only contain an unconditional jump.
