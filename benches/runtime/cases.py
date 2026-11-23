@@ -1918,11 +1918,12 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="zstd-giant",
         description="ZstdGiant zstd decompression",
-        # The `clz` opcode needs solc 0.8.31.
+        # The `clz` opcode needs solc 0.8.31, whose default target is Osaka.
         min_solc="0.8.31",
         project=PROJECTS["zstd-giant"],
         source="src/ZstdGiant.sol",
         contract_name="ZstdGiant",
+        settings_profile="runtime",
         gas_calls=tuple(
             GasCall(case["label"], "decompress(bytes)", (case["input"],))
             for case in DECOMPRESS_INPUTS["zstd"]
@@ -1936,11 +1937,12 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="gzip-yul",
         description="GzipYul gzip decompression",
-        # The `osaka` EVM target needs solc 0.8.29.
-        min_solc="0.8.29",
+        # `mcopy` needs the Cancun default target of solc 0.8.25.
+        min_solc="0.8.25",
         project=PROJECTS["gzip-yul"],
         source="src/GzipYulWrapper.sol",
         contract_name="GzipYulWrapper",
+        settings_profile="runtime",
         gas_calls=tuple(
             GasCall(case["label"], "decompress(bytes)", (case["input"],))
             for case in DECOMPRESS_INPUTS["gzip"]

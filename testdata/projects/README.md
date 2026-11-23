@@ -66,4 +66,5 @@ GzipYulWrapper through the legacy pipeline. The archives keep these settings and
 `forge-std/=lib/forge-std/src/` remapping, but set `settings.metadata` and the output selection
 as the other archives do. To regenerate one, fetch
 `https://sourcify.dev/server/v2/contract/1/<address>?fields=sources,compilation` and copy
-`sources` and those compiler settings into a Standard JSON input.
+`sources` and those compiler settings into a Standard JSON input. The runtime cases compile both
+with the `runtime` profile instead.

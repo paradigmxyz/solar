@@ -387,30 +387,26 @@ encoding and ABI costs from upstream assertions and memory brutalization; report
 `solady-lib-string`, since they exercise different behavior.
 
 `zstd-giant` and `gzip-yul` call `decompress(bytes)` on two MIT-licensed mainnet decoders,
-`ZstdGiant` and `GzipYulWrapper`, compiled with the settings they were deployed with: 10,000
-optimizer runs, Osaka, via-IR for ZstdGiant and the legacy pipeline for GzipYulWrapper.
-`../../testdata/projects/README.md` describes the archives. ZstdGiant uses `clz`, so solc compiles
-it only from 0.8.31 and only through via-IR; `solc-legacy` fails with stack too deep.
+`ZstdGiant` and `GzipYulWrapper`. They were deployed with 10,000 optimizer runs for Osaka, ZstdGiant
+through via-IR and GzipYulWrapper through the legacy pipeline, and their archives keep those
+settings; `../../testdata/projects/README.md` describes them. The cases use the `runtime` profile
+like most other cases: via-IR, 200 runs, and each compiler's default EVM target. Both
+need Cancun's `mcopy`, so solc runs GzipYulWrapper from 0.8.25; ZstdGiant also uses Osaka's `clz`,
+which solc has from 0.8.31, and `solc-legacy` fails on it with stack too deep.
 [`decompress.json`](../../testdata/runtime/decompress.json) holds the frames: per format, each
-call's label, compressed input, and the length and keccak256 of the expected output. The data
-are prefixes of this repository's `LICENSE-APACHE` (text), prefixes of `src/GzipYul.sol` from
-`gzip-yul.json.gz` (sol), 512 bytes from `random.Random(1)` drawn as
-`bytes(rng.randrange(256) for _ in range(512))` (random), and zero bytes:
+call's label, compressed input, and the length and keccak256 of the expected output. The data are
+prefixes of this repository's `LICENSE-APACHE` (text), 256 bytes from `random.Random(1)` drawn as
+`bytes(rng.randrange(256) for _ in range(256))` (random), and zero bytes. The calls cover every
+block type, and the last zstd frame also reuses the previous block's offset table:
 
 | Call | Data | Level | Blocks |
 | --- | --- | ---: | --- |
 | gzip `text-64-fixed` | text, 64 bytes | 9 | fixed Huffman |
-| gzip `text-512-dynamic` | text, 512 bytes | 9 | dynamic Huffman |
-| gzip `text-1k-dynamic` | text, 1,024 bytes | 9 | dynamic Huffman |
-| gzip `sol-1k-dynamic` | sol, 1,024 bytes | 6 | dynamic Huffman |
-| gzip `random-512-stored` | random | 0 | stored |
-| zstd `text-64` | text, 64 bytes | 3 | compressed: raw literals, predefined sequence codes |
-| zstd `text-1k` | text, 1,024 bytes | 3 | compressed: Huffman literals, FSE sequence codes |
-| zstd `text-4k` | text, 4,096 bytes | 19 | compressed |
-| zstd `sol-2k` | sol, 2,048 bytes | 3 | compressed |
-| zstd `random-512-raw` | random | 3 | raw |
+| gzip `text-256-dynamic` | text, 256 bytes | 9 | dynamic Huffman |
+| gzip `random-256-stored` | random | 0 | stored |
+| zstd `random-256-raw` | random | 3 | raw |
 | zstd `text-zeros-rle` | text, 256 bytes, then 1,024 zero bytes | 3 | compressed, then RLE |
-| zstd `text-4k-blocks` | text, 4,096 bytes in 512-byte chunks | 9 | eight compressed, some reusing earlier tables |
+| zstd `text-1k-blocks` | text, 1,024 bytes in 256-byte chunks | 19 | four compressed: Huffman literals with predefined, FSE, and repeated sequence tables |
 
 Python 3.14's `gzip.compress(data, compresslevel=level, mtime=0)`, with zlib 1.3.2, made the gzip
 frames. `zstandard` 0.25.0 (libzstd 1.5.7) made the zstd frames with
