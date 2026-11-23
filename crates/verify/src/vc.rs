@@ -2492,10 +2492,15 @@ impl<'p, 'a> Vc<'p, 'a> {
                                 return;
                             }
                         }
-                        if let Some((_, f)) = self.prog.using_fn(m, argv.len()) {
+                        // Execution picks the overload by the receiver's type, so each
+                        // candidate's effects count.
+                        let cands = self.prog.using_fns(m, argv.len());
+                        if !cands.is_empty() {
                             let mut a2: Vec<&'a Expr<'a>> = vec![&**base];
                             a2.extend(argv.iter().copied());
-                            self.call_effects(f, &a2, out, all, seen);
+                            for (_, f) in cands {
+                                self.call_effects(f, &a2, out, all, seen);
+                            }
                             return;
                         }
                         if !self.static_member(m) && !self.lock_modset.get() {

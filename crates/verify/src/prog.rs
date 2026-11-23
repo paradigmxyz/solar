@@ -204,14 +204,6 @@ impl<'a> Program<'a> {
             })
             .collect()
     }
-    pub(crate) fn using_fn(&self, f: &str, nargs: usize) -> Option<(&Contract<'a>, &Func<'a>)> {
-        self.contracts
-            .iter()
-            .filter(|c| c.kind == ContractKind::Library && c.name != FREE)
-            .find_map(|c| {
-                c.funcs.iter().find(|g| g.name == f && g.params.len() == nargs + 1).map(|g| (c, g))
-            })
-    }
     pub(crate) fn contract(&self, name: &str) -> Option<&Contract<'a>> {
         self.contracts.iter().find(|c| c.name == name)
     }

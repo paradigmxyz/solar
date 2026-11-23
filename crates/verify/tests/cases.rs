@@ -1240,3 +1240,8 @@ fn struct_names_alike() {
     let f = "Child.bad_alike_overload";
     assert_eq!(got.get(f), Some(&"unsupported"), "{f}\n{}", run.stdout);
 }
+
+#[test]
+fn encode_using_overload() {
+    check("tests/cases/encode_using_overload.sol")
+}
