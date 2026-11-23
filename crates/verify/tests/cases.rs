@@ -1265,3 +1265,8 @@ fn for_init_shadow() {
 fn for_init_pointer() {
     check("tests/cases/for_init_pointer.sol")
 }
+
+#[test]
+fn callee_local_scope() {
+    check("tests/cases/callee_local_scope.sol")
+}

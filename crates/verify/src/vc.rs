@@ -1752,7 +1752,9 @@ impl<'p, 'a> Vc<'p, 'a> {
                     let saved_cd = std::mem::take(&mut self.cd_params);
                     let saved_names = std::mem::replace(&mut self.frame_names, names);
                     self.frames.push(Frame { rets: vec![], exits: vec![] });
+                    let outer = std::mem::take(&mut self.decl_scopes);
                     let r = self.exec_block_stmts(b);
+                    self.decl_scopes = outer;
                     self.cd_params = saved_cd;
                     self.frame_names = saved_names;
                     r?;
@@ -1918,7 +1920,16 @@ impl<'p, 'a> Vc<'p, 'a> {
         Ok(())
     }
 
+    /// Runs `f`'s body from its modifier `mi` on, in a scope stack of its own: the blocks of
+    /// an inlined callee or a modifier's `_` never put back or drop the caller's names.
     fn exec_fn_body(&mut self, f: &'p Func<'a>, mi: usize) -> R<()> {
+        let outer = std::mem::take(&mut self.decl_scopes);
+        let r = self.exec_fn_body_inner(f, mi);
+        self.decl_scopes = outer;
+        r
+    }
+
+    fn exec_fn_body_inner(&mut self, f: &'p Func<'a>, mi: usize) -> R<()> {
         // Every body that runs, the function's own and each inlined callee's, must not reach an
         // ambiguous struct name (see `prog::Program::refused_fns`).
         if mi == 0
