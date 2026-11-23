@@ -73,8 +73,8 @@ impl MirPass for SwitchLookup {
         "switch-lookup"
     }
 
-    fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, _module: &Module) -> bool {
-        gcx.sess.opts.evm_version.has_bitwise_shifting()
+    fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+        self.covers(module) && gcx.sess.opts.evm_version.has_bitwise_shifting()
     }
 
     fn run_pass(
