@@ -140,27 +140,27 @@ theorem contextual (before after old new : Program) (sourcePoints targetPoints :
   rw [oldProjection,newProjection]
   exact congrArg some (StackGraph.contextual old new id bounds signatures valid handlers work state)
 
-/-- At physical entry the stack is empty. The per-node invariant can then
-justify changes to transfer admission that would fail on arbitrary live-in
-stacks. -/
-theorem contextual_entry (before after old new : Program)
+/-- A bound from physical entry can justify changes to transfer admission
+that would fail on arbitrary live-in stacks. -/
+theorem contextual_bounded (before after old new : Program)
     (sourcePoints targetPoints : Array Nat) (edges : Array Edges) (jumpLimit : Nat)
     (signatures : Signatures) (bounds : Nat → Nat)
     (oldProjection : project before sourcePoints edges jumpLimit = some old)
     (newProjection : project after targetPoints edges jumpLimit = some new)
-    (valid : Valid old new id bounds signatures 0)
-    (handlers : Handlers World Observation) (work : Nat) (payload : World) :
+    {entryBound : Nat} (valid : Valid old new id bounds signatures entryBound)
+    (handlers : Handlers World Observation) (work : Nat) (state : State World)
+    (fits : state.height ≤ entryBound) :
     (project before sourcePoints edges jumpLimit).map
-        (fun p => execute p signatures handlers work p.entry ⟨0, payload⟩) =
+        (fun p => execute p signatures handlers work p.entry state) =
       (project after targetPoints edges jumpLimit).map
-        (fun p => execute p signatures handlers work p.entry ⟨0, payload⟩) := by
+        (fun p => execute p signatures handlers work p.entry state) := by
   rw [oldProjection, newProjection]
   apply congrArg some
-  change execute old signatures handlers work old.entry ⟨0, payload⟩ =
-    execute new signatures handlers work new.entry ⟨0, payload⟩
+  change execute old signatures handlers work old.entry state =
+    execute new signatures handlers work new.entry state
   rw [← valid.2.1]
   exact StackGraph.bounded_simulation old new id bounds signatures
-    valid handlers work old.entry ⟨0, payload⟩ valid.1 (Nat.zero_le _)
+    valid handlers work old.entry state valid.1 (Nat.le_trans fits valid.2.2.1)
 
 /-- Compose the two projection checks without re-evaluating either source graph. -/
 theorem compose {before after : Option Program} {old new : Program} {Projected Observation : Type}

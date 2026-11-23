@@ -330,9 +330,20 @@ def record(
                 ]
             )
         elif program and program.scope == "layout-flow":
+            if program.import_evidence.get("physical_entry"):
+                assumptions.append(
+                    "independent import starts at the physical EVM entry with an empty stack"
+                )
+            else:
+                bound = program.import_evidence["entry_height_bound"]
+                assumptions.extend(
+                    [
+                        f"kernel-checked height invariant from both physical entries bounds the region's incoming stack by {bound}",
+                        "the region compares equal live-in ordinary words and world state; inherited return slots denote corresponding logical continuations",
+                    ]
+                )
             assumptions.extend(
                 [
-                    "independent import starts at the physical EVM entry with an empty stack",
                     "logical paths preserve ordinary actions and resolve continuation tags; the kernel checks reachable stack bounds for every changed jump",
                     "shared position-independent handlers and immutable slots; interaction requests match under shared preceding replies",
                     "physical gas, forwarded gas and child behavior remain environment obligations",

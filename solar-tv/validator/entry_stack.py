@@ -1,5 +1,6 @@
 """Certify an EVM stack envelope independently on both sides of a region."""
 
+import os
 from dataclasses import dataclass
 
 from . import cfg_flow, continuation_flow, correspondence, stack_layout
@@ -108,3 +109,40 @@ theorem callerLayout (i : Nat) (inside : i < points.size) (shape : Shape)
   caller_mask (checkedMask i (Nat.zero_le _) inside) selected
 end {namespace}
 """
+
+
+def compile_callers(directory, callers, catalog, bound, prelude, timeout):
+    """Compile each physical-entry proof before importing either theorem."""
+    from .check import ROOT, run
+
+    env = os.environ.copy()
+    env["LEAN_PATH"] = os.pathsep.join(
+        [str(directory), *filter(None, [env.get("LEAN_PATH")])]
+    )
+    imports = []
+    for name, caller in zip(("BeforeFrame", "AfterFrame"), callers, strict=True):
+        path = directory / f"{name}.lean"
+        path.write_text(prelude + certificate(name, caller, catalog, bound))
+        checked = run(
+            [
+                "lake",
+                "env",
+                "lean",
+                "-j1",
+                f"--root={directory}",
+                "-o",
+                path.with_suffix(".olean"),
+                path,
+            ],
+            ROOT,
+            timeout,
+            env=env,
+        )
+        if checked.returncode:
+            raise Unsupported(
+                f"{name} stack certificate did not close\n"
+                + checked.stdout
+                + checked.stderr
+            )
+        imports.append(f"import {name}\n")
+    return "".join(imports), env

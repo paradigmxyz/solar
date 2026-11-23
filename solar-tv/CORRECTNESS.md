@@ -631,6 +631,11 @@ incoming height. Of the remaining 37, 20 lacked a sufficient entry-height
 bound for the added stack slot and 12 had unresolved dynamic returns. The
 normal and capture compiler outputs matched for all three pinned contracts.
 
+The entry-height certificates verified 22 more. The last 15 verified after
+checking eight inherited return paths, three constant address folds and
+four constructor code-read paths. Across the serial rechecks, all 103 frozen
+`compact-pushes` captures verified under their recorded proof conditions.
+
 ### Shared MIR tails
 
 The certificate pairs source cursors instead of assigning one global
@@ -801,7 +806,7 @@ unsafe-growth and bytecode-neutrality tests are in
 `examples/evmir/stack-layout/` and `tests/test_stack_layout.py`.
 
 The `--entry-trace` layout route starts with an empty stack at the first
-physical block on each side. `ControlFlow.contextual_entry` combines the
+physical block on each side. `ControlFlow.contextual_bounded` combines the
 checked path projection with the stack simulation at that entry height.
 Continuation provenance tracks logical return addresses through stack
 operations. A stack-carried conditional jump requires a known local
@@ -814,6 +819,20 @@ are safe on every reachable path. The proof shares immutable slots and
 supported interaction replies. For recognized constructor reads it also
 checks the assembled data suffix and uses common appended arguments.
 Physical transfer charges remain outside the proof.
+
+When a complete entry graph exceeds the pairing budget, `--region` with
+`--entry-stack` runs the layout check on the selected region. Both
+physical entry graphs independently establish its height bound and the
+positions of any inherited return labels. The region compares equal
+live-in ordinary state, and a return exposes the inherited continuation
+slot and remaining stack.
+
+The serial rechecks verified 68 of the 70 previously unsupported frozen
+`block-layout` captures. They covered layout from physical entry,
+stack-carried branches and regions with checked caller bounds. The two
+remaining captures reach the Morpho dispatcher branch whose test changes
+from EQ to SUB with swapped successors. The three contracts' ABI and
+creation and runtime bytecode matched the frozen compiler outputs.
 
 ## Remaining obligations
 

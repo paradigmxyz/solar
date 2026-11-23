@@ -172,15 +172,29 @@ def check(
     interactions=False,
     from_entry=False,
     code_layout=None,
+    callers=None,
+    mask=(),
 ):
+    from . import entry_stack
     from .check import PRELUDE, ROOT, build_model, run
     from .source_identity import INTERACTION_OPS, render_nodes
 
     points, normalized, edges, jump_limit = projections(models)
     signature_table = stack_layout.signatures(normalized[0], catalog)
-    entry_bound = 0 if from_entry else 1024
-    state_argument = "(payload : World)" if from_entry else "(state : State World)"
+    entry_bound = (
+        0
+        if from_entry
+        else max(max(caller.bounds) for caller in callers)
+        if callers
+        else 1024
+    )
+    bounded = from_entry or callers is not None
+    state_parameter = "(payload : {type})" if from_entry else "(state : State {type})"
+    if callers:
+        state_parameter += f" (fits : state.height ≤ {entry_bound})"
+    state_argument = state_parameter.format(type="World")
     state_value = "⟨0,payload⟩" if from_entry else "state"
+    argument = "payload" if from_entry else "state fits" if callers else "state"
     identical = normalized[0] == normalized[1]
     if identical:
         bounds, changed = [], []
@@ -202,8 +216,9 @@ def check(
             "bb0" if continuations or name in {"old", "new"} else entry,
             dynamic_exit=True,
             interactions=interactions,
-            from_entry=from_entry,
-            max_growth=4 if from_entry else 1,
+            from_entry=bounded,
+            max_growth=4 if bounded else 1,
+            inherited=bool(mask),
         )
         program_declarations += table(f"{name}Nodes", "EVM.SourceGraph.Node", rows)
         program_declarations += (
@@ -212,6 +227,14 @@ def check(
     provenance = ""
     provenance_theorems = []
     contextual = ""
+    continuation_project = "projectInherited" if mask else "project"
+    mask_argument = " callerMask" if mask else ""
+    if mask:
+        bits = ",".join(str(tag).lower() for tag in mask)
+        provenance += f"def callerMask : List Bool := [{bits}]\n"
+        theorem = "SolarTV.EVM.ContinuationFlow.inherited_return_word"
+        provenance += f"#print axioms {theorem}\n"
+        provenance_theorems.append(theorem)
     if continuations is not None:
         for lemma in (
             "transfer_tags",
@@ -227,22 +250,24 @@ def check(
         for name, (_, witness) in zip(("before", "after"), continuations, strict=True):
             theorem = f"{name}Provenance"
             provenance_theorems.append(theorem)
-            provenance += continuation_proof(name, witness, name)
+            provenance += continuation_proof(name, witness, name, inherited=bool(mask))
             provenance += f"#print axioms {theorem}\n"
         provenance_theorems.append("matchedContinuations")
         contextual = f"""
 theorem matchedContinuations {{World Observation : Type}} (handlers : Handlers World Observation)
     (work : Nat) {state_argument} :
-    ((EVM.ContinuationFlow.project beforeSource beforePoints.rows.toArray beforeEdges.rows.toArray).bind
+    ((EVM.ContinuationFlow.{continuation_project} beforeSource beforePoints.rows.toArray
+        beforeEdges.rows.toArray{mask_argument}).bind
         (fun p => project p sources edges {jump_limit})).map
         (fun p => execute p signatures handlers work p.entry {state_value}) =
-      ((EVM.ContinuationFlow.project afterSource afterPoints.rows.toArray afterEdges.rows.toArray).bind
+      ((EVM.ContinuationFlow.{continuation_project} afterSource afterPoints.rows.toArray
+        afterEdges.rows.toArray{mask_argument}).bind
         (fun p => project p targets edges {jump_limit})).map
         (fun p => execute p signatures handlers work p.entry {state_value}) :=
   EVM.ControlFlow.compose beforeProvenance afterProvenance
     (fun p => project p sources edges {jump_limit}) (fun p => project p targets edges {jump_limit})
     (fun p => execute p signatures handlers work p.entry {state_value})
-    (matched handlers work {"payload" if from_entry else "state"})
+    (matched handlers work {argument})
 #print axioms matchedContinuations
 """
     if interactions:
@@ -257,10 +282,8 @@ theorem matchedContinuations {{World Observation : Type}} (handlers : Handlers W
             json.dumps(name)
             for name in sorted(INTERACTION_OPS & signature_table.keys())
         )
-        trace_argument = (
-            "(payload : EVM.InteractionTrace.Cursor Payload)"
-            if from_entry
-            else "(state : State (EVM.InteractionTrace.Cursor Payload))"
+        trace_argument = state_parameter.format(
+            type="(EVM.InteractionTrace.Cursor Payload)"
         )
         contextual += f"""
 theorem traceSignatures :
@@ -270,16 +293,17 @@ theorem matchingRequests {{Payload Halt : Type}} (view : Payload → EVM.Interac
     (ordinary : Handlers Payload Halt)
     (reply : EVM.InteractionTrace.Request → Payload → Except Halt Payload)
     (work : Nat) {trace_argument} :
-    ((EVM.ContinuationFlow.project beforeSource beforePoints.rows.toArray beforeEdges.rows.toArray).bind
+    ((EVM.ContinuationFlow.{continuation_project} beforeSource beforePoints.rows.toArray
+        beforeEdges.rows.toArray{mask_argument}).bind
         (fun p => project p sources edges {jump_limit})).map
         (fun p => execute p signatures (EVM.InteractionTrace.handlers view ordinary reply)
           work p.entry {state_value}) =
-      ((EVM.ContinuationFlow.project afterSource afterPoints.rows.toArray afterEdges.rows.toArray).bind
+      ((EVM.ContinuationFlow.{continuation_project} afterSource afterPoints.rows.toArray
+        afterEdges.rows.toArray{mask_argument}).bind
         (fun p => project p targets edges {jump_limit})).map
         (fun p => execute p signatures (EVM.InteractionTrace.handlers view ordinary reply)
           work p.entry {state_value}) :=
-  matchedContinuations (EVM.InteractionTrace.handlers view ordinary reply) work
-    {"payload" if from_entry else "state"}
+  matchedContinuations (EVM.InteractionTrace.handlers view ordinary reply) work {argument}
 #print axioms traceSignatures
 #print axioms matchingRequests
 #print axioms EVM.InteractionTrace.stable_request
@@ -320,17 +344,23 @@ theorem valid : Valid old new id bounds signatures {entry_bound} :=
     (by decide +kernel)
 """
         )
-        lemma = "contextual_entry" if from_entry else "contextual"
+        lemma = "contextual_bounded" if bounded else "contextual"
+        admission = " (Nat.le_refl 0)" if from_entry else " fits" if callers else ""
         match_proof = f"""EVM.ControlFlow.{lemma} before after old new sources targets edges {jump_limit}
-    signatures bounds oldProjection newProjection valid handlers work {"payload" if from_entry else "state"}"""
-    code = (
+    signatures bounds oldProjection newProjection valid handlers work {state_value}{admission}"""
+    prelude = (
         PRELUDE
-        + f"""
+        + """
 open EVM.SourceGraph (Program)
 open EVM.StackGraph EVM.ControlFlow
 noncomputable section
 set_option maxRecDepth 16384
-set_option maxHeartbeats 2500000
+set_option maxHeartbeats 3500000
+"""
+    )
+    code = (
+        prelude
+        + f"""
 {program_declarations}
 {provenance}
 {tables}
@@ -353,13 +383,50 @@ theorem matched {{World Observation : Type}} (handlers : Handlers World Observat
 {contextual}
 """
     )
+    if callers:
+        code += f"""
+theorem matchedAtCaller {{World Observation : Type}} (handlers : Handlers World Observation)
+    (work : Nat) (state : State World) {{pc : Nat}}
+    (reaches : EVM.StackReachability.Reaches BeforeFrame.graph BeforeFrame.signatures
+      pc state.height) :
+    ((EVM.ContinuationFlow.{continuation_project} beforeSource beforePoints.rows.toArray
+        beforeEdges.rows.toArray{mask_argument}).bind
+        (fun p => project p sources edges {jump_limit})).map
+        (fun p => execute p signatures handlers work p.entry state) =
+      ((EVM.ContinuationFlow.{continuation_project} afterSource afterPoints.rows.toArray
+        afterEdges.rows.toArray{mask_argument}).bind
+        (fun p => project p targets edges {jump_limit})).map
+        (fun p => execute p signatures handlers work p.entry state) :=
+  matchedContinuations handlers work state (BeforeFrame.entryFits reaches)
+#print axioms matchedAtCaller
+#print axioms BeforeFrame.entryFits
+#print axioms AfterFrame.entryFits
+"""
+        provenance_theorems += [
+            "matchedAtCaller",
+            "BeforeFrame.entryFits",
+            "AfterFrame.entryFits",
+        ]
+        if mask:
+            for name, caller in zip(
+                ("BeforeFrame", "AfterFrame"), callers, strict=True
+            ):
+                code += entry_stack.mask_proof(name, caller)
+                code += f"#print axioms {name}.callerLayout\n"
+                provenance_theorems.append(f"{name}.callerLayout")
     built = build_model(timeout)
     if built.returncode:
         raise Unsupported(built.stdout + built.stderr)
     with tempfile.TemporaryDirectory(prefix="solar-tv-cfg-flow-") as folder:
         proof = Path(folder) / "Pair.lean"
+        env = None
+        if callers:
+            imports, env = entry_stack.compile_callers(
+                proof.parent, callers, catalog, entry_bound, prelude, timeout
+            )
+            code = code.replace("import SolarTV\n", "import SolarTV\n" + imports, 1)
         proof.write_text(code)
-        result = run(["lake", "env", "lean", "-j1", proof], ROOT, timeout)
+        result = run(["lake", "env", "lean", "-j1", proof], ROOT, timeout, env=env)
     if result.returncode:
         raise Unsupported(
             "control-flow path certificate did not close\n"
@@ -406,7 +473,7 @@ theorem matched {{World Observation : Type}} (handlers : Handlers World Observat
                 selector=entry,
                 scope=(
                     "layout-flow"
-                    if from_entry
+                    if bounded
                     else "interaction-flow"
                     if interactions
                     else "continuation-flow"
@@ -417,6 +484,8 @@ theorem matched {{World Observation : Type}} (handlers : Handlers World Observat
                 import_evidence={
                     "kind": "kernel-checked-entry-layout"
                     if from_entry
+                    else "kernel-checked-entry-bound-layout"
+                    if callers
                     else "kernel-checked-interaction-trace"
                     if interactions
                     else "kernel-checked-continuation-flow"
@@ -442,6 +511,17 @@ theorem matched {{World Observation : Type}} (handlers : Handlers World Observat
                         else {}
                     ),
                     **({"code_layout": code_layout[index]} if code_layout else {}),
+                    **(
+                        {
+                            "caller_stack": entry_stack.evidence(callers[index]),
+                            "entry_height_bound": entry_bound,
+                            "caller_return_slots": [
+                                i for i, tag in enumerate(mask) if tag
+                            ],
+                        }
+                        if callers
+                        else {}
+                    ),
                 },
             )
         )

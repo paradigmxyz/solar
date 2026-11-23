@@ -2061,7 +2061,11 @@ solar-tv/solar-tv evmir before.evmir after.evmir \
 The height proof covers every possible branch from each entry. The region
 proof then compares executions with equal live-in words and world state at
 the selected block. Omit `--interaction-trace` for regions without calls or
-gas observations.
+gas observations. This works for layout and compact PUSH pairs. When a helper
+returns across the region boundary, the proof also checks the stack slots
+that carry its caller's return address.
+For large caller graphs, increase `--timeout` to allow each physical-entry
+certificate to finish.
 
 The checker derives inherited return slots from both entries. A regional
 return exposes the same logical continuation and outgoing state. Address

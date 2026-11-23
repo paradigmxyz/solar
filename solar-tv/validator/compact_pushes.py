@@ -9,7 +9,6 @@ funded through all reached charges and admission checks.
 
 import hashlib
 import json
-import os
 import re
 import tempfile
 from pathlib import Path
@@ -551,44 +550,13 @@ theorem matchedFromEntryBound {World Observation : Type}
         directory = Path(folder)
         env = None
         if roots:
-            env = os.environ.copy()
-            env["LEAN_PATH"] = os.pathsep.join(
-                [folder, *filter(None, [env.get("LEAN_PATH")])]
-            )
-            imports = []
-            # Check each caller independently before importing the theorems.
-            for name, proposal in zip(
-                ("BeforeFrame", "AfterFrame"), roots, strict=True
-            ):
-                path = directory / f"{name}.lean"
-                path.write_text(
-                    prelude + entry_stack.certificate(name, proposal, catalog, bound)
+            try:
+                imports, env = entry_stack.compile_callers(
+                    directory, roots, catalog, bound, prelude, timeout
                 )
-                checked = run(
-                    [
-                        "lake",
-                        "env",
-                        "lean",
-                        "-j1",
-                        f"--root={folder}",
-                        "-o",
-                        path.with_suffix(".olean"),
-                        path,
-                    ],
-                    ROOT,
-                    timeout,
-                    env=env,
-                )
-                if checked.returncode:
-                    raise RecipeRejected(
-                        f"{name} stack certificate did not close\n"
-                        + checked.stdout
-                        + checked.stderr
-                    )
-                imports.append(f"import {name}\n")
-            code = code.replace(
-                "import SolarTV\n", "import SolarTV\n" + "".join(imports), 1
-            )
+            except Unsupported as error:
+                raise RecipeRejected(str(error)) from error
+            code = code.replace("import SolarTV\n", "import SolarTV\n" + imports, 1)
         proof = directory / "Pair.lean"
         proof.write_text(code)
         result = run(["lake", "env", "lean", "-j1", proof], ROOT, timeout, env=env)

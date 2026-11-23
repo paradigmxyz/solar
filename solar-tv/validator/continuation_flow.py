@@ -268,11 +268,27 @@ def check(texts, replay, catalog, version, timeout, entry, *, interactions=False
     )
 
 
-def check_entry(paths, solar, replay, version, timeout):
-    texts = parse_pair(paths, solar, version, timeout, None)
+def check_entry(
+    paths, solar, replay, version, timeout, *, region=None, interactions=True
+):
+    from . import entry_stack
+
+    texts = parse_pair(paths, solar, version, timeout, region)
     catalog = {row["name"]: row for row in native.catalog(replay, timeout)["evmir"]}
+    callers = None
+    mask = ()
+    if region is not None:
+        callers = tuple(
+            entry_stack.propose(text, region, replay, catalog, version, timeout)
+            for text in texts
+        )
+        mask = callers[0].mask()
+        if mask != callers[1].mask():
+            raise Unsupported(
+                "the two physical entries disagree on the region's return slots"
+            )
     sources = [
-        correspondence.export(text, None, version, replay, timeout, labels=True)
+        correspondence.export(text, region, version, replay, timeout, labels=True)
         for text in texts
     ]
     code_layout = code_relocations.bind(
@@ -280,7 +296,14 @@ def check_entry(paths, solar, replay, version, timeout):
     )
     projected, witnesses = zip(
         *(
-            project(source, catalog, version, interactions=True, from_entry=True)
+            project(
+                source,
+                catalog,
+                version,
+                interactions=interactions,
+                from_entry=True,
+                mask=mask,
+            )
             for source in sources
         ),
         strict=True,
@@ -293,12 +316,14 @@ def check_entry(paths, solar, replay, version, timeout):
     return cfg_flow.check(
         texts,
         projected,
-        f"bb{entry}",
+        region or f"bb{entry}",
         catalog,
         version,
         timeout,
         continuations=tuple(zip(sources, witnesses, strict=True)),
-        interactions=True,
-        from_entry=True,
+        interactions=interactions,
+        from_entry=region is None,
         code_layout=code_layout,
+        callers=callers,
+        mask=mask,
     )

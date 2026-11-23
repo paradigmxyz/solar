@@ -688,7 +688,7 @@ def main() -> int:
     parser.add_argument(
         "--entry-stack",
         action="store_true",
-        help="derive a compact PUSH region's stack bound from both physical entries",
+        help="derive a region's stack bound from both physical entries",
     )
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument(
@@ -817,19 +817,38 @@ def main() -> int:
                 or args.stack_height is not None
             ):
                 raise Unsupported("--entry-stack requires an unpriced EVM IR region")
-            from . import compact_pushes
+            from . import compact_pushes, continuation_flow
 
-            result = compact_pushes.check(
-                (args.before, args.after),
-                solar,
-                rust_replay,
-                version,
-                args.timeout,
-                args.region,
-                None,
-                interactions=args.interaction_trace,
-                bound_from_entry=True,
-            )
+            paths = (args.before, args.after)
+            try:
+                result = compact_pushes.check(
+                    paths,
+                    solar,
+                    rust_replay,
+                    version,
+                    args.timeout,
+                    args.region,
+                    None,
+                    interactions=args.interaction_trace,
+                    bound_from_entry=True,
+                )
+            except compact_pushes.RecipeRejected:
+                raise
+            except Unsupported as error:
+                try:
+                    result = continuation_flow.check_entry(
+                        paths,
+                        solar,
+                        rust_replay,
+                        version,
+                        args.timeout,
+                        region=args.region,
+                        interactions=args.interaction_trace,
+                    )
+                except Unsupported as layout_error:
+                    raise Unsupported(
+                        f"{error}; layout: {layout_error}"
+                    ) from layout_error
             programs = list(result.pair)
         elif args.entry_trace:
             if (

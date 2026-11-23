@@ -38,7 +38,11 @@ class StackLayoutTests(unittest.TestCase):
         ]
         if world:
             command += ["--world", self.folder / "world.json", "--gas=exact"]
-        elif "--entry-trace" not in flags and "--world" not in flags:
+        elif (
+            "--entry-trace" not in flags
+            and "--world" not in flags
+            and not any(flag.startswith("--region=") for flag in flags)
+        ):
             command += ["--region=bb0"]
         result = subprocess.run(
             command, capture_output=True, text=True, check=False, timeout=120
@@ -153,6 +157,43 @@ bb4:
         self.assertEqual(
             record["witness"]["observations"], record["witness"]["native_observations"]
         )
+
+    def test_region_layout_uses_proved_caller_return_slot(self):
+        before, after = (self.tmp / f"{name}.evmir" for name in ("before", "after"))
+        entry = """@module Caller
+bb0 [stack=0]:
+  push bb9
+  jump bb1
+bb1:
+  push 0
+  sload
+  pop
+  jump bb2
+"""
+        invalid = """bb3:
+  invalid
+"""
+        helper_exit = """bb2:
+  jump
+"""
+        epilogue = """bb9:
+  stop
+"""
+        before.write_text(entry + invalid + helper_exit + epilogue)
+        after.write_text(entry + helper_exit + invalid + epilogue)
+        flags = ("--region=bb1", "--entry-stack")
+        result, record = self.cli([before, after], flags=flags)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(record["region"]["name"], "bb1")
+        self.assertEqual(record["region"]["proof"], "kernel-checked-entry-bound-layout")
+        for evidence in record["import_correspondence"]:
+            self.assertEqual(evidence["caller_return_slots"], [0])
+            self.assertEqual(evidence["entry_height_bound"], 2)
+            self.assertEqual(len(evidence["changed_growth_checks"]), 1)
+        after.write_text(after.read_text().replace("bb2:\n  jump", "bb2:\n  stop"))
+        result, record = self.cli([before, after], flags=flags)
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(record["status"], "unsupported")
 
     def test_unproved_growth_is_not_hidden_by_an_entry_hint(self):
         paths = [self.tmp / f"{side}.evmir" for side in ("before", "after")]
