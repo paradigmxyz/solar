@@ -45,4 +45,22 @@ contract Shadow {
         _fill(_leak(keep));
         result = keep[0];
     }
+
+    function _mk(uint256[3] memory) private pure returns (uint256[3] memory r) {
+        r[0] = 1;
+    }
+
+    function _id(uint256[3] memory a) private pure returns (uint256[3] memory) {
+        return a;
+    }
+
+    // A function pointer local that shadows the fresh-returning `_mk`: the call returns the
+    // caller's object.
+    /// @custom:ensures result == 0
+    // expect: may alias a caller object the callee writes
+    function bad_fnptr_shadow(uint256[3] memory keep) external pure returns (uint256 result) {
+        function(uint256[3] memory) pure returns (uint256[3] memory) _mk = _id;
+        _fill(_mk(keep));
+        result = keep[0];
+    }
 }

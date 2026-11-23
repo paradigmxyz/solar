@@ -4811,6 +4811,11 @@ impl<'p, 'a> Vc<'p, 'a> {
         let ExprKind::Ident(id) = &callee.peel_parens().kind else {
             return false;
         };
+        // a local or parameter of the running body (a function pointer) shadows the contract's
+        // functions of that name
+        if self.frame_names.contains(id.as_str()) {
+            return false;
+        }
         let nargs = args.exprs().count();
         let mut fs = self
             .c
