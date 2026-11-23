@@ -1,6 +1,7 @@
 """Check that MIR jump threading preserves storage and simultaneous phi inputs."""
 
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -113,3 +114,111 @@ fn @count(arg0: i256) -> i256 {
                 self.assertEqual(a["values"], ["4"])
                 self.assertEqual(b["values"], ["4"])
                 self.assertEqual(a == b, n == 0)
+
+    def test_real_tail_sharing_checks_path_local_values(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{name}.mir" for name in ("before", "after"))
+            before.write_text("""@module Shared
+fn @choose(arg0: i256, arg1: i1) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v1]
+    v2 = ne v0, 0
+    jumpi v2, bb2, bb3
+  bb2:
+    v1 = sub v0, 1
+    jump bb1
+  bb3:
+    v3 = lt arg0, 4
+    jumpi v3, bb4, bb6
+  bb4:
+    v10 = add arg0, 1
+    v11 = add arg0, 2
+    sstore 1, v10
+    ret v10
+  bb5:
+    v20 = add arg0, 1
+    v21 = add arg0, 2
+    sstore 1, v20
+    ret v20
+  bb6:
+    jumpi arg1, bb5, bb7
+  bb7:
+    ret 0
+}
+""")
+            source = subprocess.check_output(
+                [SOLAR, before, "-j1", "-Ogas", "-Zmir-pipeline=cfg-simplify"],
+                text=True,
+                timeout=10,
+            )
+            self.assertEqual(source.count("sstore 1,"), 1)
+            after.write_text(source)
+            report = root / "report.json"
+            args = [
+                CLI,
+                "mir",
+                before,
+                after,
+                "--function=choose",
+                "--solar",
+                SOLAR,
+                "--timeout=30",
+                "--report",
+                report,
+            ]
+            result = subprocess.run(
+                args, text=True, capture_output=True, timeout=90, check=False
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            data = json.loads(report.read_text())
+            self.assertEqual(data["region"]["proof"], "kernel-checked-typed-jump-chain")
+            correspondence = data["import_correspondence"][1]["correspondence"][
+                "choose"
+            ]
+            self.assertGreater(correspondence["reused_points"][1], 0)
+            self.assertGreater(correspondence["live_pairs"], 0)
+
+            wrong_value = re.search(r"(v\d+) = add arg0, 2", source)
+            self.assertIsNotNone(wrong_value)
+            broken = re.sub(r"sstore 1, v\d+", f"sstore 1, {wrong_value[1]}", source)
+            self.assertNotEqual(broken, source)
+            after.write_text(broken)
+            result = subprocess.run(
+                args, text=True, capture_output=True, timeout=90, check=False
+            )
+            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            self.assertEqual(json.loads(report.read_text())["status"], "unsupported")
+
+            fixture = root / "world.json"
+            fixture.write_text('{"version":1}')
+            initial = world.read(fixture, SOLAR, None, kind="mir")
+            programs = [
+                Program(
+                    ("world-entry", "mir"),
+                    ["arg0", "arg1"],
+                    "",
+                    "",
+                    replay_ir=text,
+                    selector="choose",
+                    evm_version="cancun",
+                    world=initial,
+                )
+                for text in (before.read_text(), source, broken)
+            ]
+            for inputs in ([2, 0], [5, 1], [5, 0]):
+                for after_program in programs[1:]:
+                    observed = native.replay(
+                        programs[0],
+                        after_program,
+                        inputs,
+                        executable=native.default(SOLAR),
+                        timeout=10,
+                    )
+                    a, b = map(json.loads, observed["observations"])
+                    self.assertEqual(a["values"], b["values"])
+                    self.assertEqual(
+                        a == b, after_program is programs[1] or inputs == [5, 0]
+                    )

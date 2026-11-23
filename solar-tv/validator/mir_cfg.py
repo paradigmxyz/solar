@@ -1,8 +1,9 @@
-"""Kernel-checked MIR CFG coalescing over typed effects and live state."""
+"""Propose path and live-local correspondence for independently exported MIR."""
 
 import hashlib
 import tempfile
 from collections import deque
+from itertools import batched
 from pathlib import Path
 
 from . import audit, dead_ssa, entry_proof, prune, type_prune
@@ -72,12 +73,26 @@ def import_graph(body):
     return nodes
 
 
+def writes(data):
+    if isinstance(data, list):
+        return [phi["result"] for phi in data]
+    result = data.get("result")
+    return [] if result is None else [result]
+
+
 def pairing(old, new):
-    locations = [{0: 0}, {0: 0}]
-    points = [[0], [0]]
-    binders = {}
-    inverse = {}
+    points = [(0, 0)]
+    locations = {(0, 0): 0}
+    targets, live, definitions = [], [], []
     jump_limit = 1
+
+    def index(pair):
+        if pair not in locations:
+            if len(points) >= 4096:
+                raise Unsupported("paired MIR control flow exceeds 4096 points")
+            locations[pair] = len(points)
+            points.append(pair)
+        return locations[pair]
 
     def follow(nodes, point):
         hops = 1
@@ -90,71 +105,109 @@ def pairing(old, new):
                 )
         return hops, nodes[point]
 
-    def bind(result, target):
-        if result is None or target is None:
-            if result != target:
-                raise Unsupported("MIR CFG changed a result binder")
-            return
+    for before, after in points:
+        left_hops, (left_kind, left, left_edges) = follow(old, before)
+        right_hops, (right_kind, right, right_edges) = follow(new, after)
+        jump_limit = max(jump_limit, left_hops, right_hops)
+        a, b = writes(left), writes(right)
         if (
-            binders.setdefault(target, result) != result
-            or inverse.setdefault(result, target) != target
-        ):
-            raise Unsupported("MIR CFG binder correspondence is not injective")
-
-    for before, after in zip(*points):
-        l, left = follow(old, before)
-        r, right = follow(new, after)
-        jump_limit = max(jump_limit, l, r)
-        if (
-            left[0] != right[0]
-            or len(left[2]) != len(right[2])
-            or dead_ssa.signature(left[1]) != dead_ssa.signature(right[1])
+            left_kind != right_kind
+            or len(a) != len(b)
+            or len(left_edges) != len(right_edges)
+            or dead_ssa.signature(left) != dead_ssa.signature(right)
         ):
             raise Unsupported("MIR control-flow comparison changed a typed action")
-        if left[0] == "action":
-            left_insts = left[1] if isinstance(left[1], list) else [left[1]]
-            right_insts = right[1] if isinstance(right[1], list) else [right[1]]
-            for a, b in zip(left_insts, right_insts, strict=True):
-                bind(a["result"], b["result"])
-        for source, target in zip(left[2], right[2], strict=True):
-            use, other = locations[0].get(source), locations[1].get(target)
-            if use != other:
-                raise Unsupported("MIR control-flow comparison changed node sharing")
-            if use is None:
-                locations[0][source] = locations[1][target] = len(points[0])
-                points[0].append(source)
-                points[1].append(target)
-    return points, jump_limit, binders
+        targets.append(
+            [index(edge) for edge in zip(left_edges, right_edges, strict=True)]
+        )
+        live.append(set(zip(dead_ssa.reads(left), dead_ssa.reads(right), strict=True)))
+        definitions.append(
+            tuple({local: i for i, local in enumerate(side)} for side in (a, b))
+        )
+
+    # At a matched use, either a dominating action writes both values at the
+    # same result position or the pair must agree at the previous cursor too.
+    predecessors = [[] for _ in points]
+    for source, edges in enumerate(targets):
+        for dest in set(edges):
+            predecessors[dest].append(source)
+    pending = deque((i, pair) for i, row in enumerate(live) for pair in row)
+    facts = len(pending)
+    while pending:
+        if facts > 65536:
+            raise Unsupported("MIR CFG local correspondence exceeds 65536 pairs")
+        dest, pair = pending.popleft()
+        for source in predecessors[dest]:
+            left, right = definitions[source]
+            a, b = left.get(pair[0]), right.get(pair[1])
+            if a != b:
+                raise Unsupported("MIR CFG writes disagree on a live local pair")
+            if a is None and pair not in live[source]:
+                facts += 1
+                live[source].add(pair)
+                pending.append((source, pair))
+    if live[0]:
+        raise Unsupported(
+            "MIR CFG entry depends on a local without a matched definition"
+        )
+    return points, targets, live, jump_limit
 
 
-def render(nodes, symbols, mapping=None):
-    def rename(value):
-        if isinstance(value, list):
-            return [rename(item) for item in value]
-        if not isinstance(value, dict):
-            return value
-        out = {key: rename(item) for key, item in value.items()}
-        if out.get("kind") == "local":
-            if out["index"] not in mapping:
-                raise Unsupported("MIR CFG proof has an unmapped local operand")
-            out["index"] = mapping[out["index"]]
-        if out.get("result") is not None:
-            out["result"] = mapping.get(out["result"], out["result"])
-        return out
-
+def render(nodes, symbols):
     def row(kind, data, edges):
         if kind == "forward":
             return f".forward {edges[0]}"
-        dead_ssa.reads(data)
-        data = rename(data) if mapping is not None else data
-        key = symbols.setdefault(dead_ssa.stable(data), len(symbols))
-        if kind == "action":
-            return f".action {key} {edges[0]}"
-        if kind == "select":
-            return f".select {key} {edges}"
-        return f".terminal {key}"
+        key = symbols.setdefault(
+            (kind, dead_ssa.stable(dead_ssa.signature(data))), len(symbols)
+        )
+        return f".action ⟨{key},{dead_ssa.reads(data)},{writes(data)},{edges}⟩"
 
     return "#[" + ",".join(row(*node) for node in nodes) + "]"
+
+
+def render_point(point, targets, live):
+    pairs = ",".join(f"({a},{b})" for a, b in sorted(live))
+    return f"⟨{point[0]},{point[1]},[{pairs}],{targets}⟩"
+
+
+def certificate(i, old, new, witnesses, limit):
+    symbols = {}
+    code = f"""
+def before{i} : Graph := {render(old, symbols)}
+def after{i} : Graph := {render(new, symbols)}
+"""
+    parts = []
+    checks = []
+    proof = ""
+    predicate = f"(checkAt before{i} after{i} points{i} {limit})"
+    # Reduce bounded chunks in the kernel. Checking a large array all at once
+    # retains the reductions for every action and its live-locals check.
+    for index, part in enumerate(batched(witnesses, 12)):
+        name = f"points{i}_{index}"
+        theorem = f"valid{i}_{index}"
+        code += f"def {name} : Array Point := #[{','.join(part)}]\n"
+        parts.append(name)
+        checks.append(
+            f"theorem {theorem} : {name}.all {predicate} = true := by decide +kernel"
+        )
+        proof = f"(append_checked {proof} {theorem})" if proof else theorem
+    code += f"def points{i} : Array Point := {' ++ '.join(parts)}\n"
+    code += "\n".join(checks) + "\n"
+    return (
+        code
+        + f"""
+theorem valid{i} : Valid before{i} after{i} points{i} {limit} :=
+  {proof}
+theorem preserved{i} {{V S T : Type}} (handle : Handler V S T) (work : Nat)
+    (left right : Locals V) (state : S) :
+    MIR.CfgFlow.run before{i} {limit} handle work 0 left state =
+    MIR.CfgFlow.run after{i} {limit} handle work 0 right state :=
+  simulation before{i} after{i} points{i} {limit} valid{i} handle work 0
+    {witnesses[0]} (by rfl) left right state (by simp [agrees])
+#print axioms valid{i}
+#print axioms preserved{i}
+"""
+    )
 
 
 def check(paths, solar, executable, version, timeout, function):
@@ -204,7 +257,7 @@ set_option maxHeartbeats 2000000
 """
     )
     work = [function]
-    checked = set()
+    checked = {}
     while work:
         name = work.pop()
         if name in checked:
@@ -221,7 +274,7 @@ set_option maxHeartbeats 2000000
             raise Unsupported("MIR CFG proof requires defined function bodies")
         i = len(checked)
         old, new = map(import_graph, (a, b))
-        points, limit, binders = pairing(old, new)
+        points, edges, live, limit = pairing(old, new)
         for kind, data, _ in old:
             if kind == "action" and isinstance(data, dict):
                 op = data["operation"]
@@ -237,23 +290,18 @@ set_option maxHeartbeats 2000000
                 if len(targets) != 1:
                     raise Unsupported("MIR CFG proof has an ambiguous call binding")
                 work.extend(targets)
-        symbols = {}
-        code += f"""
-def before{i} : Graph := {render(old, symbols)}
-def after{i} : Graph := {render(new, symbols, binders)}
-def left{i} : List Nat := {points[0]}
-def right{i} : List Nat := {points[1]}
-def target{i} : Option Graph := project before{i} left{i} {limit}
-theorem exists{i} : target{i}.isSome := by decide
-theorem same{i} : target{i} = project after{i} right{i} {limit} := by decide
-theorem preserved{i} {{S T : Type}} (handlers : Handlers S T) (work : Nat) (state : S) :
-    (project before{i} left{i} {limit}).map (fun g => MIR.CfgFlow.run g handlers work 0 state) =
-    (project after{i} right{i} {limit}).map (fun g => MIR.CfgFlow.run g handlers work 0 state) :=
-  contextual before{i} after{i} left{i} right{i} {limit} same{i} handlers work state
-#print axioms exists{i}
-#print axioms preserved{i}
-"""
-        checked.add(name)
+        witnesses = [
+            render_point(point, targets, locals_)
+            for point, targets, locals_ in zip(points, edges, live, strict=True)
+        ]
+        code += certificate(i, old, new, witnesses, limit)
+        checked[name] = {
+            "paired_points": len(points),
+            "reused_points": [
+                len(points) - len({point[side] for point in points}) for side in (0, 1)
+            ],
+            "live_pairs": sum(map(len, live)),
+        }
     entry_proof.success(build_model(timeout), "MIR CFG proof model")
     with tempfile.TemporaryDirectory(prefix="solar-tv-mir-cfg-") as folder:
         output = entry_proof.success(
@@ -263,6 +311,7 @@ theorem preserved{i} {{S T : Type}} (handlers : Handlers S T) (work : Nat) (stat
     evidence = {
         "kind": "kernel-checked-typed-jump-chain",
         "functions": sorted(checked),
+        "correspondence": checked,
         "proof_sha256": hashlib.sha256(code.encode()).hexdigest(),
         "boundary": "trusted structural exporter and action-constructor binding; unpriced shared effect handlers including calls and GAS; independent caller/ABI and backend correspondence remain separate",
     }

@@ -531,6 +531,33 @@ certificate verified 48 and the existing stack-prefix route verified 10.
 The other 45 remained unsupported. The ABI and creation and runtime bytecode
 matched the pinned outputs for all three contracts.
 
+### Shared MIR tails
+
+The certificate pairs source cursors instead of assigning one global
+counterpart to every block or register. The source exporter binds each phi
+input to its actual predecessor. The certificate checks all successors and
+records which local pairs must hold equal values at each cursor. Each action
+receives the same ordered operands. A successor's local pair must either
+agree already and remain untouched, or be written at the same result
+position by the matched action. Phi groups apply this test to parallel reads
+and writes. Induction over logical work proves the same observations through
+joins, loops and shared failure paths.
+
+The importer and its typed action descriptors remain trusted. The theorem
+quantifies a shared handler for each descriptor, with `GAS` and message
+effects retained in order. Physical gas, ABI frames and runtime callback
+binding remain separate obligations. The regression checks actual
+`cfg-simplify` output that shares two storage-writing tails with distinct
+local IDs. Independent MIR replay confirms the same storage and return
+values on both former tails, and detects a rewrite that stores the wrong
+local.
+
+The serial recheck selected 26 frozen `cfg-simplify` and `jump-threading`
+captures that had failed structural matching on shared nodes. At eight
+seconds per proof, 15 verified, five timed out and six remained unsupported.
+A 20-second retry verified four of the five timed-out captures from Morpho.
+All three pinned contracts kept their ABI, creation bytecode and runtime bytecode.
+
 ## Automatic typed source execution
 
 The scalar expression projection has a separate automatic fallback: direct

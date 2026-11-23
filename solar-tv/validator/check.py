@@ -1068,7 +1068,7 @@ def main() -> int:
                     verbose=args.verbose,
                 )
     except (Unsupported, OSError, subprocess.TimeoutExpired) as error:
-        compact = None
+        fallback = None
         entry = (
             args.region
             or args.prefix
@@ -1085,7 +1085,7 @@ def main() -> int:
             from . import compact_pushes
 
             try:
-                compact = compact_pushes.check(
+                fallback = compact_pushes.check(
                     (args.before, args.after),
                     solar,
                     rust_replay,
@@ -1102,6 +1102,31 @@ def main() -> int:
                 error = retry
             except Unsupported:
                 pass
+        elif (
+            isinstance(error, (Unsupported, subprocess.TimeoutExpired))
+            and not isinstance(error, Inconclusive)
+            and args.ir == "mir"
+            and args.function
+            and args.world is None
+            and args.gas is None
+            and len(programs) == 2
+            and all(program.symbolic_mir is not None for program in programs)
+        ):
+            # A failed direct proof can still admit an action-by-action
+            # certificate without duplicating the unfolding of shared tails.
+            from . import mir_cfg
+
+            try:
+                fallback = mir_cfg.check(
+                    (args.before, args.after),
+                    solar,
+                    rust_replay,
+                    version,
+                    args.timeout,
+                    args.function,
+                )
+            except Unsupported, OSError, subprocess.TimeoutExpired:
+                pass
         status = (
             "timeout"
             if isinstance(error, subprocess.TimeoutExpired)
@@ -1111,7 +1136,7 @@ def main() -> int:
             if isinstance(error, Unsupported)
             else "error"
         )
-        result = compact or audit.Result(
+        result = fallback or audit.Result(
             status,
             stderr=report.inconclusive(error, replay, verbose=args.verbose),
             program=programs[0] if len(programs) == 2 else None,

@@ -2020,12 +2020,14 @@ storage-write sentry. The continuation cannot observe gas through `GAS`;
 external messages and code-image observers remain unsupported.
 [Proof details](CORRECTNESS.md#compact-push-recipes)
 
-The MIR checker also validates block coalescing and jump threading on typed
-graphs, including backedges. Every selected phi group reads its predecessor's
-operands simultaneously. Direct callees are checked with their original
-bindings. `GAS` and external calls remain ordered requests under the shared
-effect handler. The certificate applies to the selected function and its
-direct call closure.
+The MIR checker validates block coalescing, jump threading and shared tails
+on typed graphs, including backedges. Each pair of source points tracks the
+local values its path needs. A shared block can therefore match separate
+blocks with different local IDs. Phi groups read their predecessor's
+operands before writing any result. Direct callees keep their original
+bindings, and `GAS` and external calls remain ordered requests under the
+shared effect handler. This is an unpriced check of the selected function and
+its direct call closure. [Proof details](CORRECTNESS.md#shared-mir-tails)
 
 The same eight-check-per-contract sample now verifies **17 of 24** with
 `--timeout 30`; 7 remain unsupported, with no counterexamples, timeouts or

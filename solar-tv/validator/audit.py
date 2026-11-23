@@ -314,7 +314,7 @@ def record(
         elif program and program.scope == "mir-cfg-flow":
             assumptions.extend(
                 [
-                    "independently exported typed MIR; checked contraction of unconditional jumps with every ordered operand, simultaneous phi input, result and other control operation retained",
+                    "independently exported typed MIR; kernel-checked edges, live operand agreement and simultaneous phi writes, including distinct paths to shared tails",
                     "every logical action bound and shared live state; direct callee graphs checked with the same bindings; GAS and message effects are retained requests",
                     "trusted compiler structural exporter and action-constructor binding; no physical gas pricing, ABI frame initialization or runtime callback binding",
                 ]
