@@ -73,11 +73,33 @@
 //@ run-call: computed 2 => 1002
 //@ run-call: computed 4 => 1004
 //@ run-call: computed 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 999
+//@ run-call: lowKeys 10 => 3
+//@ run-call: lowKeys 11 => 1
+//@ run-call: lowKeys 12 => 4
+//@ run-call: lowKeys 13 => 1
+//@ run-call: lowKeys 9 => 99
+//@ run-call: lowKeys 0 => 99
+//@ run-call: lowKeys 14 => 99
+//@ run-call: lowKeys 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffee => 99
+//@ run-call: lowKeys 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffed => 99
+//@ run-call: lowKeys 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 99
+//@ run-call: highKeys 40 => 2
+//@ run-call: highKeys 41 => 7
+//@ run-call: highKeys 42 => 1
+//@ run-call: highKeys 43 => 8
+//@ run-call: highKeys 39 => 0
+//@ run-call: highKeys 44 => 0
+//@ run-call: highKeys 0 => 0
+//@ run-call: highKeys 11 => 0
+//@ run-call: highKeys 12 => 0
+//@ run-call: highKeys 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0
 
 // Yul switches whose cases only assign literals become packed table lookups: a byte table
 // (`clOrder`), two words of 15-bit slots (`distBase`), two outputs in one slot with gaps and
-// nonzero defaults (`lengths`), and a computed default that stays a branch (`computed`). The
-// calls cover every key, the gaps, values past the keys, and values whose slot shift wraps.
+// nonzero defaults (`lengths`), a computed default that stays a branch (`computed`), and byte
+// tables of keys from 10, read at `v + 18`, and from 40, read at `v - 12` (`lowKeys`, `highKeys`).
+// The calls cover every key, the gaps, values past the keys, and values whose slot shift or byte
+// index wraps.
 contract SwitchLookupRuntime {
     function clOrder(uint256 i) external pure returns (uint256 o) {
         assembly {
@@ -149,6 +171,28 @@ contract SwitchLookupRuntime {
             case 5 { b := 200 e := 2 }
             case 9 { b := 300 e := 3 }
             default { b := 7 e := 0 }
+        }
+    }
+
+    function lowKeys(uint256 i) external pure returns (uint256 o) {
+        assembly {
+            switch i
+            case 10 { o := 3 }
+            case 11 { o := 1 }
+            case 12 { o := 4 }
+            case 13 { o := 1 }
+            default { o := 99 }
+        }
+    }
+
+    function highKeys(uint256 i) external pure returns (uint256 o) {
+        assembly {
+            switch i
+            case 40 { o := 2 }
+            case 41 { o := 7 }
+            case 42 { o := 1 }
+            case 43 { o := 8 }
+            default { o := 0 }
         }
     }
 

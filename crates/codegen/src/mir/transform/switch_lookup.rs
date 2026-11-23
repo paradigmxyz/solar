@@ -265,6 +265,11 @@ fn site(
         .flat_map(|&block| func.blocks[block].instructions.iter())
         .filter_map(|&inst| func.inst_result_value(inst))
         .collect::<FxHashSet<_>>();
+    // The forwarders go with the switch, so nothing else may read what they compute: a forwarder
+    // that dominates a loop header reaches every block below it.
+    if !forwarded.is_empty() && used_outside(func, &forwarders, &forwarded) {
+        return None;
+    }
     let mut fields = Vec::new();
     let mut block_literals = vec![Vec::new(); blocks.len()];
     for &phi in &func.blocks[join].instructions {
@@ -280,9 +285,6 @@ fn site(
         }
         let shared = default_value.unwrap_or(values[0].1);
         let field = if values.iter().all(|&(_, value)| value == shared) {
-            if forwarded.contains(&shared) {
-                return None;
-            }
             FieldValue::Same(shared)
         } else {
             let base = func.value_u256(shared)?;
@@ -318,6 +320,22 @@ fn site(
         fields,
         keys: keyed.iter().map(|&(key, _)| key).collect(),
         blocks: blocks.iter().map(|&(_, reached)| reached).zip(block_literals).collect(),
+    })
+}
+
+/// Whether a block other than the `forwarders` reads a value in `forwarded`.
+fn used_outside(func: &Function, forwarders: &[BlockId], forwarded: &FxHashSet<ValueId>) -> bool {
+    func.blocks.iter_enumerated().any(|(block, body)| {
+        let mut used = false;
+        if !forwarders.contains(&block) {
+            for &inst in &body.instructions {
+                func.inst(inst).kind.visit_operands(|value| used |= forwarded.contains(&value));
+            }
+            if let Some(terminator) = &body.terminator {
+                terminator.visit_operands(|value| used |= forwarded.contains(&value));
+            }
+        }
+        used
     })
 }
 

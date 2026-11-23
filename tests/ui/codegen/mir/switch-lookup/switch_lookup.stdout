@@ -131,6 +131,18 @@
       ret v0
   }
   
+  fn @forwarded_value_escapes(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      switch arg0, default bb2, [1 => bb1, 2 => bb1]
+    bb1:                                            ; preds = bb0
+      v0 = add arg1, 7
+      jump bb3
+    bb3:                                            ; preds = bb1
+      ret v0
+    bb2 [cold]:                                     ; preds = bb0
+      revert 0, 0
+  }
+  
   fn @two_words(arg0: i256) -> i256 {
     bb0:
 -     switch arg0, default bb21, [0 => bb1, 1 => bb2, 2 => bb3, 3 => bb4, 4 => bb5, 5 => bb6, 6 => bb7, 7 => bb8, 8 => bb9, 9 => bb10, 10 => bb11, 11 => bb12, 12 => bb13, 13 => bb14, 14 => bb15, 15 => bb16, 16 => bb17, 17 => bb18, 18 => bb19, 19 => bb20]

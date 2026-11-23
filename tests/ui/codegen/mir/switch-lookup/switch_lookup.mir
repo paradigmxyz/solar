@@ -110,10 +110,12 @@ fn @two_phis(arg0: i256) -> i256 {
     ret v2
 }
 
-// A boolean phi reads a word and truncates it to `i1`.
+// A boolean phi reads a word and truncates it to `i1`. Keys 1 to 3 sit in the last three bytes,
+// at `arg0 + 32 - 3 - 1`.
 // CHECK-LABEL: {{^[ +].*}}fn @boolean_phi{{[( ]}}
 // CHECK: - switch arg0
-// CHECK: + [[E:v[0-9]+]] = byte {{v[0-9]+}}, 0x10001
+// CHECK: + [[I:v[0-9]+]] = add arg0, 28
+// CHECK: + [[E:v[0-9]+]] = byte [[I]], 0x10001
 // CHECK: + [[B:v[0-9]+]] = trunc i256 [[E]] to i1
 // CHECK: ret [[B]]
 fn @boolean_phi(arg0: i256) -> i1 {
@@ -150,6 +152,23 @@ fn @impure_case(arg0: i256) -> i256 {
     jump bb5
   bb5:
     v0 = phi [bb1: 10], [bb2: 20], [bb3: 30], [bb4: 0]
+    ret v0
+}
+
+// The only case block dominates the join, which reads the value the block computes outside any
+// phi, so the block cannot go and the switch stays.
+// CHECK-LABEL: {{^[ +].*}}fn @forwarded_value_escapes{{[( ]}}
+// CHECK-NOT: {{^[+-]}}
+// CHECK: switch arg0
+fn @forwarded_value_escapes(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    switch arg0, default bb2, [1 => bb1, 2 => bb1]
+  bb1:
+    v0 = add arg1, 7
+    jump bb3
+  bb2:
+    revert 0, 0
+  bb3:
     ret v0
 }
 
