@@ -664,6 +664,44 @@ fn @choose(arg0: ptr<memory>, arg1: i1) -> i256 {
                 self.replay_loop(root, source, wrong, [128, 1]), [["7"], ["0"]]
             )
 
+    def test_cse_retains_the_calldata_size_across_effects(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{name}.mir" for name in ("before", "after"))
+            before.write_text("""@module InputSize
+fn @choose() -> i256 {
+  bb0:
+    v0 = calldatasize
+    jump bb1
+  bb1:
+    v1 = phi [bb0: false], [bb1: true]
+    mstore 128, v0
+    v2 = calldatasize
+    mstore 160, v2
+    jumpi v1, bb2, bb1
+  bb2:
+    ret v2
+}
+""")
+            output = subprocess.check_output(
+                [SOLAR, before, "-j1", "-Ogas", "-Zmir-pipeline=cse"],
+                text=True,
+                timeout=20,
+            )
+            self.assertEqual(output.count("calldatasize"), 1)
+            after.write_text(output)
+            record = self.check_loop(root, 0)
+            relation = record["import_correspondence"][0]["correspondence"]["choose"]
+            self.assertEqual(relation["proof"], "carrier-copies")
+            after.write_text(output.replace("= calldatasize", "= returndatasize"))
+            self.check_loop(root, 2)
+            fixture = root / "world.json"
+            fixture.write_text('{"version":1,"calldata":"0x112233"}')
+            record = self.check_loop(root, 1, fixture=fixture)
+            self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+            witness = record["witness"]
+            self.assertEqual(witness["observations"], witness["native_observations"])
+
     def test_cfg_simplify_checks_mutually_recursive_callees(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

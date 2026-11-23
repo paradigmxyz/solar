@@ -70,6 +70,17 @@ def source_copy(inst):
     return None
 
 
+def same_phase_source(inst):
+    op = inst["operation"]
+    if (
+        inst["result"] is not None
+        and inst["type"] == {"kind": "word", "bits": 256, "name": "i256"}
+        and op == {"kind": "opcode", "name": "calldatasize", "args": []}
+    ):
+        return {"kind": "frame_calldata_size"}
+    return source_copy(inst)
+
+
 def tail_sites(before, after, left, right):
     """Find call/terminal pairs with a retained, straight-line revert callee."""
     sites = {}
@@ -147,6 +158,7 @@ def align(before, after, tail_rewrites, *, erase_both=False):
         raise Unsupported("carrier proof requires unchanged block identities")
     renaming = {}
     used = set()
+    source = same_phase_source if erase_both else source_copy
 
     def bind(old, new):
         if old is None or new is None:
@@ -161,9 +173,9 @@ def align(before, after, tail_rewrites, *, erase_both=False):
     for index, (left, right) in enumerate(
         zip(before["blocks"], after["blocks"], strict=True)
     ):
-        retained = [inst for inst in left["instructions"] if source_copy(inst) is None]
+        retained = [inst for inst in left["instructions"] if source(inst) is None]
         targets = (
-            [inst for inst in right["instructions"] if source_copy(inst) is None]
+            [inst for inst in right["instructions"] if source(inst) is None]
             if erase_both
             else right["instructions"]
         )
@@ -182,7 +194,7 @@ def align(before, after, tail_rewrites, *, erase_both=False):
         next_id = 1 + max(used, default=0)
         for block in after["blocks"]:
             for inst in block["instructions"]:
-                if source_copy(inst) is not None:
+                if source(inst) is not None:
                     bind(next_id, inst["result"])
                     next_id += 1
     return renaming
@@ -229,6 +241,7 @@ def affine_word(inst, offsets, checks):
 
 def project(body, symbols, renaming, tail_rewrites, *, affine=None):
     same_phase = affine is not None
+    source = same_phase_source if same_phase else source_copy
 
     def local(index):
         if renaming is None:
@@ -246,6 +259,8 @@ def project(body, symbols, renaming, tail_rewrites, *, affine=None):
         return scalar_type(value)
 
     def read(value):
+        if value["kind"] == "frame_calldata_size":
+            return ("fixed", intern(symbols, ["frame calldata size"]))
         if value["kind"] == "local":
             return ("reg", local(value["index"]))
         if value["kind"] not in {"arg", "constant"}:
@@ -303,7 +318,7 @@ def project(body, symbols, renaming, tail_rewrites, *, affine=None):
             instructions = instructions[:-1]
         for inst in instructions:
             if (renaming is None or same_phase) and (
-                operand := source_copy(inst)
+                operand := source(inst)
             ) is not None:
                 code.append(Copy(local(inst["result"]), read(operand)))
                 if (

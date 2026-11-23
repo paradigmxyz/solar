@@ -560,6 +560,7 @@ set_option maxHeartbeats 2000000
 #print axioms MIR.CfgFlow.normalized_increment_result
 #print axioms MIR.PhaseShaping.pointer_carrier
 #print axioms MIR.PhaseShaping.full_word_casts
+#print axioms MIR.PhaseShaping.calldata_size_copy
 #print axioms MIR.ProductInit.construct_initialized
 #print axioms MIR.ProductInit.observed_initialized
 """
@@ -568,7 +569,7 @@ set_option maxHeartbeats 2000000
     checked = {}
     calls = {}
     procedure_pairs = []
-    axioms_checks = 9
+    axioms_checks = 10
     while work:
         name = work.pop()
         if name in checked:

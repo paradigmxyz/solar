@@ -17,6 +17,11 @@ theorem full_word_casts (cfg : MIR.State.Config) (frame : MIR.State.Frame) (word
     MIR.State.operation cfg frame (.lowBits 256) [word] = MIR.State.value frame word :=
   ⟨rfl,rfl⟩
 
+/-- The input is fixed for one activation, even as its frame changes. -/
+theorem calldata_size_copy (cfg : MIR.State.Config) (frame : MIR.State.Frame) :
+    MIR.State.memoryOperation cfg frame .calldataSize [] =
+      MIR.State.value frame (BitVec.ofNat 256 cfg.environment.input.length) := rfl
+
 theorem expand_after_write (memory bytes : List Byte) (limit atByte offset size : Nat)
     (nonempty : size > 0) (aligned : memory.length % 32 = 0)
     (limitAligned : limit % 32 = 0) (endAligned : (offset + size) % 32 = 0)

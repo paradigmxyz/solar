@@ -713,6 +713,18 @@ that calls it. The proof checks which full-word pointer copies each path
 may reuse. The regression changes the load address and reproduces the
 wrong result on the original memory input.
 
+Calldata size is a word from the current activation's immutable input.
+The carrier proof shares this word across effects in the activation.
+Volatile returndata size remains an ordinary operation. This verifies a
+third frozen Morpho `extSloads` rewrite. The regression substitutes
+returndata size and independently reproduces a different return value.
+
+The current serial recheck verifies 17 of 19 previously unsupported
+loop-related captures. All six CSE and both loop-layout captures verify.
+Nine of the eleven egraph captures verify. ERC20Mock `load_storage_bytes`
+still needs an allocation bound, and the remaining Morpho `extSloads`
+pair needs slice and checked-arithmetic correspondence.
+
 The checked MIR call table also supports direct recursive calls. A request
 identifies its callee and typed operands, and the state resumes from that
 callee's result. The kernel composes the checked bodies by induction on
