@@ -489,6 +489,8 @@ fn redirect_jump_thunks(
                 if let Some(terminator) = &block.terminator
                     && let TerminatorKind::Jump(next) = terminator.kind
                     && !block.metadata.optimization.unwrap_or(module.optimization).is_none()
+                    && !(module.optimization.is_none()
+                        && (block.metadata.function_entry || block.metadata.call_effect.is_some()))
                 {
                     thunks
                         .insert(block_id, Thunk { next, entered: None, exit: Metadata::default() });
