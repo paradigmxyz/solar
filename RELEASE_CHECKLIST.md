@@ -54,7 +54,7 @@ Crates: `solar-compiler`, `solar-ast`, `solar-capi`, `solar-cli`, `solar-codegen
   Every version must appear once; git-cliff can prepend older releases again.
   Keep `crates/solar/CHANGELOG.md` a symlink to the root changelog.
 - [ ] Edit the changelog: drop dependency bumps, CI, bench, test, refactor, and
-  chore entries, and add a short `### Highlights` list with linked PRs.
+  chore entries, and add a `### Highlights` list as described in [Highlights](#highlights).
 - [ ] Update the pinned versions in `README.md`'s `### Library usage` and `### Binary usage`.
 - [ ] Push, open the PR, and wait for CI to pass before merging. The name of the
   PR should be the same as the `cargo-release` commit message.
@@ -88,3 +88,24 @@ Crates: `solar-compiler`, `solar-ast`, `solar-capi`, `solar-cli`, `solar-codegen
 - [ ] Raise their MSRV if solar's `rust-version` is higher.
 
 These steps are adapted from the recommended `cargo-release` + `dist` workflow, described in more detail [here](https://opensource.axo.dev/cargo-dist/book/workspaces/cargo-release-guide.html#using-cargo-release-with-pull-requests).
+
+## Highlights
+
+Each release's changelog opens with a `### Highlights` section, above the generated sections. Write
+it by hand, short, and about what users get, not about individual PRs:
+
+- Use a few one-line bullets, most important first, and no PR lists or per-PR numbers. Link a PR or
+  doc only where it helps the reader.
+- Lead with headline numbers against solc, measured with the benchmark suite behind the blog post
+  (`benches/runtime/benchmark.py`, one benchmark per `m4-metal-large` box, five compile repeats,
+  solc 0.8.38, Cancun, Solar `--profile bench`) at Solar's default thread count (`-j0`, all cores),
+  not `-j8`: compile speed as a geometric mean with the per-project range (via-IR with shared
+  settings, and each project's own settings), and runtime gas, deploy gas and bytecode size over the
+  runtime corpus. Shared settings force `viaIR`, relax every `pragma solidity` and use one EVM
+  version for all compilers; `benchmark.py` on `main` has no switch for that, so use the override
+  of commit `711c741f7` on `dani/tmp-solar-blog` (`BENCH_VIA_IR=1 BENCH_RELAX_PRAGMAS=1`) and check
+  the effective settings and case IDs before aggregating. Say which main commit you measured.
+- Add at most two or three user-facing features or behavior changes, such as a new output or a
+  changed default.
+- Use only real measurements. Do not average across runs, round up or quote a number you did not
+  measure or read from a merged PR body.
