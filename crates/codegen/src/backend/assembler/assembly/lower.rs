@@ -249,11 +249,10 @@ fn lower_evm_ir_once(
         // affecting a native block entry.
         let lent =
             valid_lent_invokes.contains(block_id).then_some(block.metadata.lent_invoke).flatten();
-        if let Some(function) = block.metadata.function_invoke.or(lent) {
-            debug_assert!(
-                pending_block_invoke.is_none() || pending_block_invoke == Some(function),
-                "an instruction-free block cannot enter two functions"
-            );
+        let own_invoke = block.metadata.function_invoke.or(lent);
+        if let Some(function) = own_invoke {
+            // NOTE: Empty blocks that fall through can chain, so one instruction can enter two
+            // functions. The last block of the chain marks the entry.
             pending_block_invoke = Some(function);
         }
         if let Some(label) = labels.get(original).copied().flatten() {
@@ -263,7 +262,10 @@ fn lower_evm_ir_once(
                 program.set_modifier_depth(block.label_metadata.modifier_depth());
             }
             program.define_label(label);
-            program.mark_last_function_invoke(pending_block_invoke.take());
+            // NOTE: A marker carried from an earlier byte-free block names only the fallthrough
+            // entry. A referenced label has other entries, so it must not take the marker.
+            let invoke = pending_block_invoke.take();
+            program.mark_last_function_invoke(invoke.filter(|_| own_invoke.is_some()));
         }
 
         for inst in &block.instructions {
@@ -446,7 +448,7 @@ fn lower_terminator(
                 program.push_op(op::JUMP);
                 return;
             }
-            if module.next_block(block_id) == Some(*target) {
+            if module.jump_falls_through(block_id, *target) {
                 // NOTE: Fallthrough emits no instruction for this edge's source span.
                 // If the successor is shared, its unique source location stays unknown.
                 // Do not retain a jump or duplicate code for it, or move the span onto an

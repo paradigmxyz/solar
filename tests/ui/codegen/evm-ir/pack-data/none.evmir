@@ -2,11 +2,13 @@
 //@ filecheck:
 @module None
 
-// CHECK: literal_0: hex"112233
+// At `-O none` no run of stores becomes a copy.
+// CHECK-NOT: literal_0
 // CHECK-LABEL: {{^[ +].*}}bb0:
-// CHECK: {{^[ +].*}}push_data literal_0
-// CHECK: {{^[ +].*}}codecopy
-// CHECK-NOT: {{^[ +].*}}mstore
+// CHECK-NOT: codecopy
+// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +].*}}mstore
 bb0:
   push 128
   push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
