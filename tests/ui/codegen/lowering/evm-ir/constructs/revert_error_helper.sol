@@ -23,7 +23,7 @@ contract R {
     // CHECK-LABEL: @module R_runtime
     // CHECK: push 0x3339
     // CHECK: jump [[SHORT_HELPER:bb[0-9]+]]
-    // CHECK: [[SHORT_HELPER]] [cold]:
+    // CHECK: [[SHORT_HELPER]] [cold{{.*}}]:
     // CHECK: push 0x8c379a0
     // CHECK: revert
     function viaLibConst(uint256 x) external pure returns (uint256) {
@@ -33,7 +33,7 @@ contract R {
 
     // CHECK: push 0x6c69746572616c206d7367
     // CHECK: jump [[WORD11_HELPER:bb[0-9]+]]
-    // CHECK: [[WORD11_HELPER]] [cold]:
+    // CHECK: [[WORD11_HELPER]] [cold{{.*}}]:
     // CHECK-NEXT: push 168
     // CHECK-NEXT: shl
     // CHECK-NEXT: push 11

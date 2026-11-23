@@ -361,8 +361,8 @@ pub struct BlockMetadata {
     /// Direct jumps to the block are calls, and the return address is a block's address that the
     /// caller pushed before them. See [`CallEffect`].
     pub call_effect: Option<CallEffect>,
-    /// This block is the entry of an internal function, which a jump to it calls, recorded at
-    /// `-O none`. Unlike [`Self::call_effect`] it is set for a function that never returns.
+    /// This block is the entry of an internal function, which a jump to it calls. Unlike
+    /// [`Self::call_effect`] it is set for a function that never returns.
     pub function_entry: bool,
     /// A function entry lent to this block by a bypassed conditional thunk.
     ///
