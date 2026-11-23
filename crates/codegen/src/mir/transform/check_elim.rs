@@ -272,10 +272,9 @@ impl MirPass for CheckElim {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, analyses| {
-            let target = analyses.runtime_target(gcx);
             let eliminator = CheckEliminator {
-                propagate_equalities: Some(target),
-                thread_target: Some(target),
+                propagate_equalities: Some(analyses.runtime_target(gcx)),
+                thread_target: Some(analyses.loop_aware_target(gcx)),
                 ..Default::default()
             };
             let cfg = CfgInfo::new(func);
@@ -402,7 +401,7 @@ impl MirPass for LateCheckElim {
                 return false;
             }
             let eliminator = CheckEliminator {
-                thread_target: Some(analyses.runtime_target(gcx)),
+                thread_target: Some(analyses.loop_aware_target(gcx)),
                 ..Default::default()
             };
             let changed = eliminator.run(func, analyses.cfg(), selected) != 0;
@@ -452,7 +451,7 @@ impl MirPass for ImmutableCheckElim {
         run_selected_function_pass(module, analyses, &loading, |func, analyses| {
             let eliminator = CheckEliminator {
                 immutable_ranges: Some(&bounds),
-                thread_target: Some(analyses.runtime_target(gcx)),
+                thread_target: Some(analyses.loop_aware_target(gcx)),
                 ..Default::default()
             };
             eliminator.run(func, analyses.cfg(), None) != 0

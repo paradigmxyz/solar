@@ -1,0 +1,50 @@
+- ; === ROOT/tests/ui/codegen/mir/check-elim/edge_implied_creation.mir (before check-elim) ===
++ ; === ROOT/tests/ui/codegen/mir/check-elim/edge_implied_creation.mir (after check-elim) ===
+  @module EdgeImpliedCreation
+  ; creation entry
+  fn @constructor(arg0: i256, arg1: i256) [constructor] {
+    bb0:
+      v0 = lt arg0, 9
+      jumpi v0, bb1, bb2
+    bb1:                                            ; preds = bb0
+      v1 = and arg1, 255
+      jump bb2
+    bb2:                                            ; preds = bb0, bb1
+      v2 = phi [bb1: v1], [bb0: 0]
+      v3 = gt arg0, 16
+      jumpi v3, bb3, bb4
+    bb3:                                            ; preds = bb2
+      v4 = add v2, 7
+      jump bb4
+    bb4:                                            ; preds = bb2, bb3
+      v5 = phi [bb3: v4], [bb2: v2]
+      sstore 0, v5
+      stop
+  }
+  
+  fn @runtime(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = lt arg0, 9
+      jumpi v0, bb1, bb2
+-   bb1:                                            ; preds = bb0
+-     v1 = and arg1, 255
+-     jump bb2
+-   bb2:                                            ; preds = bb0, bb1
+-     v2 = phi [bb1: v1], [bb0: 0]
++   bb2:                                            ; preds = bb0
++     v2 = phi [bb0: 0]
+      v3 = gt arg0, 16
+      jumpi v3, bb3, bb4
+    bb3:                                            ; preds = bb2
+      v4 = add v2, 7
+      jump bb4
+-   bb4:                                            ; preds = bb2, bb3
+-     v5 = phi [bb3: v4], [bb2: v2]
++   bb1:                                            ; preds = bb0
++     v1 = and arg1, 255
++     jump bb4
++   bb4:                                            ; preds = bb2, bb3, bb1
++     v5 = phi [bb3: v4], [bb2: v2], [bb1: v1]
+      ret v5
+  }
+  
