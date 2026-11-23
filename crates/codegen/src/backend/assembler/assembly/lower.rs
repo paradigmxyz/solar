@@ -249,7 +249,8 @@ fn lower_evm_ir_once(
         // affecting a native block entry.
         let lent =
             valid_lent_invokes.contains(block_id).then_some(block.metadata.lent_invoke).flatten();
-        if let Some(function) = block.metadata.function_invoke.or(lent) {
+        let own_invoke = block.metadata.function_invoke.or(lent);
+        if let Some(function) = own_invoke {
             // NOTE: Empty blocks that fall through can chain, so one instruction can enter two
             // functions. The last block of the chain marks the entry.
             pending_block_invoke = Some(function);
@@ -261,7 +262,10 @@ fn lower_evm_ir_once(
                 program.set_modifier_depth(block.label_metadata.modifier_depth());
             }
             program.define_label(label);
-            program.mark_last_function_invoke(pending_block_invoke.take());
+            // NOTE: A marker carried from an earlier byte-free block names only the fallthrough
+            // entry. A referenced label has other entries, so it must not take the marker.
+            let invoke = pending_block_invoke.take();
+            program.mark_last_function_invoke(invoke.filter(|_| own_invoke.is_some()));
         }
 
         for inst in &block.instructions {
