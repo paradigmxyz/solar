@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- [parse] Make incomplete-input recovery always advance ([#2738](https://github.com/paradigmxyz/solar/issues/2738))
 - [parse] Count expression depth once for paths and keep it on recovery ([#2710](https://github.com/paradigmxyz/solar/issues/2710))
 - [parse] Limit the depth of expression trees ([#2708](https://github.com/paradigmxyz/solar/issues/2708))
 - [sema] Match solc on four NatSpec output gaps ([#2692](https://github.com/paradigmxyz/solar/issues/2692))

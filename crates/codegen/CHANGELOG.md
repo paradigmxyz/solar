@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+- [codegen] Keep pointer exits from wrapping ([#2749](https://github.com/paradigmxyz/solar/issues/2749))
+- [codegen] Keep every statement's code at -O none ([#2739](https://github.com/paradigmxyz/solar/issues/2739))
 - [codegen] Load recursive fixed arrays via helper ([#2731](https://github.com/paradigmxyz/solar/issues/2731))
 - [codegen] Share calldata abi.decode helpers ([#2730](https://github.com/paradigmxyz/solar/issues/2730))
 - [codegen] Keep the origin of a single-use read ([#2721](https://github.com/paradigmxyz/solar/issues/2721))
@@ -111,6 +113,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
+- [codegen] If-convert conditional xors ([#2745](https://github.com/paradigmxyz/solar/issues/2745))
 - [codegen] Bound heap_floor so dead allocation checks fold ([#2734](https://github.com/paradigmxyz/solar/issues/2734))
 - [codegen] Count each struct once in storage walks ([#2735](https://github.com/paradigmxyz/solar/issues/2735))
 - [codegen] Remove unused deferred allocations ([#2736](https://github.com/paradigmxyz/solar/issues/2736))
