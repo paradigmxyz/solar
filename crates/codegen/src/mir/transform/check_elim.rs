@@ -1397,7 +1397,6 @@ impl<'a> CheckEliminator<'a> {
             Some(&Terminator::Branch { condition, then_block, else_block })
                 if then_block != else_block && !folded =>
             {
-                let mut taken = None;
                 for (join, other, truth) in
                     [(then_block, else_block, true), (else_block, then_block, false)]
                 {
@@ -1410,9 +1409,7 @@ impl<'a> CheckEliminator<'a> {
                     // Both arms entering one block would need two inputs for each of its phis.
                     if let Some(successor) = successor
                         && successor != other
-                        && taken != Some(successor)
                     {
-                        taken = Some(successor);
                         self.threads.push((block, join, successor));
                     }
                 }
@@ -3912,10 +3909,16 @@ fn thread_decided_edges(
             })
         })
         .collect::<SmallVec<[_; 4]>>();
+    // Both arms of a branch entering one block would need two inputs for each of its phis.
+    let mut entered = FxHashSet::default();
+    let threads = threads
+        .into_iter()
+        .filter(|&(pred, _, successor)| entered.insert((pred, successor)))
+        .collect::<SmallVec<[_; 4]>>();
+    // Every input is read before any rewrite: a thread out of a join can redirect the edge another
+    // thread reads its successor's inputs on.
+    let mut inputs = Vec::new();
     for &(pred, join, successor) in &threads {
-        // pred: jump join | jumpi c, join, other -> jump successor | jumpi c, successor, other
-        // successor: phi [join: x] -> phi [join: x], [pred: x]
-        // successor: phi [join: p] -> phi [join: p], [pred: y] where join: p = phi [pred: y]
         for phi in successor_phis(func, successor) {
             let InstKind::Phi(incoming) = &func.inst(phi).kind else { unreachable!() };
             let (_, value) =
@@ -3927,9 +3930,17 @@ fn thread_decided_edges(
                 }
                 _ => value,
             };
-            let InstKind::Phi(incoming) = &mut func.inst_mut(phi).kind else { unreachable!() };
-            incoming.push((pred, input));
+            inputs.push((phi, pred, input));
         }
+    }
+    // successor: phi [join: x] -> phi [join: x], [pred: x]
+    // successor: phi [join: p] -> phi [join: p], [pred: y] where join: p = phi [pred: y]
+    for (phi, pred, input) in inputs {
+        let InstKind::Phi(incoming) = &mut func.inst_mut(phi).kind else { unreachable!() };
+        incoming.push((pred, input));
+    }
+    // pred: jump join | jumpi c, join, other -> jump successor | jumpi c, successor, other
+    for &(pred, join, successor) in &threads {
         redirect_edge(func, pred, join, successor);
     }
     threads.len()
