@@ -309,6 +309,38 @@ command and log hash are retained in `target/tv-end-to-end-environment.json`.
 This run used semantics
 `5dad878e471c7f3c1215afdbf53d85bd9e28ab582a3c8c0ccb2da767fb7e4a1f`.
 
+`EVMIR/MemoryProjection.lean` relates a chosen byte prefix and active-word
+ledger to full byte memory. The prefix length is a parameter, including the
+entire 64 KiB frame domain. Reads, big-endian word loads and Keccak agree for
+explicitly bounded footprints, including zero-length reads at any offset.
+Every successful full-memory expansion preserves the zero-extended reader.
+For aligned memory within the 64 KiB model domain, projection commutes with
+expansion and gives the same quadratic memory charge. This expansion theorem
+also covers accesses beyond the prefix. Equal projected expansions from a
+common original heap imply equality of the full expanded heaps, preserving
+their unprojected bytes.
+
+The fetched-instruction lemmas bind MLOAD, KECCAK256, RETURN and REVERT to the
+frame interpreter's actual opcode byte. Opcode availability, price and arity
+remain explicit configuration premises. The equations retain the interpreter's
+gas, out-of-gas and model-error branches. A funded MLOAD theorem also equates
+the reached stack and projected memory with the local instruction step, while
+retaining the physical PC and remaining gas. The byte-order proof uses bitwise
+lemmas. Root axiom guards check that these theorems depend only on `propext`
+and `Quot.sound`.
+
+`tests/test_memory_projection.py` instantiates the fetched MLOAD theorem on
+compiler-emitted bytes at offsets 0, 1, 224, 1,024 and 65,504. Independent raw
+`evm2` replay executes concrete prefixes with 1,056 or 65,536 bytes of active
+memory, then checks the loaded word, MSIZE and exact remaining gas. Changing
+the read address produces the independently computed different bytes and
+expansion charges. Replacing MLOAD with POP loses its opcode proof and fails
+in native execution. Word reads at offsets 225, 1,025 and 65,505 fail their
+chosen footprint proofs. Prefix reachability for arbitrary callers, write and
+copy correspondence, and whole-CFG/backend composition remain open. Automatic
+window imports retain their 256-byte bound, and the historical full-corpus
+coverage counts remain unchanged.
+
 Scalar rewrites can also follow an identical memory prologue. The independent
 block export must agree on that entire prologue and on the remaining suffix,
 terminal and physical successor. `MemoryPrefix.charged` executes the shared

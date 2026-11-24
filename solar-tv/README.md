@@ -423,6 +423,16 @@ The count is a 251-bit value, covering word-aligned sizes representable by
 All nonempty accesses must have constant offsets and lengths inside the prefix.
 Dynamic addresses and larger ranges are inconclusive, not assumed in bounds.
 
+[MemoryProjection.lean](SolarTV/EVMIR/MemoryProjection.lean) relates bounded
+reads and full active size to the frame interpreter. Its fetched MLOAD,
+KECCAK256, RETURN and REVERT equations retain actual gas and failure branches.
+The theorem's prefix length is a parameter, covering the full 64 KiB domain.
+For aligned heaps in the 64 KiB model domain, expansion and its quadratic gas
+charge commute with projection. The funded MLOAD step also preserves the local
+stack and memory result. Independent raw EVM replay checks emitted reads with
+active heaps of 1,056 and 65,536 bytes, changed addresses and a corrupted
+opcode. Write, copy and whole-CFG correspondence remain open.
+
 A MIR function's successful return retains its live memory for its caller.
 An EVM outgoing edge retains the live stack, memory bytes and active size.
 EVM terminal halts discard private memory and compare the returned or reverted

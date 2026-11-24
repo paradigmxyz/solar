@@ -51,6 +51,11 @@ Keccak-256, expansion and terminal byte payloads within a 256-byte projection.
 Explicit-world entries use ordinary byte memory with a 64 KiB model limit;
 they are not restricted to that local projection. MIR copies are logical
 memmoves, including before Cancun; EVM MCOPY remains fork-gated.
+The projected read, active-size and expansion-charge lemmas bind MLOAD,
+KECCAK256, RETURN and REVERT to fetched frame instructions for a chosen prefix
+length, including the full 64 KiB domain. Their footprint, configuration and
+frame alignment premises stay explicit; write/copy and whole-CFG
+correspondence remain open.
 Keccak has an executable permutation and original Keccak padding; it has no
 uninterpreted hash oracle or collision axiom. Kernel-checked vectors include
 empty input, `abc`, and both sides of the 136-byte absorption boundary.
