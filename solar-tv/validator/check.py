@@ -649,9 +649,13 @@ def check(
 
 
 def check_mir_lowering(paths, solar, replay, version, timeout, function, verbose):
-    from . import lower_integers, lower_mapping_slots
+    from . import lower_integers, lower_mapping_slots, lower_memory_objects
 
-    for validate in (lower_integers.check, lower_mapping_slots.check):
+    for validate in (
+        lower_integers.check,
+        lower_mapping_slots.check,
+        lower_memory_objects.check,
+    ):
         result = validate(
             paths, solar, replay, version, timeout, function, verbose=verbose
         )

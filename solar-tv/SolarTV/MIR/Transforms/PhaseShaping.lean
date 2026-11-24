@@ -17,6 +17,11 @@ theorem full_word_casts (cfg : MIR.State.Config) (frame : MIR.State.Frame) (word
     MIR.State.operation cfg frame (.lowBits 256) [word] = MIR.State.value frame word :=
   ⟨rfl,rfl⟩
 
+theorem pointer_add (cfg : MIR.State.Config) (frame : MIR.State.Frame) (pointer offset : Word) :
+    MIR.State.operation cfg frame .pointerAdd [pointer,offset] =
+      MIR.State.operation cfg frame (.binary .add 256) [pointer,offset] := by
+  simp [MIR.State.operation]
+
 /-- The input is fixed for one activation, even as its frame changes. -/
 theorem calldata_size_copy (cfg : MIR.State.Config) (frame : MIR.State.Frame) :
     MIR.State.memoryOperation cfg frame .calldataSize [] =

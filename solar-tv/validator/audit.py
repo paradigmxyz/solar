@@ -520,6 +520,13 @@ def record(
                 assumptions.append(
                     "fixed storage keys preserve scratch bytes and hash input in aligned memory up to 64 KiB at each expanded logical action"
                 )
+            elif (
+                program.import_evidence["kind"]
+                == "kernel-checked-memory-object-carriers"
+            ):
+                assumptions.append(
+                    "typed pointers retain their word carriers through addition and casts with the same allocation and memory handlers"
+                )
             if any(
                 any(details["product_initialization"])
                 for details in program.import_evidence["correspondence"].values()

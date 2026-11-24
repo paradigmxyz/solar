@@ -615,11 +615,13 @@ theorem matchedCalls {{Value World Observation : Type}}
 """
 
 
-def check(paths, solar, executable, version, timeout, function, *, fixed_slots=False):
+def check(paths, solar, executable, version, timeout, function, *, lowering=None):
     from .check import PRELUDE, ROOT, build_model, run
 
-    if fixed_slots:
+    if lowering == "lower-mapping-slots":
         from .lower_mapping_slots import materialize
+    elif lowering == "lower-memory-objects":
+        from .lower_memory_objects import materialize, semantic_header
 
     texts, models, interfaces = [], [], []
     for path in paths:
@@ -641,7 +643,10 @@ def check(paths, solar, executable, version, timeout, function, *, fixed_slots=F
         texts.append(parsed.stdout)
         models.append(type_prune.export(parsed.stdout, executable, timeout))
         header, entries = prune.declarations(parsed.stdout)
-        interfaces.append((header, [entry["text"][0] for entry in entries.values()]))
+        signatures = [entry["text"][0] for entry in entries.values()]
+        if lowering == "lower-memory-objects":
+            signatures = list(map(semantic_header, signatures))
+        interfaces.append((header, signatures))
     if interfaces[0] != interfaces[1] or {
         k: v for k, v in models[0].items() if k != "functions"
     } != {k: v for k, v in models[1].items() if k != "functions"}:
@@ -685,11 +690,13 @@ set_option maxHeartbeats 2000000
     checked = {}
     calls = {}
     procedure_pairs = []
-    if fixed_slots:
+    if lowering == "lower-mapping-slots":
         code += """
 #print axioms MIR.LowerMappingSlots.array
 #print axioms MIR.LowerMappingSlots.mapping
 """
+    elif lowering == "lower-memory-objects":
+        code += "#print axioms MIR.PhaseShaping.pointer_add\n"
     axioms_checks = code.count("#print axioms ")
     while work:
         name = work.pop()
@@ -706,14 +713,22 @@ set_option maxHeartbeats 2000000
         if not a["blocks"] or not b["blocks"]:
             raise Unsupported("MIR CFG proof requires defined function bodies")
         i = len(checked)
-        (first, first_checks), (second, second_checks) = map(
-            scalar_checks.normalize, (a, b)
-        )
-        expanded = 0
-        if fixed_slots:
-            first, expanded = materialize(first)
-            if name == function and not expanded:
+        source = a
+        expansions = {}
+        if lowering is not None:
+            source, expanded = materialize(a)
+            if lowering == "lower-mapping-slots" and name == function and not expanded:
                 raise Unsupported("selected function has no fixed storage slot")
+            if expanded:
+                field = (
+                    "fixed_slot_expansions"
+                    if lowering == "lower-mapping-slots"
+                    else "pointer_add_expansions"
+                )
+                expansions[field] = expanded
+        (first, first_checks), (second, second_checks) = map(
+            scalar_checks.normalize, (source, b)
+        )
         old, new = map(import_graph, (first, second))
         calls[a["id"]] = set()
         for kind, data, _ in old:
@@ -766,7 +781,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 )
             except Unsupported as error:
                 try:
-                    proof, copies, offsets = phase_carriers.paired_proof(i, a, b)
+                    proof, copies, offsets = phase_carriers.paired_proof(i, source, b)
                 except Unsupported:
                     raise error from None
                 code += proof
@@ -776,6 +791,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
                     "copies": copies,
                     **({"offsets": offsets} if offsets else {}),
                     "product_initialization": product_initialization,
+                    **expansions,
                 }
                 continue
             witnesses = [
@@ -798,8 +814,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 "literal_branches": literal_branches,
             }
         checked[name]["product_initialization"] = product_initialization
-        if expanded:
-            checked[name]["fixed_slot_expansions"] = expanded
+        checked[name].update(expansions)
         if first_checks or second_checks:
             checked[name]["scalar_checks"] = [first_checks, second_checks]
         if any(
@@ -833,9 +848,10 @@ theorem identical{i} : before{i} = after{i} := by rfl
         )
     entry_proof.check_axioms(output.splitlines(), axioms_checks)
     evidence = {
-        "kind": "kernel-checked-fixed-storage-slots"
-        if fixed_slots
-        else "kernel-checked-typed-jump-chain",
+        "kind": {
+            "lower-mapping-slots": "kernel-checked-fixed-storage-slots",
+            "lower-memory-objects": "kernel-checked-memory-object-carriers",
+        }.get(lowering, "kernel-checked-typed-jump-chain"),
         "functions": sorted(checked),
         "correspondence": checked,
         "proof_sha256": hashlib.sha256(code.encode()).hexdigest(),

@@ -74,7 +74,13 @@ def check(paths, solar, replay, version, timeout, function, *, verbose=False):
         if len(FIXED_SLOT.findall(before)) <= len(FIXED_SLOT.findall(after)):
             return None
         return mir_cfg.check(
-            paths, solar, replay, version, timeout, function, fixed_slots=True
+            paths,
+            solar,
+            replay,
+            version,
+            timeout,
+            function,
+            lowering="lower-mapping-slots",
         )
     except (Unsupported, OSError, subprocess.TimeoutExpired) as error:
         if verbose:
