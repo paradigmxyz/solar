@@ -336,10 +336,33 @@ memory, then checks the loaded word, MSIZE and exact remaining gas. Changing
 the read address produces the independently computed different bytes and
 expansion charges. Replacing MLOAD with POP loses its opcode proof and fails
 in native execution. Word reads at offsets 225, 1,025 and 65,505 fail their
-chosen footprint proofs. Prefix reachability for arbitrary callers, write and
-copy correspondence, and whole-CFG/backend composition remain open. Automatic
-window imports retain their 256-byte bound, and the historical full-corpus
-coverage counts remain unchanged.
+chosen footprint proofs.
+
+`EVMIR/MemoryWrites.lean` binds MSTORE, MSTORE8 and MCOPY to fetched opcodes.
+The frame model expands memory before writing, while the local model updates
+its padded prefix and then the active size. The kernel proves that both orders
+give the same projected result after successful frame expansion. MCOPY reads
+the original source bytes before making any writes, including when the ranges
+overlap. Source and destination may expand the heap in either order. The
+separate expansion debits agree with the local charge for their combined
+extent. A zero-length copy ignores both offsets and leaves memory unchanged.
+
+The priced instruction equations retain out-of-gas and the exact remaining
+gas. The raw instruction equations also retain errors from unsuccessful frame
+expansions. Opcode rows, stack operands, alignment, footprint, and the 64 KiB
+domain are explicit. Bounded writes preserve every zero-extended read outside
+the prefix. Equal projected states and equal tails recover the full aligned
+heaps in the model domain. The root axiom guards admit only `propext`,
+`Classical.choice` and `Quot.sound` for these results.
+
+The emitted-write regression checks MSTORE and MSTORE8 followed by MCOPY with
+overlap in both directions and with zero size at maximum offsets. Independent
+raw `evm2` replay checks full memory and the cleared stack at the next PC with
+exactly enough gas, then checks out-of-gas one unit below. Replacing MCOPY with
+POP loses its opcode proof and changes the concrete stack and memory.
+Prefix reachability for arbitrary callers and whole-CFG/backend composition
+remain open. Automatic window imports retain their 256-byte bound, and the
+historical full-corpus coverage counts remain unchanged.
 
 Scalar rewrites can also follow an identical memory prologue. The independent
 block export must agree on that entire prologue and on the remaining suffix,

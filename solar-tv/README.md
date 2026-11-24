@@ -431,7 +431,14 @@ For aligned heaps in the 64 KiB model domain, expansion and its quadratic gas
 charge commute with projection. The funded MLOAD step also preserves the local
 stack and memory result. Independent raw EVM replay checks emitted reads with
 active heaps of 1,056 and 65,536 bytes, changed addresses and a corrupted
-opcode. Write, copy and whole-CFG correspondence remain open.
+opcode.
+
+[MemoryWrites.lean](SolarTV/EVMIR/MemoryWrites.lean) connects the local stores
+and overlapping copies to their fetched frame instructions, with explicit
+stack and footprint premises. It preserves the unprojected bytes, proves the
+expansion charge, and recovers full heap equality from matching projections
+and tails. Raw EVM replay checks both copy directions and zero-length copies
+at the exact gas boundary. Whole-CFG correspondence remains open.
 
 A MIR function's successful return retains its live memory for its caller.
 An EVM outgoing edge retains the live stack, memory bytes and active size.

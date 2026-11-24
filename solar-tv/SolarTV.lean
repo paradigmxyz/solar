@@ -26,6 +26,7 @@ import SolarTV.EVMIR.Transforms.ERC20Layout
 import SolarTV.EVMIR.StackSafety
 import SolarTV.EVMIR.Memory
 import SolarTV.EVMIR.MemoryProjection
+import SolarTV.EVMIR.MemoryWrites
 import SolarTV.MIR.Transforms.DeadStore
 import SolarTV.MemorySafety
 import SolarTV.EVMIR.GasSafety
@@ -332,6 +333,26 @@ import SolarTV.MIR.State.LoopStep
 /-- info: 'SolarTV.Memory.Projection.output_instruction' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.Memory.Projection.output_instruction
+
+/-- info: 'SolarTV.Memory.Projection.full_eq_of_project_and_tail' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Memory.Projection.full_eq_of_project_and_tail
+
+/-- info: 'SolarTV.Memory.Projection.store_frame' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Memory.Projection.store_frame
+
+/-- info: 'SolarTV.Memory.Projection.store_charge' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Memory.Projection.store_charge
+
+/-- info: 'SolarTV.Memory.Projection.copy_frame' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Memory.Projection.copy_frame
+
+/-- info: 'SolarTV.Memory.Projection.copy_charge' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Memory.Projection.copy_charge
 
 /-- info: 'SolarTV.EVM.MemoryPrefix.charged_append' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in

@@ -54,8 +54,10 @@ memmoves, including before Cancun; EVM MCOPY remains fork-gated.
 The projected read, active-size and expansion-charge lemmas bind MLOAD,
 KECCAK256, RETURN and REVERT to fetched frame instructions for a chosen prefix
 length, including the full 64 KiB domain. Their footprint, configuration and
-frame alignment premises stay explicit; write/copy and whole-CFG
-correspondence remain open.
+frame alignment premises stay explicit. The corresponding MSTORE, MSTORE8 and
+MCOPY frame equations prove preservation beyond the write footprint and the
+exact expansion charge, including overlapping and zero-length copies.
+Whole-CFG correspondence remains open.
 Keccak has an executable permutation and original Keccak padding; it has no
 uninterpreted hash oracle or collision axiom. Kernel-checked vectors include
 empty input, `abc`, and both sides of the 136-byte absorption boundary.
