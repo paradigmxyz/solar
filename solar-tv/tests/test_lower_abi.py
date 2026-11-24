@@ -129,5 +129,6 @@ contract C {
             proof = json.loads(report.read_text())
             self.assertEqual(proof["status"], "counterexample")
             self.assertEqual(
-                proof["witness"]["observations"], proof["witness"]["native_observations"]
+                proof["witness"]["observations"],
+                proof["witness"]["native_observations"],
             )

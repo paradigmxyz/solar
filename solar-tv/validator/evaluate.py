@@ -217,7 +217,7 @@ def check_entry(solar, row, target, timeout):
         process = run(
             [*audit_command(solar, row, target, timeout), "--entry-trace"],
             ROOT,
-            timeout * 8,
+            timeout * 16,
         )
     except subprocess.TimeoutExpired as error:
         log.write_text(str(error))

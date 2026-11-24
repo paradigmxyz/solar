@@ -6,10 +6,13 @@ import os
 import re
 import subprocess
 import tempfile
+from itertools import batched
 from pathlib import Path
 
 from . import audit, branch_layout, regions, stack_layout
 from .common import Program, Unsupported
+
+ROW_STAGE_BREAK = "\n-- Separate kernel row-check stage.\n"
 
 
 def projections(models, *, limit=2048):
@@ -124,7 +127,12 @@ theorem {part} : EVM.StackReachability.CheckedRange {name}At {start} {count} :=
 theorem {name} : EVM.StackReachability.CheckedRange {name}At {start} {size} :=
   {expression}
 """)
-    return "".join(declarations)
+    if len(declarations) <= 48:
+        return "".join(declarations)
+    # Large reachable graphs need hundreds of independent reductions. Release
+    # each batch's elaboration state and keep the theorem that joins the ranges.
+    batches = ["".join(batch) for batch in batched(declarations[:-1], 48)]
+    return ROW_STAGE_BREAK.join(["", *batches, declarations[-1]])
 
 
 def check_stages(directory, prelude, stages, timeout):
@@ -137,7 +145,8 @@ def check_stages(directory, prelude, stages, timeout):
     )
     previous = None
     stdout = []
-    for index, stage in enumerate(stages):
+    modules = (part for stage in stages for part in stage.split(ROW_STAGE_BREAK))
+    for index, stage in enumerate(modules):
         if not stage.strip():
             continue
         path = directory / f"CfgStage{index}.lean"
