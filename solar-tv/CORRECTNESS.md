@@ -1275,6 +1275,30 @@ and creation and runtime bytecode. Its compiler, input and output
 fingerprints are saved in
 `target/tv-lower-checks-dev/live-contract/summary.json`.
 
+### Strict memory-zero audit
+
+The serial `lower-memory-zero` gate verifies the sole pinned capture in
+Morpho Blue's `extSloads`. The capture ID, before and after MIR hashes,
+and all three contracts' input and output fingerprints match the full
+audit. Normal and capture compilations match on ABI and both bytecode
+outputs with the rebuilt compiler.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Compiler | `b9ff216a511be165ff8187ca3469d741f087977f59d71d6745f7d0494e26e753` |
+| Checker on Lean 4.34.1 | `474d2ab7a1236e5397f27490d9216b640647446a5620a888ba72d5125a228fba` |
+| `target/tv-lower-memory-zero-verified/results.json` | `289fbbc69e0c5108edec620ebc3d2a6040219e72d2721bb82f56379f55ee5838` |
+
+The kernel checks that copying from `CALLDATASIZE` writes the requested
+number of zeros and preserves the memory expansion and bytes outside
+the destination. The calldata length must fit the word representation.
+It also checks the 32-byte fast path using a zero word store. The typed
+CFG certificate binds the full-width destination carrier, count and
+live values through the surrounding loop. The importer and unpriced
+effect handlers retain the same scope as the other MIR graph proofs.
+Copying from offset zero instead produces a matching Lean and Rust
+counterexample with nonzero calldata.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
