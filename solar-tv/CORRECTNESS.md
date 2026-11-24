@@ -1219,6 +1219,46 @@ lose the automatic proof. These checks use the trusted typed importer
 and action binding. Physical execution cost and backend placement
 remain separate obligations.
 
+### Strict conditional check audit
+
+The serial gate `evaluate --all --require-verified --pass lower-checks
+--timeout 120 --seed 0` verifies all 31 pinned captures. Raw capture IDs,
+before and after MIR hashes, compiler and replay binaries, manifest and
+contract input and output fingerprints match the full audit. ABI and
+creation and runtime bytecode match with and without validation.
+
+| Contract | Selected | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Solady WETH | 0 | 0 | 0 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 6 | 6 | 0 | 0 | 0 |
+| Morpho Blue | 25 | 25 | 0 | 0 | 0 |
+| Total | 31 | 31 | 0 | 0 | 0 |
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Checker on Lean 4.34.1 | `b34c97623e605bce13e0711317efce9f57be5b0107d6aed58a5e5b4492e84c8e` |
+| `target/tv-lower-checks-verified/results.json` | `de06f1b47bb14dfe2921e0ea6d85bebc35e1d52920504c0d8bff07597ce8b761` |
+
+[LowerChecks.lean](SolarTV/MIR/Transforms/LowerChecks.lean) checks the
+passing branch and the exact bytes of empty reverts, panic `0x41`,
+short `Error(string)` payloads and custom errors with one or three
+static word fields. The custom-error proof compares the direct encoder
+at the free-memory pointer with the lowered stores at scratch addresses.
+The source cursor and payload extent must fit the 64 KiB memory model.
+Failure discards private frame memory. The checks use defined operands
+and the compiler's default revert-string mode.
+
+The kernel compares the normalized graphs and composes the direct
+calls, including the module capture that adds the private `revert_error`
+helper. The helper must have the checked body and interface, and the
+independent typed module export must retain the same external roots.
+The importer, source guard expansion and action binding remain trusted.
+The proof compares unpriced MIR behavior under shared effect handlers.
+
+Independent Rust replay agrees with Lean before and after lowering.
+Changing the short-string helper's length store or a custom-error word
+loses the automatic proof and produces a replayed revert-data difference.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
