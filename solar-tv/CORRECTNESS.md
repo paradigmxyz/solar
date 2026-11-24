@@ -300,6 +300,15 @@ restriction, while the selected corpus still needs private-memory, stateful
 continuation and resource correspondence. The recorded full-audit counts retain
 their original semantics fingerprint.
 
+The full serial regression suite at `19089442e1` passed 769 tests and 1,417
+subtests in 6,548.97 seconds. Repository Python checks also passed, including
+103 word-rule tests. The explicit two-worker concurrency test was deselected
+to retain one proof job at a time. The compiler launcher forced `-j1`, and
+both compiler and replay fingerprints remained unchanged. The environment,
+command and log hash are retained in `target/tv-end-to-end-environment.json`.
+This run used semantics
+`5dad878e471c7f3c1215afdbf53d85bd9e28ab582a3c8c0ccb2da767fb7e4a1f`.
+
 Scalar rewrites can also follow an identical memory prologue. The independent
 block export must agree on that entire prologue and on the remaining suffix,
 terminal and physical successor. `MemoryPrefix.charged` executes the shared
