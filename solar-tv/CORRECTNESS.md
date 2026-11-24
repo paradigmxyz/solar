@@ -1267,6 +1267,14 @@ match this audit, and the combined capture IDs and MIR hashes match the
 full audit. The SHA-256 of `target/tv-seven-mir-gates-final/results.json`
 is `7fe555908533a7fd3c937931daa51008ae9cd65345fee7a105dffa0e32542de1`.
 
+The live `-Zsolar-tv` hook also routes the added helper to the module
+checker. The MIR hook regression produces two kernel-verified records
+and identical MIR output. A separate Solidity run for `Check.checked`
+produces kernel-verified function and module records and preserves ABI
+and creation and runtime bytecode. Its compiler, input and output
+fingerprints are saved in
+`target/tv-lower-checks-dev/live-contract/summary.json`.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
