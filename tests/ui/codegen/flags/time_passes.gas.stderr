@@ -48,6 +48,7 @@ time: <TIME>	MIR TimePasses check-elim changed=false
 time: <TIME>	MIR TimePasses jump-threading changed=false
 time: <TIME>	MIR TimePasses cfg-simplify changed=false
 time: <TIME>	MIR TimePasses if-convert changed=false
+time: <TIME>	MIR TimePasses switch-lookup changed=false
 time: <TIME>	MIR TimePasses scan-region changed=false
 time: <TIME>	MIR TimePasses frame-slot-promotion changed=false
 time: <TIME>	MIR TimePasses memory-dse-unread changed=false

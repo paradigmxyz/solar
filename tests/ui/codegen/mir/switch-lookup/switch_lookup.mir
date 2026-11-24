@@ -1,0 +1,234 @@
+//@compile-flags: -Zmir-pipeline=switch-lookup
+//@filecheck:
+@module SwitchLookup
+
+// Contiguous keys whose literals fit a byte read one byte table at `v + 32 - len - low`, which
+// needs no range check: the default's zero lies outside the table's bytes.
+// CHECK-LABEL: {{^[ +].*}}fn @contiguous{{[( ]}}
+// CHECK: - switch arg0
+// CHECK: + [[I:v[0-9]+]] = add arg0, 28
+// CHECK: + [[E:v[0-9]+]] = byte [[I]], 0xa141e28
+// CHECK: ret [[E]]
+fn @contiguous(arg0: i256) -> i256 {
+  bb0:
+    switch arg0, default bb5, [0 => bb1, 1 => bb2, 2 => bb3, 3 => bb4]
+  bb1:
+    jump bb6
+  bb2:
+    jump bb6
+  bb3:
+    jump bb6
+  bb4:
+    jump bb6
+  bb5:
+    jump bb6
+  bb6:
+    v0 = phi [bb1: 10], [bb2: 20], [bb3: 30], [bb4: 40], [bb5: 0]
+    ret v0
+}
+
+// Keys 3, 5, and 9 with a literal default of 7: entries hold the literals exclusive-ored with
+// the default, missing keys hold zero, and a guarded nine-bit slot is read out of one word.
+// CHECK-LABEL: {{^[ +].*}}fn @gaps_literal_default{{[( ]}}
+// CHECK: - switch arg0
+// CHECK: + [[IDX:v[0-9]+]] = sub arg0, 3
+// CHECK: + [[IN:v[0-9]+]] = lt [[IDX]], 7
+// CHECK: + [[S:v[0-9]+]] = mul [[IDX]], 9
+// CHECK: + [[W:v[0-9]+]] = shr 0x4ac00000033c0063, [[S]]
+// CHECK: + [[G:v[0-9]+]] = zext i1 [[IN]] to i256
+// CHECK: + [[R:v[0-9]+]] = mul [[W]], [[G]]
+// CHECK: + [[E:v[0-9]+]] = and [[R]], 511
+// CHECK: + [[X:v[0-9]+]] = xor [[E]], 7
+// CHECK: ret [[X]]
+fn @gaps_literal_default(arg0: i256) -> i256 {
+  bb0:
+    switch arg0, default bb4, [3 => bb1, 5 => bb2, 9 => bb3]
+  bb1:
+    jump bb5
+  bb2:
+    jump bb5
+  bb3:
+    jump bb5
+  bb4:
+    jump bb5
+  bb5:
+    v0 = phi [bb1: 100], [bb2: 200], [bb3: 300], [bb4: 7]
+    ret v0
+}
+
+// The default computes its value, so it stays a branch target. Key 2 is missing: a bitmap of the
+// keys present, shifted to the byte table's indices, decides the branch, and the default keeps
+// its edge to the join. Entries hold the literals exclusive-ored with the lowest key's.
+// CHECK-LABEL: {{^[ +].*}}fn @computed_default{{[( ]}}
+// CHECK: - switch arg0
+// CHECK: + [[I:v[0-9]+]] = add arg0, 28
+// CHECK: + [[BIT:v[0-9]+]] = shr 0xb0000000, [[I]]
+// CHECK: + [[ONE:v[0-9]+]] = and [[BIT]], 1
+// CHECK: + [[MEMBER:v[0-9]+]] = ne [[ONE]], 0
+// CHECK: + [[E:v[0-9]+]] = byte [[I]], 0x3000d
+// CHECK: + [[X:v[0-9]+]] = xor [[E]], 5
+// CHECK: + jumpi [[MEMBER]], bb{{[0-9]+}}, bb{{[0-9]+}}
+// CHECK: {{^[ +].*}}phi [bb{{[0-9]+}}: v0], [bb0: [[X]]]
+fn @computed_default(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    switch arg0, default bb4, [0 => bb1, 1 => bb2, 3 => bb3]
+  bb1:
+    jump bb5
+  bb2:
+    jump bb5
+  bb3:
+    jump bb5
+  bb4:
+    v0 = add arg1, 1
+    jump bb5
+  bb5:
+    v1 = phi [bb1: 5], [bb2: 6], [bb3: 8], [bb4: v0]
+    ret v1
+}
+
+// Two phis each read their own byte table from one index; the second phi's literals only
+// differ from the default's on two keys.
+// CHECK-LABEL: {{^[ +].*}}fn @two_phis{{[( ]}}
+// CHECK: - switch arg0
+// CHECK: + [[I:v[0-9]+]] = add arg0, 29
+// CHECK-DAG: + [[A:v[0-9]+]] = byte [[I]], 0x30405
+// CHECK-DAG: + [[B:v[0-9]+]] = byte [[I]], 0x10001
+// CHECK: add [[A]], [[B]]
+fn @two_phis(arg0: i256) -> i256 {
+  bb0:
+    switch arg0, default bb3, [0 => bb4, 1 => bb1, 2 => bb2]
+  bb1:
+    jump bb4
+  bb2:
+    jump bb4
+  bb3:
+    jump bb4
+  bb4:
+    v0 = phi [bb0: 3], [bb1: 4], [bb2: 5], [bb3: 0]
+    v1 = phi [bb0: 1], [bb1: 0], [bb2: 1], [bb3: 0]
+    v2 = add v0, v1
+    ret v2
+}
+
+// A boolean phi reads a word and truncates it to `i1`. Keys 1 to 3 sit in the last three bytes,
+// at `arg0 + 32 - 3 - 1`.
+// CHECK-LABEL: {{^[ +].*}}fn @boolean_phi{{[( ]}}
+// CHECK: - switch arg0
+// CHECK: + [[I:v[0-9]+]] = add arg0, 28
+// CHECK: + [[E:v[0-9]+]] = byte [[I]], 0x10001
+// CHECK: + [[B:v[0-9]+]] = trunc i256 [[E]] to i1
+// CHECK: ret [[B]]
+fn @boolean_phi(arg0: i256) -> i1 {
+  bb0:
+    switch arg0, default bb4, [1 => bb1, 2 => bb2, 3 => bb3]
+  bb1:
+    jump bb5
+  bb2:
+    jump bb5
+  bb3:
+    jump bb5
+  bb4:
+    jump bb5
+  bb5:
+    v0 = phi [bb1: true], [bb2: false], [bb3: true], [bb4: false]
+    ret v0
+}
+
+// A case block that stores is not pure, so the switch stays.
+// CHECK-LABEL: {{^[ +].*}}fn @impure_case{{[( ]}}
+// CHECK-NOT: {{^[+-]}}
+// CHECK: switch arg0
+fn @impure_case(arg0: i256) -> i256 {
+  bb0:
+    switch arg0, default bb4, [0 => bb1, 1 => bb2, 2 => bb3]
+  bb1:
+    jump bb5
+  bb2:
+    mstore 0, 1
+    jump bb5
+  bb3:
+    jump bb5
+  bb4:
+    jump bb5
+  bb5:
+    v0 = phi [bb1: 10], [bb2: 20], [bb3: 30], [bb4: 0]
+    ret v0
+}
+
+// The only case block dominates the join, which reads the value the block computes outside any
+// phi, so the block cannot go and the switch stays.
+// CHECK-LABEL: {{^[ +].*}}fn @forwarded_value_escapes{{[( ]}}
+// CHECK-NOT: {{^[+-]}}
+// CHECK: switch arg0
+fn @forwarded_value_escapes(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    switch arg0, default bb2, [1 => bb1, 2 => bb1]
+  bb1:
+    v0 = add arg1, 7
+    jump bb3
+  bb2:
+    revert 0, 0
+  bb3:
+    ret v0
+}
+
+// Twenty 14-bit literals take two words: the second word's shift is the slot's shift less the
+// first word's bits, which wraps for the first word's slots.
+// CHECK-LABEL: {{^[ +].*}}fn @two_words{{[( ]}}
+// CHECK: - switch arg0
+// CHECK: + [[S:v[0-9]+]] = mul {{v[0-9]+|arg0}}, 14
+// CHECK: + [[A:v[0-9]+]] = shr 0x6041010304081018404100c402100640110034009001c005001000300080010, [[S]]
+// CHECK: + [[T:v[0-9]+]] = sub [[S]], 252
+// CHECK: + [[B:v[0-9]+]] = shr 0xc042010, [[T]]
+// CHECK: + {{v[0-9]+}} = or [[A]], [[B]]
+// CHECK: + [[E:v[0-9]+]] = and {{v[0-9]+}}, 0x3fff
+// CHECK: ret [[E]]
+fn @two_words(arg0: i256) -> i256 {
+  bb0:
+    switch arg0, default bb21, [0 => bb1, 1 => bb2, 2 => bb3, 3 => bb4, 4 => bb5, 5 => bb6, 6 => bb7, 7 => bb8, 8 => bb9, 9 => bb10, 10 => bb11, 11 => bb12, 12 => bb13, 13 => bb14, 14 => bb15, 15 => bb16, 16 => bb17, 17 => bb18, 18 => bb19, 19 => bb20]
+  bb1:
+    jump bb22
+  bb2:
+    jump bb22
+  bb3:
+    jump bb22
+  bb4:
+    jump bb22
+  bb5:
+    jump bb22
+  bb6:
+    jump bb22
+  bb7:
+    jump bb22
+  bb8:
+    jump bb22
+  bb9:
+    jump bb22
+  bb10:
+    jump bb22
+  bb11:
+    jump bb22
+  bb12:
+    jump bb22
+  bb13:
+    jump bb22
+  bb14:
+    jump bb22
+  bb15:
+    jump bb22
+  bb16:
+    jump bb22
+  bb17:
+    jump bb22
+  bb18:
+    jump bb22
+  bb19:
+    jump bb22
+  bb20:
+    jump bb22
+  bb21:
+    jump bb22
+  bb22:
+    v0 = phi [bb1: 16], [bb2: 32], [bb3: 48], [bb4: 64], [bb5: 80], [bb6: 112], [bb7: 144], [bb8: 208], [bb9: 272], [bb10: 400], [bb11: 528], [bb12: 784], [bb13: 1040], [bb14: 1552], [bb15: 2064], [bb16: 3088], [bb17: 4112], [bb18: 6160], [bb19: 8208], [bb20: 12304], [bb21: 0]
+    ret v0
+}

@@ -68,12 +68,8 @@ const MAX_BUCKET_CANDIDATES: usize = 33;
 // their individual gas-mode growth at a round conservative plateau under unknown
 // case frequencies.
 pub(super) const MAX_BIT_SLICE_GAS_CODE_GROWTH: usize = 80;
-/// Bounds cumulative bytecode growth per artifact under the runtime-gas objective
-/// for switches without an execution estimate. The external selector switch
-/// weighs its deposit against its expected calls instead.
-///
-/// Keep this a round policy limit rather than fitting it to a corpus transition.
-pub(super) const MAX_GAS_CODE_GROWTH: usize = 192;
+/// See [`Target::MAX_SWITCH_GAS_CODE_GROWTH`].
+pub(super) const MAX_GAS_CODE_GROWTH: usize = Target::MAX_SWITCH_GAS_CODE_GROWTH;
 
 /// Selected control-flow shape for a switch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
