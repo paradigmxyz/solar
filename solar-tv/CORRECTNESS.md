@@ -472,6 +472,146 @@ targeted recheck of the frozen pairs with a six-second budget. When two
 paths reach one physical point in either graph, Lean checks the incoming
 edges separately. Each route retains its own temporary stack bound.
 
+### Full corpus audit on 2026-11-24
+
+After the refill and stack-carried return commits, a fresh serial run at
+`ade4f7d1c1` checked every capture with `evaluate --all --timeout 3 --seed 0`.
+It used the existing `target` directory and the pinned Cancun inputs. The
+compiler reports source revision `2eeb3bc839af4b5e4e6506710da234ecc0ac585e`,
+built with Rust `1.101.0-nightly (92b5b8c87 2026-10-29)`, debug profile,
+`mimalloc,tracing`. Lean is pinned to `leanprover/lean4:v4.34.1`. Independent
+replay uses the `evm2` revision pinned in Cargo.lock,
+`9b037449c846515624ff6afde739f2b764851446`.
+
+The complete reports, logs, fixtures and capture pairs are retained locally in
+`target/tv-full-20261124/`. The source archives are pinned in
+[evaluation.json](evaluation.json).
+
+| Contract | Captured | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Solady WETH | 330 | 170 | 122 | 38 | 0 |
+| OpenZeppelin ERC20Mock | 372 | 200 | 84 | 88 | 0 |
+| Morpho Blue | 1,526 | 613 | 723 | 190 | 0 |
+| Total | 2,228 | 983 | 929 | 316 | 0 |
+
+Failed counts combine counterexamples and tool errors. Inconclusive counts
+are also zero. All three normal/capture comparisons preserve ABI, creation
+bytecode and runtime bytecode exactly. Their input and output fingerprints
+also match the older 2,228-capture audit. The fresh run verifies 328 more
+captures than its 655 verified baseline. The validator semantics fingerprint
+stayed fixed throughout the run. The frozen 24/24 sample has its own scope.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Compiler binary | `f20bd5bfabaf2b7aa81422b6682d39f1a30a722be5b3424d8f8da8a0a988be0e` |
+| Rust replay binary | `649ae6a1ae51d75ca501093d1a0f0a1181ff098d4f386e09b6e5754c01374365` |
+| Validator semantics | `eb3f337232f4f4fb57f0871648b1888b3395dc68a984e0591d519e814ca74c51` |
+| Evaluation manifest | `b08af7eb00ac67a5ef1200d50273beedc48d5517838ed67504bd1a76ba96b7b7` |
+| Complete results.json | `3cc197b9b9d4ba52277906e62e25ce862479d9291ee77f87c3e2d4d245aa7372` |
+
+Input hashes cover canonical standard-JSON inputs, including each import
+closure and compiler settings. Output hashes cover the canonical contract
+outputs containing ABI and creation/runtime bytecode.
+
+| Contract | Input SHA-256 | Output SHA-256 |
+| --- | --- | --- |
+| Solady WETH | `b751f0da2642fba80d176248ff576b06d45601fda253d9de32f9a78e3b70a4c0` | `671d642b2c47309ccd86125a4b1e35b281d4d2c367df2b88acacfcffb1c3c978` |
+| OpenZeppelin ERC20Mock | `c85c24c264a2ae9a97b32050f93426376c8cb20e15f6e5ad5dc1414ee46ce2c4` | `5e5fb3a0613c6ec21d8b61be398fc1ee325fcce75b144d13107356276d288213` |
+| Morpho Blue | `01f4aaf9db4940ea9a62aba808ba1655ef399c671b6ed29875f8a91c3efeba53` | `8ef2219d25d2b256dad76949a880ba655074bee6eb7f53bdf38e14381f43d8a0` |
+
+The following totals retain every capture ID, including invocations that share
+a module-level proof report. The three-second limit applies per prover
+invocation, with the runner's separate checker wall-time limit. A timed-out
+check has no positive verification claim.
+
+| Layer and pass | Captured | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| evmir `block-cse` | 10 | 4 | 5 | 1 | 0 |
+| evmir `block-layout` | 368 | 297 | 68 | 3 | 0 |
+| evmir `cfg-simplify` | 7 | 5 | 2 | 0 | 0 |
+| evmir `cfg-simplify-early` | 291 | 129 | 152 | 10 | 0 |
+| evmir `compact-pushes` | 118 | 73 | 44 | 1 | 0 |
+| evmir `copy-loop-blocks` | 2 | 2 | 0 | 0 | 0 |
+| evmir `dce` | 2 | 0 | 0 | 2 | 0 |
+| evmir `inline-returns` | 14 | 7 | 6 | 1 | 0 |
+| evmir `late-word` | 19 | 0 | 18 | 1 | 0 |
+| evmir `loop-layout` | 29 | 27 | 2 | 0 | 0 |
+| evmir `outline` | 7 | 1 | 6 | 0 | 0 |
+| evmir `peephole-early` | 35 | 11 | 24 | 0 | 0 |
+| evmir `reorder-expressions` | 1 | 1 | 0 | 0 | 0 |
+| evmir `reorder-pushes` | 5 | 0 | 5 | 0 | 0 |
+| evmir `stack-normalize` | 5 | 0 | 5 | 0 | 0 |
+| evmir `stack-reschedule` | 17 | 0 | 17 | 0 | 0 |
+| evmir `tail-merge` | 49 | 46 | 3 | 0 | 0 |
+| evmir `terminal-dedup` | 124 | 106 | 18 | 0 | 0 |
+| mir `byte-run-loads` | 14 | 4 | 8 | 2 | 0 |
+| mir `call-cleanup` | 1 | 0 | 0 | 1 | 0 |
+| mir `cfg-simplify` | 144 | 118 | 0 | 26 | 0 |
+| mir `check-elim` | 7 | 2 | 4 | 1 | 0 |
+| mir `coalesce-allocs` | 1 | 1 | 0 | 0 | 0 |
+| mir `cse` | 48 | 25 | 21 | 2 | 0 |
+| mir `dce` | 86 | 10 | 59 | 17 | 0 |
+| mir `dead-arg-elim` | 11 | 0 | 11 | 0 | 0 |
+| mir `egraph` | 116 | 29 | 65 | 22 | 0 |
+| mir `evm-inst-schedule` | 32 | 0 | 14 | 18 | 0 |
+| mir `function-dce` | 3 | 0 | 0 | 3 | 0 |
+| mir `indvar-simplify` | 2 | 0 | 2 | 0 | 0 |
+| mir `inline` | 58 | 2 | 52 | 4 | 0 |
+| mir `integer-cleanup` | 35 | 0 | 19 | 16 | 0 |
+| mir `jump-threading` | 52 | 39 | 8 | 5 | 0 |
+| mir `licm` | 1 | 0 | 1 | 0 | 0 |
+| mir `lower-abi` | 65 | 0 | 65 | 0 | 0 |
+| mir `lower-abi-encode` | 16 | 0 | 16 | 0 | 0 |
+| mir `lower-alloc` | 19 | 2 | 16 | 1 | 0 |
+| mir `lower-arithmetic` | 16 | 0 | 11 | 5 | 0 |
+| mir `lower-builtins` | 6 | 3 | 3 | 0 | 0 |
+| mir `lower-checks` | 31 | 0 | 24 | 7 | 0 |
+| mir `lower-dispatch` | 73 | 0 | 0 | 73 | 0 |
+| mir `lower-evm-shaped` | 3 | 2 | 0 | 1 | 0 |
+| mir `lower-immutables` | 1 | 0 | 1 | 0 | 0 |
+| mir `lower-integers` | 55 | 0 | 33 | 22 | 0 |
+| mir `lower-mapping-slots` | 32 | 0 | 17 | 15 | 0 |
+| mir `lower-memory-objects` | 27 | 1 | 26 | 0 | 0 |
+| mir `lower-memory-zero` | 1 | 0 | 1 | 0 | 0 |
+| mir `lower-slices` | 1 | 0 | 1 | 0 | 0 |
+| mir `lower-structs` | 1 | 0 | 0 | 1 | 0 |
+| mir `memory-dse` | 10 | 0 | 9 | 1 | 0 |
+| mir `memory-dse-unread` | 1 | 0 | 1 | 0 | 0 |
+| mir `merge-aborts` | 42 | 7 | 20 | 15 | 0 |
+| mir `place-reads` | 33 | 0 | 17 | 16 | 0 |
+| mir `sccp` | 12 | 7 | 2 | 3 | 0 |
+| mir `simplify-phis` | 1 | 0 | 1 | 0 | 0 |
+| mir `specialize` | 1 | 0 | 0 | 1 | 0 |
+| mir `spell-width-tests` | 38 | 1 | 20 | 17 | 0 |
+| mir `storage-dse` | 10 | 9 | 0 | 1 | 0 |
+| mir `storage-promotion` | 12 | 12 | 0 | 0 | 0 |
+| mir `word-sequence` | 6 | 0 | 5 | 1 | 0 |
+| mir `word-sequence-early` | 1 | 0 | 1 | 0 | 0 |
+
+The selected next coverage gap is EVM IR `cfg-simplify-early`, with 152
+unsupported captures and ten timeouts. Its unsupported diagnostics comprise
+102 entry-stack failures, 25 calldata reads, eight call-value reads, seven
+escaping labels, five unpriced GAS observations, two storage reads, two
+program-data pushes and one missing branch condition. These are the first
+reported blockers, so removing one can expose another obligation.
+
+The WETH `bb78` pair in `captures/evmirFALFVD/` is a representative entry-stack
+failure. It starts with `DUP1; MLOAD` on an incoming pointer and continues
+through hashing, storage and an external message. The chosen proof scope needs
+a relation for reachable incoming stacks and private memory, with the ordered
+stateful continuation preserved. The existing all-stack scalar/256-byte memory
+projection cannot supply that relation. Supplying a guessed stack height or
+memory address would introduce an assumption. MIR `lower-dispatch` separately
+accounts for 73 timeouts under this budget.
+
+The kernel checks the admitted region, structural and scenario obligations
+named in each report. Independent replay confirms the refill snapshots and the
+changed-return regression, including its output and storage difference.
+Compiler parsing, source normalization, opcode mapping and backend placement
+retain their documented trust boundaries. General ABI-to-bytecode composition,
+spilled return addresses, arbitrary state/aliasing, Amsterdam stateful opcode
+and nested-frame pricing, and fee/block settlement remain open.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through

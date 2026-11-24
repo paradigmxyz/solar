@@ -2068,6 +2068,14 @@ Each case's `pass_coverage` groups captured, unselected and unverified regions
 by IR layer, pass and EVM target. It preserves the separate checker statuses,
 including unsupported inputs and timeouts. The counts cover the captured
 corpus; a pass that never changes that corpus needs other inputs.
+
+The full serial audit on 2026-11-24 checks all 2,228 pinned captures at three
+seconds per prover invocation. It verifies 983, leaves 929 unsupported and
+times out on 316, with zero counterexamples or tool errors. ABI and both
+bytecode outputs match between normal and capture compilation for every
+contract. The run's fingerprints, per-pass counts and remaining proof scopes
+are recorded in [CORRECTNESS.md](CORRECTNESS.md#full-corpus-audit-on-2026-11-24).
+
 Selected records for the same dispatch pair share the module-level proof
 report. Layout and compact PUSH captures can also share a physical-entry proof
 when it covers the label on both sides. The evaluator retains each capture ID
