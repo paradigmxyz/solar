@@ -693,6 +693,77 @@ retain their documented trust boundaries. General ABI-to-bytecode composition,
 spilled return addresses, arbitrary state/aliasing, Amsterdam stateful opcode
 and nested-frame pricing, and fee/block settlement remain open.
 
+### Targeted audit of early CFG and ABI lowering
+
+The targeted audit uses the same pinned Cancun sources and a budget of 120
+seconds per prover invocation. WETH and ERC20Mock completed in the original
+run. Morpho's first large graph reached the stack-height stage and timed out.
+The Morpho retry checks the same graph obligations in smaller Lean modules.
+Each module imports the earlier proofs and the final theorem joins the ranges.
+
+```sh
+solar-tv/evaluate --all --pass cfg-simplify-early --pass lower-abi \
+  --pass lower-dispatch --timeout 120 --seed 0 --output target/tv-three-pass-audit
+solar-tv/evaluate --all --case morpho-blue --pass cfg-simplify-early \
+  --pass lower-abi --pass lower-dispatch --timeout 120 --seed 0 \
+  --output target/tv-three-pass-morpho
+```
+
+| Fingerprint | SHA-256 |
+| --- | --- |
+| Compiler | `64f563d6e8b2102f849dc69cb5fbea91179ce4a7c765c8205217da7c0d7c4b76` |
+| Independent replay | `649ae6a1ae51d75ca501093d1a0f0a1181ff098d4f386e09b6e5754c01374365` |
+| WETH and ERC20Mock checker | `ececd366c87b1d27c5030659d1681d7535f07b2a8b8cf72fdbf1bd4da897fb90` |
+| Morpho retry checker | `29ceb5df18fc075aa269b85207ed93dd9b47a1899a9599e230411d472a94f8aa` |
+
+| Selected pass | Captures | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| EVM IR `cfg-simplify-early` | 291 | 291 | 0 | 0 | 0 |
+| MIR `lower-abi` | 65 | 14 | 51 | 0 | 0 |
+| MIR `lower-dispatch` | 73 | 73 | 0 | 0 | 0 |
+| Total | 429 | 378 | 51 | 0 | 0 |
+
+The completed cases retain the same capture IDs and input/output fingerprints
+as the full audit above. Normal and capture compilation agreed on ABI,
+creation bytecode and runtime bytecode for each contract. All 291 early CFG
+checks use physical-entry proofs. Three routed dispatch module proofs cover
+all 73 dispatch records. The static ABI proof verifies four WETH wrappers,
+four ERC20Mock wrappers and six Morpho wrappers.
+
+Of the 51 unsupported ABI captures, 18 reach the direct MIR interpreter's
+`GAS` restriction and 18 enter the static ABI prover without closing.
+The other 15 need cyclic execution, larger or dynamic ABI layouts, constructor
+or receive entry semantics, module-wide reasoning for added functions, or a
+stronger typed execution proof. These counts follow the first reported
+blocker for each capture.
+
+Early EVM CFG simplification tries the physical-entry certificate before
+checking individual edited blocks. The proof starts with the actual empty
+operand stack and follows imported control flow, including stack-carried
+continuations. The kernel checks action and interaction correspondence and
+the temporary stack-growth obligations along every admitted path. The
+evaluator credits a captured block through this route when both sides report
+that label reachable. This is an unpriced scheduled EVM IR proof with the
+existing source-import boundary.
+
+For MIR `lower-abi`, a static selector-entry certificate compares the
+original typed function behind an implicit ABI wrapper with the actual
+lowered function. The implicit entry checks the head length, unsigned word
+canonicality and wrapper-local nonpayable guard, then encodes the typed
+results in ABI word order. The checker admits up to four static words at each
+boundary. The theorem quantifies calldata with a
+word-representable length, call value, block context and initial journal.
+It starts from empty private memory and returndata. The kernel checks the
+observable result of both direct MIR executions, including revert bytes,
+accounts and logs. Compiler-validated ABI declarations and the typed
+source renderer remain part of the import boundary. Dispatcher composition,
+physical gas, backend placement and emitted bytecode are separate obligations.
+
+The ABI wrapper regression also changes a returned word. The altered pair
+loses its universal certificate, and direct execution of the original and
+altered lowered MIR produces a counterexample confirmed by independent
+Rust replay.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
