@@ -2100,15 +2100,12 @@ bytecode outputs match between normal and capture compilation for every
 contract. Fingerprints and per-pass counts are recorded in
 [CORRECTNESS.md](CORRECTNESS.md#full-corpus-after-abi-entry-coverage).
 
-The combined strict gate verifies all 147 pinned captures for MIR ABI
-encoding, checked arithmetic, integer lowering, storage slots, memory
-objects and slice projections at 120 seconds per prover invocation.
-[Proof scopes and fingerprints](CORRECTNESS.md#strict-checked-arithmetic-and-slice-audit)
-
-The strict conditional-check gate verifies all 31 pinned captures, including
-the module that introduces the private short-string revert helper. It checks
-the branch, exact revert bytes and shared direct-callee behavior in MIR.
-[Conditional-check audit](CORRECTNESS.md#strict-conditional-check-audit)
+The combined strict gate verifies all 178 pinned captures for MIR ABI
+encoding, checked arithmetic, conditional checks, integer lowering, storage
+slots, memory objects and slice projections at 120 seconds per prover
+invocation. It includes all 31 conditional-check captures and the module
+that introduces the private short-string revert helper.
+[Proof scopes and fingerprints](CORRECTNESS.md#strict-conditional-check-audit)
 
 Selected records for the same dispatch pair share the module-level proof
 report. Early CFG simplification, layout and compact PUSH captures can also

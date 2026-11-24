@@ -1224,8 +1224,8 @@ remain separate obligations.
 The serial gate `evaluate --all --require-verified --pass lower-checks
 --timeout 120 --seed 0` verifies all 31 pinned captures. Raw capture IDs,
 before and after MIR hashes, compiler and replay binaries, manifest and
-contract input and output fingerprints match the full audit. ABI and
-creation and runtime bytecode match with and without validation.
+contract input and output fingerprints match the full audit. Normal and
+capture compilations match on ABI and creation and runtime bytecode.
 
 | Contract | Selected | Verified | Unsupported | Timed out | Failed |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -1258,6 +1258,14 @@ The proof compares unpriced MIR behavior under shared effect handlers.
 Independent Rust replay agrees with Lean before and after lowering.
 Changing the short-string helper's length store or a custom-error word
 loses the automatic proof and produces a replayed revert-data difference.
+
+The combined serial run repeats the six MIR gates above and adds
+`lower-checks`. All 178 captures verify at the same 120-second budget,
+including 16 of 16 ABI encoder captures. It checks 13 Solady WETH, 33
+ERC20Mock and 132 Morpho Blue captures. The checker and input fingerprints
+match this audit, and the combined capture IDs and MIR hashes match the
+full audit. The SHA-256 of `target/tv-seven-mir-gates-final/results.json`
+is `7fe555908533a7fd3c937931daa51008ae9cd65345fee7a105dffa0e32542de1`.
 
 ### Stack-carried continuations
 
