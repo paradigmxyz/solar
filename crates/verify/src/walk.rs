@@ -1,6 +1,6 @@
 //! AST traversal helpers over [`Visit`].
 use solar_parse::{
-    ast::{Expr, ExprKind, Stmt, visit::Visit},
+    ast::{Expr, ExprKind, IndexKind, SourceUnit, Stmt, Type, visit::Visit},
     interface::data_structures::Never,
 };
 use std::ops::ControlFlow;
@@ -83,5 +83,43 @@ pub(crate) fn root<'a>(e: &'a Expr<'a>) -> Vec<String> {
             xs.iter().filter_map(|x| x.as_ref().unspan()).flat_map(|x| root(x)).collect()
         }
         _ => vec![],
+    }
+}
+
+/// Calls `f` on every type written in `u`, and on every size of an array type written in
+/// expression position, such as `uint256[N]` in `abi.decode(d, (uint256[N]))`.
+pub(crate) fn all_types<'a>(u: &'a SourceUnit<'a>, f: &mut dyn FnMut(TypeSite<'a>)) {
+    struct V<'f, 'a>(&'f mut dyn FnMut(TypeSite<'a>));
+    impl<'a> Visit<'a> for V<'_, 'a> {
+        type BreakValue = Never;
+        fn visit_ty(&mut self, t: &'a Type<'a>) -> ControlFlow<Never> {
+            (self.0)(TypeSite::Type(t));
+            self.walk_ty(t)
+        }
+        fn visit_expr(&mut self, e: &'a Expr<'a>) -> ControlFlow<Never> {
+            if let ExprKind::Index(base, IndexKind::Index(Some(size))) = &e.kind
+                && is_type_expr(base)
+            {
+                (self.0)(TypeSite::Size(size));
+            }
+            self.walk_expr(e)
+        }
+    }
+    let _ = V(f).visit_source_unit(u);
+}
+
+/// A place [`all_types`] reports.
+pub(crate) enum TypeSite<'a> {
+    /// A type node.
+    Type(&'a Type<'a>),
+    /// The size of an array type written as an expression.
+    Size(&'a Expr<'a>),
+}
+
+fn is_type_expr(e: &Expr<'_>) -> bool {
+    match &e.peel_parens().kind {
+        ExprKind::Type(_) => true,
+        ExprKind::Index(base, _) => is_type_expr(base),
+        _ => false,
     }
 }

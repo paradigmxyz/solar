@@ -17,7 +17,7 @@ use num_bigint::BigInt;
 use solar_parse::{
     ast::{self, BinOpKind, Expr, ExprKind, IndexKind, LitKind, Stmt, StmtKind, UnOpKind},
     interface::{
-        Span,
+        ByteSymbol, Span,
         data_structures::map::{FxHashMap, FxHashSet},
         sym,
     },
@@ -104,9 +104,14 @@ pub(crate) struct Vc<'p, 'a> {
     cex_terms: Vec<(String, String)>,
     depth: usize,
     declared_funs: FxHashSet<String>,
+    /// Interned bytes of string literals longer than 32 bytes to the index that names their
+    /// constant (`|strl.N|`).
+    str_lits: FxHashMap<ByteSymbol, usize>,
     splits: Vec<String>,
     /// The `value:` option of the call being evaluated (ETH it sends), consumed by external_call.
     call_value: Option<String>,
+    /// Options of a member call (`r().call{gas: g()}`) waiting for its receiver, which runs first.
+    pending_opts: Option<&'a ast::NamedArgList<'a>>,
     /// Invariant terms assumed at function entry, before any branch: every path implies them, so a
     /// later check of the identical term (the state it reads is unchanged) needs no solver call.
     inv_entry: FxHashSet<String>,
@@ -117,11 +122,36 @@ pub(crate) struct Vc<'p, 'a> {
     /// The span of the call a try statement makes: a revert there runs a catch clause instead of
     /// reverting us.
     try_call: Option<Span>,
+    /// Whether this VC runs a constructor: this contract's address holds no code until it
+    /// returns, so outside code it calls cannot call back in (see `external_call`).
+    in_ctor: bool,
     /// While computing what entry points open under the reentrancy lock may write: their external
     /// calls run under the same lock, so they reach only those entry points again.
     lock_modset: std::cell::Cell<bool>,
+    /// Every name each body `modset_raw` or `mem_param_writes` is walking declares, innermost
+    /// last; empty while `effects` walks the running body, whose names are `frame_names`.
+    effect_frames: std::cell::RefCell<Vec<FxHashSet<String>>>,
+    /// The contract whose functions each body `effects` walks calls by bare name, innermost
+    /// last: a library function's unqualified calls run in the library, not in the caller.
+    walk_scope: std::cell::RefCell<Vec<&'p Contract<'a>>>,
+    /// For each block (or for statement) being executed, innermost last: the names it has
+    /// declared so far, with what each stood for just before its declaration (see
+    /// `note_decl`), put back when the block ends.
+    #[allow(clippy::type_complexity)]
+    decl_scopes: Vec<Vec<(String, bool, Option<&'a Expr<'a>>, Option<Env>, Option<Var>)>>,
+    /// For each call whose body runs, innermost last: the storage returns its body bound,
+    /// once a modifier's `_` held them apart from the modifier's own names.
+    #[allow(clippy::type_complexity)]
+    ret_ptr_stash: Vec<Option<Vec<(String, bool, Option<&'a Expr<'a>>, Option<Env>)>>>,
     /// Calls `loop_targets` found writing a memory reference argument: (callee, argument root).
     mem_call_writes: std::cell::RefCell<Vec<(String, String)>>,
+    /// `mem_param_written` answers, by function item address and parameter (see there).
+    mem_written: std::cell::RefCell<FxHashMap<(usize, String), bool>>,
+    /// While `mem_param_writes` walks a body, the calls it meets that pass a memory object to
+    /// a memory parameter: callee, parameter, and the roots of the argument. Such a walk asks
+    /// only that, so `call_effects` records the call instead of asking about the callee, and
+    /// skips the callee's state writes (`modset_raw`), which never name a parameter.
+    mem_walk: std::cell::RefCell<Option<MemCalls<'p, 'a>>>,
     pub split_wins: usize,
     ranges: FxHashMap<String, crate::interval::Interval>,
     defs: FxHashMap<String, String>,
@@ -140,6 +170,12 @@ pub(crate) struct Vc<'p, 'a> {
     host: &'p Contract<'a>,
     /// storage-pointer locals (and storage return variables) of the running function
     slocals: FxHashSet<String>,
+    /// calldata parameters of the function whose body runs (the verified one, or an inlined
+    /// callee while its body runs; none in modifier and base constructor bodies)
+    cd_params: FxHashSet<String>,
+    /// every name the running body declares (parameters, returns, locals), which may shadow a
+    /// state variable of the same name
+    frame_names: FxHashSet<String>,
     /// values of the callee's names a pointer returned by a function was built from
     alias_env: FxHashMap<String, Env>,
     /// the location a just-inlined function's storage return points at
@@ -256,14 +292,23 @@ impl<'p, 'a> Vc<'p, 'a> {
             cex_terms: vec![],
             depth: 0,
             declared_funs: FxHashSet::default(),
+            str_lits: FxHashMap::default(),
             splits: vec![],
             split_wins: 0,
             call_value: None,
+            pending_opts: None,
             inv_entry: FxHashSet::default(),
             revert_sites: vec![],
             try_call: None,
+            in_ctor: false,
             lock_modset: std::cell::Cell::new(false),
+            effect_frames: Default::default(),
+            walk_scope: Default::default(),
+            decl_scopes: vec![],
+            ret_ptr_stash: vec![],
             mem_call_writes: Default::default(),
+            mem_written: Default::default(),
+            mem_walk: Default::default(),
             ranges: Default::default(),
             defs: Default::default(),
             warnings: vec![],
@@ -276,6 +321,8 @@ impl<'p, 'a> Vc<'p, 'a> {
             host: c,
             cur: vec![],
             slocals: FxHashSet::default(),
+            cd_params: FxHashSet::default(),
+            frame_names: FxHashSet::default(),
             alias_env: Default::default(),
             ret_alias: None,
             ret_alias_out: None,
@@ -462,10 +509,11 @@ impl<'p, 'a> Vc<'p, 'a> {
                 if external_name(m) {
                     return true;
                 }
-                if matches!(m, "push" | "pop") {
+                let cands = self.prog.using_fns(m, n);
+                // the array builtins call out nowhere; a bound library method of their name may
+                if matches!(m, "push" | "pop") && cands.is_empty() {
                     return false;
                 }
-                let cands = self.prog.using_fns(m, n);
                 if cands.is_empty() {
                     return true;
                 }
@@ -1280,7 +1328,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         cf: &str,
         seen: &mut FxHashSet<String>,
     ) -> bool {
-        if !seen.insert(format!("{}.{}", c.name, f.name)) {
+        if !seen.insert(format!("{}.{}@{:x}", c.name, f.name, std::ptr::from_ref(f.item).addr())) {
             return false;
         }
         let Some(b) = &f.item.body else { return false };
@@ -1425,6 +1473,18 @@ impl<'p, 'a> Vc<'p, 'a> {
 
     // ---------------------------------------------------------------- function driver
     pub(crate) fn verify_fn(&mut self, f: &'p Func<'a>) -> FnReport {
+        if let Some(why) = self.prog.refused_fn(f) {
+            let span = f.item.header.name.map_or(f.item.header.span, |n| n.span);
+            return FnReport {
+                name: format!("{}.{}", self.c.name, f.name),
+                checks: 0,
+                fails: vec![],
+                unsupported: Some((span, why.clone())),
+                warnings: vec![],
+                inferred: vec![],
+                loop_heads: vec![],
+            };
+        }
         self.horn_hints.clear();
         let at = self.begin_fn(f);
         let mut r = self.verify_fn_inner(f);
@@ -1571,6 +1631,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         let lemmas = broadcast::active(self.prog, self.c, f)?;
         self.broadcast(lemmas, true)?;
         let ctor = f.item.kind.is_constructor();
+        self.in_ctor = ctor;
         self.init_env(ctor)?;
         self.rets = f.rets.iter().map(|(n, _)| n.clone()).collect();
         for (n, ty) in &f.params {
@@ -1589,6 +1650,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 self.slocals.insert(n.clone());
             }
         }
+        (self.cd_params, self.frame_names) = Self::frame_of(f.item);
         let c = self.c;
         if ctor {
             for sv in c.state.iter().filter(|s| !s.constant) {
@@ -1658,6 +1720,11 @@ impl<'p, 'a> Vc<'p, 'a> {
                 }
             }
             for (bn, bf) in &c.base_ctors {
+                // A base constructor runs as part of this one: one that reaches an ambiguous
+                // struct name is no more verifiable here than on its own.
+                if let Some(why) = self.prog.refused_item(bf) {
+                    return Err((bf.header.span, why.clone()));
+                }
                 let vals = match argvals.get(bn) {
                     Some(v) if v.len() == bf.header.parameters.len() => v.clone(),
                     // an abstract contract may leave base arguments to its subclasses: any value
@@ -1690,8 +1757,17 @@ impl<'p, 'a> Vc<'p, 'a> {
                     self.bind(&n, ty, v);
                 }
                 if let Some(b) = &bf.body {
+                    // the base constructor's own names; its parameters are never calldata
+                    let (_, names) = Self::frame_of(bf);
+                    let saved_cd = std::mem::take(&mut self.cd_params);
+                    let saved_names = std::mem::replace(&mut self.frame_names, names);
                     self.frames.push(Frame { rets: vec![], exits: vec![] });
-                    self.exec_block(b)?;
+                    let outer = std::mem::take(&mut self.decl_scopes);
+                    let r = self.exec_block_stmts(b);
+                    self.decl_scopes = outer;
+                    self.cd_params = saved_cd;
+                    self.frame_names = saved_names;
+                    r?;
                     let fr = self.frames.pop().unwrap();
                     let mut st = fr.exits;
                     st.push((self.guard.clone(), self.env.clone()));
@@ -1854,7 +1930,43 @@ impl<'p, 'a> Vc<'p, 'a> {
         Ok(())
     }
 
+    /// Runs `f`'s body from its modifier `mi` on, in a scope stack of its own: the blocks of
+    /// an inlined callee or a modifier's `_` never put back or drop the caller's names.
     fn exec_fn_body(&mut self, f: &'p Func<'a>, mi: usize) -> R<()> {
+        let outer = std::mem::take(&mut self.decl_scopes);
+        if mi == 0 {
+            self.ret_ptr_stash.push(None);
+        }
+        let r = self.exec_fn_body_inner(f, mi);
+        // Once every modifier has ended, the storage returns the body bound (and a modifier's
+        // `_` held apart) are the call's, which its caller reads.
+        if mi == 0
+            && let Some(Some(rets)) = self.ret_ptr_stash.pop()
+        {
+            for (n, sl, al, ae) in rets {
+                if sl {
+                    self.slocals.insert(n.clone());
+                }
+                if let Some(a) = al {
+                    self.aliases.insert(n.clone(), a);
+                }
+                if let Some(e) = ae {
+                    self.alias_env.insert(n, e);
+                }
+            }
+        }
+        self.decl_scopes = outer;
+        r
+    }
+
+    fn exec_fn_body_inner(&mut self, f: &'p Func<'a>, mi: usize) -> R<()> {
+        // Every body that runs, the function's own and each inlined callee's, must not reach an
+        // ambiguous struct name (see `prog::Program::refused_fns`).
+        if mi == 0
+            && let Some(why) = self.prog.refused_fn(f)
+        {
+            return Err((f.item.header.span, why.clone()));
+        }
         if mi == 0 {
             self.mem_alias_check(f)?;
         }
@@ -1863,7 +1975,9 @@ impl<'p, 'a> Vc<'p, 'a> {
             .header
             .modifiers
             .iter()
-            .filter(|m| self.c.modifiers.contains_key(m.name.last().as_str()))
+            .filter(|m| {
+                self.prog.mod_scope(self.c, f).modifiers.contains_key(m.name.last().as_str())
+            })
             .collect();
         if mi == 0 {
             // Memory structs and arrays are values here: refuse writes through shared ones.
@@ -1871,7 +1985,10 @@ impl<'p, 'a> Vc<'p, 'a> {
         }
         if mi < mods.len() {
             let m = mods[mi];
-            let mdef = self.c.modifiers[m.name.last().as_str()];
+            let mdef = self.prog.mod_scope(self.c, f).modifiers[m.name.last().as_str()];
+            if let Some(why) = self.prog.refused_item(mdef) {
+                return Err((mdef.header.span, why.clone()));
+            }
             let args: Vec<&'a Expr<'a>> = m.arguments.exprs().collect();
             // Arguments are evaluated in the function's scope; the modifier body then runs in a
             // scope of its own (its parameters and locals never shadow the function's).
@@ -1885,9 +2002,18 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             self.ph.push((f, mi + 1, fn_locals));
             if let Some(b) = &mdef.body {
+                // The modifier's names may shadow the function's or state; its body (and the
+                // function's under `_`) counts no name as calldata.
+                let (_, names) = Self::frame_of(mdef);
+                let saved_cd = std::mem::take(&mut self.cd_params);
+                let mut all = self.frame_names.clone();
+                all.extend(names);
+                let saved_names = std::mem::replace(&mut self.frame_names, all);
                 self.cur.push(String::new());
-                let r = self.exec_block(b);
+                let r = self.exec_block_stmts(b);
                 self.cur.pop();
+                self.cd_params = saved_cd;
+                self.frame_names = saved_names;
                 r?;
             }
             let (_, _, fn_locals) = self.ph.pop().unwrap();
@@ -1900,7 +2026,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 self.runtime_check(ck)?;
             }
             self.cur.push(f.contract.clone());
-            let r = self.exec_block(b);
+            let r = self.exec_block_stmts(b);
             self.cur.pop();
             r?;
         }
@@ -1934,6 +2060,66 @@ impl<'p, 'a> Vc<'p, 'a> {
 
     // ---------------------------------------------------------------- statements
     fn exec_block(&mut self, b: &'a ast::Block<'a>) -> R<()> {
+        // The names this block declares go out of scope at its end: each names again what it
+        // named before (a shadowed storage pointer, or nothing), so a storage pointer of an
+        // inner block never stands for a later memory local of its name.
+        self.decl_scopes.push(vec![]);
+        let r = self.exec_block_stmts(b);
+        self.end_scope();
+        r
+    }
+
+    /// Before a declaration of @@n@@ in the innermost scope: what @@n@@ stands for now (an outer
+    /// local's value, a storage pointer, or nothing), the first time this scope declares it.
+    fn note_decl(&mut self, n: &str) {
+        let Some(top) = self.decl_scopes.last() else { return };
+        if top.iter().any(|e| e.0 == n) {
+            return;
+        }
+        let e = (
+            n.to_string(),
+            self.slocals.contains(n),
+            self.aliases.get(n).copied(),
+            self.alias_env.get(n).cloned(),
+            self.env.get(n).cloned(),
+        );
+        self.decl_scopes.last_mut().unwrap().push(e);
+    }
+
+    /// The innermost scope ends: each name it declared stands again for what it stood for
+    /// before, so an outer local, storage pointer or state variable of that name is seen again.
+    fn end_scope(&mut self) {
+        for (n, sl, al, ae, v) in self.decl_scopes.pop().unwrap_or_default() {
+            if sl {
+                self.slocals.insert(n.clone());
+            } else {
+                self.slocals.remove(&n);
+            }
+            match al {
+                Some(a) => self.aliases.insert(n.clone(), a),
+                None => self.aliases.remove(&n),
+            };
+            match ae {
+                Some(e) => self.alias_env.insert(n.clone(), e),
+                None => self.alias_env.remove(&n),
+            };
+            match v {
+                Some(v) => self.env.insert(n, v),
+                None => self.env.remove(&n),
+            };
+        }
+    }
+
+    /// A memory or value local of `name` names no storage pointer while it is in scope.
+    fn unalias(&mut self, name: &str) {
+        self.slocals.remove(name);
+        self.aliases.remove(name);
+        self.alias_env.remove(name);
+    }
+
+    /// A block's statements without a scope of their own: a function, modifier or constructor
+    /// body, whose names its specs still read when it returns.
+    fn exec_block_stmts(&mut self, b: &'a ast::Block<'a>) -> R<()> {
         for s in b.stmts.iter() {
             if self.guard == "false" {
                 break;
@@ -2016,6 +2202,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                         init
                     }
                 };
+                self.note_decl(&name);
                 self.env.remove(&name);
                 self.slocals.insert(name.clone());
                 match cap {
@@ -2043,6 +2230,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                         ),
                     ));
                 };
+                self.note_decl(&name);
                 self.env.remove(&name);
                 self.slocals.insert(name.clone());
                 self.alias_env.insert(name.clone(), env);
@@ -2058,6 +2246,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                         ),
                     ));
                 }
+                self.note_decl(&name);
                 self.env.remove(&name);
                 self.slocals.insert(name);
             }
@@ -2077,6 +2266,8 @@ impl<'p, 'a> Vc<'p, 'a> {
                     None => self.zero_var(&ty),
                 };
                 let name = v.name.map(|n| n.as_str().to_string()).unwrap_or_default();
+                self.note_decl(&name);
+                self.unalias(&name);
                 self.bind(&name, ty, val);
             }
             StmtKind::DeclMulti(vars, e) => {
@@ -2085,6 +2276,8 @@ impl<'p, 'a> Vc<'p, 'a> {
                     if let Some(v) = v.as_ref().unspan() {
                         let ty = self.ty_of_decl(&v.ty);
                         let name = v.name.map(|n| n.as_str().to_string()).unwrap_or_default();
+                        self.note_decl(&name);
+                        self.unalias(&name);
                         self.bind(&name, ty, val);
                     }
                 }
@@ -2129,10 +2322,15 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             StmtKind::While(c, body) => self.exec_loop(s, Some(c), None, body)?,
             StmtKind::For { init, cond, next, body } => {
-                if let Some(i) = init {
-                    self.exec_stmt(i)?;
+                // The init declaration is in scope for the loop only.
+                self.decl_scopes.push(vec![]);
+                let r = match init {
+                    Some(i) => self.exec_stmt(i),
+                    None => Ok(()),
                 }
-                self.exec_loop(s, cond.as_deref(), next.as_deref(), body)?;
+                .and_then(|()| self.exec_loop(s, cond.as_deref(), next.as_deref(), body));
+                self.end_scope();
+                r?;
             }
             StmtKind::Return(e) => {
                 let rets = self.frames.last().map(|f| f.rets.clone()).unwrap_or_default();
@@ -2180,7 +2378,44 @@ impl<'p, 'a> Vc<'p, 'a> {
                 let mod_locals = self.split_locals();
                 self.env.extend(fn_locals);
                 self.frames.push(Frame { rets: f.rets.clone(), exits: vec![] });
-                self.exec_fn_body(f, i)?;
+                // The modifier's storage pointers stay bound across `_`: what the function body
+                // declares of their names is its own.
+                let ptrs = (self.slocals.clone(), self.aliases.clone(), self.alias_env.clone());
+                let r = self.exec_fn_body(f, i);
+                // The function's own storage returns keep what its body bound them to: the call
+                // returns them once the modifier ends.
+                let rets: Vec<_> = f
+                    .rets
+                    .iter()
+                    .map(|(n, _)| {
+                        let sl = self.slocals.contains(n);
+                        (
+                            n.clone(),
+                            sl,
+                            self.aliases.get(n).copied(),
+                            self.alias_env.get(n).cloned(),
+                        )
+                    })
+                    .collect();
+                (self.slocals, self.aliases, self.alias_env) = ptrs;
+                // Held apart until the whole call returns: the modifier's own names after `_`
+                // never see them (see `exec_fn_body`).
+                // An inner modifier's `_` (the same call's) already held what the body bound; an
+                // outer one sees only its restored names, so it adds or replaces bound entries
+                // only.
+                if let Some(top) = self.ret_ptr_stash.last_mut() {
+                    let held = top.get_or_insert_with(Vec::new);
+                    for e in rets {
+                        if e.2.is_none() {
+                            continue;
+                        }
+                        match held.iter_mut().find(|h| h.0 == e.0) {
+                            Some(h) => *h = e,
+                            None => held.push(e),
+                        }
+                    }
+                }
+                r?;
                 let fr = self.frames.pop().unwrap();
                 let mut st = fr.exits;
                 st.push((self.guard.clone(), self.env.clone()));
@@ -2355,15 +2590,16 @@ impl<'p, 'a> Vc<'p, 'a> {
                     ExprKind::Ident(id) => {
                         let n = id.as_str();
                         let free = self.prog.contract(FREE).map(|l| &l.funcs[..]).unwrap_or(&[]);
-                        let named: Vec<&'p Func<'a>> = self
-                            .c
+                        let scope = self.walk_scope.borrow().last().copied().unwrap_or(self.c);
+                        let named: Vec<&'p Func<'a>> = scope
                             .funcs
                             .iter()
                             .chain(free)
                             .filter(|f| f.name == n && f.params.len() == argv.len())
                             .collect();
-                        if named.is_empty() && !self.names_no_pointer(n) {
-                            // a function pointer: any function it may hold
+                        // a function pointer, or a variable of the body this call is in that
+                        // shadows the functions of that name: any function it may hold
+                        if (named.is_empty() && !self.names_no_pointer(n)) || self.var_named(n) {
                             self.ptr_call_effects(&argv, out, all, seen);
                         }
                         for f in named {
@@ -2374,6 +2610,13 @@ impl<'p, 'a> Vc<'p, 'a> {
                         let m = m.as_str();
                         if m == "push" || m == "pop" {
                             out.extend(walk::root(base));
+                            // A bound library method of that name may be what runs instead.
+                            let cands = self.prog.using_fns(m, argv.len());
+                            let mut a2: Vec<&'a Expr<'a>> = vec![&**base];
+                            a2.extend(argv.iter().copied());
+                            for (_, f) in cands {
+                                self.call_effects(f, &a2, out, all, seen);
+                            }
                             return;
                         }
                         if m == "transfer" || m == "send" {
@@ -2412,10 +2655,15 @@ impl<'p, 'a> Vc<'p, 'a> {
                                 return;
                             }
                         }
-                        if let Some((_, f)) = self.prog.using_fn(m, argv.len()) {
+                        // Execution picks the overload by the receiver's type, so each
+                        // candidate's effects count.
+                        let cands = self.prog.using_fns(m, argv.len());
+                        if !cands.is_empty() {
                             let mut a2: Vec<&'a Expr<'a>> = vec![&**base];
                             a2.extend(argv.iter().copied());
-                            self.call_effects(f, &a2, out, all, seen);
+                            for (_, f) in cands {
+                                self.call_effects(f, &a2, out, all, seen);
+                            }
                             return;
                         }
                         if !self.static_member(m) && !self.lock_modset.get() {
@@ -2432,6 +2680,19 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             _ => {}
         }
+    }
+
+    /// Whether `n` may name a function pointer where the call `effects` meets runs: a
+    /// function-typed variable the body being walked declares (see `fn_ptr_names`), or, in the
+    /// running body, one execution has bound (the bindings it calls through, which follow base
+    /// initializers and inlined bodies), or a function-typed state variable, which may shadow a
+    /// free function.
+    fn var_named(&self, n: &str) -> bool {
+        let declared = match self.effect_frames.borrow().last() {
+            Some(names) => names.contains(n),
+            None => self.env.get(n).is_some_and(|v| matches!(v.ty, Ty::Fn(_) | Ty::Opaque)),
+        };
+        declared || self.c.state.iter().any(|v| v.name == n && matches!(v.ty, Ty::Fn(_)))
     }
 
     /// Whether calling `n(..)` is no call through a function pointer: a builtin, a type
@@ -2495,6 +2756,16 @@ impl<'p, 'a> Vc<'p, 'a> {
     ) {
         // A memory object passed by reference: what the callee writes through its parameter the
         // caller sees through its own name, so a loop that makes the call changes that name.
+        if let Some(calls) = self.mem_walk.borrow_mut().as_mut() {
+            for (i, p) in f.item.header.parameters.iter().enumerate() {
+                if Self::mem_ref_param(p, &f.params[i].1)
+                    && let Some(a) = args.get(i)
+                {
+                    calls.push((f, f.params[i].0.clone(), walk::root(a)));
+                }
+            }
+            return;
+        }
         for (i, p) in f.item.header.parameters.iter().enumerate() {
             if Self::mem_ref_param(p, &f.params[i].1)
                 && self.mem_param_written(f, &f.params[i].0)
@@ -2701,7 +2972,14 @@ impl<'p, 'a> Vc<'p, 'a> {
         if f.is_static() {
             return Some(BTreeSet::new());
         }
-        let key = format!("{}.{}/{}", f.contract, f.name, f.params.len());
+        // Overloads of one name and arity are distinct functions: key by the item too.
+        let key = format!(
+            "{}.{}/{}@{:x}",
+            f.contract,
+            f.name,
+            f.params.len(),
+            std::ptr::from_ref(f.item).addr()
+        );
         if !seen.insert(key) {
             return Some(BTreeSet::new());
         }
@@ -2714,12 +2992,27 @@ impl<'p, 'a> Vc<'p, 'a> {
         if let Some(b) = &f.item.body {
             stmts.extend(b.stmts.iter());
         }
+        // Modifier arguments run before the body, and may call functions that write state.
+        let mod_args: Vec<&'a Expr<'a>> =
+            f.item.header.modifiers.iter().flat_map(|m| m.arguments.exprs()).collect();
         for m in f.item.header.modifiers.iter() {
-            if let Some(md) = self.c.modifiers.get(m.name.last().as_str())
+            if let Some(md) = self.prog.mod_scope(self.c, f).modifiers.get(m.name.last().as_str())
                 && let Some(b) = &md.body
             {
                 stmts.extend(b.stmts.iter());
             }
+        }
+        // calls in these bodies see their pointers, not the caller's
+        let mut names = Self::fn_ptr_names(f.item);
+        for m in f.item.header.modifiers.iter() {
+            if let Some(md) = self.prog.mod_scope(self.c, f).modifiers.get(m.name.last().as_str()) {
+                names.extend(Self::fn_ptr_names(md));
+            }
+        }
+        self.effect_frames.borrow_mut().push(names);
+        self.walk_scope.borrow_mut().push(self.prog.mod_scope(self.c, f));
+        for a in &mod_args {
+            walk::sub_exprs(a, &mut |x| self.effects(x, &mut out, &mut all, seen));
         }
         for s in &stmts {
             walk::all_stmts(s, &mut |s| {
@@ -2738,6 +3031,8 @@ impl<'p, 'a> Vc<'p, 'a> {
                 }
             });
         }
+        self.walk_scope.borrow_mut().pop();
+        self.effect_frames.borrow_mut().pop();
         if all {
             return None;
         }
@@ -3338,8 +3633,23 @@ impl<'p, 'a> Vc<'p, 'a> {
                     .unwrap_or_default();
                 Ok(Self::val(Ty::Addr, num(&b)))
             }
-            LitKind::Str(..) => {
-                let t = self.decl("str", &Ty::Opaque);
+            LitKind::Str(_, bytes, _) => {
+                // One constant per literal value, so the same literal evaluated twice (in the body
+                // and in a spec, say) is the same term and hashes alike. A literal that fits a
+                // `bytes32` is named by its hex, which `str_bytes` reads back; a longer one by an
+                // index into its interned bytes, so naming it costs the same however long it is.
+                let raw = bytes.as_byte_str();
+                let t = if raw.len() <= 32 {
+                    let hex: String = raw.iter().map(|b| format!("{b:02x}")).collect();
+                    format!("|str.{hex}|")
+                } else {
+                    let n = self.str_lits.len();
+                    let i = *self.str_lits.entry(*bytes).or_insert(n);
+                    format!("|strl.{i}|")
+                };
+                if self.declared_funs.insert(t.clone()) {
+                    self.smt.send(&format!("(declare-const {t} {})\n", Ty::Opaque.sort()));
+                }
                 Ok(Self::val(Ty::Opaque, t))
             }
             _ => Err((span, "unsupported literal".into())),
@@ -3788,9 +4098,23 @@ impl<'p, 'a> Vc<'p, 'a> {
         let argv: Vec<&'a Expr<'a>> = args.exprs().collect();
         let callee = match &callee.kind {
             ExprKind::CallOptions(c, opts) => {
-                if let Some(o) = opts.iter().find(|o| o.name.name == sym::value) {
-                    let v = self.eval(o.value)?;
-                    self.call_value = Some(v.t);
+                // The receiver runs before the options (`r().call{gas: g()}`), and a variable
+                // receiver is read before them (`h.f{gas: g()}()` where `g` writes `h`): leave
+                // them to the member call, which evaluates them right after it. A contract,
+                // library or type name has no value to read.
+                if let ExprKind::Member(base, _) = &c.kind
+                    && match &base.kind {
+                        ExprKind::Ident(id) => {
+                            self.env.get(id.as_str()).is_some_and(|v| !matches!(v.ty, Ty::Fn(_)))
+                        }
+                        _ => true,
+                    }
+                {
+                    self.pending_opts = Some(opts);
+                    self.call_value = None;
+                } else {
+                    self.pending_opts = None;
+                    self.call_value = self.eval_call_opts(opts)?;
                 }
                 &**c
             }
@@ -3993,7 +4317,13 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             ExprKind::Member(base, m) => {
                 let m = m.as_str();
-                if let ExprKind::Ident(b) = &base.kind {
+                // Take this call's options before anything evaluates its receiver or arguments:
+                // a nested member call there (`h.f{gas: 1}(x.g())`) must not see them.
+                let opts = self.pending_opts.take();
+                let value = self.call_value.take();
+                if let ExprKind::Ident(b) = &base.kind
+                    && opts.is_none()
+                {
                     let bn = b.as_str();
                     if bn == "super" {
                         let vals = argv.iter().map(|a| self.eval(a)).collect::<R<Vec<_>>>()?;
@@ -4009,6 +4339,8 @@ impl<'p, 'a> Vc<'p, 'a> {
                     if bn == "abi" {
                         // the encoded bytes of abi.decode, as a term
                         let mut decode_src: Option<String> = None;
+                        // and their length, when they are bytes
+                        let mut decode_len: Option<String> = None;
                         for (ai, a) in
                             argv.iter().enumerate().take(if m == "decode" { 1 } else { argv.len() })
                         {
@@ -4028,6 +4360,11 @@ impl<'p, 'a> Vc<'p, 'a> {
                             if !fref {
                                 if m == "decode" && ai == 0 {
                                     let v = self.eval(a)?;
+                                    if v.ty == Ty::Opaque {
+                                        decode_len = Some(
+                                            v.len.clone().unwrap_or_else(|| self.opaque_len(&v.t)),
+                                        );
+                                    }
                                     if v.ty.sort() == "Int" {
                                         decode_src = Some(v.t);
                                     }
@@ -4037,9 +4374,6 @@ impl<'p, 'a> Vc<'p, 'a> {
                             }
                         }
                         if m == "decode" && argv.len() == 2 {
-                            // Decoding reverts on data too short or not of the types' ranges,
-                            // which the untracked bytes do not tell.
-                            self.reverts_if("true");
                             // decoded values are arbitrary values of their types
                             let tys: Vec<&'a Expr<'a>> = match &argv[1].peel_parens().kind {
                                 ExprKind::Tuple(xs) if xs.len() != 1 => xs
@@ -4122,6 +4456,19 @@ impl<'p, 'a> Vc<'p, 'a> {
                                     out.push(self.fresh_var("decoded", &ty));
                                 }
                             }
+                            // Decoding reverts on data too short or not of the types' ranges.
+                            // Every word is a valid `uint256`, `int256` or `bytes32`, so data of
+                            // those alone reverts exactly when it is shorter than their words; of
+                            // any other type, the untracked bytes do not tell.
+                            let words = out.iter().all(|v| {
+                                matches!(v.ty, Ty::Uint(256) | Ty::Int(256) | Ty::Bytes(256))
+                            });
+                            match &decode_len {
+                                Some(len) if words => {
+                                    self.reverts_if(&format!("(< {len} {})", 32 * out.len()))
+                                }
+                                _ => self.reverts_if("true"),
+                            }
                             return Ok(out);
                         }
                         let t = self.decl("abi", &Ty::Opaque);
@@ -4153,7 +4500,14 @@ impl<'p, 'a> Vc<'p, 'a> {
                         return Ok(rets);
                     }
                 }
-                if let Some((lib, f, vals, all)) = self.pick_using(base, m, &argv)? {
+                if opts.is_some() && matches!(base.kind, ExprKind::Type(_)) {
+                    return Err((e.span, "unsupported call options on this call".to_string()));
+                }
+                // A bound library function is an internal call, which takes no options: a call
+                // with options is external, even when a library function has the same name.
+                if opts.is_none()
+                    && let Some((lib, f, vals, all)) = self.pick_using(base, m, &argv)?
+                {
                     let caps = self.storage_arg_caps(f, &all, e.span)?;
                     let rets = self.internal_call(lib, f, vals, e.span, true)?;
                     self.write_back_storage_params(f, &all, &caps, e.span)?;
@@ -4167,7 +4521,13 @@ impl<'p, 'a> Vc<'p, 'a> {
                     let t = self.decl("concat", &Ty::Opaque);
                     return Ok(vec![Self::val(Ty::Opaque, t)]);
                 }
+                // The receiver runs first and may itself call (`payable(f()).call{value: 1}`),
+                // which resets the pending value: keep this call's, then run its options.
                 let bv = self.eval(base)?;
+                self.call_value = match opts {
+                    Some(opts) => self.eval_call_opts(opts)?,
+                    None => value,
+                };
                 match (&bv.ty, m) {
                     (Ty::Arr(el, _), "push") => {
                         let el = (**el).clone();
@@ -4221,9 +4581,14 @@ impl<'p, 'a> Vc<'p, 'a> {
                     (_, "call" | "delegatecall" | "staticcall") => {
                         let value = self.call_value.take();
                         for a in &argv {
-                            // `new bytes(n)` only allocates memory: nothing to evaluate
-                            if matches!(&a.kind, ExprKind::Call(c, _) if matches!(c.kind, ExprKind::New(_)))
+                            // `new bytes(n)` only allocates memory, but its length runs for its
+                            // effects
+                            if let ExprKind::Call(c, inner) = &a.kind
+                                && matches!(c.kind, ExprKind::New(_))
                             {
+                                for x in inner.exprs() {
+                                    self.eval(x)?;
+                                }
                                 continue;
                             }
                             self.eval(a)?;
@@ -4234,11 +4599,16 @@ impl<'p, 'a> Vc<'p, 'a> {
                         if let Some(v) = value {
                             self.send_value(&v, Some(&ok));
                         }
-                        let mut r = self.external_call(
+                        // delegated code runs on our storage, even in a constructor
+                        let in_ctor = self.in_ctor;
+                        self.in_ctor &= m != "delegatecall";
+                        let r = self.external_call(
                             vec![Ty::Bool, Ty::Opaque],
                             m == "staticcall",
                             e.span,
-                        )?;
+                        );
+                        self.in_ctor = in_ctor;
+                        let mut r = r?;
                         r[0] = Self::val(Ty::Bool, ok);
                         Ok(r)
                     }
@@ -4533,11 +4903,15 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             // a memory object passed by reference: the caller's name for it sees the writes
             match &args[i].peel_parens().kind {
+                // storage or calldata passed to a memory parameter is copied into new memory:
+                // what the callee writes there never reaches the caller's
+                _ if self.copied_into_memory(args[i]) => {}
                 ExprKind::Ident(_) | ExprKind::Member(..) | ExprKind::Index(..) => {
                     self.assign(args[i], v)?
                 }
                 // a fresh object: nothing of the caller names it
                 ExprKind::New(_) | ExprKind::Array(_) => {}
+                _ if Self::fresh_memory(args[i]) || self.fresh_call(args[i]) => {}
                 _ if !self.mem_param_written(f, &f.params[i].0) => {}
                 _ => {
                     return Err((
@@ -4551,6 +4925,232 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
         }
         Ok(())
+    }
+
+    /// Whether `e` allocates the memory object it evaluates to, so that no other name refers to
+    /// it: `new T(..)`, and the `abi.encode*`, `bytes.concat` and `string.concat` builtins,
+    /// which copy their arguments into a new `bytes` or `string`.
+    fn fresh_memory(e: &Expr<'_>) -> bool {
+        let ExprKind::Call(callee, _) = &e.peel_parens().kind else {
+            return false;
+        };
+        match &callee.peel_parens().kind {
+            ExprKind::New(_) => true,
+            ExprKind::Member(b, m) => match &b.peel_parens().kind {
+                ExprKind::Ident(i) => {
+                    i.name == sym::abi
+                        && matches!(
+                            m.as_str(),
+                            "encode"
+                                | "encodePacked"
+                                | "encodeWithSelector"
+                                | "encodeWithSignature"
+                                | "encodeCall"
+                        )
+                }
+                ExprKind::Type(t) => {
+                    m.as_str() == "concat"
+                        && matches!(
+                            t.kind,
+                            ast::TypeKind::Elementary(
+                                ast::ElementaryType::Bytes | ast::ElementaryType::String
+                            )
+                        )
+                }
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    /// Whether `e` names storage or calldata, which passing it to a memory parameter copies: its
+    /// roots are state variables (names the verifier always reads as state, see
+    /// `split_locals`), storage pointers, or calldata parameters of the function being verified.
+    fn copied_into_memory(&self, e: &'a Expr<'a>) -> bool {
+        if !matches!(
+            e.peel_parens().kind,
+            ExprKind::Ident(_) | ExprKind::Member(..) | ExprKind::Index(..)
+        ) {
+            return false;
+        }
+        let roots = walk::root(e);
+        !roots.is_empty()
+            && roots.iter().all(|r| {
+                (self.c.state.iter().any(|s| s.name == *r) && !self.frame_names.contains(r))
+                    || self.slocals.contains(r)
+                    || self.cd_params.contains(r)
+            })
+    }
+
+    /// The calldata parameters of function, modifier or constructor `item`, and every name it
+    /// declares: parameters, returns, locals and try/catch clause parameters.
+    fn frame_of(item: &'a ast::ItemFunction<'a>) -> (FxHashSet<String>, FxHashSet<String>) {
+        let name = |v: &ast::VariableDefinition<'_>| v.name.map(|n| n.as_str().to_string());
+        let mut cd = FxHashSet::default();
+        let mut names = FxHashSet::default();
+        for p in item.header.parameters.iter().chain(item.header.returns().iter()) {
+            if let Some(n) = name(p) {
+                if p.data_location == Some(ast::DataLocation::Calldata) {
+                    cd.insert(n.clone());
+                }
+                names.insert(n);
+            }
+        }
+        let mut body_names = FxHashSet::default();
+        for s in item.body.iter().flat_map(|b| b.stmts.iter()) {
+            walk::all_stmts(s, &mut |s| match &s.kind {
+                StmtKind::DeclSingle(v) => body_names.extend(name(v)),
+                StmtKind::DeclMulti(vs, _) => body_names
+                    .extend(vs.iter().filter_map(|v| v.as_ref().unspan()).filter_map(&name)),
+                StmtKind::Try(t) => {
+                    for c in t.clauses.iter() {
+                        body_names.extend(c.args.iter().filter_map(&name));
+                    }
+                }
+                _ => {}
+            });
+        }
+        // a calldata name declared again in the body is not the parameter wherever that
+        // declaration is in scope, so it is no longer known to name calldata
+        cd.retain(|n| !body_names.contains(n));
+        names.extend(body_names);
+        (cd, names)
+    }
+
+    /// The function-typed parameters, returns and locals `item` declares, in any block: the only
+    /// names a call in its body can reach a function pointer by. Over-approximate, since a
+    /// nested declaration may be out of scope at the call.
+    fn fn_ptr_names(item: &'a ast::ItemFunction<'a>) -> FxHashSet<String> {
+        let ptr = |v: &ast::VariableDefinition<'_>| {
+            if matches!(v.ty.kind, ast::TypeKind::Function(_)) {
+                v.name.map(|n| n.as_str().to_string())
+            } else {
+                None
+            }
+        };
+        let mut names: FxHashSet<String> = item
+            .header
+            .parameters
+            .iter()
+            .chain(item.header.returns().iter())
+            .filter_map(ptr)
+            .collect();
+        for s in item.body.iter().flat_map(|b| b.stmts.iter()) {
+            walk::all_stmts(s, &mut |s| match &s.kind {
+                StmtKind::DeclSingle(v) => names.extend(ptr(v)),
+                StmtKind::DeclMulti(vs, _) => {
+                    names.extend(vs.iter().filter_map(|v| v.as_ref().unspan()).filter_map(&ptr))
+                }
+                StmtKind::Try(t) => {
+                    for c in t.clauses.iter() {
+                        names.extend(c.args.iter().filter_map(&ptr));
+                    }
+                }
+                _ => {}
+            });
+        }
+        names
+    }
+
+    /// Whether `e` is an internal call, by name, whose every candidate callee returns a memory
+    /// object it allocated (see `returns_fresh`), so that no name of the caller refers to it.
+    fn fresh_call(&self, e: &'a Expr<'a>) -> bool {
+        let ExprKind::Call(callee, args) = &e.peel_parens().kind else {
+            return false;
+        };
+        let ExprKind::Ident(id) = &callee.peel_parens().kind else {
+            return false;
+        };
+        // a local or parameter of the running body (a function pointer) shadows the contract's
+        // functions of that name
+        if self.frame_names.contains(id.as_str()) {
+            return false;
+        }
+        let nargs = args.exprs().count();
+        let mut fs = self
+            .c
+            .funcs
+            .iter()
+            .filter(|f| {
+                f.name == id.as_str() && f.params.len() == nargs && !f.item.kind.is_modifier()
+            })
+            .peekable();
+        fs.peek().is_some() && fs.all(|f| self.returns_fresh(f))
+    }
+
+    /// Whether `f` returns one memory object that only it can name: its one return value is a
+    /// named variable (which starts as a new object) or `return e` of a fresh object, and the body
+    /// only reads and writes the variable's elements and fields, or assigns it a fresh object. Any
+    /// other use (passing it to a call, storing it, returning it from a tuple) or any assembly
+    /// could leave another name for it. Its elements or fields must be values, since reading one
+    /// that is a memory reference (`p.inner = r.inner`) would name part of it elsewhere.
+    fn returns_fresh(&self, f: &Func<'_>) -> bool {
+        let Some(body) = &f.item.body else {
+            return false;
+        };
+        let rets = f.item.header.returns();
+        if rets.len() != 1 || !Self::mem_ref_param(&rets[0], &f.rets[0].1) {
+            return false;
+        }
+        let value = |t: &Ty| !matches!(t, Ty::Arr(..) | Ty::Struct(_) | Ty::Opaque);
+        let flat = match &f.rets[0].1 {
+            Ty::Arr(e, _) => value(e),
+            Ty::Struct(n) => {
+                self.prog.struct_fields(n).is_some_and(|fs| fs.iter().all(|(_, t)| value(t)))
+            }
+            _ => true,
+        };
+        if !flat {
+            return false;
+        }
+        let name = rets[0].name.map(|n| n.as_str().to_string());
+        let is_r = |e: &Expr<'_>| matches!(&e.peel_parens().kind, ExprKind::Ident(i) if Some(i.as_str()) == name.as_deref());
+        let (mut ok, mut uses, mut allowed) = (true, 0usize, 0usize);
+        for s in body.stmts.iter() {
+            walk::all_stmts(s, &mut |s| {
+                match &s.kind {
+                    StmtKind::Assembly(_) => ok = false,
+                    // a declaration of the return's name shadows it: the name no longer means
+                    // the return variable
+                    StmtKind::DeclSingle(v)
+                        if v.name.is_some_and(|n| Some(n.as_str()) == name.as_deref()) =>
+                    {
+                        ok = false
+                    }
+                    StmtKind::DeclMulti(vs, _)
+                        if vs.iter().filter_map(|v| v.as_ref().unspan()).any(|v| {
+                            v.name.is_some_and(|n| Some(n.as_str()) == name.as_deref())
+                        }) =>
+                    {
+                        ok = false
+                    }
+                    StmtKind::Try(t)
+                        if t.clauses.iter().any(|c| {
+                            c.args.iter().any(|v| {
+                                v.name.is_some_and(|n| Some(n.as_str()) == name.as_deref())
+                            })
+                        }) =>
+                    {
+                        ok = false
+                    }
+                    StmtKind::Return(Some(e)) if is_r(e) => allowed += 1,
+                    StmtKind::Return(Some(e)) => ok &= Self::fresh_memory(e),
+                    _ => {}
+                }
+                walk::stmt_exprs(s, &mut |e| {
+                    walk::sub_exprs(e, &mut |x| match &x.kind {
+                        ExprKind::Ident(_) if is_r(x) => uses += 1,
+                        ExprKind::Index(b, _) | ExprKind::Member(b, _) if is_r(b) => allowed += 1,
+                        ExprKind::Assign(l, None, r) if is_r(l) => {
+                            ok &= Self::fresh_memory(r);
+                            allowed += 1;
+                        }
+                        _ => {}
+                    })
+                });
+            });
+        }
+        ok && uses == allowed
     }
 
     /// Memory references are values in this encoding, so two names for one memory object would
@@ -4681,6 +5281,15 @@ impl<'p, 'a> Vc<'p, 'a> {
         hit || out.contains(n)
     }
 
+    /// Whether some library declares a function named `m`, which a bound call `x.m(..)` may
+    /// run instead of the array builtin of that name.
+    fn lib_method_named(&self, m: &str) -> bool {
+        self.prog
+            .contracts
+            .iter()
+            .any(|c| c.kind == ast::ContractKind::Library && c.funcs.iter().any(|f| f.name == m))
+    }
+
     /// A call that may run user code with a memory argument (not a builtin such as
     /// abi.encode, keccak256 or require).
     fn user_call(&self, callee: &'a Expr<'a>) -> bool {
@@ -4689,7 +5298,9 @@ impl<'p, 'a> Vc<'p, 'a> {
             ExprKind::Member(b, m) => {
                 let builtin = matches!(&b.peel_parens().kind, ExprKind::Ident(i)
                     if matches!(i.as_str(), "abi" | "type" | "string" | "bytes" | "block" | "msg" | "tx"));
-                !builtin && !matches!(m.as_str(), "length" | "push" | "pop" | "concat")
+                !builtin
+                    && (!matches!(m.as_str(), "length" | "push" | "pop" | "concat")
+                        || self.lib_method_named(m.as_str()))
             }
             _ => false,
         }
@@ -4709,54 +5320,217 @@ impl<'p, 'a> Vc<'p, 'a> {
     /// May the body of `f` change the memory object its parameter `n` refers to? Syntactic and
     /// conservative: a write rooted at `n`, passing it on to a call, any assembly, or copying the
     /// reference into another variable (which may then write it) all count.
+    ///
+    /// A callee's parameter is written when its own body writes it or passes it on to one that
+    /// is, so the answer is the least fixed point over the calls reachable from `f`: call cycles
+    /// (recursion, or a function pointer, which may hold any function of its arity) are solved
+    /// once rather than walked again at every call.
     fn mem_param_written(&self, f: &'p Func<'a>, n: &str) -> bool {
+        let key = |f: &Func<'_>, n: &str| (std::ptr::from_ref(f.item).addr(), n.to_string());
+        if let Some(&w) = self.mem_written.borrow().get(&key(f, n)) {
+            return w;
+        }
+        // Each question reachable from this one, with whether its body writes the parameter
+        // itself and the callee parameters it passes the parameter's object to.
+        let mut nodes: FxHashMap<MemKey, (bool, Vec<MemKey>)> = FxHashMap::default();
+        let mut work = vec![(f, n.to_string())];
+        while let Some((g, m)) = work.pop() {
+            let k = key(g, &m);
+            if nodes.contains_key(&k) || self.mem_written.borrow().contains_key(&k) {
+                continue;
+            }
+            let (direct, calls) = self.mem_param_writes(g, &m);
+            let succ = calls.iter().map(|(h, q)| key(h, q)).collect();
+            work.extend(calls);
+            nodes.insert(k, (direct, succ));
+        }
+        let mut written: FxHashMap<(usize, String), bool> =
+            nodes.iter().map(|(k, (d, _))| (k.clone(), *d)).collect();
+        loop {
+            let mut grew = false;
+            for (k, (_, succ)) in &nodes {
+                if !written[k]
+                    && succ.iter().any(|s| {
+                        written.get(s).or(self.mem_written.borrow().get(s)).copied() == Some(true)
+                    })
+                {
+                    written.insert(k.clone(), true);
+                    grew = true;
+                }
+            }
+            if !grew {
+                break;
+            }
+        }
+        let mut done = self.mem_written.borrow_mut();
+        done.extend(written);
+        done[&key(f, n)]
+    }
+
+    /// Whether `f`'s own body writes its memory parameter `n` (see `mem_param_written`), and
+    /// the callee parameters it passes `n`'s object to, which write it if they write theirs.
+    fn mem_param_writes(&self, f: &'p Func<'a>, n: &str) -> (bool, Vec<(&'p Func<'a>, String)>) {
         let Some(body) = &f.item.body else {
-            return true;
+            return (true, vec![]);
         };
+        // Modifier arguments run in the function's scope before its body. Each is paired with
+        // whether its modifier parameter may receive a memory reference (unknown modifiers may).
+        let mut mod_args: Vec<(&'a Expr<'a>, bool)> = vec![];
+        for m in f.item.header.modifiers.iter() {
+            let params = self
+                .prog
+                .mod_scope(self.c, f)
+                .modifiers
+                .get(m.name.last().as_str())
+                .map(|md| &md.header.parameters);
+            for (i, a) in m.arguments.exprs().enumerate() {
+                let by_ref = params.is_none_or(|ps| {
+                    ps.get(i).is_none_or(|p| p.data_location == Some(ast::DataLocation::Memory))
+                });
+                mod_args.push((a, by_ref));
+            }
+        }
+        let outer = self.mem_walk.replace(Some(vec![]));
+        self.effect_frames.borrow_mut().push(Self::fn_ptr_names(f.item));
+        self.walk_scope.borrow_mut().push(self.prog.mod_scope(self.c, f));
+        let direct = self.mem_param_written_body(body, &mod_args, n);
+        self.walk_scope.borrow_mut().pop();
+        self.effect_frames.borrow_mut().pop();
+        let calls = std::mem::replace(&mut *self.mem_walk.borrow_mut(), outer).unwrap_or_default();
+        let calls = calls
+            .into_iter()
+            .filter(|(_, _, roots)| roots.iter().any(|r| r == n))
+            .map(|(g, q, _)| (g, q))
+            .collect();
+        (direct, calls)
+    }
+
+    /// Whether the value of `e` may be a reference to `n`'s object or part of it: through a
+    /// branch, an index or member of it, or anything else that mentions `n`, such as a call that
+    /// may return its argument. Allocating builtins (`abi.encode` and its kin, `new`)
+    /// give a fresh object, and operators compute values, which hold no reference.
+    fn may_alias<'x>(e: &'x Expr<'x>, n: &str) -> bool {
+        let mentions = |e: &'x Expr<'x>| {
+            let mut m = false;
+            walk::sub_exprs(e, &mut |x| {
+                m |= matches!(&x.kind, ExprKind::Ident(i) if i.as_str() == n)
+            });
+            m
+        };
+        // An assignment anywhere in `e` may bind another name to `n`'s object (or part of it)
+        // before `e`'s value is taken, as `(b = n[0])[0] == 0 ? b : b` does.
+        let mut assigns = false;
+        walk::sub_exprs(e, &mut |x| assigns |= matches!(x.kind, ExprKind::Assign(..)));
+        if assigns {
+            return mentions(e);
+        }
+        let e = e.peel_parens();
+        match &e.kind {
+            ExprKind::Ident(i) => i.as_str() == n,
+            ExprKind::Ternary(_, a, b) => Self::may_alias(a, n) || Self::may_alias(b, n),
+            ExprKind::Index(b, _) | ExprKind::Member(b, _) => Self::may_alias(b, n),
+            ExprKind::Tuple(xs) => {
+                xs.iter().filter_map(|x| x.as_ref().unspan()).any(|x| Self::may_alias(x, n))
+            }
+            ExprKind::Binary(..) | ExprKind::Unary(..) | ExprKind::Lit(..) => false,
+            ExprKind::Call(callee, _)
+                if match &callee.peel_parens().kind {
+                    ExprKind::New(_) => true,
+                    ExprKind::Member(b, m) => {
+                        matches!(&b.peel_parens().kind, ExprKind::Ident(i) if i.as_str() == "abi")
+                            && m.as_str().starts_with("encode")
+                    }
+                    _ => false,
+                } =>
+            {
+                false
+            }
+            _ => mentions(e),
+        }
+    }
+
+    fn mem_param_written_body(
+        &self,
+        body: &'a ast::Block<'a>,
+        mod_args: &[(&'a Expr<'a>, bool)],
+        n: &str,
+    ) -> bool {
         let is_n =
             |e: &Expr<'_>| matches!(&e.peel_parens().kind, ExprKind::Ident(i) if i.as_str() == n);
         let mut hit = false;
         let mut out = BTreeSet::new();
         let mut all = false;
+        let mut expr = |x: &'a Expr<'a>| {
+            self.effects(x, &mut out, &mut all, &mut FxHashSet::default());
+            match &x.kind {
+                ExprKind::Call(callee, args) => {
+                    if args.exprs().any(is_n) {
+                        hit = true;
+                    }
+                    if let ExprKind::Member(b, _) = &callee.peel_parens().kind
+                        && is_n(b)
+                    {
+                        hit = true;
+                    }
+                }
+                ExprKind::Assign(_, _, r) if is_n(r) => hit = true,
+                ExprKind::Ternary(_, a, b) if is_n(a) || is_n(b) => hit = true,
+                _ => {}
+            }
+        };
+        // A modifier argument may write `n` itself, or hand `n` to the modifier, whose body may
+        // then write it through its own parameter.
+        let mut passed = false;
+        for &(a, by_ref) in mod_args {
+            // A reference the modifier receives may be `n`'s object or part of it (see
+            // `may_alias`); a value parameter copies it.
+            passed |= by_ref && Self::may_alias(a, n);
+            walk::sub_exprs(a, &mut expr);
+        }
         for s in body.stmts.iter() {
             walk::all_stmts(s, &mut |s| {
                 match &s.kind {
-                    StmtKind::Assembly(_) => hit = true,
+                    StmtKind::Assembly(_) => passed = true,
                     StmtKind::DeclSingle(v) if v.initializer.as_deref().is_some_and(is_n) => {
-                        hit = true
+                        passed = true
                     }
-                    StmtKind::DeclMulti(_, e) if walk::root(e).iter().any(|r| r == n) => hit = true,
-                    StmtKind::Return(Some(e)) if walk::root(e).iter().any(|r| r == n) => hit = true,
+                    StmtKind::DeclMulti(_, e) if walk::root(e).iter().any(|r| r == n) => {
+                        passed = true
+                    }
+                    StmtKind::Return(Some(e)) if walk::root(e).iter().any(|r| r == n) => {
+                        passed = true
+                    }
                     _ => {}
                 }
-                walk::stmt_exprs(s, &mut |e| {
-                    walk::sub_exprs(e, &mut |x| {
-                        self.effects(x, &mut out, &mut all, &mut FxHashSet::default());
-                        match &x.kind {
-                            ExprKind::Call(callee, args) => {
-                                if args.exprs().any(is_n) {
-                                    hit = true;
-                                }
-                                if let ExprKind::Member(b, _) = &callee.peel_parens().kind
-                                    && is_n(b)
-                                {
-                                    hit = true;
-                                }
-                            }
-                            ExprKind::Assign(_, _, r) if is_n(r) => hit = true,
-                            ExprKind::Ternary(_, a, b) if is_n(a) || is_n(b) => hit = true,
-                            _ => {}
-                        }
-                    })
-                });
+                walk::stmt_exprs(s, &mut |e| walk::sub_exprs(e, &mut expr));
             });
         }
-        hit || out.contains(n)
+        drop(expr);
+        hit || passed || out.contains(n)
     }
 
     fn cast(&mut self, ty: Ty, v: Val) -> Val {
         if v.ty == Ty::Lit && !self.spec {
             return Self::val(ty, v.t);
+        }
+        if let (Ty::Bytes(n), Ty::Opaque) = (&ty, &v.ty) {
+            let n = *n as usize;
+            if let Some(t) = Self::str_bytes(n, &v.t) {
+                return Self::val(ty, t);
+            }
+            // Unset bytes are empty: every byte of the result is padding.
+            if v.t == "0" {
+                return Self::val(ty, "0");
+            }
+            // Other bytes are unknown here, but each width reads them through its own function,
+            // so no relabeled term makes two widths of one value equal.
+            let f = format!("sv_bytes{n}");
+            self.declare_fun(&f, 1, "Int");
+            let t = format!("({f} {})", v.t);
+            if self.bound.is_empty() {
+                self.smt.send(&format!("(assert {})\n", ty.range(&t).unwrap()));
+            }
+            return Self::val(ty, t);
         }
         match (&ty, &v.ty) {
             // Between `bytesN` types the bytes keep their places: a wider type pads on the right,
@@ -4889,7 +5663,13 @@ impl<'p, 'a> Vc<'p, 'a> {
         let c = self.c;
         for n in calls {
             for g in c.funcs.iter().chain(c.overridden.iter()).filter(|g| g.name == n) {
-                let key = format!("{}.{}/{}", g.contract, g.name, g.params.len());
+                let key = format!(
+                    "{}.{}/{}@{:x}",
+                    g.contract,
+                    g.name,
+                    g.params.len(),
+                    std::ptr::from_ref(g.item).addr()
+                );
                 if !seen.insert(key) {
                     continue;
                 }
@@ -4908,7 +5688,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             stmts.extend(b.stmts.iter());
         }
         for m in f.item.header.modifiers.iter() {
-            if let Some(md) = self.c.modifiers.get(m.name.last().as_str())
+            if let Some(md) = self.prog.mod_scope(self.c, f).modifiers.get(m.name.last().as_str())
                 && let Some(b) = &md.body
             {
                 stmts.extend(b.stmts.iter());
@@ -5167,6 +5947,19 @@ impl<'p, 'a> Vc<'p, 'a> {
         }
     }
 
+    /// Runs every call option, in order, for its effects (`gas: g()` may write state), and
+    /// returns the `value` one, the only option that moves ETH.
+    fn eval_call_opts(&mut self, opts: &'a ast::NamedArgList<'a>) -> R<Option<String>> {
+        let mut value = None;
+        for o in opts.iter() {
+            let v = self.eval(o.value)?;
+            if o.name.name == sym::value {
+                value = Some(v.t);
+            }
+        }
+        Ok(value)
+    }
+
     fn external_call(&mut self, rets: Vec<Ty>, is_static: bool, span: Span) -> R<Vec<Val>> {
         if self.in_library() {
             return self.with_host(|s| s.external_call(rets, is_static, span));
@@ -5177,11 +5970,15 @@ impl<'p, 'a> Vc<'p, 'a> {
             // outside code may run: it may change what code the created addresses hold
             self.known_code.clear();
         }
-        let locked = !self.spec && !is_static && self.lock_held();
+        // In a constructor this contract's address holds no code yet, so the callee cannot run any
+        // of it: the call acts as one under a reentrancy lock that leaves no entry point open.
+        // Only a delegatecall runs outside code on our storage, and it clears `in_ctor`.
+        let ctor = self.in_ctor && !self.spec && !is_static;
+        let locked = ctor || !self.spec && !is_static && self.lock_held();
         // Entry points the callee can still reach under the lock: the invariants must hold before
         // the call, and afterwards everything those entry points may write is unknown (each of
         // them preserves the invariants, which are proved separately).
-        let open: Vec<&'p Func<'a>> = if locked {
+        let open: Vec<&'p Func<'a>> = if locked && !ctor {
             self.c.funcs.iter().filter(|f| self.lock_open(f)).collect()
         } else {
             vec![]
@@ -5531,6 +6328,9 @@ impl<'p, 'a> Vc<'p, 'a> {
         let saved_env = std::mem::take(&mut self.env);
         let saved_aliases = std::mem::take(&mut self.aliases);
         let saved_slocals = std::mem::take(&mut self.slocals);
+        let (cd, names) = Self::frame_of(f.item);
+        let saved_cd = std::mem::replace(&mut self.cd_params, cd);
+        let saved_names = std::mem::replace(&mut self.frame_names, names);
         let saved_alias_env = std::mem::take(&mut self.alias_env);
         let saved_raw_enums = std::mem::take(&mut self.raw_enums);
         let saved_old = self.old.take();
@@ -5765,6 +6565,8 @@ impl<'p, 'a> Vc<'p, 'a> {
         self.raw_enums = saved_raw_enums;
         self.aliases = saved_aliases;
         self.slocals = saved_slocals;
+        self.cd_params = saved_cd;
+        self.frame_names = saved_names;
         self.alias_env = saved_alias_env;
         self.old = saved_old;
         self.c = saved_c;
@@ -5856,6 +6658,10 @@ impl<'p, 'a> Vc<'p, 'a> {
     /// on the right. Every other implicit conversion keeps the value.
     fn coerce(ty: &Ty, v: Val) -> Val {
         match (ty, &v.ty) {
+            // A string literal converts to `bytesN` implicitly too, its bytes left-aligned.
+            (Ty::Bytes(n), Ty::Opaque) if let Some(t) = Self::str_bytes(*n as usize, &v.t) => {
+                Var { ty: ty.clone(), t, len: None }
+            }
             (Ty::Bytes(n), Ty::Bytes(m)) if n > m => Var {
                 ty: ty.clone(),
                 t: format!("(* {} {})", v.t, num(&pow2((n - m) as u32))),
@@ -5865,9 +6671,27 @@ impl<'p, 'a> Vc<'p, 'a> {
         }
     }
 
+    /// The `bytesN` value (N in bits) of the string literal term t, when its bytes fit.
+    fn str_bytes(n: usize, t: &str) -> Option<String> {
+        let hex = t.strip_prefix("|str.")?.strip_suffix('|')?;
+        if hex.len() * 4 > n {
+            return None;
+        }
+        let b = BigInt::parse_bytes(hex.as_bytes(), 16).unwrap_or_default();
+        Some(num(&(b * pow2((n - hex.len() * 4) as u32))))
+    }
+
     /// Two operands of one operator, the narrower `bytesN` widened to the other's type.
     fn widen_pair(a: Val, b: Val) -> (Val, Val) {
         match (&a.ty, &b.ty) {
+            (Ty::Bytes(_), Ty::Opaque) => {
+                let ty = a.ty.clone();
+                (a, Self::coerce(&ty, b))
+            }
+            (Ty::Opaque, Ty::Bytes(_)) => {
+                let ty = b.ty.clone();
+                (Self::coerce(&ty, a), b)
+            }
             (Ty::Bytes(n), Ty::Bytes(m)) if n > m => {
                 let ty = a.ty.clone();
                 (a, Self::coerce(&ty, b))
@@ -6162,3 +6986,10 @@ fn bv_view(
 
 /// Modifier lists with the parameter bindings they run under.
 type ModifierSources<'a> = Vec<(&'a [ast::Modifier<'a>], Vec<(String, Ty, Val)>)>;
+
+/// A memory parameter, by its function's item address and its name.
+type MemKey = (usize, String);
+
+/// Calls a body walk met that pass a memory object to a memory parameter: callee, parameter,
+/// and the roots of the argument.
+type MemCalls<'p, 'a> = Vec<(&'p Func<'a>, String, Vec<String>)>;

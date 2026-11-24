@@ -163,12 +163,29 @@ pub(crate) struct Program<'a> {
     pub errors: Vec<(Span, String)>,
     /// Ghost code that is not erasable (see `crate::ghost`): a program with any is not verified.
     pub ghost_errors: Vec<crate::ghost::Violation>,
+    /// Why no proof about the file is attempted: a fixed array size no constant resolves, or a
+    /// contract whose storage or invariants reach an ambiguous struct name.
+    pub refused: Vec<(Span, String)>,
+    /// Functions, by address of their item, that reach an ambiguous struct name (see
+    /// `refuse_ambiguous`), with why each is not verified.
+    pub refused_fns: FxHashMap<usize, String>,
     /// Loop invariant candidates the abstract interpreter found, keyed by the loop statement's
     /// span; inference checks them like any other candidate (`vc::infer`).
     pub absint: FxHashMap<Span, Vec<Spec<'a>>>,
 }
 
 impl<'a> Program<'a> {
+    /// Why `f` is not verified, when it reaches an ambiguous struct name.
+    pub(crate) fn refused_fn(&self, f: &Func<'_>) -> Option<&String> {
+        self.refused_item(f.item)
+    }
+
+    /// Why the function, modifier or constructor `item` is not verified, when it reaches an
+    /// ambiguous struct name.
+    pub(crate) fn refused_item(&self, item: &ItemFunction<'_>) -> Option<&String> {
+        self.refused_fns.get(&std::ptr::from_ref(item).addr())
+    }
+
     pub(crate) fn struct_fields(&self, name: &str) -> Option<&Vec<(String, Ty)>> {
         self.structs.iter().find(|(n, _)| n == name).map(|(_, f)| f)
     }
@@ -187,16 +204,14 @@ impl<'a> Program<'a> {
             })
             .collect()
     }
-    pub(crate) fn using_fn(&self, f: &str, nargs: usize) -> Option<(&Contract<'a>, &Func<'a>)> {
-        self.contracts
-            .iter()
-            .filter(|c| c.kind == ContractKind::Library && c.name != FREE)
-            .find_map(|c| {
-                c.funcs.iter().find(|g| g.name == f && g.params.len() == nargs + 1).map(|g| (c, g))
-            })
-    }
     pub(crate) fn contract(&self, name: &str) -> Option<&Contract<'a>> {
         self.contracts.iter().find(|c| c.name == name)
+    }
+    /// The contract whose modifiers `f`'s header names, when `f` runs for `c`: `c` itself
+    /// for its own and inherited functions (a virtual modifier resolves in the most derived
+    /// contract), else the library that declares `f`.
+    pub(crate) fn mod_scope<'s>(&'s self, c: &'s Contract<'a>, f: &Func<'a>) -> &'s Contract<'a> {
+        if c.lin.contains(&f.contract) { c } else { self.contract(&f.contract).unwrap_or(c) }
     }
 }
 
@@ -209,7 +224,18 @@ struct Builder<'s, 'a> {
     enum_variants: FxHashMap<String, usize>,
     udvts: FxHashMap<String, &'a Type<'a>>,
     struct_items: Vec<&'a ast::ItemStruct<'a>>,
+    struct_names: FxHashSet<String>,
     struct_docs: Vec<(String, &'a ast::DocComments<'a>)>,
+    /// Struct names that declarations with different fields share (such as `IOld.Item` and
+    /// `INew.Item`): structs are keyed by bare name, so such a name stands for no one datatype
+    /// and values of it stay opaque.
+    ambiguous_structs: FxHashSet<String>,
+    /// Constant names that several declarations give different sizes, and constants sized
+    /// through another constant: sizes are keyed by bare name, so neither sizes an array.
+    const_conflicts: FxHashSet<String>,
+    const_derived: FxHashSet<String>,
+    /// Fixed array sizes that no constant resolves.
+    unknown_sizes: Vec<Span>,
     decl_stmts: FxHashSet<Span>,
     contract_names: Vec<String>,
     stmt_specs: FxHashMap<Span, Vec<(String, Spec<'a>)>>,
@@ -287,10 +313,16 @@ impl<'s, 'a> Builder<'s, 'a> {
                 ElementaryType::String | ElementaryType::Bytes => Ty::Opaque,
             },
             TypeKind::Mapping(m) => Ty::Map(Box::new(self.ty(&m.key)), Box::new(self.ty(&m.value))),
-            TypeKind::Array(a) => Ty::Arr(
-                Box::new(self.ty(&a.element)),
-                a.size.as_deref().and_then(|e| array_size(&self.const_sizes, e)),
-            ),
+            TypeKind::Array(a) => {
+                let size = a.size.as_deref().and_then(|e| array_size(&self.const_sizes, e));
+                // A fixed array whose size is not known would read as a dynamic one.
+                if let Some(e) = a.size.as_deref()
+                    && size.is_none()
+                {
+                    self.unknown_sizes.push(e.span);
+                }
+                Ty::Arr(Box::new(self.ty(&a.element)), size)
+            }
             TypeKind::Function(f) if f.visibility() != Some(ast::Visibility::External) => {
                 let params = f.parameters.iter().map(|v| self.ty(&v.ty)).collect();
                 let rets = f.returns().iter().map(|v| self.ty(&v.ty)).collect();
@@ -299,11 +331,15 @@ impl<'s, 'a> Builder<'s, 'a> {
             TypeKind::Function(_) => Ty::Opaque,
             TypeKind::Custom(p) => {
                 let n = p.last().as_str().to_string();
-                if let Some(k) = self.enums.get(&n) {
+                if self.ambiguous_structs.contains(&n) {
+                    Ty::Opaque
+                } else if let Some(k) = self.enums.get(&n) {
                     Ty::Enum(n, *k)
                 } else if self.contract_names.contains(&n) {
                     Ty::Contract(n)
-                } else if self.struct_items.iter().any(|st| st.name.as_str() == n) {
+                } else if self.ambiguous_structs.contains(&n) {
+                    Ty::Opaque
+                } else if self.struct_names.contains(&n) {
                     Ty::Struct(n)
                 } else if let Some(u) = self.udvts.get(&n).copied() {
                     self.ty(u)
@@ -604,7 +640,12 @@ pub(crate) fn build<'a>(
         enum_variants: FxHashMap::default(),
         udvts: FxHashMap::default(),
         struct_items: vec![],
+        struct_names: FxHashSet::default(),
         struct_docs: vec![],
+        ambiguous_structs: FxHashSet::default(),
+        const_conflicts: FxHashSet::default(),
+        const_derived: FxHashSet::default(),
+        unknown_sizes: vec![],
         decl_stmts: Default::default(),
         contract_names: vec![],
         stmt_specs: FxHashMap::default(),
@@ -635,13 +676,23 @@ pub(crate) fn build<'a>(
         }
         ItemKind::Struct(st) => {
             b.struct_items.push(st);
+            b.struct_names.insert(st.name.as_str().to_string());
             b.struct_docs.push((st.name.as_str().to_string(), &it.docs));
         }
         ItemKind::Variable(v) => {
             if let (Some(n), Some(init)) = (v.name, v.initializer.as_deref())
                 && let Some(k) = array_size(&b.const_sizes, init)
             {
-                b.const_sizes.insert(n.as_str().to_string(), k);
+                let n = n.as_str().to_string();
+                if matches!(init.kind, ast::ExprKind::Ident(_)) {
+                    b.const_derived.insert(n.clone());
+                }
+                if b.const_sizes.get(&n).is_some_and(|&old| old != k) {
+                    b.const_conflicts.insert(n.clone());
+                }
+                if !b.const_conflicts.contains(&n) {
+                    b.const_sizes.insert(n, k);
+                }
             }
         }
         _ => {}
@@ -694,8 +745,60 @@ pub(crate) fn build<'a>(
             }
         }
     }
+    // A name that several declarations share stays opaque, even when they read alike: types,
+    // overloads and invariants here are keyed by the bare name, so two alike declarations would
+    // make distinct overloads look like overrides and share either one's invariants. The same
+    // declaration seen twice (one file imported by several) is one datatype.
+    let mut spans: FxHashMap<&str, FxHashSet<Span>> = FxHashMap::default();
+    for st in &b.struct_items {
+        spans.entry(st.name.as_str()).or_default().insert(st.name.span);
+    }
+    // A struct named like an enum, contract or user-defined value type is ambiguous too: types
+    // resolve by bare name, so the other declaration would give it the wrong size and layout.
+    let other_kind = |n: &str| {
+        b.enums.contains_key(n)
+            || b.contract_names.iter().any(|c| c == n)
+            || b.udvts.contains_key(n)
+    };
+    b.ambiguous_structs = spans
+        .into_iter()
+        .filter(|(n, s)| s.len() > 1 || other_kind(n))
+        .map(|(n, _)| n.to_string())
+        .collect();
+    // An ambiguous struct's values are opaque, so overloads, hashes and length writes on them
+    // could prove false facts: nothing that reaches one is verified (see `refuse_ambiguous`).
+    let (refused, refused_fns) = refuse_ambiguous(sess, units, &b.ambiguous_structs);
+    // A size another constant gave may be the conflicting name's other value.
+    if !b.const_conflicts.is_empty() {
+        for n in b.const_conflicts.iter().chain(&b.const_derived) {
+            b.const_sizes.remove(n);
+        }
+    }
+    // Every fixed-array size in the files, including those in function bodies and expressions,
+    // which `vc::ty_of` would otherwise read as dynamic arrays.
+    for u in units {
+        crate::walk::all_types(u, &mut |site| {
+            let size = match site {
+                crate::walk::TypeSite::Type(t) => match &t.kind {
+                    ast::TypeKind::Array(a) => a.size.as_deref(),
+                    _ => None,
+                },
+                crate::walk::TypeSite::Size(e) => Some(e),
+            };
+            if let Some(e) = size
+                && array_size(&b.const_sizes, e).is_none()
+            {
+                b.unknown_sizes.push(e.span);
+            }
+        });
+    }
     let mut structs = vec![];
+    let mut emitted = FxHashSet::default();
     for st in b.struct_items.clone() {
+        let name = st.name.as_str();
+        if b.ambiguous_structs.contains(name) || !emitted.insert(name) {
+            continue;
+        }
         let fields = st
             .fields
             .iter()
@@ -1129,6 +1232,7 @@ pub(crate) fn build<'a>(
         }
         contracts.push(con);
     }
+    let mut unknown_seen = FxHashSet::default();
     let mut program = Program {
         contracts,
         quants: b.quants,
@@ -1144,6 +1248,17 @@ pub(crate) fn build<'a>(
         const_sizes: b.const_sizes.clone(),
         errors: b.errors,
         ghost_errors: vec![],
+        refused: refused
+            .into_iter()
+            .chain(b.unknown_sizes.iter().filter(|&&sp| unknown_seen.insert(sp)).map(|&sp| {
+                (
+                    sp,
+                    "fixed array size is not a known constant, so this file is not verified"
+                        .to_string(),
+                )
+            }))
+            .collect(),
+        refused_fns,
         absint: b.absint,
     };
     let (ghost_errors, lemmas) = crate::ghost::check(&program);
@@ -1211,3 +1326,119 @@ fn builtin_summary(cname: &str, f: &ItemFunction<'_>) -> Option<(&'static str, &
 
 /// Specs parsed in this process, which names each one's source file.
 static SPECS: AtomicUsize = AtomicUsize::new(0);
+
+/// Struct names that stand for several declarations (`ambiguous`) have no datatype, and an
+/// opaque value in their place lets overloads, hashes and length writes prove false facts. This
+/// finds what reaches such a name, by name: an item whose source or doc comments mention a
+/// reached name (struct, event, error, function, modifier, variable) is reached, and its own name
+/// then reaches further, to a fixed point. A name match stands for whatever it names, so this
+/// over-approximates. A contract whose state variables or doc comments are reached cannot be
+/// verified at all (its layout and invariants depend on the opaque value), so the file is
+/// refused; otherwise only the reached functions are, by the address of their item.
+#[allow(clippy::type_complexity)]
+fn refuse_ambiguous(
+    sess: &Session,
+    units: &[&SourceUnit<'_>],
+    ambiguous: &FxHashSet<String>,
+) -> (Vec<(Span, String)>, FxHashMap<usize, String>) {
+    enum Kind {
+        Func(usize),
+        Storage,
+        Other,
+    }
+    struct Entry {
+        name: Option<String>,
+        words: FxHashSet<String>,
+        span: Span,
+        kind: Kind,
+        hit: bool,
+    }
+    let mut refused = vec![];
+    let mut fns = FxHashMap::default();
+    if ambiguous.is_empty() {
+        return (refused, fns);
+    }
+    let words = |text: &str| -> FxHashSet<String> {
+        text.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '$'))
+            .filter(|w| !w.is_empty())
+            .map(str::to_string)
+            .collect()
+    };
+    let docs_text = |docs: &ast::DocComments<'_>| -> String {
+        docs.iter().map(|d| d.symbol.as_str().to_string()).collect::<Vec<_>>().join("\n")
+    };
+    let mut entries = vec![];
+    let entry = |it: &ast::Item<'_>, kind: Kind| {
+        let src = sess.source_map().span_to_snippet(it.span).unwrap_or_default();
+        Entry {
+            name: it.name().map(|n| n.as_str().to_string()),
+            words: words(&format!("{src}\n{}", docs_text(&it.docs))),
+            span: it.name().map_or(it.span, |n| n.span),
+            kind,
+            hit: false,
+        }
+    };
+    for u in units {
+        for it in u.items.iter() {
+            match &it.kind {
+                ItemKind::Contract(c) => {
+                    // The contract's own doc comments (its invariants) and its state variables.
+                    let holds_state = !c.kind.is_interface() && c.kind != ContractKind::Library;
+                    entries.push(Entry {
+                        name: None,
+                        words: words(&docs_text(&it.docs)),
+                        span: c.name.span,
+                        kind: if holds_state { Kind::Storage } else { Kind::Other },
+                        hit: false,
+                    });
+                    for sub in c.body.iter() {
+                        match &sub.kind {
+                            ItemKind::Function(f) => {
+                                entries.push(entry(sub, Kind::Func(std::ptr::from_ref(f).addr())))
+                            }
+                            ItemKind::Variable(v) if v.mutability.is_none() => {
+                                entries.push(entry(sub, Kind::Storage))
+                            }
+                            _ => entries.push(entry(sub, Kind::Other)),
+                        }
+                    }
+                }
+                ItemKind::Function(f) => {
+                    entries.push(entry(it, Kind::Func(std::ptr::from_ref(f).addr())))
+                }
+                _ => entries.push(entry(it, Kind::Other)),
+            }
+        }
+    }
+    let mut reached: FxHashSet<String> = ambiguous.clone();
+    loop {
+        let mut grew = false;
+        for e in entries.iter_mut().filter(|e| !e.hit) {
+            if e.words.iter().any(|w| reached.contains(w)) {
+                e.hit = true;
+                if let Some(n) = &e.name {
+                    grew |= reached.insert(n.clone());
+                }
+            }
+        }
+        if !grew {
+            break;
+        }
+    }
+    let mut names: Vec<&str> = ambiguous.iter().map(String::as_str).collect();
+    names.sort_unstable();
+    let names = names.iter().map(|n| format!("`{n}`")).collect::<Vec<_>>().join(", ");
+    let why = format!("several structs share the name {names}: structs are keyed by name");
+    for e in entries.iter().filter(|e| e.hit) {
+        match e.kind {
+            Kind::Func(a) => {
+                fns.insert(a, format!("this function reaches {names}, and {why}"));
+            }
+            Kind::Storage => {
+                refused.push((e.span, format!("this contract's storage or invariants reach {names}, and {why}, so this file is not verified")));
+            }
+            Kind::Other => {}
+        }
+    }
+    (refused, fns)
+}

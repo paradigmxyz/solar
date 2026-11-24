@@ -283,6 +283,13 @@ fn spec_check() {
     let run = run_verifier(&["--spec-check", "tests/cases/speccheck_oz.sol"]);
     assert_eq!(run.code, Some(0), "{}\n{}", run.stdout, run.stderr);
     assert!(run.stdout.contains("spec-check results:: 2 held, 0 violated"), "{}", run.stdout);
+
+    let run = run_verifier(&["--spec-check", "tests/cases/speccheck_scopes.sol"]);
+    let ctx = format!("--- stdout ---\n{}\n--- stderr ---\n{}", run.stdout, run.stderr);
+    assert!(!run.stderr.contains("unknown constant"), "{ctx}");
+    assert!(run.stdout.contains("✘ Tagged.bad_tag"), "{ctx}");
+    assert!(run.stdout.contains("✔ Tagged.ok_tag"), "{ctx}");
+    assert!(run.stdout.contains("spec-check results:: 1 held, 1 violated"), "{ctx}");
 }
 
 #[test]
@@ -469,6 +476,103 @@ fn struct_invariant() {
 #[test]
 fn structs() {
     check("tests/cases/structs.sol")
+}
+
+/// Constructor verdicts, which `check` (keyed by function name) cannot tell apart.
+#[test]
+fn ctor_calls() {
+    let file = "tests/cases/ctor_calls.sol";
+    check(file);
+    if z3_missing() {
+        return;
+    }
+    let run = run_verifier(&["--json", "--timeout", TIMEOUT, file]);
+    let json = run.stdout.lines().find_map(|l| l.strip_prefix("JSON ")).expect("no JSON line");
+    let rows: Vec<serde_json::Value> = serde_json::from_str(json).expect("bad JSON line");
+    let got: BTreeMap<&str, &str> =
+        rows.iter().map(|r| (r["fn"].as_str().unwrap(), r["status"].as_str().unwrap())).collect();
+    for (c, want) in [
+        ("CtorCall", "verified"),
+        ("CtorLowCall", "verified"),
+        ("CtorStatic", "verified"),
+        ("CtorHelper", "verified"),
+        ("CtorAsm", "verified"),
+        ("CtorBalanceGrows", "verified"),
+        ("CtorGasOk", "verified"),
+        ("CtorGasOrderOk", "verified"),
+        ("CtorRecvOrderOk", "verified"),
+        ("CtorNestedOptsOk", "verified"),
+        ("CtorDelegate", "failed"),
+        ("CtorBalance", "failed"),
+        ("CtorGasWrite", "failed"),
+        ("CtorNewBytes", "failed"),
+        ("CtorComputedTarget", "failed"),
+        ("CtorGasOrderBad", "failed"),
+        ("CtorRecvOrderBad", "failed"),
+        ("CtorNestedOptsBad", "failed"),
+    ] {
+        let f = format!("{c}.constructor");
+        assert_eq!(got.get(f.as_str()), Some(&want), "{f}\n{}\n{}", run.stdout, run.stderr);
+    }
+}
+
+#[test]
+fn struct_names() {
+    // Refused before any query, so this needs no z3.
+    let run = run_verifier(&["--json", "tests/cases/struct_names.sol"]);
+    let want = "this contract's storage or invariants reach `Item`";
+    assert!(run.stderr.contains(want), "missing `{want}`\n{}", run.stderr);
+    assert!(!run.stdout.contains("\"verified\""), "{}", run.stdout);
+    assert_eq!(run.code, Some(1), "{}", run.stderr);
+}
+
+#[test]
+fn const_unsized() {
+    // Refused before any query, so this needs no z3.
+    let run = run_verifier(&["--json", "tests/cases/const_unsized.sol"]);
+    let want = "fixed array size is not a known constant";
+    assert!(
+        run.stderr.contains(want),
+        "missing `{want}`
+{}",
+        run.stderr
+    );
+    assert!(!run.stdout.contains("\"verified\""), "{}", run.stdout);
+    assert_eq!(run.code, Some(1), "{}", run.stderr);
+}
+
+#[test]
+fn const_unsized_local() {
+    // Refused before any query, so this needs no z3.
+    let run = run_verifier(&["--json", "tests/cases/const_unsized_local.sol"]);
+    let want = "fixed array size is not a known constant";
+    assert!(run.stderr.contains(want), "missing `{want}`\n{}", run.stderr);
+    assert!(!run.stdout.contains("\"verified\""), "{}", run.stdout);
+    assert_eq!(run.code, Some(1), "{}", run.stderr);
+}
+
+#[test]
+fn struct_shared_inv() {
+    // Refused before any query, so this needs no z3.
+    let run = run_verifier(&["--json", "tests/cases/struct_shared_inv.sol"]);
+    let want = "this contract's storage or invariants reach `Item`";
+    assert!(run.stderr.contains(want), "missing `{want}`\n{}", run.stderr);
+    assert!(!run.stdout.contains("\"verified\""), "{}", run.stdout);
+    assert_eq!(run.code, Some(1), "{}", run.stderr);
+}
+
+#[test]
+fn mem_struct_array_field() {
+    // A dry run reports the unsupported assembly without z3, which CI's test job lacks.
+    let run = run_verifier(&["--dry-run", "tests/cases/mem_struct_array_field.sol"]);
+    let want = "assembly use of memory struct `s` with a non-value field `a`";
+    assert!(
+        run.stderr.contains(want),
+        "missing `{want}`
+{}",
+        run.stderr
+    );
+    assert_eq!(run.code, Some(1), "{}", run.stderr);
 }
 
 #[test]
@@ -1037,4 +1141,180 @@ fn loop_heads() {
     assert_eq!(code, Some(1), "{err}");
     assert!(err.contains("].slot is \"1\" in the manifest, \"0\""), "{err}");
     let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn struct_names_scoped() {
+    check("tests/cases/struct_names_scoped.sol")
+}
+
+#[test]
+fn mem_alias_fresh() {
+    check("tests/cases/mem_alias_fresh.sol")
+}
+
+#[test]
+fn mem_param_cycle() {
+    check("tests/cases/mem_param_cycle.sol")
+}
+
+/// A base constructor that reaches a shared struct name refuses the derived constructor that
+/// runs it.
+#[test]
+fn struct_names_base_ctor() {
+    let file = "tests/cases/struct_names_base_ctor.sol";
+    check(file);
+    if z3_missing() {
+        return;
+    }
+    let run = run_verifier(&["--json", "--timeout", TIMEOUT, file]);
+    let json = run.stdout.lines().find_map(|l| l.strip_prefix("JSON ")).expect("no JSON line");
+    let rows: Vec<serde_json::Value> = serde_json::from_str(json).expect("bad JSON line");
+    let got: BTreeMap<&str, &str> =
+        rows.iter().map(|r| (r["fn"].as_str().unwrap(), r["status"].as_str().unwrap())).collect();
+    for (f, want) in [("Base.constructor", "unsupported"), ("Derived.constructor", "unsupported")] {
+        assert_eq!(got.get(f), Some(&want), "{f}\n{}\n{}", run.stdout, run.stderr);
+    }
+}
+
+#[test]
+fn mem_names_shadow() {
+    check("tests/cases/mem_names_shadow.sol")
+}
+
+#[test]
+fn encode_modifier_args() {
+    check("tests/cases/encode_modifier_args.sol")
+}
+
+#[test]
+fn encode_ptr_scope() {
+    let file = "tests/cases/encode_ptr_scope.sol";
+    check(file);
+    if z3_missing() {
+        return;
+    }
+    // `Leaf`'s constructor runs the pointer `_write` before encoding: no stale hash proof.
+    let run = run_verifier(&["--json", "--timeout", TIMEOUT, file]);
+    let json = run.stdout.lines().find_map(|l| l.strip_prefix("JSON ")).expect("no JSON line");
+    let rows: Vec<serde_json::Value> = serde_json::from_str(json).expect("bad JSON line");
+    let got: BTreeMap<&str, &str> =
+        rows.iter().map(|r| (r["fn"].as_str().unwrap(), r["status"].as_str().unwrap())).collect();
+    let f = "Leaf.constructor";
+    assert_eq!(got.get(f), Some(&"unknown"), "{f}\n{}\n{}", run.stdout, run.stderr);
+}
+
+#[test]
+fn encode_modifier_alias() {
+    check("tests/cases/encode_modifier_alias.sol")
+}
+
+#[test]
+fn encode_library_modifier() {
+    check("tests/cases/encode_library_modifier.sol")
+}
+
+#[test]
+fn encode_modifier_fresh() {
+    check("tests/cases/encode_modifier_fresh.sol")
+}
+
+#[test]
+fn modifier_rebind() {
+    check("tests/cases/modifier_rebind.sol")
+}
+
+#[test]
+fn struct_names_alike() {
+    // The functions are refused before any query, but the run starts z3 for the rest.
+    if z3_missing() {
+        return;
+    }
+    let run = run_verifier(&["--json", "tests/cases/struct_names_alike.sol"]);
+    let want = "several structs share the name `Item`";
+    assert!(run.stderr.contains(want), "missing `{want}`\n{}", run.stderr);
+    let json = run.stdout.lines().find_map(|l| l.strip_prefix("JSON ")).expect("no JSON line");
+    let rows: Vec<serde_json::Value> = serde_json::from_str(json).expect("bad JSON line");
+    let got: BTreeMap<&str, &str> =
+        rows.iter().map(|r| (r["fn"].as_str().unwrap(), r["status"].as_str().unwrap())).collect();
+    let f = "Child.bad_alike_overload";
+    assert_eq!(got.get(f), Some(&"unsupported"), "{f}\n{}", run.stdout);
+}
+
+#[test]
+fn encode_using_overload() {
+    check("tests/cases/encode_using_overload.sol")
+}
+
+#[test]
+fn encode_overload_key() {
+    check("tests/cases/encode_overload_key.sol")
+}
+
+#[test]
+fn storage_pointer_scope() {
+    check("tests/cases/storage_pointer_scope.sol")
+}
+
+#[test]
+fn for_init_shadow() {
+    check("tests/cases/for_init_shadow.sol")
+}
+
+#[test]
+fn for_init_pointer() {
+    check("tests/cases/for_init_pointer.sol")
+}
+
+#[test]
+fn callee_local_scope() {
+    check("tests/cases/callee_local_scope.sol")
+}
+
+#[test]
+fn modifier_pointer_scope() {
+    check("tests/cases/modifier_pointer_scope.sol")
+}
+
+#[test]
+fn modifier_storage_return() {
+    check("tests/cases/modifier_storage_return.sol")
+}
+
+#[test]
+fn modifier_return_name() {
+    check("tests/cases/modifier_return_name.sol")
+}
+
+#[test]
+fn nested_modifier_return() {
+    check("tests/cases/nested_modifier_return.sol")
+}
+
+#[test]
+fn encode_library_push() {
+    check("tests/cases/encode_library_push.sol")
+}
+
+#[test]
+fn struct_names_other_kind() {
+    // The function is refused before any query, but the run starts z3 for the rest.
+    if z3_missing() {
+        return;
+    }
+    let run = run_verifier(&["--json", "tests/cases/struct_names_other_kind.sol"]);
+    let want = "share the name `Item`";
+    assert!(run.stderr.contains(want), "missing `{want}`\n{}", run.stderr);
+    assert!(!run.stdout.contains("\"verified\""), "{}\n{}", run.stdout, run.stderr);
+    assert_eq!(run.code, Some(1), "{}", run.stderr);
+}
+
+#[test]
+fn encode_library_scope() {
+    check("tests/cases/encode_library_scope.sol")
+}
+
+#[test]
+fn encode_struct_field() {
+    check("tests/cases/encode_struct_field.sol")
 }

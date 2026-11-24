@@ -25,7 +25,11 @@ use num_bigint::BigInt;
 use num_traits::{One, Signed, Zero};
 use solar_parse::{
     ast::{self, Expr, ExprKind, LitKind, StmtKind, yul},
-    interface::{Span, data_structures::map::FxHashMap, sym},
+    interface::{
+        Span,
+        data_structures::map::{FxHashMap, FxHashSet},
+        sym,
+    },
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -692,6 +696,15 @@ impl<'p, 'a> Vc<'p, 'a> {
                     }
                 }
             }
+            // A small fixed-size array of static elements: its elements in place, in order.
+            Ty::Arr(e, Some(n)) if *n <= 32 => {
+                for i in 0..*n {
+                    // Nested arrays multiply: past 32 words in all, keep the hash opaque.
+                    if !self.abi_words(e, &format!("(select {t} {i})"), out) || out.len() > 32 {
+                        return false;
+                    }
+                }
+            }
             _ => return false,
         }
         true
@@ -783,14 +796,37 @@ impl<'p, 'a> Vc<'p, 'a> {
                 && matches!(&b.kind, ExprKind::Ident(i) if i.name == sym::abi)
             {
                 kind = m.as_str().to_string();
-                for x in inner.exprs() {
-                    vals.push(self.eval(x)?);
+                for (i, x) in inner.exprs().enumerate() {
+                    let v = self.eval(x)?;
+                    // `encodeWithSignature` encodes only the signature's 4-byte selector, which
+                    // distinct signatures can share: hash that, a function of the signature that
+                    // is not injective.
+                    let v =
+                        if i == 0 && kind == "encodeWithSignature" { self.selector(v) } else { v };
+                    vals.push(v);
                 }
             } else {
                 vals.push(self.eval(a)?);
             }
         }
         Ok((kind, vals))
+    }
+
+    /// The `bytes4` selector of a function signature: an uninterpreted function of the signature,
+    /// with no injectivity, since distinct signatures can share a selector.
+    fn selector(&mut self, sig: Var) -> Var {
+        let ty = Ty::Bytes(32);
+        let f = "sv_selector";
+        self.declare_fun(f, 1, "Int");
+        let t = format!("({f} {})", sig.t);
+        if self.bound.is_empty() {
+            self.smt.send(&format!(
+                "(assert {})
+",
+                ty.range(&t).unwrap()
+            ));
+        }
+        Var { ty, t, len: None }
     }
 
     /// Solidity keccak256, sha256 and ripemd160 of their argument, as an uninterpreted function
@@ -818,8 +854,12 @@ impl<'p, 'a> Vc<'p, 'a> {
     pub(super) fn keccak_solidity(&mut self, argv: &[&'a Expr<'a>]) -> R<Var> {
         let (kind, vals) = self.hash_args(argv)?;
         let ty = Ty::Uint(256);
-        // abi.encode of static values goes through the keccak that assembly shares.
-        if kind == "encode" && argv.len() == 1 && !vals.is_empty() {
+        // abi.encode of static values goes through the keccak that assembly shares. Its words
+        // are read from each value when it is evaluated, while the compiled code encodes memory
+        // only after every argument ran: an argument that writes anything (`abi.encode(a, a[0] =
+        // 1)`, a call that writes a memory array) could change an earlier one's words, so such a
+        // call hashes opaquely instead.
+        if kind == "encode" && argv.len() == 1 && !vals.is_empty() && !self.encode_writes(argv[0]) {
             let mut ws = vec![];
             let mut tys = vec![];
             let mut ok = true;
@@ -850,6 +890,22 @@ impl<'p, 'a> Vc<'p, 'a> {
             self.smt.send(&format!("(assert {})\n", ty.range(&t).unwrap()));
         }
         Ok(Var { ty, t, len: None })
+    }
+
+    /// Whether an argument of this `abi.*` call may write anything.
+    fn encode_writes(&self, e: &'a Expr<'a>) -> bool {
+        let ExprKind::Call(_, inner) = &e.kind else {
+            return true;
+        };
+        let (mut out, mut all) = (BTreeSet::new(), false);
+        // Every argument, the first too: one argument (a struct constructor, a tuple) can name
+        // an object and then write it, before the compiled code encodes any of it.
+        for x in inner.exprs() {
+            walk::sub_exprs(x, &mut |y| {
+                self.effects(y, &mut out, &mut all, &mut FxHashSet::default())
+            });
+        }
+        all || !out.is_empty()
     }
 
     // ------------------------------------------------------------------ memory
@@ -1344,8 +1400,10 @@ impl<'p, 'a> Vc<'p, 'a> {
                 let fields = self.prog.struct_fields(sn).cloned().unwrap_or_default();
                 let base = REGION_BASE + (cx.regions.len() as u64) * 0x10000;
                 for (i, (f, fty)) in fields.iter().enumerate() {
+                    // A struct or array field is a pointer in memory, whatever its ABI words.
                     let mut ws = vec![];
-                    if !self.abi_words(fty, &format!("(|{sn}.{f}| {})", v.t), &mut ws)
+                    if matches!(fty, Ty::Struct(_) | Ty::Arr(..))
+                        || !self.abi_words(fty, &format!("(|{sn}.{f}| {})", v.t), &mut ws)
                         || ws.len() != 1
                     {
                         return unsupported(
@@ -2291,7 +2349,11 @@ impl<'p, 'a> Vc<'p, 'a> {
         let Some(body) = &f.item.body else {
             return not_spec("it has no body");
         };
-        if f.item.header.modifiers.iter().any(|m| c.modifiers.contains_key(m.name.last().as_str()))
+        if f.item
+            .header
+            .modifiers
+            .iter()
+            .any(|m| self.prog.mod_scope(c, f).modifiers.contains_key(m.name.last().as_str()))
         {
             return not_spec("it has modifiers");
         }

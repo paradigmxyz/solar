@@ -90,7 +90,7 @@ pub(crate) fn check<'p, 'a>(
         params.push((v, false));
     }
     for m in f.item.header.modifiers.iter() {
-        if let Some(md) = c.modifiers.get(m.name.last().as_str()) {
+        if let Some(md) = prog.mod_scope(c, f).modifiers.get(m.name.last().as_str()) {
             if let Some(b) = &md.body {
                 bodies.push((b, true));
             }
