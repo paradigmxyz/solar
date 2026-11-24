@@ -920,6 +920,100 @@ counterexample. The proof boundary still includes the typed MIR importer
 and the entry-specific state and gas premises. Exact physical gas and
 correspondence from these MIR proofs to emitted bytecode remain open.
 
+### Full corpus after ABI entry coverage
+
+A serial `evaluate --all --timeout 3 --seed 0` run at `b6218f55e5`
+checked every capture under `target/tv-full-post-abi/`. All 2,228 capture
+IDs and the input and output fingerprints match the earlier full audit.
+ABI, creation bytecode and runtime bytecode also match between the normal
+and capture compilations. The three-second budget is the same as in that
+full audit. The targeted ABI and dispatch gates use a larger budget.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Compiler | `64f563d6e8b2102f849dc69cb5fbea91179ce4a7c765c8205217da7c0d7c4b76` |
+| Independent replay | `649ae6a1ae51d75ca501093d1a0f0a1181ff098d4f386e09b6e5754c01374365` |
+| Checker on Lean 4.34.1 | `97ef03f3821ac6a1a96e78236bc4e91ee2eebafc48825f540bd0579cb64253e8` |
+| Corpus manifest | `b08af7eb00ac67a5ef1200d50273beedc48d5517838ed67504bd1a76ba96b7b7` |
+| Complete results.json | `965ca9cbd071c8cd71e4891fcbfd43b4421fa61cce93d9dfacc7d829027fcf0e` |
+
+| Contract | Captured | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Solady WETH | 330 | 186 | 99 | 44 | 1 |
+| OpenZeppelin ERC20Mock | 372 | 213 | 71 | 88 | 0 |
+| Morpho Blue | 1,526 | 660 | 674 | 192 | 0 |
+| Total | 2,228 | 1,059 | 844 | 324 | 1 |
+
+| Layer and pass | Captured | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| evmir `block-cse` | 10 | 3 | 5 | 2 | 0 |
+| evmir `block-layout` | 368 | 299 | 68 | 1 | 0 |
+| evmir `cfg-simplify` | 7 | 5 | 2 | 0 | 0 |
+| evmir `cfg-simplify-early` | 291 | 132 | 151 | 8 | 0 |
+| evmir `compact-pushes` | 118 | 73 | 44 | 1 | 0 |
+| evmir `copy-loop-blocks` | 2 | 2 | 0 | 0 | 0 |
+| evmir `dce` | 2 | 0 | 0 | 2 | 0 |
+| evmir `inline-returns` | 14 | 7 | 6 | 1 | 0 |
+| evmir `late-word` | 19 | 0 | 18 | 1 | 0 |
+| evmir `loop-layout` | 29 | 27 | 2 | 0 | 0 |
+| evmir `outline` | 7 | 1 | 6 | 0 | 0 |
+| evmir `peephole-early` | 35 | 11 | 24 | 0 | 0 |
+| evmir `reorder-expressions` | 1 | 1 | 0 | 0 | 0 |
+| evmir `reorder-pushes` | 5 | 0 | 5 | 0 | 0 |
+| evmir `stack-normalize` | 5 | 0 | 5 | 0 | 0 |
+| evmir `stack-reschedule` | 17 | 0 | 17 | 0 | 0 |
+| evmir `tail-merge` | 49 | 45 | 3 | 1 | 0 |
+| evmir `terminal-dedup` | 124 | 106 | 18 | 0 | 0 |
+| mir `byte-run-loads` | 14 | 4 | 8 | 2 | 0 |
+| mir `call-cleanup` | 1 | 0 | 0 | 1 | 0 |
+| mir `cfg-simplify` | 144 | 121 | 0 | 23 | 0 |
+| mir `check-elim` | 7 | 2 | 4 | 1 | 0 |
+| mir `coalesce-allocs` | 1 | 1 | 0 | 0 | 0 |
+| mir `cse` | 48 | 25 | 21 | 2 | 0 |
+| mir `dce` | 86 | 13 | 53 | 20 | 0 |
+| mir `dead-arg-elim` | 11 | 0 | 11 | 0 | 0 |
+| mir `egraph` | 116 | 35 | 58 | 23 | 0 |
+| mir `evm-inst-schedule` | 32 | 0 | 13 | 18 | 1 |
+| mir `function-dce` | 3 | 0 | 0 | 3 | 0 |
+| mir `indvar-simplify` | 2 | 0 | 2 | 0 | 0 |
+| mir `inline` | 58 | 2 | 52 | 4 | 0 |
+| mir `integer-cleanup` | 35 | 0 | 19 | 16 | 0 |
+| mir `jump-threading` | 52 | 41 | 6 | 5 | 0 |
+| mir `licm` | 1 | 0 | 1 | 0 | 0 |
+| mir `lower-abi` | 65 | 57 | 2 | 6 | 0 |
+| mir `lower-abi-encode` | 16 | 0 | 16 | 0 | 0 |
+| mir `lower-alloc` | 19 | 2 | 16 | 1 | 0 |
+| mir `lower-arithmetic` | 16 | 0 | 11 | 5 | 0 |
+| mir `lower-builtins` | 6 | 3 | 3 | 0 | 0 |
+| mir `lower-checks` | 31 | 0 | 24 | 7 | 0 |
+| mir `lower-dispatch` | 73 | 0 | 0 | 73 | 0 |
+| mir `lower-evm-shaped` | 3 | 2 | 0 | 1 | 0 |
+| mir `lower-immutables` | 1 | 0 | 1 | 0 | 0 |
+| mir `lower-integers` | 55 | 0 | 33 | 22 | 0 |
+| mir `lower-mapping-slots` | 32 | 0 | 17 | 15 | 0 |
+| mir `lower-memory-objects` | 27 | 1 | 26 | 0 | 0 |
+| mir `lower-memory-zero` | 1 | 0 | 1 | 0 | 0 |
+| mir `lower-slices` | 1 | 0 | 1 | 0 | 0 |
+| mir `lower-structs` | 1 | 0 | 0 | 1 | 0 |
+| mir `memory-dse` | 10 | 0 | 9 | 1 | 0 |
+| mir `memory-dse-unread` | 1 | 0 | 1 | 0 | 0 |
+| mir `merge-aborts` | 42 | 7 | 18 | 17 | 0 |
+| mir `place-reads` | 33 | 0 | 16 | 17 | 0 |
+| mir `sccp` | 12 | 7 | 2 | 3 | 0 |
+| mir `simplify-phis` | 1 | 0 | 1 | 0 | 0 |
+| mir `specialize` | 1 | 0 | 0 | 1 | 0 |
+| mir `spell-width-tests` | 38 | 1 | 19 | 18 | 0 |
+| mir `storage-dse` | 10 | 10 | 0 | 0 | 0 |
+| mir `storage-promotion` | 12 | 12 | 0 | 0 | 0 |
+| mir `word-sequence` | 6 | 1 | 4 | 1 | 0 |
+| mir `word-sequence-early` | 1 | 0 | 1 | 0 | 0 |
+
+The original report preserves one OS permission error on WETH's
+`evm-inst-schedule` capture for `DOMAIN_SEPARATOR`. A separate retry of
+the same pair at three seconds timed out. There were zero counterexamples.
+The full run verified 76 more captures than the previous full audit.
+All 16 `lower-abi-encode` captures were unsupported at this checkpoint.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
