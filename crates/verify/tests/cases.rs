@@ -1303,5 +1303,13 @@ fn struct_names_other_kind() {
         return;
     }
     let run = run_verifier(&["--json", "tests/cases/struct_names_other_kind.sol"]);
+    let want = "share the name `Item`";
+    assert!(run.stderr.contains(want), "missing `{want}`\n{}", run.stderr);
     assert!(!run.stdout.contains("\"verified\""), "{}\n{}", run.stdout, run.stderr);
+    assert_eq!(run.code, Some(1), "{}", run.stderr);
+}
+
+#[test]
+fn encode_library_scope() {
+    check("tests/cases/encode_library_scope.sol")
 }

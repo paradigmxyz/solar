@@ -131,6 +131,9 @@ pub(crate) struct Vc<'p, 'a> {
     /// Every name each body `modset_raw` or `mem_param_writes` is walking declares, innermost
     /// last; empty while `effects` walks the running body, whose names are `frame_names`.
     effect_frames: std::cell::RefCell<Vec<FxHashSet<String>>>,
+    /// The contract whose functions each body `effects` walks calls by bare name, innermost
+    /// last: a library function's unqualified calls run in the library, not in the caller.
+    walk_scope: std::cell::RefCell<Vec<&'p Contract<'a>>>,
     /// For each block (or for statement) being executed, innermost last: the names it has
     /// declared so far, with what each stood for just before its declaration (see
     /// `note_decl`), put back when the block ends.
@@ -300,6 +303,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             in_ctor: false,
             lock_modset: std::cell::Cell::new(false),
             effect_frames: Default::default(),
+            walk_scope: Default::default(),
             decl_scopes: vec![],
             ret_ptr_stash: vec![],
             mem_call_writes: Default::default(),
@@ -2586,8 +2590,8 @@ impl<'p, 'a> Vc<'p, 'a> {
                     ExprKind::Ident(id) => {
                         let n = id.as_str();
                         let free = self.prog.contract(FREE).map(|l| &l.funcs[..]).unwrap_or(&[]);
-                        let named: Vec<&'p Func<'a>> = self
-                            .c
+                        let scope = self.walk_scope.borrow().last().copied().unwrap_or(self.c);
+                        let named: Vec<&'p Func<'a>> = scope
                             .funcs
                             .iter()
                             .chain(free)
@@ -3006,6 +3010,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
         }
         self.effect_frames.borrow_mut().push(names);
+        self.walk_scope.borrow_mut().push(self.prog.mod_scope(self.c, f));
         for a in &mod_args {
             walk::sub_exprs(a, &mut |x| self.effects(x, &mut out, &mut all, seen));
         }
@@ -3026,6 +3031,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 }
             });
         }
+        self.walk_scope.borrow_mut().pop();
         self.effect_frames.borrow_mut().pop();
         if all {
             return None;
@@ -5386,7 +5392,9 @@ impl<'p, 'a> Vc<'p, 'a> {
         }
         let outer = self.mem_walk.replace(Some(vec![]));
         self.effect_frames.borrow_mut().push(Self::fn_ptr_names(f.item));
+        self.walk_scope.borrow_mut().push(self.prog.mod_scope(self.c, f));
         let direct = self.mem_param_written_body(body, &mod_args, n);
+        self.walk_scope.borrow_mut().pop();
         self.effect_frames.borrow_mut().pop();
         let calls = std::mem::replace(&mut *self.mem_walk.borrow_mut(), outer).unwrap_or_default();
         let calls = calls
