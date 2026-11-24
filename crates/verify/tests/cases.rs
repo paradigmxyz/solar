@@ -1295,3 +1295,13 @@ fn nested_modifier_return() {
 fn encode_library_push() {
     check("tests/cases/encode_library_push.sol")
 }
+
+#[test]
+fn struct_names_other_kind() {
+    // The function is refused before any query, but the run starts z3 for the rest.
+    if z3_missing() {
+        return;
+    }
+    let run = run_verifier(&["--json", "tests/cases/struct_names_other_kind.sol"]);
+    assert!(!run.stdout.contains("\"verified\""), "{}\n{}", run.stdout, run.stderr);
+}

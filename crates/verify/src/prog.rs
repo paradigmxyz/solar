@@ -331,7 +331,9 @@ impl<'s, 'a> Builder<'s, 'a> {
             TypeKind::Function(_) => Ty::Opaque,
             TypeKind::Custom(p) => {
                 let n = p.last().as_str().to_string();
-                if let Some(k) = self.enums.get(&n) {
+                if self.ambiguous_structs.contains(&n) {
+                    Ty::Opaque
+                } else if let Some(k) = self.enums.get(&n) {
                     Ty::Enum(n, *k)
                 } else if self.contract_names.contains(&n) {
                     Ty::Contract(n)
@@ -751,8 +753,18 @@ pub(crate) fn build<'a>(
     for st in &b.struct_items {
         spans.entry(st.name.as_str()).or_default().insert(st.name.span);
     }
-    b.ambiguous_structs =
-        spans.into_iter().filter(|(_, s)| s.len() > 1).map(|(n, _)| n.to_string()).collect();
+    // A struct named like an enum, contract or user-defined value type is ambiguous too: types
+    // resolve by bare name, so the other declaration would give it the wrong size and layout.
+    let other_kind = |n: &str| {
+        b.enums.contains_key(n)
+            || b.contract_names.iter().any(|c| c == n)
+            || b.udvts.contains_key(n)
+    };
+    b.ambiguous_structs = spans
+        .into_iter()
+        .filter(|(n, s)| s.len() > 1 || other_kind(n))
+        .map(|(n, _)| n.to_string())
+        .collect();
     // An ambiguous struct's values are opaque, so overloads, hashes and length writes on them
     // could prove false facts: nothing that reaches one is verified (see `refuse_ambiguous`).
     let (refused, refused_fns) = refuse_ambiguous(sess, units, &b.ambiguous_structs);
