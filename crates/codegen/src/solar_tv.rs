@@ -98,8 +98,9 @@ impl<'a> Snapshot<'a> {
         }
         // Capture keeps the original selection and rejection for stable corpus sampling.
         // Universal prefix and terminal-region proofs need no guessed stack height.
-        // Deleted functions require rooted function-table correspondence, and unused type
-        // declarations, phase advances and materialized dispatch have module certificates.
+        // Deleted functions require rooted function-table correspondence. Unused type
+        // declarations, phase advances, materialized dispatch and the private revert helper
+        // have module certificates.
         // Other rejected regions retain their original boundary restrictions.
         let prefix = layer == "evmir"
             && gas_policy.is_none()
@@ -109,13 +110,16 @@ impl<'a> Snapshot<'a> {
             && gas_policy.is_none()
             && region.is_some_and(|r| r.kind == "region")
             && rejection == Some("incoming EVM stack height is unknown");
+        let added_revert_helper = pass == "lower-checks"
+            && rejection == Some("functions were added; interprocedural edits are not modeled");
         let prune = layer == "mir"
-            && matches!(
-                rejection,
-                Some("function was removed or its identity changed")
-                    | Some("shared MIR declarations or phase changed; no function-local claim")
-                    | Some("runtime dispatch was materialized")
-            );
+            && (added_revert_helper
+                || matches!(
+                    rejection,
+                    Some("function was removed or its identity changed")
+                        | Some("shared MIR declarations or phase changed; no function-local claim")
+                        | Some("runtime dispatch was materialized")
+                ));
         let rejection = if prefix || universal_region || prune { None } else { rejection };
         let pair = tempfile::Builder::new()
             .prefix(&format!("{layer}-"))
