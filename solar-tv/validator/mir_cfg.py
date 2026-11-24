@@ -598,12 +598,14 @@ def recursive(calls):
 
 
 def call_proof(pairs, entry):
+    entry_parameter = " (entry : Nat)" if entry is None else ""
+    entry = "entry" if entry is None else entry
     return f"""
 open MIR.RecursiveCalls (ProcedurePair runRecursive procedures)
 def relatedProcedures : List ProcedurePair := [{",".join(pairs)}]
 theorem matchedCalls {{Value World Observation : Type}}
     (handlers : MIR.RecursiveCalls.Handlers Value World Observation)
-    (argumentLocals : Nat → List Value → Locals Value) (work callLimit : Nat)
+    (argumentLocals : Nat → List Value → Locals Value) (work callLimit : Nat){entry_parameter}
     (args : List Value) (state : World) :
     runRecursive (procedures relatedProcedures false) handlers argumentLocals work callLimit
         {entry} args state =
@@ -626,8 +628,10 @@ def check(paths, solar, executable, version, timeout, function, *, lowering=None
         from .lower_arithmetic import materialize
     elif lowering == "lower-slices":
         from .lower_slices import materialize
+    elif lowering == "lower-checks":
+        from . import lower_checks
 
-    texts, models, interfaces = [], [], []
+    texts, models, interfaces, declarations = [], [], [], []
     for path in paths:
         if path.suffix != ".mir" or path.stat().st_size > 1024 * 1024:
             raise Unsupported("MIR CFG proof requires MIR files of at most 1 MiB")
@@ -647,14 +651,15 @@ def check(paths, solar, executable, version, timeout, function, *, lowering=None
         texts.append(parsed.stdout)
         models.append(type_prune.export(parsed.stdout, executable, timeout))
         header, entries = prune.declarations(parsed.stdout)
+        declarations.append(entries)
         signatures = [entry["text"][0] for entry in entries.values()]
         if lowering == "lower-memory-objects":
             signatures = list(map(semantic_header, signatures))
         interfaces.append((header, signatures))
-    if interfaces[0] != interfaces[1] or {
-        k: v for k, v in models[0].items() if k != "functions"
-    } != {k: v for k, v in models[1].items() if k != "functions"}:
-        raise Unsupported("MIR CFG proof changed shared declarations or interfaces")
+    if {k: v for k, v in models[0].items() if k != "functions"} != {
+        k: v for k, v in models[1].items() if k != "functions"
+    }:
+        raise Unsupported("MIR CFG proof changed shared module bindings")
     tables = [
         {body["return_buffer"]: body for body in model["functions"]} for model in models
     ]
@@ -663,6 +668,22 @@ def check(paths, solar, executable, version, timeout, function, *, lowering=None
         for table, model in zip(tables, models, strict=True)
     ):
         raise Unsupported("MIR CFG proof requires unambiguous names")
+    helper = None
+    if lowering == "lower-checks":
+        helper = lower_checks.bind_helper(tables, declarations)
+        if helper is not None:
+            tables[0][lower_checks.HELPER] = lower_checks.short_helper(helper["id"])
+            interfaces[1][1].remove(lower_checks.HELPER_HEADER)
+        if function is None and helper is None:
+            raise Unsupported(
+                "conditional check module proof needs the checked short-string helper"
+            )
+
+        def materialize(body):
+            return lower_checks.materialize(body, helper["id"] if helper else None)
+
+    if interfaces[0] != interfaces[1]:
+        raise Unsupported("MIR CFG proof changed shared declarations or interfaces")
     code = (
         PRELUDE
         + """
@@ -690,7 +711,7 @@ set_option maxHeartbeats 2000000
 #print axioms MIR.ScalarChecks.repeated_comparison
 """
     )
-    work = [function]
+    work = list(tables[0]) if function is None else [function]
     checked = {}
     calls = {}
     procedure_pairs = []
@@ -716,6 +737,14 @@ set_option maxHeartbeats 2000000
         code += """
 #print axioms MIR.LowerSlices.fields
 #print axioms MIR.LowerSlices.defined
+"""
+    elif lowering == "lower-checks":
+        code += """
+#print axioms MIR.LowerChecks.empty_check
+#print axioms MIR.LowerChecks.panic65_check
+#print axioms MIR.LowerChecks.short_check
+#print axioms MIR.LowerChecks.custom_one
+#print axioms MIR.LowerChecks.custom_three
 """
     axioms_checks = code.count("#print axioms ")
     while work:
@@ -745,6 +774,7 @@ set_option maxHeartbeats 2000000
                     "lower-memory-objects": "pointer_add_expansions",
                     "lower-arithmetic": "checked_arithmetic_expansions",
                     "lower-slices": "slice_projections",
+                    "lower-checks": "guard_expansions",
                 }[lowering]
                 expansions[field] = expanded
         (first, first_checks), (second, second_checks) = map(
@@ -853,14 +883,20 @@ theorem identical{i} : before{i} = after{i} := by rfl
         procedure_pairs.append(
             f"⟨{a['id']},⟨before{i},{limit}⟩,⟨after{i},{limit}⟩,{matched}⟩"
         )
-    nested = any(calls.values()) and len(procedure_pairs) == len(checked)
+    complete = len(procedure_pairs) == len(checked)
+    nested = any(calls.values()) and complete
     recursive_calls = recursive(calls)
     if recursive_calls and not nested:
         raise Unsupported(
             "recursive MIR requires path certificates for all direct callees"
         )
-    if nested:
-        code += call_proof(procedure_pairs, tables[0][function]["id"])
+    if function is None and not complete:
+        raise Unsupported(
+            "conditional check module proof needs every function's call certificate"
+        )
+    if nested or function is None:
+        entry = tables[0][function]["id"] if function is not None else None
+        code += call_proof(procedure_pairs, entry)
         axioms_checks += 1
     entry_proof.success(build_model(timeout), "MIR CFG proof model")
     with tempfile.TemporaryDirectory(prefix="solar-tv-mir-cfg-") as folder:
@@ -874,11 +910,13 @@ theorem identical{i} : before{i} = after{i} := by rfl
             "lower-memory-objects": "kernel-checked-memory-object-carriers",
             "lower-arithmetic": "kernel-checked-unsigned-arithmetic",
             "lower-slices": "kernel-checked-slice-projections",
+            "lower-checks": "kernel-checked-conditional-checks",
         }.get(lowering, "kernel-checked-typed-jump-chain"),
         "functions": sorted(checked),
         "correspondence": checked,
         "proof_sha256": hashlib.sha256(code.encode()).hexdigest(),
         "boundary": "trusted structural exporter and action-constructor binding; unpriced shared effect handlers including calls and GAS; independent caller/ABI and backend correspondence remain separate",
+        **({"private_revert_helper": helper["id"]} if helper is not None else {}),
         **(
             {"nested_calls": {"recursive": recursive_calls, "functions": sorted(calls)}}
             if nested

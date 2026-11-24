@@ -17,7 +17,7 @@ class LowerAbiEncodeTests(unittest.TestCase):
     lower = abi.MirAbiTests.lower
     pair = state.MirStateTests.pair
 
-    def automatic(self, before, after, status):
+    def automatic(self, before, after, status, *, function="f"):
         with tempfile.TemporaryDirectory() as directory:
             tmp = Path(directory)
             before_path, after_path = [
@@ -32,7 +32,7 @@ class LowerAbiEncodeTests(unittest.TestCase):
                     "mir",
                     before_path,
                     after_path,
-                    "--function=f",
+                    "--prune" if function is None else f"--function={function}",
                     "--solar",
                     SOLAR,
                     "--timeout=30",

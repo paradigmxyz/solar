@@ -651,6 +651,7 @@ def check(
 def check_mir_lowering(paths, solar, replay, version, timeout, function, verbose):
     from . import (
         lower_arithmetic,
+        lower_checks,
         lower_integers,
         lower_mapping_slots,
         lower_memory_objects,
@@ -661,6 +662,7 @@ def check_mir_lowering(paths, solar, replay, version, timeout, function, verbose
         lower_integers.check,
         lower_mapping_slots.check,
         lower_arithmetic.check,
+        lower_checks.check,
         lower_slices.check,
         lower_memory_objects.check,
     ):

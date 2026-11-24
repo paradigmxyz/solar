@@ -537,6 +537,14 @@ def record(
                 assumptions.append(
                     "slice constructors have defined typed operands; removed projections read the same immutable fields across the checked control flow"
                 )
+            elif program.import_evidence["kind"] == "kernel-checked-conditional-checks":
+                assumptions.extend(
+                    [
+                        "default revert-string mode and defined guard and payload operands",
+                        "failure observes exact revert bytes and discards private frame memory; memory and free-memory-pointer payload extent fit the 64 KiB model",
+                        "short strings may introduce only the checked private helper with the same external roots and a terminal revert",
+                    ]
+                )
             if any(
                 any(details["product_initialization"])
                 for details in program.import_evidence["correspondence"].values()
@@ -1155,8 +1163,12 @@ def record(
             {
                 "whole_pass": False,
                 "region": {
-                    "kind": "function",
-                    "name": program.selector,
+                    "kind": "module" if program.selector is None else "function",
+                    **(
+                        {"name": program.selector}
+                        if program.selector is not None
+                        else {}
+                    ),
                     "proof": program.import_evidence["kind"],
                     "functions": program.import_evidence["functions"],
                 },
