@@ -102,6 +102,7 @@ def render(
     abi_fork=None,
     call_cuts=(),
     bytes_return=False,
+    abi_encoder=None,
 ):
     def width(ty):
         if (
@@ -223,6 +224,12 @@ def render(
                             resume,
                         )
                     )
+                if abi_encoder and op["kind"] in {"abi_encode", "abi_encode_tree"}:
+                    opening, value = abi_encoder(op, args, bits, work)
+                    prefix.append(opening)
+                    close.append(")")
+                    current[inst["result"]] = value, bits
+                    continue
                 if abi_fork and op["kind"] == "abi_decode":
                     prefix.append(
                         f"MIR.Effects.decodeMemoryBool {args[0][0]} (fun decoded{work} =>"

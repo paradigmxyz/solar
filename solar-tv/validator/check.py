@@ -1161,6 +1161,7 @@ def main() -> int:
                 ):
                     from . import (
                         abi_effects,
+                        abi_encode,
                         bounded_fill,
                         builtin_lowering,
                         coalesce,
@@ -1175,6 +1176,7 @@ def main() -> int:
                             coalesce.check,
                             dead_ssa.check,
                             mir_cfg.check,
+                            abi_encode.check,
                             abi_effects.check,
                             partial(
                                 induction.check, replay=replay, verbose=args.verbose
@@ -1190,7 +1192,12 @@ def main() -> int:
                             builtin_lowering.check,
                         )
                         if str(error) == "symbolic MIR cycles require an invariant"
-                        else (abi_effects.check, mir_cfg.check, builtin_lowering.check)
+                        else (
+                            abi_encode.check,
+                            abi_effects.check,
+                            mir_cfg.check,
+                            builtin_lowering.check,
+                        )
                     )
                     for validate in validators:
                         try:
@@ -1203,7 +1210,10 @@ def main() -> int:
                                 args.function,
                             )
                         except Unsupported as retry:
-                            if args.verbose and validate is abi_effects.check:
+                            if args.verbose and validate in (
+                                abi_effects.check,
+                                abi_encode.check,
+                            ):
                                 print(f"ABI contextual proof: {retry}", file=sys.stderr)
                             continue
                         break
@@ -1296,7 +1306,7 @@ def main() -> int:
         ):
             # A failed direct proof can still admit an action-by-action
             # certificate without duplicating the unfolding of shared tails.
-            from . import abi_effects, lower_abi, mir_cfg
+            from . import abi_effects, abi_encode, lower_abi, mir_cfg
 
             if (
                 isinstance(error, Unsupported)
@@ -1309,19 +1319,22 @@ def main() -> int:
                 except (Unsupported, OSError, subprocess.TimeoutExpired) as retry:
                     error = retry
             if fallback is None:
-                try:
-                    fallback = abi_effects.check(
-                        (args.before, args.after),
-                        solar,
-                        rust_replay,
-                        version,
-                        args.timeout,
-                        args.function,
-                    )
-                except Unsupported:
-                    pass
-                except (OSError, subprocess.TimeoutExpired) as retry:
-                    error = retry
+                for validate in (abi_encode.check, abi_effects.check):
+                    try:
+                        fallback = validate(
+                            (args.before, args.after),
+                            solar,
+                            rust_replay,
+                            version,
+                            args.timeout,
+                            args.function,
+                        )
+                    except Unsupported:
+                        continue
+                    except (OSError, subprocess.TimeoutExpired) as retry:
+                        error = retry
+                    else:
+                        break
 
             if fallback is None and all(
                 program.symbolic_mir is not None for program in programs

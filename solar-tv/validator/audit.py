@@ -223,6 +223,26 @@ def record(
                 assumptions.append(
                     "empty forwarding blocks preserve control and simultaneous phi assignment; work bounds count logical edges"
                 )
+        elif program and program.scope == "abi-encode":
+            assumptions.extend(
+                [
+                    "typed MIR importer; unchanged selected function and call bindings",
+                    "contextual MIR semantics with shared state, message and GAS handlers",
+                    "physical gas and backend placement remain separate proof obligations",
+                ]
+            )
+            if program.import_evidence["kind"] == "kernel-checked-abi-encode-zero-copy":
+                assumptions.extend(
+                    [
+                        "shared effects through the terminal encoder cut at every logical work bound",
+                        "live header and nonwrapping object below disjoint scratch; bounded memory and admitted encoder writes",
+                        "observable terminal returndata and journal, with private frame memory discarded",
+                    ]
+                )
+            else:
+                assumptions.append(
+                    "semantic encoder layouts are interpreted by their ordered memory reads, stores, allocation and calldata copy; read and write failures remain observable"
+                )
         elif program and program.scope == "abi-effect-tree":
             kind = program.import_evidence["kind"]
             bytes_return = kind == "kernel-checked-abi-bytes-effects"
@@ -807,6 +827,7 @@ def record(
                 "layout-flow",
                 "mir-cfg-flow",
                 "abi-effect-tree",
+                "abi-encode",
             }
             and program.symbolic_mir is None
         ):
@@ -895,7 +916,8 @@ def record(
             "semantic-effects"
             if program
             and (
-                program.symbolic_mir is not None
+                program.scope == "abi-encode"
+                or program.symbolic_mir is not None
                 or program.world
                 and program.world.get("direct_mir")
             )
@@ -913,7 +935,7 @@ def record(
                     "proof": program.import_evidence["kind"],
                 },
             }
-            if program and program.scope == "abi-effect-tree"
+            if program and program.scope in {"abi-effect-tree", "abi-encode"}
             else {}
         ),
         **(

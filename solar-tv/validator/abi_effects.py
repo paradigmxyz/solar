@@ -406,7 +406,9 @@ def contextual_callees(old, new, definitions, version):
     return cuts, "".join(certificates), names
 
 
-def certificate(code, texts, function, version, timeout, evidence):
+def certificate(
+    code, texts, function, version, timeout, evidence, *, scope="abi-effect-tree"
+):
     from .check import build_model
 
     entry_proof.success(build_model(timeout), "ABI effect proof model")
@@ -420,13 +422,13 @@ def certificate(code, texts, function, version, timeout, evidence):
     evidence = {**evidence, "proof_sha256": hashlib.sha256(code.encode()).hexdigest()}
     pair = tuple(
         Program(
-            ("abi-effect-tree", function),
+            (scope, function),
             [],
             "",
             "",
             canonical_ir=text,
             replay_ir=text,
-            scope="abi-effect-tree",
+            scope=scope,
             selector=function,
             evm_version=version,
             import_evidence=evidence,
@@ -576,8 +578,8 @@ def scratch_returns(model, shape, kind):
     return model
 
 
-def check(paths, solar, replay, version, timeout, function):
-    from .check import PRELUDE, ROOT, run
+def typed_pair(paths, solar, replay, version, timeout):
+    from .check import ROOT, run
 
     texts = []
     for path in paths:
@@ -601,6 +603,13 @@ def check(paths, solar, replay, version, timeout, function):
     if declarations[0][0] != declarations[1][0]:
         raise Unsupported("ABI effect proof requires unchanged module declarations")
     modules = [type_prune.export(text, replay, timeout) for text in texts]
+    return texts, declarations, modules
+
+
+def check(paths, solar, replay, version, timeout, function):
+    from .check import PRELUDE
+
+    texts, declarations, modules = typed_pair(paths, solar, replay, version, timeout)
     if any(
         module["library"] or module["dispatch_entry"] is not None for module in modules
     ):
