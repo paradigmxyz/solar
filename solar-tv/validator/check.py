@@ -655,6 +655,7 @@ def check_mir_lowering(paths, solar, replay, version, timeout, function, verbose
         lower_integers,
         lower_mapping_slots,
         lower_memory_objects,
+        lower_memory_zero,
         lower_slices,
     )
 
@@ -664,6 +665,7 @@ def check_mir_lowering(paths, solar, replay, version, timeout, function, verbose
         lower_arithmetic.check,
         lower_checks.check,
         lower_slices.check,
+        lower_memory_zero.check,
         lower_memory_objects.check,
     ):
         result = validate(

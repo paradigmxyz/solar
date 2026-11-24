@@ -537,6 +537,10 @@ def record(
                 assumptions.append(
                     "slice constructors have defined typed operands; removed projections read the same immutable fields across the checked control flow"
                 )
+            elif program.import_evidence["kind"] == "kernel-checked-memory-zero":
+                assumptions.append(
+                    "calldata length fits an i256 word; copying from its end writes the same zero bytes with the same destination memory expansion"
+                )
             elif program.import_evidence["kind"] == "kernel-checked-conditional-checks":
                 assumptions.extend(
                     [

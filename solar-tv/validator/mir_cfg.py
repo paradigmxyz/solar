@@ -628,6 +628,8 @@ def check(paths, solar, executable, version, timeout, function, *, lowering=None
         from .lower_arithmetic import materialize
     elif lowering == "lower-slices":
         from .lower_slices import materialize
+    elif lowering == "lower-memory-zero":
+        from .lower_memory_zero import materialize
     elif lowering == "lower-checks":
         from . import lower_checks
 
@@ -738,6 +740,11 @@ set_option maxHeartbeats 2000000
 #print axioms MIR.LowerSlices.fields
 #print axioms MIR.LowerSlices.defined
 """
+    elif lowering == "lower-memory-zero":
+        code += """
+#print axioms MIR.LowerMemoryZero.padding_copy
+#print axioms MIR.LowerMemoryZero.zero_word_store
+"""
     elif lowering == "lower-checks":
         code += """
 #print axioms MIR.LowerChecks.empty_check
@@ -774,6 +781,7 @@ set_option maxHeartbeats 2000000
                     "lower-memory-objects": "pointer_add_expansions",
                     "lower-arithmetic": "checked_arithmetic_expansions",
                     "lower-slices": "slice_projections",
+                    "lower-memory-zero": "memory_zero_expansions",
                     "lower-checks": "guard_expansions",
                 }[lowering]
                 expansions[field] = expanded
@@ -910,6 +918,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
             "lower-memory-objects": "kernel-checked-memory-object-carriers",
             "lower-arithmetic": "kernel-checked-unsigned-arithmetic",
             "lower-slices": "kernel-checked-slice-projections",
+            "lower-memory-zero": "kernel-checked-memory-zero",
             "lower-checks": "kernel-checked-conditional-checks",
         }.get(lowering, "kernel-checked-typed-jump-chain"),
         "functions": sorted(checked),
