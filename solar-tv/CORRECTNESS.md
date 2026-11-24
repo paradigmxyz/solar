@@ -808,6 +808,118 @@ The resulting trees must agree on ordered requests and exits under every
 shared effect handler, with internal caller continuations expanded from
 both source inputs.
 
+### Contextual MIR ABI composition
+
+The contextual ABI checker compares the source's implicit static adapter
+with the actual lowered wrapper. It checks the ordered length and canonical
+word guards, the decoded arguments, and the scratch stores and exit used by
+the public return adapter. Calldata and call value are universal inputs.
+Storage and other admitted effects remain ordered requests. Lean proves that
+the trees agree for every shared handler, including handlers that fail.
+
+`GAS`, external code observations and messages retain their identities and
+operands. The proof relates their positions in the request trace. Equality
+of physical gas at those positions and correspondence to emitted bytecode
+remain separate obligations. The compiler validates both MIR inputs and the
+independent typed exporter supplies the rendered graphs.
+
+For internal helpers, the checker expands the implicit memory boolean
+decoder and the returndata-revert adapter. It keeps unchanged calls as
+requests only when the kernel checks equality of their closed callee
+tables. The compiler regression changes a `CALL` gas operand and requires
+the contextual certificate to fail.
+
+The constructor adapter checks the call-value guard, reads one staged ABI
+word through the supplied argument-range and memory handlers, and compares
+the initializer through its typed exit. Constant-size ABI scratch encodings
+and immutable stores retain their ordered requests. The argument-free
+variant also handles unchanged cyclic storage helpers. For a single memory
+bytes result, the checker compares the pointer arriving at the implicit
+encoder with the pointer used by the lowered scratch encode and its two
+return projections. The encoder and exit are shared continuations.
+
+The added-helper module row composes entry certificates only when every
+constructor, selector, receive and fallback root is checked. The kernel
+checks the source and target root tables and coverage of the declared roots.
+The audit driver links entry reports by capture hashes, target fork and
+checker fingerprint, and records a hash of each linked report. The composed
+certificate carries the premises of its entry proofs. The regression also
+checks that omitting an entry certificate leaves the module unsupported.
+
+The strict serial `evaluate --all --require-verified --pass lower-abi
+--timeout 120 --seed 0` run checked the same 65 capture IDs under
+`target/tv-lower-abi-composed-roots/`.
+
+| Contract | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: |
+| Solady WETH | 17 | 0 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 13 | 0 | 0 | 0 |
+| Morpho Blue | 20 | 15 | 0 | 0 |
+| Total | 50 | 15 | 0 | 0 |
+
+The checker fingerprint was
+`4a014f71e67dce434dba5d6344e2a541b40810e0e409f1d2c9d2f70d6baf9471`.
+Compiler, independent replay, input, output and selected capture hashes
+match the earlier targeted audit. ABI, creation bytecode and runtime
+bytecode match for normal and capture compilations of each contract.
+The gate exited with status 1 because 15 captures remained unsupported.
+The direct checker first reports the `GAS` boundary for 13 of these.
+The other two are a cyclic word-array entry and the Morpho module row.
+
+### Aggregate MIR ABI composition
+
+The runtime adapter checks flat memory tuples, static calldata tuples and
+dynamic calldata bytes. It compares the ordered tuple allocation and
+stores, the dynamic offset and length checks, and the resulting typed
+arguments. Scratch encodings retain their layout and operands, including
+the pointer and length projections of dynamic encodings. The projection
+proofs also relate defined MIR product fields to the static return words.
+
+For a larger wrapper, the kernel checks unchanged closed callee tables
+and proves rewritten callees independently before reusing their call
+observations. The entry certificate compares the order and arguments of
+those calls without expanding their bodies into the caller's proof. The
+composed certificates carry the contextual state and gas premises.
+
+For the word-array entry, the kernel compares the actual decoder with the
+implicit bounds and slice adapter. The logical CFG simulation then checks
+the loop and its live values at every work bound. Both sides use the same
+word-array return encoder. Changing the array bounds in the regression
+causes the entry to lose its certificate.
+
+The strict serial run completed with exit status 0 under
+`target/tv-lower-abi-complete/`. It used `--all --require-verified --pass
+lower-abi --timeout 120 --seed 0` and checked the same 65 capture IDs.
+
+| Contract | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: |
+| Solady WETH | 17 | 0 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 13 | 0 | 0 | 0 |
+| Morpho Blue | 35 | 0 | 0 | 0 |
+| Total | 65 | 0 | 0 | 0 |
+
+Every verified result carries kernel evidence. The three module rows
+compose 16, 12 and 29 entry certificates respectively. The audit checked
+the recorded hashes of the captures and linked proofs. Normal and
+capture-enabled compiler outputs agree on ABI, creation bytecode and
+runtime bytecode for each contract. The input and output fingerprints
+match the full corpus reports.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Compiler | `64f563d6e8b2102f849dc69cb5fbea91179ce4a7c765c8205217da7c0d7c4b76` |
+| Rust replay | `649ae6a1ae51d75ca501093d1a0f0a1181ff098d4f386e09b6e5754c01374365` |
+| Checker on Lean 4.34.1 | `97ef03f3821ac6a1a96e78236bc4e91ee2eebafc48825f540bd0579cb64253e8` |
+| Corpus manifest | `b08af7eb00ac67a5ef1200d50273beedc48d5517838ed67504bd1a76ba96b7b7` |
+| Solady WETH input | `b751f0da2642fba80d176248ff576b06d45601fda253d9de32f9a78e3b70a4c0` |
+| OpenZeppelin ERC20Mock input | `c85c24c264a2ae9a97b32050f93426376c8cb20e15f6e5ad5dc1414ee46ce2c4` |
+| Morpho Blue input | `01f4aaf9db4940ea9a62aba808ba1655ef399c671b6ed29875f8a91c3efeba53` |
+
+Independent Rust replay agrees with the changed-return regression's
+counterexample. The proof boundary still includes the typed MIR importer
+and the entry-specific state and gas premises. Exact physical gas and
+correspondence from these MIR proofs to emitted bytecode remain open.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
