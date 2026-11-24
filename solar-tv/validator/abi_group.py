@@ -15,6 +15,7 @@ ENTRY_PROOFS = {
     "kernel-checked-void-abi-effect-tree",
     "kernel-checked-abi-contextual-effects",
     "kernel-checked-abi-bytes-effects",
+    "kernel-checked-abi-loop-entry",
     "kernel-checked-abi-constructor-effects",
 }
 

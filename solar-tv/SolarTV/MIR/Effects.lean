@@ -1,4 +1,5 @@
 import SolarTV.MIR.Ops
+import SolarTV.State.ByteMemory
 
 /-! Compositional certificates for acyclic scalar MIR with explicit effects.
 
@@ -30,6 +31,9 @@ inductive Operation where
   | mappingSlot
   | abiWordObject (hasSelector : Bool)
   | abiWordScratch (hasBase hasSelector : Bool)
+  | abiTreeScratch (layout : String)
+  | abiTreeScratchSize (layout : String)
+  | immutableRead (slot : Nat)
   | immutableStore (slot : Nat)
   | internalCall (callee : Nat)
   deriving DecidableEq
@@ -64,6 +68,51 @@ def abiReturn (words : List Word) : Tree :=
     (.done ⟨"returndata", [(256, 0), (256, BitVec.ofNat 256 (32 * words.length))]⟩)
 
 def abiDecodeFailure : Tree := .done ⟨"revert", [(256, 0), (256, 0)]⟩
+
+/-- A static tuple occupies contiguous words in freshly allocated memory.
+Address and other narrow fields reject noncanonical encodings before the store. -/
+def stageCalldataFields (input : List Execution.Byte) (head : Nat) (destination : Word)
+    (widths : List Nat) (tail : Tree) : Tree :=
+  match widths with
+  | [] => tail
+  | width :: rest =>
+    let word := Execution.readWord input head
+    if width < 256 ∧ 2^width - 1 < word.toNat then abiDecodeFailure else
+      .request ⟨.opcode 0x52, [destination, word], false⟩ (fun _ =>
+        stageCalldataFields input (head + 32) (destination + 32) rest tail)
+
+def decodeCalldataTuple (input : List Execution.Byte) (head : Nat) (widths : List Nat)
+    (next : Word → Tree) : Tree :=
+  .request ⟨.allocate false false, [BitVec.ofNat 256 (widths.length * 32)], true⟩
+    (fun pointer => stageCalldataFields input head pointer widths (next pointer))
+
+theorem highHalfNat (word : Word) :
+    (word.toNat >>> 128) % 2^128 = word.toNat >>> 128 :=
+  Nat.mod_eq_of_lt (by simpa using BitVec.toNat_ushiftRight_lt word 128 (by decide))
+
+theorem highHalfZero (word : Word) :
+    (word >>> 128).setWidth 128 = 0#128 ↔ ¬ (2^128 - 1) < word.toNat := by
+  simp only [← BitVec.toNat_inj, BitVec.toNat_setWidth, BitVec.toNat_ushiftRight,
+    BitVec.toNat_ofNat, Nat.zero_mod, Nat.shiftRight_eq_div_pow]
+  omega
+
+theorem highHalfWord (word : Word) :
+    ((word >>> 128).setWidth 128).setWidth 256 = word >>> 128 := by
+  have fits : word.toNat >>> 128 < 2^128 := by
+    simpa using BitVec.toNat_ushiftRight_lt word 128 (by decide)
+  have wide : word.toNat >>> 128 < 2^256 := Nat.lt_of_lt_of_le fits (by decide)
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_setWidth, BitVec.toNat_ushiftRight]
+  rw [Nat.mod_eq_of_lt fits, Nat.mod_eq_of_lt wide]
+
+theorem highHalfInputEq (word : Word) (input : List Execution.Byte) (offset : Nat) :
+    (word >>> 128 = Execution.readWord input offset) ↔
+      (Execution.readWord input offset = word >>> 128) := eq_comm
+
+theorem bitOrTruth (p q : Prop) [Decidable p] [Decidable q] :
+    ((if p then 1#1 else 0#1) ||| (if q then 1#1 else 0#1)) = 1#1 ↔ p ∨ q := by
+  by_cases p <;> by_cases q <;> simp_all
+
 
 /-- Materialize a MIR revert of the current message returndata. -/
 def abiRevertData : Tree :=

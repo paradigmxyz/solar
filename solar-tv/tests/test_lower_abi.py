@@ -37,6 +37,15 @@ contract C {
     function narrow(address x) external pure returns (address) { return x; }
     function pair(uint256 x) external pure returns (uint256, uint256) { return (x, 19); }
     function name() external pure returns (string memory) { return "Copper"; }
+    function loads(bytes32[] calldata slots) external view returns (bytes32[] memory out) {
+        out = new bytes32[](slots.length);
+        for (uint256 i; i < slots.length; ++i) {
+            bytes32 slot = slots[i];
+            bytes32 word;
+            assembly { word := sload(slot) }
+            out[i] = word;
+        }
+    }
 }
 """
                 }
@@ -98,6 +107,7 @@ contract C {
                 "pay": "void-abi-effect-tree",
                 "receive": "void-abi-effect-tree",
                 "forward": "abi-contextual-effects",
+                "loads": "abi-loop-entry",
             }
             entry_reports = []
             for function, scope in scopes.items():
@@ -127,6 +137,19 @@ contract C {
                 abi_group.compose(
                     row["paths"], entry_reports[:-1], replay, "cancun", 30
                 )
+
+            wrong_array_bound = folder / "wrong-array-bound.mir"
+            module_text = after.read_text()
+            start = module_text.index("fn @loads(")
+            end = module_text.index("\n}", start)
+            body, replacements = re.subn(
+                r"( = shr v\d+, )5\b", r"\g<1>6", module_text[start:end], count=1
+            )
+            self.assertEqual(replacements, 1)
+            wrong_array_bound.write_text(module_text[:start] + body + module_text[end:])
+            result, proof = check("loads", wrong_array_bound)
+            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            self.assertEqual(proof["status"], "unsupported")
 
             wrong_gas = folder / "wrong-gas.mir"
             changed, replacements = re.subn(

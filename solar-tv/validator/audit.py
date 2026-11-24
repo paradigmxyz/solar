@@ -226,6 +226,7 @@ def record(
         elif program and program.scope == "abi-effect-tree":
             kind = program.import_evidence["kind"]
             bytes_return = kind == "kernel-checked-abi-bytes-effects"
+            loop_entry = kind == "kernel-checked-abi-loop-entry"
             decoder = kind == "kernel-checked-abi-memory-decoder-effects"
             revert_data = kind == "kernel-checked-abi-revert-data-effects"
             constructor = kind == "kernel-checked-abi-constructor-effects"
@@ -238,7 +239,7 @@ def record(
                     if internal
                     else "selected constructor initializer with unchanged staged bindings"
                     if constructor
-                    else "selected static runtime ABI entry with word-representable calldata length and the compiler-validated source signature",
+                    else "selected runtime ABI entry with word-representable calldata length and the compiler-validated source signature",
                     "equal ordered requests and exits under arbitrary shared stateful effect handlers, including failing messages and GAS queries",
                     "shared GAS and external code observations are contextual premises; physical gas, final layout, and direct SSA import correspondence are separate obligations",
                 ]
@@ -259,13 +260,28 @@ def record(
                 assumptions.append(
                     "the implicit bytes return and explicit scratch encode-plus-return use one shared memory-bytes encoder and exit"
                 )
-            if not internal and not constructor and not bytes_return:
+            if loop_entry:
+                assumptions.append(
+                    "the checked slice decoder supplies pointer and length to the related loop bodies; the bodies use a shared action handler and word-array return encoder at every logical work bound"
+                )
+            if not internal and not constructor and not bytes_return and not loop_entry:
                 assumptions.append(
                     "implicit ABI guards and arguments are compared with the explicit wrapper, and static return words use the checked private-memory ABI adapter"
                 )
+                if any(
+                    spelling == "bytes" or spelling.startswith("tuple<")
+                    for spelling in program.import_evidence.get("abi_params", [])
+                ):
+                    assumptions.append(
+                        "shared memory tuple allocation and ordered field stores; scratch encoders retain the layout and ordered operands, including separate pointer and length projections for dynamic encodings"
+                    )
             if program.import_evidence.get("retained_callees"):
                 assumptions.append(
                     "kernel equality of the closed retained callee tables justifies ordered internal call requests"
+                )
+            if program.import_evidence.get("composed_callees"):
+                assumptions.append(
+                    "kernel equality of the rewritten callee interaction trees justifies shared internal-call handlers at the checked typed arguments"
                 )
         elif program and program.scope == "abi-entry":
             boundary = program.import_evidence

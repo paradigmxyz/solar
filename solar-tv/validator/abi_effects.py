@@ -1,4 +1,4 @@
-"""Check a static MIR ABI adapter and its continuation as an effect tree."""
+"""Check MIR ABI adapters and their continuations with contextual certificates."""
 
 import hashlib
 import re
@@ -7,6 +7,7 @@ from copy import deepcopy
 from pathlib import Path
 
 from . import (
+    abi_loop,
     audit,
     entry_proof,
     lower_abi,
@@ -44,6 +45,14 @@ def selected_body(module, name):
     return {"entry_id": entry["id"], "functions": list(reachable.values())}, entry
 
 
+def static_word_count(shape):
+    if shape["kind"] == "word":
+        return 1
+    if shape["kind"] == "tuple":
+        return sum(static_word_count(field) for field in shape["fields"])
+    raise Unsupported("shared ABI scratch encoder needs a static tuple layout")
+
+
 def slice_projections(model):
     """Resolve local slice projections with known typed components."""
     model = deepcopy(model)
@@ -66,9 +75,9 @@ def slice_projections(model):
                     slices[inst["result"]] = op["args"]
                     continue
                 if (
-                    op["kind"] == "abi_encode"
+                    op["kind"] in {"abi_encode", "abi_encode_tree"}
                     and op["mode"] == 2
-                    and not any(op["functions"])
+                    and not any(op.get("functions", []))
                     and inst["type"].get("kind") == "slice"
                     and inst["type"].get("location") == "memory"
                 ):
@@ -79,7 +88,17 @@ def slice_projections(model):
                         "name": "ptr<memory>",
                     }
                     length = {"bits": 256, "kind": "word", "name": "i256"}
-                    size = 32 * len(op["functions"]) + 4 * int(op["selector"])
+                    if op["kind"] == "abi_encode_tree":
+                        if any(
+                            shape == {"kind": "bytes", "location": 1}
+                            for shape in op["shapes"]
+                        ):
+                            instructions.append(inst)
+                            continue
+                        count = sum(static_word_count(shape) for shape in op["shapes"])
+                    else:
+                        count = len(op["functions"])
+                    size = 32 * count + 4 * int(op["selector"])
                     slices[inst["result"]] = [
                         {"kind": "local", "index": inst["result"], "type": pointer},
                         {"kind": "constant", "value": str(size), "type": length},
@@ -102,22 +121,125 @@ def slice_projections(model):
     return model
 
 
-def guard_source(params, local_guard):
+def product_projections(model, *, flatten_return=False):
+    """Expose defined local product fields at the static ABI boundary."""
+    model = deepcopy(model)
+    for body in model["functions"]:
+        flatten = flatten_return and body["id"] == model["entry_id"]
+        if flatten:
+            body["returns"] = body["returns"][0]["fields"]
+        for block in body["blocks"]:
+            products, instructions = {}, []
+            for inst in block["instructions"]:
+                op = inst["operation"]
+                layout = op.get("aggregate_type", {})
+                if layout.get("kind") == "product" and op["kind"] in {
+                    "insert_value",
+                    "extract_value",
+                }:
+                    source = op["args"][0]
+                    index, fields = op["index"], layout["fields"]
+                    if source["type"] != layout or not 0 <= index < len(fields):
+                        raise Unsupported("invalid ABI product projection")
+                    values = (
+                        products.get(source.get("index"))
+                        if source["kind"] == "local"
+                        else None
+                    )
+                    if op["kind"] == "insert_value":
+                        if source["kind"] == "undefined":
+                            values = [None] * len(fields)
+                        value = op["args"][1]
+                        if (
+                            values is None
+                            or inst["type"] != layout
+                            or value["kind"] == "undefined"
+                            or value["type"] != fields[index]
+                        ):
+                            raise Unsupported("ABI product requires local typed fields")
+                        values = list(values)
+                        values[index] = value
+                        products[inst["result"]] = values
+                        continue
+                    if (
+                        values is None
+                        or values[index] is None
+                        or inst["type"] != fields[index]
+                    ):
+                        raise Unsupported("ABI projection reads an undefined field")
+                    inst = {
+                        **inst,
+                        "operation": {"kind": "word", "args": [values[index]]},
+                    }
+                instructions.append(inst)
+            block["instructions"] = instructions
+            if flatten and block["terminator"]["kind"] == "return":
+                (product,) = block["terminator"]["args"]
+                values = (
+                    products.get(product.get("index"))
+                    if product["kind"] == "local"
+                    else None
+                )
+                if (
+                    values is None
+                    or any(value is None for value in values)
+                    or [value["type"] for value in values] != body["returns"]
+                ):
+                    raise Unsupported("ABI product return has uninitialized fields")
+                block["terminator"]["args"] = values
+    return model
+
+
+def runtime_parameters(header, types):
+    matched = re.search(r"\babi_params=\[([^\]]*)\]", header)
+    if not matched:
+        raise Unsupported("implicit ABI layout is missing")
+    plans = []
+    offset = 4
+    head = re.findall(r"tuple<[^<>]+>|[^, ]+", matched[1])
+    if ", ".join(head) != matched[1] or len(head) != len(types) or len(head) > 8:
+        raise Unsupported("unsupported contextual ABI parameter layout")
+    for spelling, ty in zip(head, types, strict=True):
+        if spelling.startswith("tuple<") and (ty.get("kind"), ty.get("location")) in {
+            ("pointer", "memory"),
+            ("slice", "calldata"),
+        }:
+            widths = tuple(map(lower_abi.width, spelling[6:-1].split(", ")))
+            plans.append((spelling, offset, widths))
+            offset += 32 * len(widths)
+        elif (
+            spelling == "bytes"
+            and ty.get("kind") == "slice"
+            and ty.get("location") == "calldata"
+        ):
+            plans.append((spelling, offset, None))
+            offset += 32
+        else:
+            bits = lower_abi.width(spelling)
+            if ty.get("kind") != "word" or ty["bits"] < bits:
+                raise Unsupported("contextual ABI scalar carrier mismatch")
+            plans.append((spelling, offset, bits))
+            offset += 32
+    return plans, offset
+
+
+def guard_source(params, end, local_guard):
     """Compare the explicit decoder with calls into the typed source body."""
     words = [
-        f"(Execution.readWord environment.input {4 + 32 * i})"
-        for i in range(len(params))
+        f"(Execution.readWord environment.input {offset})"
+        if isinstance(bits, int)
+        else f"aggregate{index}"
+        for index, (_, offset, bits) in enumerate(params)
     ]
     cases = []
     if local_guard:
         cases.append(("nonzero", "environment.value ≠ 0#256"))
     if params:
-        short = f"environment.input.length < {4 + 32 * len(params)}"
+        short = f"environment.input.length < {end}"
         cases.append(("short", short))
     canonical = []
-    for i, (word, ty) in enumerate(zip(words, params, strict=True)):
-        bits = lower_abi.width(ty)
-        if bits == 256:
+    for i, (word, (_, _, bits)) in enumerate(zip(words, params, strict=True)):
+        if not isinstance(bits, int) or bits == 256:
             continue
         bad = f"{(1 << bits) - 1} < {word}.toNat"
         cases.append((f"bad{i}", bad))
@@ -217,15 +339,6 @@ def internal_code(old, new, body, wrapper, definitions, version, prelude):
         + f"""
 set_option maxRecDepth 16384
 set_option maxHeartbeats 4000000
-private theorem highHalf (word : Word) :
-    ((word >>> 128).setWidth 128).setWidth 256 = word >>> 128 := by
-  have fits : word.toNat >>> 128 < 2^128 := by
-    rw [Nat.shiftRight_eq_div_pow]
-    exact (Nat.div_lt_iff_lt_mul (Nat.two_pow_pos _)).mpr word.isLt
-  have wide : word.toNat >>> 128 < 2^256 := Nat.lt_of_lt_of_le fits (by decide)
-  apply BitVec.eq_of_toNat_eq
-  simp only [BitVec.toNat_setWidth, BitVec.toNat_ushiftRight]
-  rw [Nat.mod_eq_of_lt fits, Nat.mod_eq_of_lt wide]
 def before (environment : World.Environment) {binders} : MIR.Effects.Tree :=
 {trees[0]}
 def after (environment : World.Environment) {binders} : MIR.Effects.Tree :=
@@ -236,7 +349,8 @@ theorem wrapped (environment : World.Environment) {binders} :
     MIR.Effects.abiRevertData,
     MIR.Effects.signedBoolHead, Decidable.imp_iff_not_or, MIR.eval, MIR.compare,
     MIR.shift, Word.shift, BitVec.ult_iff_toNat_lt, MIR.cast, MIR.select,
-    MIR.wordBinary, MIR.unary, Word.unary, Word.binary, highHalf]
+    MIR.wordBinary, MIR.unary, Word.unary, Word.binary, Nat.mod_mod,
+    MIR.Effects.highHalfWord, MIR.Effects.highHalfNat, MIR.Effects.highHalfZero]
 theorem contextual {{State Halt : Type}} (environment : World.Environment) {binders}
     (handler : MIR.Effects.Request → State → Except Halt (Word × State))
     (finish : MIR.Effects.Boundary → State → Halt) (state : State) :
@@ -257,6 +371,41 @@ theorem contextual {{State Halt : Type}} (environment : World.Environment) {bind
     }
 
 
+def contextual_callees(old, new, definitions, version):
+    """Check rewritten internal helpers before treating their calls as requests."""
+    targets = {body["id"]: body for body in new["functions"]}
+    cuts, certificates, names = [], [], []
+    for source in old["functions"]:
+        index, name = source["id"], source["return_buffer"]
+        target = targets.get(index)
+        if (
+            index == old["entry_id"]
+            or index == new["entry_id"]
+            or target is None
+            or target == source
+            or target["return_buffer"] != name
+            or not any(
+                block["terminator"]["kind"] == "revert_return_data"
+                or any(
+                    inst["operation"]["kind"] == "abi_decode"
+                    for inst in block["instructions"]
+                )
+                for block in source["blocks"]
+            )
+        ):
+            continue
+        a, _ = selected_body(old, name)
+        b, _ = selected_body(new, name)
+        try:
+            code, _ = internal_code(a, b, source, target, definitions, version, "")
+        except Unsupported:
+            continue
+        cuts.append(index)
+        names.append(name)
+        certificates.append(f"namespace Callee{index}\n{code}\nend Callee{index}\n")
+    return cuts, "".join(certificates), names
+
+
 def certificate(code, texts, function, version, timeout, evidence):
     from .check import build_model
 
@@ -266,9 +415,8 @@ def certificate(code, texts, function, version, timeout, evidence):
             entry_proof.lean(Path(directory), "Abi", code, timeout),
             "ABI contextual effect certificate",
         )
-    entry_proof.check_axioms(
-        output.splitlines(), 2 + bool(evidence.get("retained_callees"))
-    )
+    checks = sum(line.startswith("#print axioms ") for line in code.splitlines())
+    entry_proof.check_axioms(output.splitlines(), checks)
     evidence = {**evidence, "proof_sha256": hashlib.sha256(code.encode()).hexdigest()}
     pair = tuple(
         Program(
@@ -374,7 +522,7 @@ theorem contextual {{State Halt : Type}} (environment : World.Environment)
     ), {"kind": "kernel-checked-abi-constructor-effects", "retained_callees": cuts}
 
 
-def bytes_boundary(model):
+def scratch_returns(model, shape, kind):
     model = deepcopy(model)
     entry = next(f for f in model["functions"] if f["id"] == model["entry_id"])
     count = 0
@@ -384,7 +532,7 @@ def bytes_boundary(model):
         instructions = block["instructions"]
         if len(instructions) < 3:
             raise Unsupported(
-                "bytes return requires a scratch encoding and two projections"
+                "ABI return requires a scratch encoding and two projections"
             )
         encode, offset, size = instructions[-3:]
         op = encode["operation"]
@@ -401,7 +549,7 @@ def bytes_boundary(model):
             or op.get("mode") != 2
             or op.get("base")
             or op.get("selector")
-            or op.get("shapes") != [{"kind": "bytes", "location": 0}]
+            or op.get("shapes") != [shape]
             or op.get("memory_slices") != [False]
             or len(arguments) != 1
             or arguments[0]["type"].get("location") != "memory"
@@ -419,11 +567,9 @@ def bytes_boundary(model):
                 for inst in (offset, size)
             ]
         ):
-            raise Unsupported(
-                "bytes return requires ordered memory-scratch projections"
-            )
+            raise Unsupported("ABI return requires ordered memory-scratch projections")
         del instructions[-3:]
-        block["terminator"] = {"kind": "abi_return_bytes", "args": arguments}
+        block["terminator"] = {"kind": kind, "args": arguments}
         count += 1
     if not count:
         raise Unsupported("missing explicit scratch return boundary")
@@ -451,6 +597,9 @@ def check(paths, solar, replay, version, timeout, function):
         if parsed.returncode:
             raise Unsupported(parsed.stderr)
         texts.append(parsed.stdout)
+    declarations = [prune.declarations(text) for text in texts]
+    if declarations[0][0] != declarations[1][0]:
+        raise Unsupported("ABI effect proof requires unchanged module declarations")
     modules = [type_prune.export(text, replay, timeout) for text in texts]
     if any(
         module["library"] or module["dispatch_entry"] is not None for module in modules
@@ -474,7 +623,7 @@ def check(paths, solar, replay, version, timeout, function):
             new,
             body,
             wrapper,
-            [prune.declarations(t) for t in texts],
+            declarations,
             function,
             definitions,
             version,
@@ -527,10 +676,14 @@ def check(paths, solar, replay, version, timeout, function):
         source[key] for key in ("receive_route", "fallback_route") if source[key]
     ]
     local_guard = not left["payable"] and any(row["payable"] for row in runtime)
-    header = prune.declarations(texts[0])[1][function]["text"][0]
-    params = lower_abi.layout(
-        header, "abi_params", body["params"], arguments=True, limit=8
-    )
+    header = declarations[0][1][function]["text"][0]
+    if abi_loop.array_entry(header, body):
+        returned = scratch_returns(new, abi_loop.WORD_ARRAY, "return")
+        code, evidence = abi_loop.code(
+            body, returned, definitions, version, PRELUDE, local_guard
+        )
+        return certificate(code, texts, function, version, timeout, evidence)
+    params, head_end = runtime_parameters(header, body["params"])
     bytes_return = (
         "abi_returns=[memory_bytes]" in header
         and "abi_return_params=[bytes]" in header
@@ -540,22 +693,43 @@ def check(paths, solar, replay, version, timeout, function):
     )
     if bytes_return:
         returns = ["bytes"]
-        new = bytes_boundary(new)
+        new = scratch_returns(new, {"kind": "bytes", "location": 0}, "abi_return_bytes")
         cuts, tables = unchanged_callees(old, new)
     else:
-        returns = lower_abi.layout(
-            header, "abi_return_params", body["returns"], arguments=False
-        )
+        leaves = [leaf for ty in body["returns"] for leaf in mir_state.leaf_types(ty)]
+        returns = lower_abi.layout(header, "abi_return_params", leaves, arguments=False)
         cuts, tables = (), ()
+    if len(body["returns"]) == 1 and body["returns"][0].get("kind") == "product":
+        old = product_projections(old, flatten_return=True)
+        new = product_projections(new)
+    retained_code = retained_callee_code(tables, definitions) if cuts else ""
+    callee_code, composed = "", []
+    if any(not isinstance(layout, int) for _, _, layout in params):
+        if not cuts:
+            unchanged, tables = unchanged_callees(old, new)
+            try:
+                retained_code = (
+                    retained_callee_code(tables, definitions) if unchanged else ""
+                )
+                cuts = unchanged
+            except Unsupported:
+                pass
+        rewritten, callee_code, composed = contextual_callees(
+            old, new, definitions, version
+        )
+    else:
+        rewritten = []
+    retained = cuts
+    cuts = [*retained, *rewritten]
     encoder = " (bytesReturn : Word → MIR.Effects.Tree)" if bytes_return else ""
     encode_arg = " bytesReturn" if bytes_return else ""
-    words, rejected, splits = guard_source(params, local_guard)
+    words, rejected, splits = guard_source(params, head_end, local_guard)
     inputs = [
-        f"({word}.setWidth {ty['bits']})"
+        f"({word}.setWidth {ty['bits']})" if ty["kind"] != "slice" else word
         for word, ty in zip(words, body["params"], strict=True)
     ]
     left_tree = mir_effects.render(
-        old,
+        slice_projections(old),
         definitions,
         abi_return=True,
         abi_arguments=inputs,
@@ -563,12 +737,40 @@ def check(paths, solar, replay, version, timeout, function):
         call_cuts=cuts,
         bytes_return=bytes_return,
     )
+    for index, (_, source, fields) in reversed(list(enumerate(params))):
+        if fields is None:
+            relative = f"(Execution.readWord environment.input {source})"
+            start = f"({relative} + 4#256)"
+            data = f"({start} + 32#256)"
+            length = f"(Execution.readWord environment.input {start}.toNat)"
+            total = "(BitVec.ofNat 256 environment.input.length)"
+            left_tree = f"""if ({total} - 4#256 - 32#256).toNat < {relative}.toNat ∨
+    ({total} - {data}).toNat < {length}.toNat then MIR.Effects.abiDecodeFailure else
+  let aggregate{index} := {data} ++ {length}
+  (
+{left_tree}
+  )
+"""
+        elif not isinstance(fields, int):
+            if body["params"][index]["kind"] == "slice":
+                left_tree = f"let aggregate{index} := {source}#256 ++ {32 * len(fields)}#256\n({left_tree})"
+            else:
+                left_tree = f"""
+MIR.Effects.decodeCalldataTuple environment.input {source} {list(fields)} (fun aggregate{index} =>
+{left_tree}
+)
+"""
     right_tree = mir_effects.render(
-        new, definitions, abi_fork=version, call_cuts=cuts, bytes_return=bytes_return
+        slice_projections(new),
+        definitions,
+        abi_fork=version,
+        call_cuts=cuts,
+        bytes_return=bytes_return,
     )
     code = (
         PRELUDE
-        + (retained_callee_code(tables, definitions) if cuts else "")
+        + retained_code
+        + callee_code
         + f"""
 set_option maxHeartbeats 4000000
 set_option maxRecDepth 16384
@@ -597,7 +799,13 @@ macro "normalize_abi_tree" bound:term : tactic => `(tactic|
   simp [*, before, after, MIR.compare, MIR.eval, MIR.cast, MIR.shift, Word.shift,
     Word.binary, MIR.unary, Word.unary, MIR.select, MIR.wordBinary, MIR.ternary,
     BitVec.ofNatLT_eq_ofNat, BitVec.ult_iff_toNat_lt, BitVec.toNat_ofNat,
-    Nat.mod_eq_of_lt $bound, MIR.Effects.abiReturn, MIR.Effects.writeAbiWords])
+    Nat.mod_eq_of_lt $bound, MIR.Effects.abiReturn, MIR.Effects.writeAbiWords,
+    Nat.mod_mod, MIR.Effects.decodeCalldataTuple, MIR.Effects.stageCalldataFields,
+    MIR.Effects.abiDecodeFailure, MIR.Effects.abiRevertData, MIR.Effects.decodeMemoryBool,
+    MIR.Effects.signedBoolHead, Decidable.imp_iff_not_or, BitVec.add_assoc, BitVec.extractLsb'_append_eq_left,
+    BitVec.extractLsb'_append_eq_right, BitVec.setWidth_append_eq_right,
+    MIR.Effects.bitOrTruth, MIR.Effects.highHalfWord, MIR.Effects.highHalfNat,
+    MIR.Effects.highHalfZero, MIR.Effects.highHalfInputEq])
 theorem wrapped (environment : World.Environment){encoder} (bounded : environment.input.length < 2^256) :
     before environment{encode_arg} = after environment{encode_arg} := by
 {splits}
@@ -617,9 +825,10 @@ theorem contextual {{State Halt : Type}} (environment : World.Environment){encod
         "kind": "kernel-checked-abi-bytes-effects"
         if bytes_return
         else "kernel-checked-abi-contextual-effects",
-        "retained_callees": cuts,
+        "retained_callees": retained,
+        "composed_callees": composed,
         "selector": left["selector"],
-        "abi_params": params,
+        "abi_params": [name for name, _, _ in params],
         "abi_returns": returns,
         "rejects_value_in_wrapper": local_guard,
     }

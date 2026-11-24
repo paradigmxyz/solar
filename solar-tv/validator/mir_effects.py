@@ -13,6 +13,7 @@ remain unsupported, rather than receiving a default placement.
 """
 
 import hashlib
+import json
 import re
 import tempfile
 from dataclasses import replace
@@ -86,6 +87,12 @@ def abi_context_read(name, args):
     return None
 
 
+def encoder_layout(op):
+    return json.dumps(
+        json.dumps({k: v for k, v in op.items() if k != "args"}, sort_keys=True)
+    )
+
+
 def render(
     model,
     definitions,
@@ -99,8 +106,14 @@ def render(
     def width(ty):
         if (
             abi_fork
+            and ty.get("kind") == "slice"
+            and ty.get("location") in {"calldata", "memory", "returndata"}
+        ):
+            return 512
+        if (
+            abi_fork
             and ty.get("kind") == "pointer"
-            and ty.get("location") == "returndata"
+            and ty.get("location") in {"calldata", "returndata"}
             and ty.get("bits") == 256
         ):
             return 256
@@ -230,6 +243,33 @@ def render(
                         current[inst["result"]] = f"(reply{work}.setWidth {bits})", bits
                     continue
                 expression = pure(op, args, bits, definitions)
+                if abi_fork and op["kind"] == "make_slice":
+                    expression = f"({args[0][0]} ++ {args[1][0]})"
+                if abi_fork and op["kind"] == "extract_value":
+                    start = 256 if op["index"] == 0 else 0
+                    expression = f"({args[0][0]}).extractLsb' {start} 256"
+                if abi_fork and op["kind"] == "abi_encode_tree" and bits == 512:
+                    words = []
+                    for value, width_ in args:
+                        if width_ == 512:
+                            words.extend(
+                                [
+                                    f"({value}).extractLsb' 256 256",
+                                    f"({value}).extractLsb' 0 256",
+                                ]
+                            )
+                        else:
+                            words.append(value)
+                    values = ",".join(words)
+                    layout = encoder_layout(op)
+                    prefix.extend(
+                        [
+                            f"MIR.Effects.Tree.request ⟨.abiTreeScratch {layout},[{values}],true⟩ (fun ptr{work} =>",
+                            f"MIR.Effects.Tree.request ⟨.abiTreeScratchSize {layout},[{values}],true⟩ (fun len{work} =>",
+                        ]
+                    )
+                    close.extend([")", ")"])
+                    expression = f"ptr{work} ++ len{work}"
                 if abi_fork and op["kind"] == "opcode":
                     expression = abi_context_read(op["name"], args) or expression
                 if expression is None:
@@ -246,6 +286,8 @@ def render(
                         operation = f".allocate {'true' if op['zeroed'] else 'false'} {'true' if op['checked'] else 'false'}"
                     elif op["kind"] == "mapping_slot":
                         operation = ".mappingSlot"
+                    elif op["kind"] == "abi_encode_tree":
+                        operation = f".abiTreeScratch {encoder_layout(op)}"
                     elif op["kind"] == "abi_encode":
                         selector = str(op["selector"]).lower()
                         operation = (
@@ -254,7 +296,12 @@ def render(
                             else f".abiWordScratch {str(op['base']).lower()} {selector}"
                         )
                     elif op["kind"] == "layout":
-                        operation = f".immutableStore {op['id']}"
+                        access = (
+                            "immutableRead"
+                            if op["query"] == "immutable_read"
+                            else "immutableStore"
+                        )
+                        operation = f".{access} {op['id']}"
                     else:
                         row = definitions[op["name"]]
                         if row["stack"] != [len(args), int(returns)]:
@@ -327,6 +374,8 @@ def render(
         return walk(0, current)
 
     def boundary(kind, args):
+        if any(bits > 256 for _, bits in args):
+            raise Unsupported("effect-tree boundary requires scalar carriers")
         values = ",".join(f"({bits},({value}).setWidth 256)" for value, bits in args)
         return f'MIR.Effects.Tree.done ⟨"{kind}",[{values}]⟩'
 
@@ -406,6 +455,17 @@ def render(
                     or width(inst["type"]) != 1
                 ):
                     raise Unsupported("effect-tree decoder requires a memory boolean")
+            elif op["kind"] == "abi_encode_tree" and abi_fork:
+                if (
+                    op["mode"] != 2
+                    or any(op["memory_slices"])
+                    or len(op["args"])
+                    != len(op["shapes"]) + int(op["selector"]) + int(op["base"])
+                    or inst["result"] is None
+                    or (inst["type"] or {}).get("kind") not in {"pointer", "slice"}
+                    or inst["type"].get("location") != "memory"
+                ):
+                    raise Unsupported("shared ABI scratch encoder has invalid carriers")
             elif op["kind"] == "abi_encode" and abi_fork:
                 if (
                     op["mode"] not in (1, 2)
@@ -420,10 +480,43 @@ def render(
                     raise Unsupported(
                         "effect-tree encoder requires a static word object"
                     )
+            elif op["kind"] in {"make_slice", "extract_value"} and abi_fork:
+                types = [value["type"] for value in op["args"]]
+                result = inst["type"]
+                if op["kind"] == "make_slice":
+                    if (
+                        result.get("kind") != "slice"
+                        or len(types) != 2
+                        or types[0].get("kind") != "pointer"
+                        or types[0].get("location") != result.get("location")
+                        or types[1].get("kind") != "word"
+                        or types[1].get("bits") != 256
+                    ):
+                        raise Unsupported("invalid contextual slice")
+                elif (
+                    len(types) != 1
+                    or types[0].get("kind") != "slice"
+                    or op.get("aggregate_type") != types[0]
+                    or op["index"] not in (0, 1)
+                    or width(result) != 256
+                    or (
+                        op["index"] == 0
+                        and (
+                            result.get("kind") != "pointer"
+                            or result.get("location") != types[0].get("location")
+                        )
+                    )
+                    or (op["index"] == 1 and result.get("kind") != "word")
+                ):
+                    raise Unsupported("invalid contextual projection")
             elif op["kind"] == "call":
                 callee = functions.get(op["function"])
                 if callee is None or len(op["args"]) != len(callee["params"]):
                     raise Unsupported("effect-tree call argument mismatch")
+                if op["function"] in call_cuts and any(
+                    width(ty) > 256 for ty in callee["params"] + callee["returns"]
+                ):
+                    raise Unsupported("effect-tree call cut requires scalar carriers")
                 if any(
                     mir_state.value_type(value["type"]) != mir_state.value_type(ty)
                     for value, ty in zip(op["args"], callee["params"], strict=True)
@@ -452,6 +545,19 @@ def render(
                 ):
                     raise Unsupported("effect-tree FMP signature mismatch")
             elif op["kind"] == "layout":
+                if abi_fork and op["query"] == "immutable_read":
+                    if (
+                        op["args"]
+                        or op["signed"]
+                        or op["width"] != 256
+                        or inst["result"] is None
+                        or inst["type"].get("kind") != "word"
+                        or width(inst["type"]) != 256
+                    ):
+                        raise Unsupported(
+                            "effect trees require full-word immutable reads"
+                        )
+                    continue
                 if abi_fork and op["query"] == "immutable_store":
                     if inst["result"] is not None or len(op["args"]) != 1:
                         raise Unsupported(
