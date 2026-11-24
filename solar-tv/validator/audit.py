@@ -223,6 +223,38 @@ def record(
                 assumptions.append(
                     "empty forwarding blocks preserve control and simultaneous phi assignment; work bounds count logical edges"
                 )
+        elif program and program.scope == "abi-effect-tree":
+            kind = program.import_evidence["kind"]
+            decoder = kind == "kernel-checked-abi-memory-decoder-effects"
+            revert_data = kind == "kernel-checked-abi-revert-data-effects"
+            internal = (
+                decoder or revert_data or kind == "kernel-checked-abi-internal-effects"
+            )
+            assumptions.extend(
+                [
+                    "selected internal body with its unchanged typed interface"
+                    if internal
+                    else "selected static runtime ABI entry with word-representable calldata length and the compiler-validated source signature",
+                    "equal ordered requests and exits under arbitrary shared stateful effect handlers, including failing messages and GAS queries",
+                    "shared GAS and external code observations are contextual premises; physical gas, final layout, and direct SSA import correspondence are separate obligations",
+                ]
+            )
+            if decoder:
+                assumptions.append(
+                    "implicit memory boolean decode checks the head before reading the payload; returndata slices retain their typed carrier components"
+                )
+            if revert_data:
+                assumptions.append(
+                    "implicit returndata revert uses the ordered size, copy and revert adapter"
+                )
+            if not internal:
+                assumptions.append(
+                    "implicit ABI guards and arguments are compared with the explicit wrapper, and static return words use the checked private-memory ABI adapter"
+                )
+            if program.import_evidence.get("retained_callees"):
+                assumptions.append(
+                    "kernel equality of the closed retained callee tables justifies ordered internal call requests"
+                )
         elif program and program.scope == "abi-entry":
             boundary = program.import_evidence
             assumptions.extend(
@@ -746,6 +778,7 @@ def record(
                 "interaction-flow",
                 "layout-flow",
                 "mir-cfg-flow",
+                "abi-effect-tree",
             }
             and program.symbolic_mir is None
         ):
@@ -843,6 +876,17 @@ def record(
         ),
         "assumptions": assumptions,
         "inputs": sources,
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "function",
+                    "proof": program.import_evidence["kind"],
+                },
+            }
+            if program and program.scope == "abi-effect-tree"
+            else {}
+        ),
         **(
             {
                 "whole_pass": False,

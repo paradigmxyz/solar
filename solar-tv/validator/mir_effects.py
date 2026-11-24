@@ -72,7 +72,39 @@ def pure(op, args, bits, definitions):
     raise Unsupported(f"unmodeled scalar effect-tree opcode `{name}`")
 
 
-def render(model, definitions, *, abi_return=False):
+ABI_MESSAGE_REQUESTS = {"call", "callcode", "delegatecall", "staticcall"}
+
+
+def abi_context_read(name, args):
+    match name:
+        case "callvalue":
+            return "environment.value"
+        case "calldatasize":
+            return "BitVec.ofNat 256 environment.input.length"
+        case "calldataload":
+            return f"Execution.readWord environment.input ({args[0][0]}).toNat"
+    return None
+
+
+def render(
+    model,
+    definitions,
+    *,
+    abi_return=False,
+    abi_arguments=None,
+    abi_fork=None,
+    call_cuts=(),
+):
+    def width(ty):
+        if (
+            abi_fork
+            and ty.get("kind") == "pointer"
+            and ty.get("location") == "returndata"
+            and ty.get("bits") == 256
+        ):
+            return 256
+        return scalar_width(ty)
+
     functions = {function["id"]: function for function in model["functions"]}
     if len(functions) != len(model["functions"]) or model["entry_id"] not in functions:
         raise Unsupported("invalid effect-tree function table")
@@ -93,7 +125,7 @@ def render(model, definitions, *, abi_return=False):
         return visit
 
     def operand(value, locals, arguments):
-        bits = scalar_width(value["type"])
+        bits = width(value["type"])
         match value["kind"]:
             case "constant":
                 return literal(value["value"], bits), bits
@@ -141,8 +173,8 @@ def render(model, definitions, *, abi_return=False):
                     raise Unsupported("effect-tree expansion exceeds 4096 instructions")
                 op = inst["operation"]
                 args = [operand(value, current, arguments) for value in op["args"]]
-                bits = scalar_width(inst["type"]) if inst["type"] is not None else 256
-                if op["kind"] == "call":
+                bits = width(inst["type"]) if inst["type"] is not None else 256
+                if op["kind"] == "call" and op["function"] not in call_cuts:
                     callee = functions[op["function"]]
                     if callee["id"] in calls:
                         raise Unsupported(
@@ -177,7 +209,28 @@ def render(model, definitions, *, abi_return=False):
                             resume,
                         )
                     )
+                if abi_fork and op["kind"] == "abi_decode":
+                    prefix.append(
+                        f"MIR.Effects.decodeMemoryBool {args[0][0]} (fun decoded{work} =>"
+                    )
+                    close.append(")")
+                    current[inst["result"]] = f"decoded{work}", 1
+                    continue
+                if op["kind"] == "call":
+                    values = ",".join(f"({value}).setWidth 256" for value, _ in args)
+                    returns = str(inst["result"] is not None).lower()
+                    prefix.append(
+                        "MIR.Effects.Tree.request "
+                        f"⟨.internalCall {op['function']},[{values}],{returns}⟩ "
+                        f"(fun reply{work} =>"
+                    )
+                    close.append(")")
+                    if inst["result"] is not None:
+                        current[inst["result"]] = f"(reply{work}.setWidth {bits})", bits
+                    continue
                 expression = pure(op, args, bits, definitions)
+                if abi_fork and op["kind"] == "opcode":
+                    expression = abi_context_read(op["name"], args) or expression
                 if expression is None:
                     if any(width != 256 for _, width in args):
                         raise Unsupported(
@@ -190,6 +243,10 @@ def render(model, definitions, *, abi_return=False):
                         request = f"(MIR.LowerAlloc.constructorRequest {'true' if op['end'] else 'false'})"
                     elif op["kind"] == "allocate":
                         operation = f".allocate {'true' if op['zeroed'] else 'false'} {'true' if op['checked'] else 'false'}"
+                    elif op["kind"] == "mapping_slot":
+                        operation = ".mappingSlot"
+                    elif op["kind"] == "abi_encode":
+                        operation = f".abiWordObject {str(op['selector']).lower()}"
                     else:
                         row = definitions[op["name"]]
                         if row["stack"] != [len(args), int(returns)]:
@@ -241,11 +298,13 @@ def render(model, definitions, *, abi_return=False):
                     result = f"if {args[0][0]} = 1 then {edge(term['then'])} else {edge(term['else'])}"
                 case "return":
                     if len(args) != len(function["returns"]) or any(
-                        bits != scalar_width(ty)
+                        bits != width(ty)
                         for (_, bits), ty in zip(args, function["returns"], strict=True)
                     ):
                         raise Unsupported("effect-tree return signature mismatch")
                     result = returned(args)
+                case "revert_return_data" if abi_fork:
+                    result = "MIR.Effects.abiRevertData"
                 case "returndata" | "revert" | "stop" | "invalid":
                     result = boundary(term["kind"], args)
                 case _:
@@ -259,7 +318,16 @@ def render(model, definitions, *, abi_return=False):
         return f'MIR.Effects.Tree.done ⟨"{kind}",[{values}]⟩'
 
     def validate_block(block):
-        if block["terminator"]["kind"] not in {
+        terminator = block["terminator"]["kind"]
+        revert_data = (
+            terminator == "revert_return_data"
+            and abi_fork
+            and all(
+                definitions[name]["forks"][abi_fork]["available"]
+                for name in ("returndatasize", "returndatacopy")
+            )
+        )
+        if not revert_data and terminator not in {
             "jump",
             "branch",
             "return",
@@ -270,28 +338,66 @@ def render(model, definitions, *, abi_return=False):
         }:
             raise Unsupported("unmodeled effect-tree terminator")
         for phi in block["phis"]:
-            scalar_width(phi["type"])
+            width(phi["type"])
             for _, value in phi["incoming"]:
-                scalar_width(value["type"])
+                width(value["type"])
                 if value["kind"] == "undefined":
                     raise Unsupported("undefined effect-tree operand")
         for inst in block["instructions"]:
             op = inst["operation"]
             if inst["type"] is not None:
-                scalar_width(inst["type"])
+                width(inst["type"])
             if op["kind"] == "opcode":
                 row = definitions[op["name"]]
+                retained_message = abi_fork and op["name"] in ABI_MESSAGE_REQUESTS
+                retained_gas = abi_fork and op["name"] == "gas"
                 if (
                     row["observes_code"]
+                    and not (abi_fork and op["name"] == "extcodesize")
                     or row["observes_gas"]
                     and row["gas"] != "SStore"
+                    and not (retained_gas or retained_message)
                     or row["sets_returndata"]
+                    and not retained_message
                 ):
                     raise Unsupported(
                         "effect trees exclude code/gas observers and calls"
                     )
+                if abi_fork and not row["forks"][abi_fork]["available"]:
+                    raise Unsupported(
+                        f"unavailable ABI effect-tree opcode: {op['name']}"
+                    )
                 if row["pure"]:
                     pure(op, [("0#256", 256)] * len(op["args"]), 256, definitions)
+            elif op["kind"] == "mapping_slot" and abi_fork:
+                if (
+                    len(op["args"]) != 2
+                    or inst["result"] is None
+                    or width(inst["type"]) != 256
+                ):
+                    raise Unsupported("effect-tree mapping-slot signature mismatch")
+            elif op["kind"] == "abi_decode" and abi_fork:
+                if (
+                    op["calldata"]
+                    or op["rule"] != {"bits": 0, "function": False, "kind": "boolean"}
+                    or len(op["args"]) != 1
+                    or op["args"][0]["type"].get("location") != "memory"
+                    or inst["result"] is None
+                    or width(inst["type"]) != 1
+                ):
+                    raise Unsupported("effect-tree decoder requires a memory boolean")
+            elif op["kind"] == "abi_encode" and abi_fork:
+                if (
+                    op["mode"] != 1
+                    or op["base"]
+                    or any(op["functions"])
+                    or len(op["args"]) != len(op["functions"]) + int(op["selector"])
+                    or inst["result"] is None
+                    or (inst["type"] or {}).get("location") != "memory"
+                ):
+                    raise Unsupported(
+                        "effect-tree encoder requires a static word object"
+                    )
             elif op["kind"] == "call":
                 callee = functions.get(op["function"])
                 if callee is None or len(op["args"]) != len(callee["params"]):
@@ -347,11 +453,11 @@ def render(model, definitions, *, abi_return=False):
             }:
                 raise Unsupported(f"unmodeled effect-tree operation `{op['kind']}`")
             for value in op["args"]:
-                scalar_width(value["type"])
+                width(value["type"])
                 if value["kind"] == "undefined":
                     raise Unsupported("undefined effect-tree operand")
         for value in block["terminator"].get("args", []):
-            scalar_width(value["type"])
+            width(value["type"])
             if value["kind"] == "undefined":
                 raise Unsupported("undefined effect-tree operand")
 
@@ -359,13 +465,23 @@ def render(model, definitions, *, abi_return=False):
     # Unsupported semantics cannot disappear through lazy Lean let reduction.
     for function in functions.values():
         for ty in [*function["params"], *function["returns"]]:
-            scalar_width(ty)
+            width(ty)
         for block in function["blocks"]:
             validate_block(block)
     entry = functions[model["entry_id"]]
-    arguments = [
-        (f"arg{index}", scalar_width(ty)) for index, ty in enumerate(entry["params"])
-    ]
+    arguments = [(f"arg{index}", width(ty)) for index, ty in enumerate(entry["params"])]
+    if abi_arguments is not None:
+        arguments = [
+            (word, bits)
+            for word, (_, bits) in zip(abi_arguments, arguments, strict=True)
+        ]
+
+    def returned(args):
+        if not abi_return:
+            return boundary("return", args)
+        words = ",".join(f"({value}).setWidth 256" for value, _ in args)
+        return f"MIR.Effects.abiReturn [{words}]"
+
     result = enter(
         entry,
         0,
@@ -374,7 +490,7 @@ def render(model, definitions, *, abi_return=False):
         arguments,
         (entry["id"],),
         (),
-        lambda args: boundary("stop" if abi_return else "return", args),
+        returned,
     )
     if len(result) > 262144:
         raise Unsupported("effect-tree text exceeds 256 KiB")
@@ -413,7 +529,7 @@ theorem pair_correct {binders} : before {args} = after {args} := by
   simp [before, after, MIR.compare, MIR.eval, MIR.cast, MIR.shift, Word.shift,
     Word.binary, MIR.unary, Word.unary, MIR.select, MIR.wordBinary, MIR.ternary,
     MIR.LowerAlloc.freePointerRequest, MIR.LowerAlloc.constructorRequest,
-    BitVec.ofNatLT_eq_ofNat, BitVec.ult]
+    BitVec.ofNatLT_eq_ofNat, BitVec.ult, MIR.Effects.abiReturn]
 #print axioms pair_correct
 """
     with tempfile.TemporaryDirectory(prefix="solar-tv-mir-effects-") as directory:

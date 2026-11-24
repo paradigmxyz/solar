@@ -13,8 +13,8 @@ and shared request state. Allocation requests retain their size, zeroing and
 checked-failure policy. No allocation success, fresh address, implicit FMP or
 return-buffer placement is assumed. Constructor-range queries retain their
 base/end discriminator as ordered requests; no range is chosen or assumed to
-exist. Other layout queries and code/GAS sampling are not imported here.
-This remains an unpriced interaction certificate.
+exist. The selected ABI adapter can retain GAS and message operations as
+ordered requests. This remains an unpriced interaction certificate.
 SSTORE remains an opaque request, including possible sentry failure; differences
 in physical scalar gas costs and their effect on that sentry are not certified.
 This certificate is deliberately distinct from full-state interpreter proofs.
@@ -27,6 +27,9 @@ inductive Operation where
   | opcode (code : Nat)
   | allocate (zeroed checked : Bool)
   | constructorRange (isEnd : Bool)
+  | mappingSlot
+  | abiWordObject (hasSelector : Bool)
+  | internalCall (callee : Nat)
   deriving DecidableEq
 
 structure Request where
@@ -43,6 +46,42 @@ structure Boundary where
 inductive Tree where
   | done (boundary : Boundary)
   | request (effect : Request) (next : Word → Tree)
+
+/-- Stage the static public return words in private memory. -/
+def writeAbiWords (offset : Nat) (words : List Word) (tail : Tree) : Tree :=
+  match words with
+  | [] => tail
+  | word :: rest =>
+    .request ⟨.opcode 0x52, [BitVec.ofNat 256 offset, word], false⟩
+      (fun _ => writeAbiWords (offset + 32) rest tail)
+
+def abiReturn (words : List Word) : Tree :=
+  match words with
+  | [] => .done ⟨"stop", []⟩
+  | _ => writeAbiWords 0 words
+    (.done ⟨"returndata", [(256, 0), (256, BitVec.ofNat 256 (32 * words.length))]⟩)
+
+def abiDecodeFailure : Tree := .done ⟨"revert", [(256, 0), (256, 0)]⟩
+
+/-- Materialize a MIR revert of the current message returndata. -/
+def abiRevertData : Tree :=
+  .request ⟨.opcode 0x3d, [], true⟩ fun size =>
+    .request ⟨.opcode 0x3e, [0, 0, size], false⟩ fun _ =>
+      .request ⟨.opcode 0x3d, [], true⟩ fun finalSize =>
+        .done ⟨"revert", [(256, 0), (256, finalSize)]⟩
+
+/-- A one-word memory boolean decoder reads the object header before its
+payload. The second read only occurs for a valid head length. -/
+def decodeMemoryBool (pointer : Word) (next : BitVec 1 → Tree) : Tree :=
+  .request ⟨.opcode 0x51, [pointer], true⟩ fun length =>
+    if length.toNat ≥ 2^255 ∨ length.toNat < 32 then abiDecodeFailure else
+    .request ⟨.opcode 0x51, [pointer + 32], true⟩ fun word =>
+      if 1 < word.toNat then abiDecodeFailure else next (MIR.compare .ne word 0)
+
+theorem signedBoolHead (length : Word) :
+    length.slt (32#256) = true ↔ length.toNat ≥ 2^255 ∨ length.toNat < 32 := by
+  simp only [BitVec.slt_eq_decide, decide_eq_true_eq, BitVec.toInt]
+  split <;> simp_all <;> omega
 
 /-- A handler can return an arbitrary word and next state, or stop execution.
 No successful memory access, distinct storage key or non-reverting call is assumed. -/

@@ -1160,6 +1160,7 @@ def main() -> int:
                     }
                 ):
                     from . import (
+                        abi_effects,
                         bounded_fill,
                         builtin_lowering,
                         coalesce,
@@ -1188,7 +1189,7 @@ def main() -> int:
                             builtin_lowering.check,
                         )
                         if str(error) == "symbolic MIR cycles require an invariant"
-                        else (mir_cfg.check, builtin_lowering.check)
+                        else (abi_effects.check, mir_cfg.check, builtin_lowering.check)
                     )
                     for validate in validators:
                         try:
@@ -1292,7 +1293,7 @@ def main() -> int:
         ):
             # A failed direct proof can still admit an action-by-action
             # certificate without duplicating the unfolding of shared tails.
-            from . import lower_abi, mir_cfg
+            from . import abi_effects, lower_abi, mir_cfg
 
             if (
                 isinstance(error, Unsupported)
@@ -1303,6 +1304,20 @@ def main() -> int:
                         programs, args.function, rust_replay, version, args.timeout
                     )
                 except (Unsupported, OSError, subprocess.TimeoutExpired) as retry:
+                    error = retry
+            if fallback is None:
+                try:
+                    fallback = abi_effects.check(
+                        (args.before, args.after),
+                        solar,
+                        rust_replay,
+                        version,
+                        args.timeout,
+                        args.function,
+                    )
+                except Unsupported:
+                    pass
+                except (OSError, subprocess.TimeoutExpired) as retry:
                     error = retry
 
             if fallback is None and all(

@@ -1,6 +1,7 @@
 """Check real implicit-to-explicit MIR ABI entries."""
 
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -25,6 +26,11 @@ contract C {
     constructor() {}
     receive() external payable { pay(); }
     function pay() public payable { total = msg.value; }
+    function forward(address target, uint256 amount) external payable {
+        assembly {
+            if iszero(call(gas(), target, amount, 0, 0, 0, 0)) { revert(0, 0) }
+        }
+    }
     function decimals() external pure returns (uint8) { return 18; }
     function echo(uint256 x) external pure returns (uint256) { return x; }
     function narrow(address x) external pure returns (address) { return x; }
@@ -90,6 +96,7 @@ contract C {
                 "constructor": "empty-constructor-abi-entry",
                 "pay": "void-abi-effect-tree",
                 "receive": "void-abi-effect-tree",
+                "forward": "abi-contextual-effects",
             }
             for function, scope in scopes.items():
                 with self.subTest(function=function):
@@ -104,6 +111,16 @@ contract C {
                         proof["import_correspondence"][0]["kind"],
                         certificate,
                     )
+
+            wrong_gas = folder / "wrong-gas.mir"
+            changed, replacements = re.subn(
+                r"(?m)^(    v\d+ = call )v\d+,", r"\g<1>1,", after.read_text(), count=1
+            )
+            self.assertEqual(replacements, 1)
+            wrong_gas.write_text(changed)
+            result, proof = check("forward", wrong_gas)
+            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            self.assertEqual(proof["status"], "unsupported")
 
             broken = folder / "broken.mir"
             changed = after.read_text().replace("mstore 0, 18", "mstore 0, 19", 1)

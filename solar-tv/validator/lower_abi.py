@@ -28,12 +28,13 @@ def width(ty):
     raise Unsupported("ABI certificate requires unsigned static words")
 
 
-def layout(header, attr, typed, *, arguments):
+def layout(header, attr, typed, *, arguments, limit=None):
     match = re.search(rf"\b{attr}=\[([^\]]*)\]", header)
     if not match:
         raise Unsupported("implicit ABI layout is missing")
     types = match[1].split(", ") if match[1] else []
-    if len(types) != len(typed) or len(types) > (4 if arguments else 8):
+    limit = limit if limit is not None else 4 if arguments else 8
+    if len(types) != len(typed) or len(types) > limit:
         raise Unsupported("ABI certificate needs one static word per MIR value")
     for ty, value in zip(types, typed, strict=True):
         bits = width(ty)
