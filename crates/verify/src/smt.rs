@@ -100,6 +100,15 @@ impl Smt {
         Ok(smt)
     }
 
+    /// Another solver like this one (same timeout, or dry when this one is), for a side
+    /// analysis that must not disturb this one's assertions.
+    pub(crate) fn sibling(&self) -> Self {
+        match &self.z3 {
+            Some(_) => Self::new(self.timeout_ms, false).unwrap_or_else(|_| Self::dry(false)),
+            None => Self::dry(false),
+        }
+    }
+
     /// An `Smt` that runs no solver (`--dry-run`).
     pub(crate) fn dry(log: bool) -> Self {
         Self {
