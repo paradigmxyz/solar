@@ -505,10 +505,11 @@ impl<'p, 'a> Vc<'p, 'a> {
                 if external_name(m) {
                     return true;
                 }
-                if matches!(m, "push" | "pop") {
+                let cands = self.prog.using_fns(m, n);
+                // the array builtins call out nowhere; a bound library method of their name may
+                if matches!(m, "push" | "pop") && cands.is_empty() {
                     return false;
                 }
-                let cands = self.prog.using_fns(m, n);
                 if cands.is_empty() {
                     return true;
                 }
@@ -2605,6 +2606,13 @@ impl<'p, 'a> Vc<'p, 'a> {
                         let m = m.as_str();
                         if m == "push" || m == "pop" {
                             out.extend(walk::root(base));
+                            // A bound library method of that name may be what runs instead.
+                            let cands = self.prog.using_fns(m, argv.len());
+                            let mut a2: Vec<&'a Expr<'a>> = vec![&**base];
+                            a2.extend(argv.iter().copied());
+                            for (_, f) in cands {
+                                self.call_effects(f, &a2, out, all, seen);
+                            }
                             return;
                         }
                         if m == "transfer" || m == "send" {
@@ -5267,6 +5275,15 @@ impl<'p, 'a> Vc<'p, 'a> {
         hit || out.contains(n)
     }
 
+    /// Whether some library declares a function named `m`, which a bound call `x.m(..)` may
+    /// run instead of the array builtin of that name.
+    fn lib_method_named(&self, m: &str) -> bool {
+        self.prog
+            .contracts
+            .iter()
+            .any(|c| c.kind == ast::ContractKind::Library && c.funcs.iter().any(|f| f.name == m))
+    }
+
     /// A call that may run user code with a memory argument (not a builtin such as
     /// abi.encode, keccak256 or require).
     fn user_call(&self, callee: &'a Expr<'a>) -> bool {
@@ -5275,7 +5292,9 @@ impl<'p, 'a> Vc<'p, 'a> {
             ExprKind::Member(b, m) => {
                 let builtin = matches!(&b.peel_parens().kind, ExprKind::Ident(i)
                     if matches!(i.as_str(), "abi" | "type" | "string" | "bytes" | "block" | "msg" | "tx"));
-                !builtin && !matches!(m.as_str(), "length" | "push" | "pop" | "concat")
+                !builtin
+                    && (!matches!(m.as_str(), "length" | "push" | "pop" | "concat")
+                        || self.lib_method_named(m.as_str()))
             }
             _ => false,
         }

@@ -1290,3 +1290,8 @@ fn modifier_return_name() {
 fn nested_modifier_return() {
     check("tests/cases/nested_modifier_return.sol")
 }
+
+#[test]
+fn encode_library_push() {
+    check("tests/cases/encode_library_push.sol")
+}
