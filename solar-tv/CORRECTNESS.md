@@ -1014,6 +1014,52 @@ the same pair at three seconds timed out. There were zero counterexamples.
 The full run verified 76 more captures than the previous full audit.
 All 16 `lower-abi-encode` captures were unsupported at this checkpoint.
 
+### Strict ABI encoder audit
+
+The serial gate `evaluate --all --require-verified --pass lower-abi-encode
+--timeout 120 --seed 0` verified all 16 captures. The check IDs, before and
+after capture hashes, and compiler input and output fingerprints match the
+full audit above. Normal and validating compilations match on ABI and
+creation and runtime bytecode for all three contracts.
+
+| Contract | Selected | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Solady WETH | 0 | 0 | 0 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 2 | 2 | 0 | 0 | 0 |
+| Morpho Blue | 14 | 14 | 0 | 0 | 0 |
+| Total | 16 | 16 | 0 | 0 | 0 |
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Compiler | `64f563d6e8b2102f849dc69cb5fbea91179ce4a7c765c8205217da7c0d7c4b76` |
+| Independent replay | `649ae6a1ae51d75ca501093d1a0f0a1181ff098d4f386e09b6e5754c01374365` |
+| Checker on Lean 4.34.1 | `3c067323175dbddd52323f07be4f388587a769ad9a1bed7039451a07b9adfa95` |
+| Corpus manifest | `b08af7eb00ac67a5ef1200d50273beedc48d5517838ed67504bd1a76ba96b7b7` |
+| `target/tv-lower-abi-encode-verified/results.json` | `5b3111737159e4ec801692944c967aa1fa5f2ece0a5ffe59546ac5ebfd7a5371` |
+
+Thirteen checks compare ordered effects in the selected typed MIR function
+and its direct call closure. The kernel checks the allocation or scratch
+pointer, selector stores, static words and loaded tuple fields, and the
+head, padding, length and calldata copy of the dynamic callback. Equal
+requests preserve the responses and failures of a shared handler. The proof
+checks rewritten encoder helpers separately and binds unchanged closed
+callee bodies on both sides.
+
+The other three checks compare terminal returndata for two byte strings and
+one word array. The kernel checks the incoming control flow and its effects
+at every logical work bound. It interprets the actual lowered return suffix
+against the copying encoder's byte model, including offsets, length, overlap
+and padding. The cut requires the same journal, a live length header, an
+object with room for its preceding word, and bounded memory with disjoint
+scratch. The final frame discards its private memory.
+
+Independent Rust replay confirms the normal callback and dirty-padding
+examples agree across lowering. Moving the callback's calldata source and
+changing the zero-copy padding store both lose verification and produce
+matching Lean and Rust counterexamples. The automatic proofs rely on the
+typed importer and the stated semantic adapters. Exact physical gas and
+correspondence to the emitted instructions remain open.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
