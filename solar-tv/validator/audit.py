@@ -225,8 +225,10 @@ def record(
                 )
         elif program and program.scope == "abi-effect-tree":
             kind = program.import_evidence["kind"]
+            bytes_return = kind == "kernel-checked-abi-bytes-effects"
             decoder = kind == "kernel-checked-abi-memory-decoder-effects"
             revert_data = kind == "kernel-checked-abi-revert-data-effects"
+            constructor = kind == "kernel-checked-abi-constructor-effects"
             internal = (
                 decoder or revert_data or kind == "kernel-checked-abi-internal-effects"
             )
@@ -234,6 +236,8 @@ def record(
                 [
                     "selected internal body with its unchanged typed interface"
                     if internal
+                    else "selected constructor initializer with unchanged staged bindings"
+                    if constructor
                     else "selected static runtime ABI entry with word-representable calldata length and the compiler-validated source signature",
                     "equal ordered requests and exits under arbitrary shared stateful effect handlers, including failing messages and GAS queries",
                     "shared GAS and external code observations are contextual premises; physical gas, final layout, and direct SSA import correspondence are separate obligations",
@@ -247,7 +251,15 @@ def record(
                 assumptions.append(
                     "implicit returndata revert uses the ordered size, copy and revert adapter"
                 )
-            if not internal:
+            if constructor:
+                assumptions.append(
+                    "the constructor argument range, staged memory and immutable writes use shared handlers"
+                )
+            if bytes_return:
+                assumptions.append(
+                    "the implicit bytes return and explicit scratch encode-plus-return use one shared memory-bytes encoder and exit"
+                )
+            if not internal and not constructor and not bytes_return:
                 assumptions.append(
                     "implicit ABI guards and arguments are compared with the explicit wrapper, and static return words use the checked private-memory ABI adapter"
                 )
@@ -794,6 +806,7 @@ def record(
         sources.append(
             {
                 "path": str(path.resolve()),
+                "capture_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
                 "canonical_sha256": hashlib.sha256(
                     result.pair[i].canonical_ir.encode()
                 ).hexdigest()

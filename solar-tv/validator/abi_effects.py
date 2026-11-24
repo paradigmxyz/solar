@@ -1,6 +1,7 @@
 """Check a static MIR ABI adapter and its continuation as an effect tree."""
 
 import hashlib
+import re
 import tempfile
 from copy import deepcopy
 from pathlib import Path
@@ -43,8 +44,8 @@ def selected_body(module, name):
     return {"entry_id": entry["id"], "functions": list(reachable.values())}, entry
 
 
-def returndata_projections(model):
-    """Resolve constant projections of locally constructed returndata slices."""
+def slice_projections(model):
+    """Resolve local slice projections with known typed components."""
     model = deepcopy(model)
     for function in model["functions"]:
         for block in function["blocks"]:
@@ -64,6 +65,26 @@ def returndata_projections(model):
                         raise Unsupported("invalid returndata slice construction")
                     slices[inst["result"]] = op["args"]
                     continue
+                if (
+                    op["kind"] == "abi_encode"
+                    and op["mode"] == 2
+                    and not any(op["functions"])
+                    and inst["type"].get("kind") == "slice"
+                    and inst["type"].get("location") == "memory"
+                ):
+                    pointer = {
+                        "bits": 256,
+                        "kind": "pointer",
+                        "location": "memory",
+                        "name": "ptr<memory>",
+                    }
+                    length = {"bits": 256, "kind": "word", "name": "i256"}
+                    size = 32 * len(op["functions"]) + 4 * int(op["selector"])
+                    slices[inst["result"]] = [
+                        {"kind": "local", "index": inst["result"], "type": pointer},
+                        {"kind": "constant", "value": str(size), "type": length},
+                    ]
+                    inst = {**inst, "type": pointer}
                 if op["kind"] == "extract_value":
                     aggregate = op["args"][0]
                     values = slices.get(aggregate.get("index"))
@@ -145,6 +166,20 @@ def unchanged_callees(old, new):
         common = closed
 
 
+def retained_callee_code(tables, definitions):
+    code = ""
+    for name, table in zip(("leftCallees", "rightCallees"), tables, strict=True):
+        entries = ",".join(mir_state.function_body(f, definitions) for f in table)
+        code += f"def {name} : MIR.State.Functions := [{entries}]\n"
+    return (
+        code
+        + """
+theorem sameCallees : leftCallees = rightCallees := rfl
+#print axioms sameCallees
+"""
+    )
+
+
 def internal_code(old, new, body, wrapper, definitions, version, prelude):
     if (body["params"], body["returns"]) != (wrapper["params"], wrapper["returns"]):
         raise Unsupported("decoder proof needs an unchanged internal interface")
@@ -166,7 +201,7 @@ def internal_code(old, new, body, wrapper, definitions, version, prelude):
         )
     trees = [
         mir_effects.render(
-            returndata_projections(model), definitions, abi_fork=version, call_cuts=cuts
+            slice_projections(model), definitions, abi_fork=version, call_cuts=cuts
         )
         for model in (old, new)
     ]
@@ -175,15 +210,7 @@ def internal_code(old, new, body, wrapper, definitions, version, prelude):
     ]
     binders = " ".join(f"({name} : BitVec {bits})" for name, bits in params)
     args = " ".join(name for name, _ in params)
-    callee_proof = ""
-    if cuts:
-        for name, table in zip(("leftCallees", "rightCallees"), tables, strict=True):
-            entries = ",".join(mir_state.function_body(f, definitions) for f in table)
-            callee_proof += f"def {name} : MIR.State.Functions := [{entries}]\n"
-        callee_proof += """
-theorem sameCallees : leftCallees = rightCallees := rfl
-#print axioms sameCallees
-"""
+    callee_proof = retained_callee_code(tables, definitions) if cuts else ""
     code = (
         prelude
         + callee_proof
@@ -261,6 +288,148 @@ def certificate(code, texts, function, version, timeout, evidence):
     return audit.Result("verified", stdout="verified\n", program=pair[0], pair=pair)
 
 
+def constructor_code(
+    old, new, body, wrapper, declarations, function, definitions, version, prelude
+):
+    (old_header, old_functions), (new_header, new_functions) = declarations
+    headers = [funcs[function]["text"][0] for funcs in (old_functions, new_functions)]
+    payable = r"(?:\[|, )payable(?:\]|, )"
+    accepts_value = bool(re.search(payable, headers[0]))
+    if (
+        old_header != new_header
+        or wrapper["params"]
+        or wrapper["returns"]
+        or body["returns"]
+        or "abi_wrapper" in headers[0]
+        or "abi_wrapper" not in headers[1]
+        or accepts_value != bool(re.search(payable, headers[1]))
+    ):
+        raise Unsupported(
+            "constructor effect proof needs unchanged bindings and an ABI wrapper"
+        )
+    params = (
+        lower_abi.layout(headers[0], "abi_params", body["params"], arguments=True)
+        if body["params"] or "abi_params=" in headers[0]
+        else []
+    )
+    if len(params) > 1:
+        raise Unsupported("constructor effect proof supports one staged word")
+    cuts, tables = unchanged_callees(old, new)
+    inputs = [f"(rawArg.setWidth {body['params'][0]['bits']})"] if params else []
+    left, right = [
+        mir_effects.render(
+            slice_projections(model),
+            definitions,
+            abi_fork=version,
+            call_cuts=cuts,
+            abi_arguments=arguments,
+        )
+        for model, arguments in ((old, inputs), (new, []))
+    ]
+    guard = (
+        ""
+        if accepts_value
+        else "if environment.value ≠ 0#256 then MIR.Effects.abiDecodeFailure else\n"
+    )
+    if params:
+        bits = lower_abi.width(params[0])
+        canonical = (
+            f"if {(1 << bits) - 1} < rawArg.toNat then MIR.Effects.abiDecodeFailure else"
+            if bits < 256
+            else ""
+        )
+        left = f"""
+  MIR.Effects.Tree.request (MIR.LowerAlloc.constructorRequest false) (fun base =>
+    MIR.Effects.Tree.request (MIR.LowerAlloc.constructorRequest true) (fun last =>
+      if last.toNat < (base + 32).toNat then MIR.Effects.abiDecodeFailure else
+        MIR.Effects.Tree.request ⟨.opcode 0x51, [base], true⟩ (fun rawArg =>
+          {canonical}
+          (
+{left}
+          ))))
+"""
+    return (
+        prelude
+        + (retained_callee_code(tables, definitions) if cuts else "")
+        + f"""
+set_option maxRecDepth 16384
+set_option maxHeartbeats 4000000
+def before (environment : World.Environment) : MIR.Effects.Tree :=
+{guard}
+{left}
+def after (environment : World.Environment) : MIR.Effects.Tree :=
+{right}
+theorem wrapped (environment : World.Environment) : before environment = after environment := by
+  simp [before, after, MIR.Effects.abiDecodeFailure, MIR.eval, MIR.compare,
+    BitVec.ult_iff_toNat_lt, MIR.LowerAlloc.constructorRequest]
+theorem contextual {{State Halt : Type}} (environment : World.Environment)
+    (handler : MIR.Effects.Request → State → Except Halt (Word × State))
+    (finish : MIR.Effects.Boundary → State → Halt) (state : State) :
+    MIR.Effects.interpret handler finish (before environment) state =
+      MIR.Effects.interpret handler finish (after environment) state :=
+  MIR.Effects.contextual _ _ (wrapped environment) handler finish state
+#print axioms wrapped
+#print axioms contextual
+"""
+    ), {"kind": "kernel-checked-abi-constructor-effects", "retained_callees": cuts}
+
+
+def bytes_boundary(model):
+    model = deepcopy(model)
+    entry = next(f for f in model["functions"] if f["id"] == model["entry_id"])
+    count = 0
+    for block in entry["blocks"]:
+        if block["terminator"]["kind"] != "returndata":
+            continue
+        instructions = block["instructions"]
+        if len(instructions) < 3:
+            raise Unsupported(
+                "bytes return requires a scratch encoding and two projections"
+            )
+        encode, offset, size = instructions[-3:]
+        op = encode["operation"]
+        arguments = op["args"]
+        ref = {"kind": "local", "index": encode["result"], "type": encode["type"]}
+        projection = {
+            "kind": "extract_value",
+            "aggregate_type": encode["type"],
+            "args": [ref],
+        }
+        if (
+            encode["result"] is None
+            or op.get("kind") != "abi_encode_tree"
+            or op.get("mode") != 2
+            or op.get("base")
+            or op.get("selector")
+            or op.get("shapes") != [{"kind": "bytes", "location": 0}]
+            or op.get("memory_slices") != [False]
+            or len(arguments) != 1
+            or arguments[0]["type"].get("location") != "memory"
+            or encode["type"].get("kind") != "slice"
+            or encode["type"].get("location") != "memory"
+            or offset["operation"] != {**projection, "index": 0}
+            or size["operation"] != {**projection, "index": 1}
+            or offset["type"].get("kind") != "pointer"
+            or offset["type"].get("location") != "memory"
+            or size["type"].get("kind") != "word"
+            or size["type"].get("bits") != 256
+            or block["terminator"]["args"]
+            != [
+                {"kind": "local", "type": inst["type"], "index": inst["result"]}
+                for inst in (offset, size)
+            ]
+        ):
+            raise Unsupported(
+                "bytes return requires ordered memory-scratch projections"
+            )
+        del instructions[-3:]
+        block["terminator"] = {"kind": "abi_return_bytes", "args": arguments}
+        count += 1
+    if not count:
+        raise Unsupported("missing explicit scratch return boundary")
+    return model
+
+
 def check(paths, solar, replay, version, timeout, function):
     from .check import PRELUDE, ROOT, run
 
@@ -296,6 +465,29 @@ def check(paths, solar, replay, version, timeout, function):
     ]
     left, right = routes
     definitions = {row["name"]: row for row in native.catalog(replay, timeout)["evmir"]}
+    if all(
+        model["entry_id"] == module["constructor"]
+        for module, model in zip(modules, (old, new), strict=True)
+    ):
+        code, evidence = constructor_code(
+            old,
+            new,
+            body,
+            wrapper,
+            [prune.declarations(t) for t in texts],
+            function,
+            definitions,
+            version,
+            PRELUDE,
+        )
+        return certificate(
+            code,
+            texts,
+            function,
+            version,
+            timeout,
+            evidence,
+        )
     if (
         not left
         and not right
@@ -339,20 +531,44 @@ def check(paths, solar, replay, version, timeout, function):
     params = lower_abi.layout(
         header, "abi_params", body["params"], arguments=True, limit=8
     )
-    returns = lower_abi.layout(
-        header, "abi_return_params", body["returns"], arguments=False
+    bytes_return = (
+        "abi_returns=[memory_bytes]" in header
+        and "abi_return_params=[bytes]" in header
+        and len(body["returns"]) == 1
+        and body["returns"][0].get("kind") == "pointer"
+        and body["returns"][0].get("location") == "memory"
     )
+    if bytes_return:
+        returns = ["bytes"]
+        new = bytes_boundary(new)
+        cuts, tables = unchanged_callees(old, new)
+    else:
+        returns = lower_abi.layout(
+            header, "abi_return_params", body["returns"], arguments=False
+        )
+        cuts, tables = (), ()
+    encoder = " (bytesReturn : Word → MIR.Effects.Tree)" if bytes_return else ""
+    encode_arg = " bytesReturn" if bytes_return else ""
     words, rejected, splits = guard_source(params, local_guard)
     inputs = [
         f"({word}.setWidth {ty['bits']})"
         for word, ty in zip(words, body["params"], strict=True)
     ]
     left_tree = mir_effects.render(
-        old, definitions, abi_return=True, abi_arguments=inputs, abi_fork=version
+        old,
+        definitions,
+        abi_return=True,
+        abi_arguments=inputs,
+        abi_fork=version,
+        call_cuts=cuts,
+        bytes_return=bytes_return,
     )
-    right_tree = mir_effects.render(new, definitions, abi_fork=version)
+    right_tree = mir_effects.render(
+        new, definitions, abi_fork=version, call_cuts=cuts, bytes_return=bytes_return
+    )
     code = (
         PRELUDE
+        + (retained_callee_code(tables, definitions) if cuts else "")
         + f"""
 set_option maxHeartbeats 4000000
 set_option maxRecDepth 16384
@@ -370,35 +586,38 @@ private theorem cleanMask (word : Word) (width : Nat) (within : width ≤ 256)
   apply BitVec.eq_of_toNat_eq
   rw [BitVec.toNat_and, BitVec.toNat_ofNat, Nat.mod_eq_of_lt maskFits,
     Nat.and_two_pow_sub_one_eq_mod, Nat.mod_eq_of_lt fits]
-def before (environment : World.Environment) : MIR.Effects.Tree :=
+def before (environment : World.Environment){encoder} : MIR.Effects.Tree :=
   if {rejected} then .done ⟨"revert",[(256,0),(256,0)]⟩ else
   (
 {left_tree}
   )
-def after (environment : World.Environment) : MIR.Effects.Tree :=
+def after (environment : World.Environment){encoder} : MIR.Effects.Tree :=
 {right_tree}
 macro "normalize_abi_tree" bound:term : tactic => `(tactic|
   simp [*, before, after, MIR.compare, MIR.eval, MIR.cast, MIR.shift, Word.shift,
     Word.binary, MIR.unary, Word.unary, MIR.select, MIR.wordBinary, MIR.ternary,
     BitVec.ofNatLT_eq_ofNat, BitVec.ult_iff_toNat_lt, BitVec.toNat_ofNat,
     Nat.mod_eq_of_lt $bound, MIR.Effects.abiReturn, MIR.Effects.writeAbiWords])
-theorem wrapped (environment : World.Environment) (bounded : environment.input.length < 2^256) :
-    before environment = after environment := by
+theorem wrapped (environment : World.Environment){encoder} (bounded : environment.input.length < 2^256) :
+    before environment{encode_arg} = after environment{encode_arg} := by
 {splits}
   normalize_abi_tree bounded
-theorem contextual {{State Halt : Type}} (environment : World.Environment)
+theorem contextual {{State Halt : Type}} (environment : World.Environment){encoder}
     (bounded : environment.input.length < 2^256)
     (handler : MIR.Effects.Request → State → Except Halt (Word × State))
     (finish : MIR.Effects.Boundary → State → Halt) (state : State) :
-    MIR.Effects.interpret handler finish (before environment) state =
-      MIR.Effects.interpret handler finish (after environment) state :=
-  MIR.Effects.contextual _ _ (wrapped environment bounded) handler finish state
+    MIR.Effects.interpret handler finish (before environment{encode_arg}) state =
+      MIR.Effects.interpret handler finish (after environment{encode_arg}) state :=
+  MIR.Effects.contextual _ _ (wrapped environment{encode_arg} bounded) handler finish state
 #print axioms wrapped
 #print axioms contextual
 """
     )
     evidence = {
-        "kind": "kernel-checked-abi-contextual-effects",
+        "kind": "kernel-checked-abi-bytes-effects"
+        if bytes_return
+        else "kernel-checked-abi-contextual-effects",
+        "retained_callees": cuts,
         "selector": left["selector"],
         "abi_params": params,
         "abi_returns": returns,

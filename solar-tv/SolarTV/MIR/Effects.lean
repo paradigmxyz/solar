@@ -29,6 +29,8 @@ inductive Operation where
   | constructorRange (isEnd : Bool)
   | mappingSlot
   | abiWordObject (hasSelector : Bool)
+  | abiWordScratch (hasBase hasSelector : Bool)
+  | immutableStore (slot : Nat)
   | internalCall (callee : Nat)
   deriving DecidableEq
 

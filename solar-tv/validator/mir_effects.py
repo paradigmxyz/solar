@@ -94,6 +94,7 @@ def render(
     abi_arguments=None,
     abi_fork=None,
     call_cuts=(),
+    bytes_return=False,
 ):
     def width(ty):
         if (
@@ -239,20 +240,30 @@ def render(
                     returns = inst["result"] is not None
                     if op["kind"] == "free_pointer":
                         request = "MIR.LowerAlloc.freePointerRequest"
-                    elif op["kind"] == "layout":
+                    elif op["kind"] == "layout" and op["query"] == "constructor":
                         request = f"(MIR.LowerAlloc.constructorRequest {'true' if op['end'] else 'false'})"
                     elif op["kind"] == "allocate":
                         operation = f".allocate {'true' if op['zeroed'] else 'false'} {'true' if op['checked'] else 'false'}"
                     elif op["kind"] == "mapping_slot":
                         operation = ".mappingSlot"
                     elif op["kind"] == "abi_encode":
-                        operation = f".abiWordObject {str(op['selector']).lower()}"
+                        selector = str(op["selector"]).lower()
+                        operation = (
+                            f".abiWordObject {selector}"
+                            if op["mode"] == 1
+                            else f".abiWordScratch {str(op['base']).lower()} {selector}"
+                        )
+                    elif op["kind"] == "layout":
+                        operation = f".immutableStore {op['id']}"
                     else:
                         row = definitions[op["name"]]
                         if row["stack"] != [len(args), int(returns)]:
                             raise Unsupported("effect-tree opcode signature mismatch")
                         operation = f".opcode {row['opcode']}"
-                    if op["kind"] not in {"free_pointer", "layout"}:
+                    if (
+                        op["kind"] != "free_pointer"
+                        and op.get("query") != "constructor"
+                    ):
                         values = ",".join(value for value, _ in args)
                         request = (
                             f"⟨{operation},[{values}],{'true' if returns else 'false'}⟩"
@@ -266,7 +277,7 @@ def render(
                     name = f"local{work}"
                     prefix.append(f"let {name} : BitVec {bits} := {expression}\n")
                     current[inst["result"]] = name, bits
-                elif expression is not None and op["kind"] != "opcode":
+                elif expression is not None and op["kind"] not in {"opcode", "layout"}:
                     raise Unsupported("effect-tree scalar instruction lacks a result")
             term = block["terminator"]
             args = [
@@ -303,6 +314,8 @@ def render(
                     ):
                         raise Unsupported("effect-tree return signature mismatch")
                     result = returned(args)
+                case "abi_return_bytes" if bytes_return:
+                    result = bytes_boundary(args)
                 case "revert_return_data" if abi_fork:
                     result = "MIR.Effects.abiRevertData"
                 case "returndata" | "revert" | "stop" | "invalid":
@@ -317,6 +330,11 @@ def render(
         values = ",".join(f"({bits},({value}).setWidth 256)" for value, bits in args)
         return f'MIR.Effects.Tree.done ⟨"{kind}",[{values}]⟩'
 
+    def bytes_boundary(args):
+        if len(args) != 1 or args[0][1] != 256:
+            raise Unsupported("effect-tree bytes return requires a memory word")
+        return f"bytesReturn {args[0][0]}"
+
     def validate_block(block):
         terminator = block["terminator"]["kind"]
         revert_data = (
@@ -327,7 +345,9 @@ def render(
                 for name in ("returndatasize", "returndatacopy")
             )
         )
-        if not revert_data and terminator not in {
+        if not (
+            revert_data or bytes_return and terminator == "abi_return_bytes"
+        ) and terminator not in {
             "jump",
             "branch",
             "return",
@@ -388,10 +408,12 @@ def render(
                     raise Unsupported("effect-tree decoder requires a memory boolean")
             elif op["kind"] == "abi_encode" and abi_fork:
                 if (
-                    op["mode"] != 1
-                    or op["base"]
+                    op["mode"] not in (1, 2)
+                    or op["mode"] == 1
+                    and op["base"]
                     or any(op["functions"])
-                    or len(op["args"]) != len(op["functions"]) + int(op["selector"])
+                    or len(op["args"])
+                    != len(op["functions"]) + int(op["selector"]) + int(op["base"])
                     or inst["result"] is None
                     or (inst["type"] or {}).get("location") != "memory"
                 ):
@@ -430,6 +452,15 @@ def render(
                 ):
                     raise Unsupported("effect-tree FMP signature mismatch")
             elif op["kind"] == "layout":
+                if abi_fork and op["query"] == "immutable_store":
+                    if inst["result"] is not None or len(op["args"]) != 1:
+                        raise Unsupported(
+                            "effect-tree immutable store signature mismatch"
+                        )
+                    for value in op["args"]:
+                        if width(value["type"]) != 256 or value["kind"] == "undefined":
+                            raise Unsupported("invalid immutable store operand")
+                    continue
                 ty = inst["type"] or {}
                 if (
                     set(op) != {"kind", "query", "end", "args"}
@@ -466,8 +497,9 @@ def render(
     for function in functions.values():
         for ty in [*function["params"], *function["returns"]]:
             width(ty)
-        for block in function["blocks"]:
-            validate_block(block)
+        if function["id"] not in call_cuts:
+            for block in function["blocks"]:
+                validate_block(block)
     entry = functions[model["entry_id"]]
     arguments = [(f"arg{index}", width(ty)) for index, ty in enumerate(entry["params"])]
     if abi_arguments is not None:
@@ -479,6 +511,8 @@ def render(
     def returned(args):
         if not abi_return:
             return boundary("return", args)
+        if bytes_return:
+            return bytes_boundary(args)
         words = ",".join(f"({value}).setWidth 256" for value, _ in args)
         return f"MIR.Effects.abiReturn [{words}]"
 

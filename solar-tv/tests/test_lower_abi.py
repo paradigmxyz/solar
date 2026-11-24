@@ -11,7 +11,8 @@ from pathlib import Path
 from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
-from validator import evaluate
+from validator import abi_group, evaluate, native
+from validator.common import Unsupported
 
 
 class LowerAbiTests(unittest.TestCase):
@@ -98,6 +99,7 @@ contract C {
                 "receive": "void-abi-effect-tree",
                 "forward": "abi-contextual-effects",
             }
+            entry_reports = []
             for function, scope in scopes.items():
                 with self.subTest(function=function):
                     result, proof = check(function, after)
@@ -111,6 +113,20 @@ contract C {
                         proof["import_correspondence"][0]["kind"],
                         certificate,
                     )
+                    saved = folder / f"{function}.json"
+                    saved.write_bytes(report.read_bytes())
+                    entry_reports.append(saved)
+
+            replay = native.default(SOLAR)
+            module_report = abi_group.compose(
+                row["paths"], entry_reports, replay, "cancun", 30
+            )
+            self.assertEqual(module_report["status"], "verified")
+            self.assertEqual(set(module_report["entry_reports"]), set(scopes))
+            with self.assertRaisesRegex(Unsupported, "every public entry"):
+                abi_group.compose(
+                    row["paths"], entry_reports[:-1], replay, "cancun", 30
+                )
 
             wrong_gas = folder / "wrong-gas.mir"
             changed, replacements = re.subn(

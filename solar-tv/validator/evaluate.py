@@ -18,8 +18,9 @@ from collections import defaultdict
 from itertools import zip_longest
 from pathlib import Path
 
-from . import audit
+from . import abi_group, audit
 from .check import run
+from .common import Unsupported
 
 ROOT = Path(__file__).resolve().parents[2]
 TV = ROOT / "solar-tv"
@@ -393,6 +394,38 @@ def evaluate_case(case, solar, folder, limit, seed, timeout, *, passes=()):
                 "seconds": time.monotonic() - start,
                 "report": str(target.relative_to(folder.parent)),
             }
+        )
+    for row, result in zip(chosen, results, strict=True):
+        if (
+            row["pass"] != "lower-abi"
+            or row["region"] is not None
+            or row["rejection"]
+            != "functions were added; interprocedural edits are not modeled"
+        ):
+            continue
+        entries = [
+            folder.parent / check["report"]
+            for candidate, check in zip(chosen, results, strict=True)
+            if candidate["paths"] == row["paths"]
+            and candidate["target"] == row["target"]
+            and candidate["region"]
+            and check["status"] == "verified"
+        ]
+        replay = Path(solar).with_name(
+            "solar-tv-replay" + (".exe" if os.name == "nt" else "")
+        )
+        start = time.monotonic()
+        try:
+            record = abi_group.compose(
+                row["paths"], entries, replay, row["target"], timeout
+            )
+        except Unsupported:
+            continue
+        audit.write(folder.parent / result["report"], record)
+        result.update(
+            status=record["status"],
+            proof_mode=record["region"]["proof"],
+            seconds=result["seconds"] + time.monotonic() - start,
         )
     return {
         "case": case["name"],

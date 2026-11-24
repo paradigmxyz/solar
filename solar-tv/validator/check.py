@@ -1175,6 +1175,7 @@ def main() -> int:
                             coalesce.check,
                             dead_ssa.check,
                             mir_cfg.check,
+                            abi_effects.check,
                             partial(
                                 induction.check, replay=replay, verbose=args.verbose
                             ),
@@ -1201,7 +1202,9 @@ def main() -> int:
                                 args.timeout,
                                 args.function,
                             )
-                        except Unsupported:
+                        except Unsupported as retry:
+                            if args.verbose and validate is abi_effects.check:
+                                print(f"ABI contextual proof: {retry}", file=sys.stderr)
                             continue
                         break
                     else:
