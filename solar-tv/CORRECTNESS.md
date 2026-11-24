@@ -1177,6 +1177,48 @@ independent replay hashes match the full audit above.
 | Checker on Lean 4.34.1 | `9fc27e920f57d5f4e64caa76ece59c3b0ca68396f91712adb0322b732c2a76f4` |
 | `target/tv-four-mir-gates-final/results.json` | `cc3e6f1f89b5e5427d213254ec03b89c71845787b422c5ddcda1289bbe8335df` |
 
+### Strict checked arithmetic and slice audit
+
+The combined serial gate verifies all 147 captures for six MIR passes
+at 120 seconds per prover invocation. Capture IDs and before and after
+hashes match the full audit. All three contracts produce identical ABI
+and creation and runtime bytecode with and without validation. The
+compiler, replay executable and corpus manifest fingerprints match the
+full audit above.
+
+| Pass | Selected | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `lower-abi-encode` | 16 | 16 | 0 | 0 | 0 |
+| `lower-arithmetic` | 16 | 16 | 0 | 0 | 0 |
+| `lower-integers` | 55 | 55 | 0 | 0 | 0 |
+| `lower-mapping-slots` | 32 | 32 | 0 | 0 | 0 |
+| `lower-memory-objects` | 27 | 27 | 0 | 0 | 0 |
+| `lower-slices` | 1 | 1 | 0 | 0 | 0 |
+| Total | 147 | 147 | 0 | 0 | 0 |
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Checker on Lean 4.34.1 | `17166f34154c43450e929b514beed14f6749d2bc7a4b6670151f5168c3855856` |
+| `target/tv-six-mir-gates-final/results.json` | `170db1919b90d505f2a5aa128650d2f9aa166f3b0459d5fb6b9a07265eac92fb` |
+
+The arithmetic proof covers unsigned addition and subtraction at 128
+and 256 bits and unsigned multiplication and division at 256 bits.
+The kernel checks the overflow and zero tests against the semantic
+operations, including the quotient test after a wrapped multiplication.
+The panic staging proof preserves exact failure bytes for codes 0x11
+and 0x12 in aligned byte memory within the 64 KiB model. The graph
+certificate compares ordered actions, failure branches and callee
+bindings after expanding the source operations.
+
+The slice proof checks that projecting either field of a defined typed
+construction yields its original operand. The ERC20Mock storage path
+retains those values across loops, shared blocks and direct calls.
+Independent Rust replay agrees with Lean on a changed arithmetic
+panic code and a changed value after slice projection. Both regressions
+lose the automatic proof. These checks use the trusted typed importer
+and action binding. Physical execution cost and backend placement
+remain separate obligations.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through

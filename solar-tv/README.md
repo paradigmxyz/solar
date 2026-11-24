@@ -2100,10 +2100,10 @@ bytecode outputs match between normal and capture compilation for every
 contract. Fingerprints and per-pass counts are recorded in
 [CORRECTNESS.md](CORRECTNESS.md#full-corpus-after-abi-entry-coverage).
 
-The combined strict gate verifies all 130 pinned captures for MIR ABI
-encoding, integer lowering, storage slots and memory objects at 120
-seconds per prover invocation. The result includes 16 ABI encoders.
-[Proof scopes and fingerprints](CORRECTNESS.md#strict-abi-encoder-audit)
+The combined strict gate verifies all 147 pinned captures for MIR ABI
+encoding, checked arithmetic, integer lowering, storage slots, memory
+objects and slice projections at 120 seconds per prover invocation.
+[Proof scopes and fingerprints](CORRECTNESS.md#strict-checked-arithmetic-and-slice-audit)
 
 Selected records for the same dispatch pair share the module-level proof
 report. Early CFG simplification, layout and compact PUSH captures can also
