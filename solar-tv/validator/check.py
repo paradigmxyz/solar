@@ -648,6 +648,18 @@ def check(
         )
 
 
+def check_mir_lowering(paths, solar, replay, version, timeout, function, verbose):
+    from . import lower_integers, lower_mapping_slots
+
+    for validate in (lower_integers.check, lower_mapping_slots.check):
+        result = validate(
+            paths, solar, replay, version, timeout, function, verbose=verbose
+        )
+        if result is not None:
+            return result
+    return None
+
+
 def main() -> int:
     if len(sys.argv) > 1 and sys.argv[1] == "transaction":
         from . import transaction
@@ -842,8 +854,6 @@ def main() -> int:
             entry_trace=args.entry_trace,
             entry_stack=args.entry_stack,
         )
-        from . import lower_integers
-
         if args.entry_stack:
             if (
                 args.ir != "evmir"
@@ -1076,14 +1086,14 @@ def main() -> int:
             and args.world is None
             and args.gas is None
             and (
-                result := lower_integers.check(
+                result := check_mir_lowering(
                     (args.before, args.after),
                     solar,
                     rust_replay,
                     version,
                     args.timeout,
                     args.function,
-                    verbose=args.verbose,
+                    args.verbose,
                 )
             )
             is not None

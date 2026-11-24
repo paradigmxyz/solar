@@ -516,6 +516,10 @@ def record(
                     "trusted compiler structural exporter and action-constructor binding; no physical gas pricing, ABI frame initialization or runtime callback binding",
                 ]
             )
+            if program.import_evidence["kind"] == "kernel-checked-fixed-storage-slots":
+                assumptions.append(
+                    "fixed storage keys preserve scratch bytes and hash input in aligned memory up to 64 KiB at each expanded logical action"
+                )
             if any(
                 any(details["product_initialization"])
                 for details in program.import_evidence["correspondence"].values()
@@ -1136,7 +1140,7 @@ def record(
                 "region": {
                     "kind": "function",
                     "name": program.selector,
-                    "proof": "kernel-checked-typed-jump-chain",
+                    "proof": program.import_evidence["kind"],
                     "functions": program.import_evidence["functions"],
                 },
             }

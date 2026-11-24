@@ -615,8 +615,11 @@ theorem matchedCalls {{Value World Observation : Type}}
 """
 
 
-def check(paths, solar, executable, version, timeout, function):
+def check(paths, solar, executable, version, timeout, function, *, fixed_slots=False):
     from .check import PRELUDE, ROOT, build_model, run
+
+    if fixed_slots:
+        from .lower_mapping_slots import materialize
 
     texts, models, interfaces = [], [], []
     for path in paths:
@@ -682,7 +685,12 @@ set_option maxHeartbeats 2000000
     checked = {}
     calls = {}
     procedure_pairs = []
-    axioms_checks = 19
+    if fixed_slots:
+        code += """
+#print axioms MIR.LowerMappingSlots.array
+#print axioms MIR.LowerMappingSlots.mapping
+"""
+    axioms_checks = code.count("#print axioms ")
     while work:
         name = work.pop()
         if name in checked:
@@ -701,6 +709,11 @@ set_option maxHeartbeats 2000000
         (first, first_checks), (second, second_checks) = map(
             scalar_checks.normalize, (a, b)
         )
+        expanded = 0
+        if fixed_slots:
+            first, expanded = materialize(first)
+            if name == function and not expanded:
+                raise Unsupported("selected function has no fixed storage slot")
         old, new = map(import_graph, (first, second))
         calls[a["id"]] = set()
         for kind, data, _ in old:
@@ -785,6 +798,8 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 "literal_branches": literal_branches,
             }
         checked[name]["product_initialization"] = product_initialization
+        if expanded:
+            checked[name]["fixed_slot_expansions"] = expanded
         if first_checks or second_checks:
             checked[name]["scalar_checks"] = [first_checks, second_checks]
         if any(
@@ -818,7 +833,9 @@ theorem identical{i} : before{i} = after{i} := by rfl
         )
     entry_proof.check_axioms(output.splitlines(), axioms_checks)
     evidence = {
-        "kind": "kernel-checked-typed-jump-chain",
+        "kind": "kernel-checked-fixed-storage-slots"
+        if fixed_slots
+        else "kernel-checked-typed-jump-chain",
         "functions": sorted(checked),
         "correspondence": checked,
         "proof_sha256": hashlib.sha256(code.encode()).hexdigest(),
