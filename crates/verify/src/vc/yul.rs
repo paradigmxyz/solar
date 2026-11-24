@@ -892,13 +892,15 @@ impl<'p, 'a> Vc<'p, 'a> {
         Ok(Var { ty, t, len: None })
     }
 
-    /// Whether an argument of this `abi.*` call after its first may write anything.
+    /// Whether an argument of this `abi.*` call may write anything.
     fn encode_writes(&self, e: &'a Expr<'a>) -> bool {
         let ExprKind::Call(_, inner) = &e.kind else {
             return true;
         };
         let (mut out, mut all) = (BTreeSet::new(), false);
-        for x in inner.exprs().skip(1) {
+        // Every argument, the first too: one argument (a struct constructor, a tuple) can name
+        // an object and then write it, before the compiled code encodes any of it.
+        for x in inner.exprs() {
             walk::sub_exprs(x, &mut |y| {
                 self.effects(y, &mut out, &mut all, &mut FxHashSet::default())
             });

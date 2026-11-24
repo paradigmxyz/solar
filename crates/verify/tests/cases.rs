@@ -1313,3 +1313,8 @@ fn struct_names_other_kind() {
 fn encode_library_scope() {
     check("tests/cases/encode_library_scope.sol")
 }
+
+#[test]
+fn encode_struct_field() {
+    check("tests/cases/encode_struct_field.sol")
+}
