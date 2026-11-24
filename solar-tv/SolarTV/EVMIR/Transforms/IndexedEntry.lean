@@ -4,7 +4,8 @@ import SolarTV.EVMIR.Transforms.IndexedGuard
 /-! Prove coverage of an indexed dispatch's range checks from physical entry.
 The graph starts at PC zero and also at the possible misses and table targets
 so the result applies after the initial dispatch. Stop at each certified
-guard cut. Before a cut, a branch must take its target from an adjacent PUSH.
+guard cut. The graph tracks known words in the live stack so it can resolve
+branches and internal returns.
 An unresolved jump or a reachable continuation into opaque data prevents an
 entry certificate. A failed certificate leaves the local table proof intact. -/
 
@@ -13,43 +14,41 @@ open EvmRules
 
 structure Point where
   pc : Nat
-  pushed : Option Word := none
+  words : State.KnownStack := []
   deriving DecidableEq, BEq, ReflBEq, LawfulBEq
 
 def Point.matches (point : Point) (frame : State.Frame) : Prop :=
-  frame.pc = point.pc ∧ ∀ value, point.pushed = some value → frame.stack.head? = some value
+  frame.pc = point.pc ∧ point.words.matches frame.stack
 
 def isJump (opcode : Nat) : Bool :=
   opcode == 0x56 || opcode == 0x57
 
-private def followsJump (code : State.CodeChunks) (pc : Nat) : Bool :=
-  isJump ((code.get? pc).getD 0).toNat
-
-/-- Abstract control flow tracks the operand of a branch only across the
-preceding PUSH. Branch conditions and world state are unrestricted. -/
-def successors (code : State.CodeChunks) (finalImage : Bool) (point : Point) :
+/-- Use the proved motion of a live stack, including across a branch. Branch
+conditions and world state are unrestricted. -/
+def successors (code : State.CodeChunks) (cfg : State.Config) (finalImage : Bool) (point : Point) :
     Option (List Point) := do
   if finalImage && code.size ≤ point.pc then return [] else
   let inst ← RelocatedReturn.decode code point.pc
+  let words := (State.stackMotion cfg inst.opcode (code.immediate point.pc)).carry point.words
   if State.stopsControl inst.opcode then return []
   else if isJump inst.opcode then
-    let target ← point.pushed
+    let target ← point.words.word 0
     -- The unchecked suffix may itself contain JUMPDEST, so a destination
     -- there must survive the projection and cause a failed certificate.
     let taken := if target.toNat ≥ code.size || (code.jumps 0).contains target.toNat
-      then [Point.mk target.toNat none] else []
-    return if inst.opcode = 0x57 then ⟨inst.next,none⟩ :: taken else taken
+      then [Point.mk target.toNat words] else []
+    return if inst.opcode = 0x57 then ⟨inst.next,words⟩ :: taken else taken
   else
-    return [⟨inst.next,if followsJump code inst.next then inst.immediate else none⟩]
+    return [⟨inst.next,words⟩]
 
-private def explore (code : State.CodeChunks) (finalImage : Bool) (cuts : List Nat) :
-    Nat → List Point → List Point → Option (List Point)
+private def explore (code : State.CodeChunks) (cfg : State.Config) (finalImage : Bool)
+    (cuts : List Nat) : Nat → List Point → List Point → Option (List Point)
   | _, [], seen => some seen
   | 0, _ :: _, _ => none
   | fuel+1, point :: rest, seen => do
-    if seen.contains point then explore code finalImage cuts fuel rest seen else
-    let next ← if cuts.contains point.pc then some [] else successors code finalImage point
-    explore code finalImage cuts fuel (next ++ rest) (point :: seen)
+    if seen.contains point then explore code cfg finalImage cuts fuel rest seen else
+    let next ← if cuts.contains point.pc then some [] else successors code cfg finalImage point
+    explore code cfg finalImage cuts fuel (next ++ rest) (point :: seen)
 
 private theorem decoded (code : State.CodeChunks) (pc : Nat) (inst : RelocatedReturn.ByteOp)
     (found : RelocatedReturn.decode code pc = some inst) :
@@ -99,7 +98,7 @@ private theorem pushed_with_data (code : State.CodeChunks) (data : List State.By
 
 /-- Refine every successful interpreter step into an edge of the checked
 physical graph. The frame's code may include any suffix after the decoded
-prefix. Resuming a child invocation cannot supply an abstract PUSH operand. -/
+prefix. Resuming a child invocation leaves the untouched stack suffix live. -/
 theorem successor_of_resume (code : State.CodeChunks) (data : List State.Byte)
     (cfg : State.Config) (execute : State.ChildExecutor) (world afterWorld : State.Journal)
     (frame planned after : State.Frame) (before : Point) (signal : State.Step)
@@ -107,12 +106,12 @@ theorem successor_of_resume (code : State.CodeChunks) (data : List State.Byte)
     (finalSize : finalImage = true → data = [])
     (jumpInputs : ∀ opcode, isJump opcode = true → 0 < (State.available cfg opcode).inputs)
     (same : frame.code = code.bytes ++ data) (matched : before.matches frame)
-    (known : successors code finalImage before = some edges)
+    (known : successors code cfg finalImage before = some edges)
     (action : State.instruction cfg world frame = .ok signal)
     (continued : signal.continuation = some planned)
     (advanced : State.advance cfg execute signal = .ok (.inr (cost,afterWorld,after))) :
     ∃ point ∈ edges, point.matches after := by
-  obtain ⟨beforePc, beforeHead⟩ := matched
+  obtain ⟨beforePc, beforeWords⟩ := matched
   by_cases atEnd : (finalImage && decide (code.size ≤ before.pc)) = true
   · obtain ⟨finish, bound⟩ := by simpa using atEnd
     have done : frame.code.length ≤ frame.pc := by
@@ -130,15 +129,21 @@ theorem successor_of_resume (code : State.CodeChunks) (data : List State.Byte)
       · rfl
       · rw [State.CodeChunks.size_eq]
         omega
-    have effect := State.instruction_control cfg world frame frame.code.length byte
+    have described := State.instruction_control cfg world frame frame.code.length byte
       (State.pushValue frame.code frame.pc) (State.validJump frame.code) signal planned
       (by simpa only [State.instruction, current] using action) continued
-    obtain ⟨afterPc, afterHead⟩ :=
+    obtain ⟨afterPc, resumed⟩ :=
       State.advance_control cfg execute signal planned after cost afterWorld continued advanced
-    rw [← opcode, same, beforePc] at effect
+    rw [← opcode, same, beforePc] at described
+    obtain ⟨effect, stackEffect⟩ := described
+    have literals := pushed_with_data code data before.pc inst.opcode (next ▸ inside)
+    have motion : (State.stackMotion cfg inst.opcode (code.immediate before.pc)).realizes
+        frame.stack after.stack := by
+      simpa only [State.stackMotion, literals] using stackEffect after.stack resumed
+    have carried := State.StackMotion.carry_matches _ _ _ _ beforeWords motion
     unfold State.ControlEffect at effect
     simp only [beforePc] at effect
-    rw [pushed_with_data code data before.pc inst.opcode (next ▸ inside), ← immediate] at effect
+    rw [literals, ← immediate] at effect
     simp only [successors, atEnd, found, Bind.bind, Option.bind, Option.pure_def] at known
     cases pushed : inst.immediate with
     | some value =>
@@ -154,17 +159,13 @@ theorem successor_of_resume (code : State.CodeChunks) (data : List State.Byte)
         simp [State.stopsControl]
         omega
       have follows : isJump inst.opcode = false := by simp [isJump]; omega
-      simp only [pushed] at effect
-      simp only [harmless, follows, Bool.false_eq_true, ite_false, pushed, Option.some.injEq] at known
+      simp only [pushed, Option.isSome_some, ite_true] at effect
+      simp only [harmless, follows, Bool.false_eq_true, ite_false, Option.some.injEq] at known
       subst edges
-      refine ⟨_, List.mem_cons_self, afterPc.trans (effect.1.trans next.symm), ?_⟩
-      intro proposed head
-      split at head
-      · cases head
-        exact afterHead _ effect.2
-      · contradiction
+      exact ⟨_, List.mem_cons_self, afterPc.trans (effect.trans next.symm), carried⟩
     | none =>
-      simp only [pushed] at effect
+      simp only [pushed, Option.isSome_none, ite_false,
+        Bool.false_eq_true] at effect
       by_cases jump : isJump inst.opcode = true
       · have jumpCodes : inst.opcode = 0x56 ∨ inst.opcode = 0x57 := by
           simpa [isJump] using jump
@@ -173,14 +174,14 @@ theorem successor_of_resume (code : State.CodeChunks) (data : List State.Byte)
         have noStop : State.stopsControl inst.opcode = false := by
           rcases jumpCodes with h | h <;> simp [h, State.stopsControl]
         simp only [noStop, Bool.false_eq_true, jump, ite_false, ite_true] at known
-        cases address : before.pushed with
+        cases address : before.words.word 0 with
         | none => simp [address] at known
         | some target =>
           simp only [address, Option.some.injEq] at known
           subst edges
-          have top := beforeHead target address
+          have top := beforeWords 0 target address
           rw [ite_eq_left jumpCodes, List.getElem?_take_of_lt (jumpInputs _ jump),
-            ← List.head?_eq_getElem?, top] at effect
+            top] at effect
           simp only [Option.getD_some] at effect
           rcases effect with ⟨valid, taken⟩ | ⟨cond, missed⟩
           · have admitted : (decide (target.toNat ≥ code.size) ||
@@ -189,11 +190,17 @@ theorem successor_of_resume (code : State.CodeChunks) (data : List State.Byte)
               · rw [State.CodeChunks.jump_eq_with_data code data target internal, valid]
                 simp
               · simp [show target.toNat ≥ code.size by omega]
-            refine ⟨⟨target.toNat,none⟩, ?_, afterPc.trans taken, by simp⟩
-            simp at admitted
-            by_cases conditional : inst.opcode = 0x57 <;> simp [conditional, admitted]
-          · refine ⟨⟨inst.next,none⟩, by simp [cond], ?_, by simp⟩
-            simpa [next, noWidth] using afterPc.trans missed
+            refine ⟨⟨target.toNat,_⟩, ?_, afterPc.trans taken, carried⟩
+            rw [ite_eq_left admitted]
+            by_cases conditional : inst.opcode = 0x57
+            · rw [ite_eq_left conditional]
+              exact List.mem_cons_of_mem _ List.mem_cons_self
+            · rw [ite_eq_right conditional]
+              exact List.mem_cons_self
+          · refine ⟨⟨inst.next,_⟩, ?_, ?_, carried⟩
+            · rw [ite_eq_left cond]
+              exact List.mem_cons_self
+            · simpa [next, noWidth] using afterPc.trans missed
       · have notJump : ¬(inst.opcode = 0x56 ∨ inst.opcode = 0x57) := by
           simpa [isJump] using jump
         rw [ite_eq_right notJump] at effect
@@ -204,21 +211,20 @@ theorem successor_of_resume (code : State.CodeChunks) (data : List State.Byte)
             split at immediate <;> simp at immediate
           · simp [State.pushWidth, wide]
         have notTaken : isJump inst.opcode = false := by simpa using jump
-        simp only [effect.1, notTaken, Bool.false_eq_true, ite_false, pushed,
-          ite_self, Option.some.injEq] at known
+        simp only [effect.1, notTaken, Bool.false_eq_true, ite_false, Option.some.injEq] at known
         subst edges
-        refine ⟨⟨inst.next,none⟩, List.mem_cons_self, ?_, by simp⟩
+        refine ⟨⟨inst.next,_⟩, List.mem_cons_self, ?_, carried⟩
         simpa [next, noWidth] using afterPc.trans effect.2
 
-def Closed (code : State.CodeChunks) (finalImage : Bool) (cuts : List Nat) (roots seen : List Point)
+def Closed (code : State.CodeChunks) (cfg : State.Config) (finalImage : Bool) (cuts : List Nat) (roots seen : List Point)
     (tables : List Nat) : Bool :=
   roots.all seen.contains && !(seen.any fun p => tables.contains p.pc) &&
     seen.all fun p => cuts.contains p.pc ||
-      (((successors code finalImage p).map fun next => next.all seen.contains).getD false)
+      (((successors code cfg finalImage p).map fun next => next.all seen.contains).getD false)
 
-def candidates (code : State.CodeChunks) (finalImage : Bool) (cuts : List Nat) (roots : List Point) :
+def candidates (code : State.CodeChunks) (cfg : State.Config) (finalImage : Bool) (cuts : List Nat) (roots : List Point) :
     Option (List Point) :=
-  explore code finalImage cuts (min 8192 (2*code.size+roots.length)) roots []
+  explore code cfg finalImage cuts (min 8192 (2*code.size+roots.length)) roots []
 
 /-- A same-frame bytecode trace before any proved selector producer. Nested
 execution is quantified through the child executor. Only the parent's resumed
@@ -242,7 +248,7 @@ calldata, world state or responses to external calls. -/
 theorem cannotBypass (code : State.CodeChunks) (cfg : State.Config) (data : List State.Byte)
     (finalImage : Bool) (cuts : List Nat) (roots seen : List Point) (tables : List Nat)
     (finalSize : finalImage = true → data = [])
-    (checked : Closed code finalImage cuts roots seen tables = true)
+    (checked : Closed code cfg finalImage cuts roots seen tables = true)
     (jumpInputs : ∀ opcode, isJump opcode = true → 0 < (State.available cfg opcode).inputs)
     (frame : State.Frame) (path : FramePrefix cfg (code.bytes ++ data) cuts roots frame) :
     frame.pc ∉ tables := by
@@ -257,7 +263,7 @@ theorem cannotBypass (code : State.CodeChunks) (cfg : State.Config) (data : List
       have openCut : point.pc ∉ cuts := matched.1 ▸ uncut
       have closed := checked.2 point found
       simp only [List.contains_eq_mem, openCut, decide_false, Bool.false_or] at closed
-      cases decoded : successors code finalImage point with
+      cases decoded : successors code cfg finalImage point with
       | none => simp [decoded] at closed
       | some edges =>
         simp only [decoded, Option.map_some, Option.getD_some, List.all_eq_true] at closed

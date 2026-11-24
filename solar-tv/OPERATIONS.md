@@ -237,6 +237,12 @@ block label. It follows the actual label through ordinary stack shuffles and
 checks that no value-consuming operation observes it. Unresolved jumps still
 need an explicit output boundary. Physical return PCs, escaping labels,
 external messages and code-image observers remain outside this proof.
+The separate emitted indexed-table entry proof follows literal return PCs
+through stack permutations and untouched suffixes. It checks each motion
+against the bytecode interpreter, including a resumed parent's stack, and
+retains the top 32 facts. A shared Solidity helper before a dense switch and
+a changed return address have kernel coverage checks and independent raw-byte
+replay. Computed or spilled addresses and backend placement remain open.
 Identical independently exported stateful graphs have a separate structural
 certificate for every execution bound; opcode and physical-layout bindings
 remain trusted. See

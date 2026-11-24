@@ -1320,8 +1320,18 @@ the table without one of its checked selector producers. The proof starts
 at bytecode PC zero and resumes from every guard miss and table destination.
 Tables in the same image can share the proof, including cyclic dispatches.
 The compiler bundle reports `selector_scope: "from-physical-entry"` for
-that stronger result. Reachable computed jumps and execution into an
+that stronger result. Lean tracks literal return addresses through PUSH,
+DUP, SWAP and the untouched suffix of other operations, including internal
+helper returns before a switch. The analysis retains the top 32 stack facts.
+Unresolved computed jumps, spilled return addresses and execution into an
 unchecked data suffix leave the proof scoped to the local mask or guard.
+
+The shared-helper regression in `examples/solidity/indexed-table-return.sol`
+checks both public entrypoints against the emitted table. Changing the
+return address of `other()` to the table entry removes the physical-entry
+proof. Independent raw-byte replay confirms that `other(0)` then writes
+storage instead of returning its word. The ABI and creation/runtime bytes
+are identical when compiling with and without validation.
 
 ### Removing terminal stack discards
 

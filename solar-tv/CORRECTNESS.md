@@ -474,6 +474,23 @@ edges separately. Each route retains its own temporary stack bound.
 
 ### Stack-carried continuations
 
+The physical indexed-entry certificate also tracks literal words through
+PUSH, DUP, SWAP and untouched stack suffixes, retaining the top 32 facts.
+The kernel connects each abstract stack motion to the bytecode interpreter,
+including the parent's stack after CALL or CREATE resumes. Branch conditions,
+world state and child responses remain arbitrary. Closing the graph proves
+that every path to the table crosses a checked selector producer, with the
+existing code-prefix and final-image assumptions.
+
+The Solidity dense-switch regression shares an internal storage-reading helper
+between two public functions. Its original emitted bytes receive physical-entry
+coverage. Redirecting the second function's return address into the table
+removes that coverage while preserving the local guard proof. Independent
+raw-byte replay confirms a changed output and storage write for `other(0)`.
+Compiling with and without validation preserves ABI and both bytecode outputs.
+Spilled addresses, arithmetic-derived jump targets and backend placement
+correspondence remain open.
+
 The continuation certificate independently exports source label pushes and
 dynamic jumps. The proposed graph associates each reachable source point with
 the tags on its stack. Lean checks the entry, stack operations, both successors

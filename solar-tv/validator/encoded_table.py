@@ -229,11 +229,11 @@ def decoded := producers.map fun (start,entry) => EVM.IndexedGuard.read cfg code
 theorem completeGuards : decoded.all Option.isSome = true := by decide +kernel
 def misses := decoded.filterMap fun guard => guard.map (·.miss.toNat)
 def targets : List Nat := {targets}
-def roots : List Point := (0 :: misses ++ targets).map fun pc => ⟨pc,none⟩
+def roots : List Point := (0 :: misses ++ targets).map fun pc => ⟨pc,[]⟩
 def entries : List Nat := {entries}
 def finalImage : Bool := {str(final_image).lower()}
-def seen := (candidates code finalImage cuts roots).getD []
-theorem closed : Closed code finalImage cuts roots seen entries = true := by decide +kernel
+def seen := (candidates code cfg finalImage cuts roots).getD []
+theorem closed : Closed code cfg finalImage cuts roots seen entries = true := by decide +kernel
 theorem jumpInputs (opcode : Nat) (jump : isJump opcode = true) :
     0 < (EVM.State.available cfg opcode).inputs := by
   simp [isJump] at jump

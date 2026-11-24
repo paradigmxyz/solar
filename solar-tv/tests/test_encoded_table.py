@@ -20,6 +20,7 @@ VERSION = "cancun"
 SENTINEL = 71
 FIRST_MARKER = 101
 SWITCH = ROOT.parent / "tests/ui/codegen/lowering/evm-ir/switch/dense_table.sol"
+SHARED_SWITCH = ROOT / "examples/solidity/indexed-table-return.sol"
 
 
 class EncodedTableTests(unittest.TestCase):
@@ -139,11 +140,13 @@ class EncodedTableTests(unittest.TestCase):
             gas="exact",
         )
 
-    def compile_with_audit(self, path, *flags, capture=False):
+    def compile_with_audit(
+        self, path, *flags, capture=False, emit="bin,bin-runtime", checker=CLI
+    ):
         directory = self.directory / "table-audits"
         env = {
             **os.environ,
-            "SOLAR_TV": CLI,
+            "SOLAR_TV": checker,
             "SOLAR": SOLAR,
             "SOLAR_TV_REPLAY": self.replay,
         }
@@ -151,7 +154,7 @@ class EncodedTableTests(unittest.TestCase):
             SOLAR,
             path,
             "-j1",
-            "--emit=bin,bin-runtime",
+            f"--emit={emit}",
             "--allow=2264",
             f"--evm-version={VERSION}",
             *flags,
@@ -498,6 +501,78 @@ bb88:
             [replay(code, 10)[0] for code in (runtime, extended)],
             ["success", "exception"],
         )
+
+    def test_shared_helper_return_cannot_bypass_the_range_guard(self):
+        # Bound pass checks while leaving the emitted-table proof its full budget.
+        checker = self.directory / "validator"
+        checker.write_text(
+            f"#!{sys.executable}\nimport os, sys\n"
+            "budget = 3 if sys.argv[1] in ('mir', 'evmir') else 60\n"
+            f"os.execv({CLI!r}, [{CLI!r}, *sys.argv[1:], f'--timeout={{budget}}'])\n"
+        )
+        checker.chmod(0o755)
+        layout, runtime = self.compile_with_audit(
+            SHARED_SWITCH, "-Osize", emit="abi,bin,bin-runtime", checker=str(checker)
+        )
+        result, record = self.check_bundle(layout)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        (table,) = record["tables"]
+        (guard,) = table["range_guards"]
+        self.assertEqual(table["selector_scope"], "from-physical-entry")
+        self.assertEqual(
+            table["entry_coverage"], {"status": "verified", "cuts": [guard["pc"]]}
+        )
+
+        instructions = list(decode_runtime(runtime, self.catalog).items())
+        marker = table["entry_pc"] - 1
+        self.assertEqual(runtime[marker], 0x5B)
+        # other() pushes its continuation before jumping back to adjust().
+        (return_push,) = [
+            pushed[0]
+            for pushed, helper, jump, continuation in zip(
+                instructions, instructions[1:], instructions[2:], instructions[3:]
+            )
+            if pushed[0] > max(edge["pc"] for edge in table["entries"])
+            and pushed[1] == ("push1", continuation[0])
+            and helper[1][0] == "push1"
+            and helper[1][1] < guard["pc"]
+            and jump[1][0] == "jump"
+            and continuation[1][0] == "jumpdest"
+        ]
+        broken = (
+            runtime[: return_push + 1] + bytes([marker]) + runtime[return_push + 2 :]
+        )
+        (layout.parent / "bytecode.hex").write_text(broken.hex())
+        result, record = self.check_bundle(layout)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        (table,) = record["tables"]
+        self.assertEqual(table["status"], "verified")
+        self.assertEqual(table["selector_scope"], "from-guard-cut")
+        self.assertEqual(table["entry_coverage"]["status"], "unproven")
+
+        text = (layout.parent / "source.evmir").read_text()
+        for code, output, slots in (
+            (runtime, [0] * 32, []),
+            (broken, [], [["0", "10"]]),
+        ):
+            program = self.program(
+                text, code, 0, 50_000, prefix=bytes.fromhex("369984d6")
+            )
+            replay = native.replay(
+                program,
+                program,
+                [],
+                executable=self.replay,
+                timeout=30,
+                raw_runtime=True,
+            )
+            stop, data, _, _, accounts, _ = json.loads(replay["observations"][0])
+            root = next(
+                account
+                for account in accounts
+                if account[0] == program.world["address"]
+            )
+            self.assertEqual((stop, data, root[4]), ("success", output, slots))
 
     def test_live_outlined_transfer_uses_the_original_targets(self):
         path = (

@@ -1,4 +1,4 @@
-import SolarTV.EVMIR.State.Interpreter
+import SolarTV.EVMIR.State.StackMotion
 
 /-! The bytecode interpreter's program-counter effects. Child execution may
 change the world and return data. Its parent's continuation PC is fixed by
@@ -11,9 +11,11 @@ def Step.continuation : Step → Option Frame
   | .next _ frame | .call _ _ _ _ _ _ frame | .create _ _ _ _ frame => some frame
   | .done _ => none
 
-def Step.directHead : Step → Option Word
-  | .next _ frame => frame.stack.head?
-  | _ => none
+def Step.resumedStack (signal : Step) (stack : EVM.Stack) : Prop :=
+  match signal with
+  | .next _ frame => stack = frame.stack
+  | .call _ _ _ _ _ _ frame | .create _ _ _ _ frame => ∃ reply, stack = reply :: frame.stack
+  | .done _ => False
 
 /-- The immediate pushed by an instruction, with PUSH0 handled separately
 from the ordinary PUSH payload width. -/
@@ -25,20 +27,58 @@ def pushedWord (opcode : Nat) (immediate : Nat → Word) : Option Word :=
 def stopsControl (opcode : Nat) : Bool :=
   [0x00, 0xf3, 0xfd, 0xfe, 0xff].contains opcode
 
+private def pureInputs : EVM.Op → Nat
+  | .not | .iszero | .clz => 1
+  | .addmod | .mulmod => 3
+  | _ => 2
+
+private theorem pure_motion (opcode : Nat) (op : EVM.Op) (ctx : EVM.Context)
+    (before after : EVM.Stack) (found : pureOp opcode = some op)
+    (ran : EVM.step ctx op before = some after) :
+    (StackMotion.replace (pureInputs op) 1).realizes before after := by
+  unfold pureOp at found
+  split at found <;> try contradiction
+  all_goals
+    cases found
+    rcases before with _ | ⟨a,_ | ⟨b,_ | ⟨c,rest⟩⟩⟩ <;>
+      simp_all [EVM.step, pureInputs]
+  all_goals cases ran; exact ⟨_,rfl⟩
+
+private def noResult (opcode : Nat) : Bool :=
+  [0x3c,0x37,0x39,0x3e,0x50,0x52,0x53,0x55,0x5d,0x56,0x57,0x5b,0x5e].contains opcode ||
+    (0xa0 ≤ opcode && opcode ≤ 0xa4)
+
+/-- Only a proved literal or stack permutation adds known words. The
+ordinary opcode cases retain the untouched suffix under the operands. -/
+def stackMotion (cfg : Config) (opcode : Nat) (immediate : Nat → Word) : StackMotion :=
+  if let some word := pushedWord opcode immediate then
+    .push word (if opcode = 0x5f then (available cfg opcode).inputs else 0)
+  else if let some op := pureOp opcode then .replace (pureInputs op) 1
+  else if range : 0x80 ≤ opcode ∧ opcode ≤ 0x9f then
+    if opcode < 0x90 then .dup ⟨opcode - 0x80, by omega⟩
+    else .swap ⟨opcode - 0x90, by omega⟩
+  else .replace (available cfg opcode).inputs (if noResult opcode then 0 else 1)
+
 /-- Every potentially resuming instruction has one of three kinds of PC
 effect. The finite gas, stack, and world checks only remove transitions
 from this projection. -/
-def ControlEffect (frame after : Frame) (directHead : Option Word) (opcode inputs : Nat)
+def ControlEffect (frame after : Frame) (opcode inputs : Nat)
     (immediate : Nat → Word)
     (jump : Word → Bool) : Prop :=
-  if let some value := pushedWord opcode immediate then
-    after.pc = frame.pc + 1 + pushWidth opcode ∧ directHead = some value
+  if (pushedWord opcode immediate).isSome then
+    after.pc = frame.pc + 1 + pushWidth opcode
   else if opcode = 0x56 ∨ opcode = 0x57 then
     let address := (frame.stack.take inputs)[0]?.getD 0
     (jump address = true ∧ after.pc = address.toNat) ∨
       (opcode = 0x57 ∧ after.pc = frame.pc + 1)
   else
     stopsControl opcode = false ∧ after.pc = frame.pc + 1
+
+def InstructionEffect (cfg : Config) (frame after : Frame) (signal : Step)
+    (opcode : Nat) (immediate : Nat → Word) (jump : Word → Bool) : Prop :=
+  ControlEffect frame after opcode (available cfg opcode).inputs immediate jump ∧
+    ∀ stack, signal.resumedStack stack →
+      (stackMotion cfg opcode immediate).realizes frame.stack stack
 
 private def ResumesWith (action : Action) (property : Step → Frame → Prop) : Prop :=
   ∀ signal after, action = .ok signal → signal.continuation = some after → property signal after
@@ -105,10 +145,10 @@ theorem instruction_control (cfg : Config) (world : Journal) (frame : Frame)
     (signal : Step) (after : Frame)
     (action : instructionWithImage cfg world frame codeLength byte immediate jump = .ok signal)
     (follows : signal.continuation = some after) :
-    ControlEffect frame after signal.directHead byte.toNat (available cfg byte.toNat).inputs immediate jump := by
+    InstructionEffect cfg frame after signal byte.toNat immediate jump := by
   refine (show ResumesWith (instructionWithImage cfg world frame codeLength byte immediate jump)
-    (fun signal after => ControlEffect frame after signal.directHead byte.toNat
-      (available cfg byte.toNat).inputs immediate jump) from ?_) _ _ action follows
+    (fun signal after => InstructionEffect cfg frame after signal byte.toNat immediate jump)
+      from ?_) _ _ action follows
   clear action follows signal after
   simp only [instructionWithImage]
   by_cases pastEnd : codeLength ≤ frame.pc
@@ -143,7 +183,8 @@ theorem instruction_control (cfg : Config) (world : Journal) (frame : Frame)
         intro result follows
         cases follows
         have notZero : byte.toNat ≠ 0x5f := by omega
-        simp [ControlEffect, pushedWord, pushWidth, Step.directHead, notZero, pushRange]
+        simp [InstructionEffect, ControlEffect, pushedWord, pushWidth, stackMotion,
+          StackMotion.realizes, Step.resumedStack, notZero, pushRange]
     rw [ite_eq_right pushRange]
     by_cases stackRange : 0x80 ≤ byte.toNat ∧ byte.toNat ≤ 0x9f
     · rw [ite_eq_left stackRange]
@@ -159,7 +200,9 @@ theorem instruction_control (cfg : Config) (world : Journal) (frame : Frame)
         have h₃ : stopsControl byte.toNat = false := by
           simp [stopsControl]
           omega
-        simp [ControlEffect, pushedWord, h₁, h₂, h₃, pushRange]
+        simp [InstructionEffect, ControlEffect, pushedWord, h₁, h₂, h₃, pushRange, stackRange,
+          stackMotion, pure, Step.resumedStack]
+        split <;> simp_all [StackMotion.realizes]
     rw [ite_eq_right stackRange]
     generalize eq : byte.toNat = opcode at *
     repeat' first
@@ -171,20 +214,23 @@ theorem instruction_control (cfg : Config) (world : Journal) (frame : Frame)
       | apply resumesWith_bind; intro result
       | apply resumesWith_ok; intro result follows; cases follows
       | change ResumesWith _ _; split <;> try dsimp only
-    all_goals try (simp [ControlEffect, pushedWord, pushWidth, stopsControl])
-    all_goals try (simp_all (config := { maxSteps := 1000 }) only [ControlEffect, pushedWord,
+    all_goals try (simp [InstructionEffect, ControlEffect, pushedWord, pushWidth, stopsControl])
+    all_goals try (simp_all (config := { maxSteps := 1000 }) only [InstructionEffect, ControlEffect, pushedWord,
       pushWidth, stopsControl, Nat.reduceEq, Nat.reduceLe, if_true, if_false, List.head?_cons,
       Bool.false_eq_true, decide_true, decide_false, Bool.or_false, Bool.false_or,
       Bool.not_eq_true, Bool.not_eq_false, Bool.false_and,
       List.contains_cons, List.contains_nil, beq_iff_eq, List.getD_cons_zero,
-      Step.directHead, List.getElem?_zero])
+      List.getElem?_zero])
     all_goals try exact ⟨by assumption, rfl⟩
     all_goals try exact Or.inl ⟨by assumption, rfl⟩
     all_goals try
       have notZero : opcode ≠ 0x5f := by omega
       have notJump : ¬(opcode = 0x56 ∨ opcode = 0x57) := by omega
       simp [notZero, pushRange, notJump] <;> omega
-    all_goals simp_all [Step.directHead]
+    all_goals simp_all [Step.resumedStack, stackMotion, pushedWord, noResult]
+    all_goals
+      have noPermutation : ¬(0x80 ≤ opcode ∧ opcode ≤ 0x9f) := by omega
+      simp [noPermutation] <;> omega
   case some op =>
     dsimp only
     have small : 1 ≤ byte.toNat ∧ byte.toNat ≤ 0x1e := by
@@ -202,31 +248,31 @@ theorem instruction_control (cfg : Config) (world : Journal) (frame : Frame)
       have h₄ : stopsControl byte.toNat = false := by
         simp [stopsControl]
         omega
-      simp [ControlEffect, pushedWord, h₁, h₂, h₃, h₄]
+      simp [InstructionEffect, ControlEffect, pushedWord, h₁, h₂, h₃, h₄, pure,
+        stackMotion, Step.resumedStack]
+      exact StackMotion.replace_one _ _ _ |>.mp (pure_motion _ _ _ _ _ pure (by assumption))
 
 /-- Resolving a child call or creation keeps the parent's continuation PC.
-Only a direct instruction may supply a proved stack head to the next step. -/
+Child execution supplies one reply to the caller's remaining stack. -/
 theorem advance_control (cfg : Config) (execute : ChildExecutor) (signal : Step)
     (planned resumed : Frame) (cost : Nat) (world : Journal)
     (continues : signal.continuation = some planned)
     (advanced : advance cfg execute signal = .ok (.inr (cost,world,resumed))) :
-    resumed.pc = planned.pc ∧
-      ∀ value, signal.directHead = some value → resumed.stack.head? = some value := by
+    resumed.pc = planned.pc ∧ signal.resumedStack resumed.stack := by
   cases signal <;> simp only [Step.continuation] at continues
   case done => contradiction
   case next =>
     cases continues
     cases advanced
-    exact ⟨rfl, fun _ head => head⟩
+    exact ⟨rfl,rfl⟩
   all_goals
     cases continues
-    constructor
-    · simp only [advance, Bind.bind, Except.bind, Pure.pure, Except.pure] at advanced
-      repeat' first
-        | contradiction
-        | injection advanced with result; contradiction
-        | injection advanced with result; injection result with pair; cases pair; rfl
-        | split at advanced
-    · simp [Step.directHead]
+    simp only [advance, Bind.bind, Except.bind, Pure.pure, Except.pure] at advanced
+    repeat' first
+      | contradiction
+      | injection advanced with result; contradiction
+      | injection advanced with result; injection result with pair; cases pair
+        exact ⟨rfl,⟨_,rfl⟩⟩
+      | split at advanced
 
 end SolarTV.EVM.State
