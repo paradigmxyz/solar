@@ -2093,12 +2093,17 @@ by IR layer, pass and EVM target. It preserves the separate checker statuses,
 including unsupported inputs and timeouts. The counts cover the captured
 corpus; a pass that never changes that corpus needs other inputs.
 
-The full serial audit on 2026-11-24 checks all 2,228 pinned captures at three
-seconds per prover invocation. It verifies 983, leaves 929 unsupported and
-times out on 316, with zero counterexamples or tool errors. ABI and both
+The latest full serial audit checks all 2,228 pinned captures at three
+seconds per prover invocation. It verifies 1,059, with 844 unsupported
+checks, 324 timeouts, one tool error and zero counterexamples. ABI and both
 bytecode outputs match between normal and capture compilation for every
-contract. The run's fingerprints, per-pass counts and remaining proof scopes
-are recorded in [CORRECTNESS.md](CORRECTNESS.md#full-corpus-audit-on-2026-11-24).
+contract. Fingerprints and per-pass counts are recorded in
+[CORRECTNESS.md](CORRECTNESS.md#full-corpus-after-abi-entry-coverage).
+
+The combined strict gate verifies all 130 pinned captures for MIR ABI
+encoding, integer lowering, storage slots and memory objects at 120
+seconds per prover invocation. The result includes 16 ABI encoders.
+[Proof scopes and fingerprints](CORRECTNESS.md#strict-abi-encoder-audit)
 
 Selected records for the same dispatch pair share the module-level proof
 report. Early CFG simplification, layout and compact PUSH captures can also
