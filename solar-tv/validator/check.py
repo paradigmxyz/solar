@@ -1289,23 +1289,36 @@ def main() -> int:
             and args.world is None
             and args.gas is None
             and len(programs) == 2
-            and all(program.symbolic_mir is not None for program in programs)
         ):
             # A failed direct proof can still admit an action-by-action
             # certificate without duplicating the unfolding of shared tails.
-            from . import mir_cfg
+            from . import lower_abi, mir_cfg
 
-            try:
-                fallback = mir_cfg.check(
-                    (args.before, args.after),
-                    solar,
-                    rust_replay,
-                    version,
-                    args.timeout,
-                    args.function,
-                )
-            except Unsupported, OSError, subprocess.TimeoutExpired:
-                pass
+            if (
+                isinstance(error, Unsupported)
+                and programs[0].interface != programs[1].interface
+            ):
+                try:
+                    fallback = lower_abi.check(
+                        programs, args.function, rust_replay, version, args.timeout
+                    )
+                except (Unsupported, OSError, subprocess.TimeoutExpired) as retry:
+                    error = retry
+
+            if fallback is None and all(
+                program.symbolic_mir is not None for program in programs
+            ):
+                try:
+                    fallback = mir_cfg.check(
+                        (args.before, args.after),
+                        solar,
+                        rust_replay,
+                        version,
+                        args.timeout,
+                        args.function,
+                    )
+                except Unsupported, OSError, subprocess.TimeoutExpired:
+                    pass
         status = (
             "timeout"
             if isinstance(error, subprocess.TimeoutExpired)

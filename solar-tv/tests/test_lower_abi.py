@@ -1,0 +1,133 @@
+"""Check unsigned ABI words at a real implicit-to-explicit MIR entry."""
+
+import json
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+from test_cli import CLI, ROOT, SOLAR
+
+sys.path.insert(0, str(ROOT))
+from validator import evaluate
+
+
+class LowerAbiTests(unittest.TestCase):
+    def test_real_static_abi_wrapper_and_changed_return(self):
+        source = {
+            "language": "Solidity",
+            "sources": {
+                "C.sol": {
+                    "content": """
+contract C {
+    receive() external payable {}
+    function decimals() external pure returns (uint8) { return 18; }
+    function echo(uint256 x) external pure returns (uint256) { return x; }
+    function narrow(address x) external pure returns (address) { return x; }
+    function pair(uint256 x) external pure returns (uint256, uint256) { return (x, 19); }
+}
+"""
+                }
+            },
+            "settings": {
+                "optimizer": {"enabled": True},
+                "outputSelection": {
+                    "*": {
+                        "*": [
+                            "abi",
+                            "evm.bytecode.object",
+                            "evm.deployedBytecode.object",
+                        ]
+                    }
+                },
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            baseline, _ = evaluate.compile_input(SOLAR, source, folder)
+            captured, _ = evaluate.compile_input(SOLAR, source, folder, capture=True)
+            self.assertEqual(baseline, captured)
+            row = next(
+                row for row in evaluate.captures(folder) if row["pass"] == "lower-abi"
+            )
+            before, after = row["paths"]
+            report = folder / "proof.json"
+
+            def check(function, candidate, *flags):
+                result = subprocess.run(
+                    [
+                        CLI,
+                        "mir",
+                        before,
+                        candidate,
+                        "--function",
+                        function,
+                        "--solar",
+                        SOLAR,
+                        "--timeout",
+                        "30",
+                        "--report",
+                        report,
+                        *flags,
+                    ],
+                    text=True,
+                    capture_output=True,
+                    timeout=90,
+                    check=False,
+                )
+                return result, json.loads(report.read_text())
+
+            for function in ("decimals", "echo", "narrow", "pair"):
+                with self.subTest(function=function):
+                    result, proof = check(function, after)
+                    self.assertEqual(
+                        result.returncode, 0, result.stdout + result.stderr
+                    )
+                    self.assertEqual(proof["evidence"], "kernel-proof")
+                    self.assertEqual(
+                        proof["region"]["proof"], "kernel-checked-static-abi-entry"
+                    )
+                    self.assertEqual(
+                        proof["import_correspondence"][0]["kind"],
+                        "kernel-checked-static-abi-entry",
+                    )
+
+            broken = folder / "broken.mir"
+            changed = after.read_text().replace("mstore 0, 18", "mstore 0, 19", 1)
+            self.assertNotEqual(changed, after.read_text())
+            broken.write_text(changed)
+            result, proof = check("decimals", broken)
+            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            self.assertEqual(proof["status"], "unsupported")
+
+            fixture = folder / "world.json"
+            fixture.write_text('{"version": 1}\n')
+            replayed = subprocess.run(
+                [
+                    CLI,
+                    "mir",
+                    after,
+                    broken,
+                    "--function",
+                    "decimals",
+                    "--world",
+                    fixture,
+                    "--solar",
+                    SOLAR,
+                    "--timeout",
+                    "30",
+                    "--report",
+                    report,
+                ],
+                text=True,
+                capture_output=True,
+                timeout=90,
+                check=False,
+            )
+            self.assertEqual(replayed.returncode, 1, replayed.stdout + replayed.stderr)
+            proof = json.loads(report.read_text())
+            self.assertEqual(proof["status"], "counterexample")
+            self.assertEqual(
+                proof["witness"]["observations"], proof["witness"]["native_observations"]
+            )
