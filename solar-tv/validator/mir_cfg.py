@@ -622,6 +622,10 @@ def check(paths, solar, executable, version, timeout, function, *, lowering=None
         from .lower_mapping_slots import materialize
     elif lowering == "lower-memory-objects":
         from .lower_memory_objects import materialize, semantic_header
+    elif lowering == "lower-arithmetic":
+        from .lower_arithmetic import materialize
+    elif lowering == "lower-slices":
+        from .lower_slices import materialize
 
     texts, models, interfaces = [], [], []
     for path in paths:
@@ -697,6 +701,22 @@ set_option maxHeartbeats 2000000
 """
     elif lowering == "lower-memory-objects":
         code += "#print axioms MIR.PhaseShaping.pointer_add\n"
+    elif lowering == "lower-arithmetic":
+        code += """
+#print axioms MIR.LowerUnsignedArithmetic.add256
+#print axioms MIR.LowerUnsignedArithmetic.sub256
+#print axioms MIR.LowerUnsignedArithmetic.add128
+#print axioms MIR.LowerUnsignedArithmetic.sub128
+#print axioms MIR.LowerUnsignedArithmetic.mul256
+#print axioms MIR.LowerUnsignedArithmetic.div256
+#print axioms MIR.LowerUnsignedArithmetic.panic_17
+#print axioms MIR.LowerUnsignedArithmetic.panic_18
+"""
+    elif lowering == "lower-slices":
+        code += """
+#print axioms MIR.LowerSlices.fields
+#print axioms MIR.LowerSlices.defined
+"""
     axioms_checks = code.count("#print axioms ")
     while work:
         name = work.pop()
@@ -717,14 +737,15 @@ set_option maxHeartbeats 2000000
         expansions = {}
         if lowering is not None:
             source, expanded = materialize(a)
-            if lowering == "lower-mapping-slots" and name == function and not expanded:
-                raise Unsupported("selected function has no fixed storage slot")
+            if lowering != "lower-memory-objects" and name == function and not expanded:
+                raise Unsupported("selected function has no matching source operation")
             if expanded:
-                field = (
-                    "fixed_slot_expansions"
-                    if lowering == "lower-mapping-slots"
-                    else "pointer_add_expansions"
-                )
+                field = {
+                    "lower-mapping-slots": "fixed_slot_expansions",
+                    "lower-memory-objects": "pointer_add_expansions",
+                    "lower-arithmetic": "checked_arithmetic_expansions",
+                    "lower-slices": "slice_projections",
+                }[lowering]
                 expansions[field] = expanded
         (first, first_checks), (second, second_checks) = map(
             scalar_checks.normalize, (source, b)
@@ -851,6 +872,8 @@ theorem identical{i} : before{i} = after{i} := by rfl
         "kind": {
             "lower-mapping-slots": "kernel-checked-fixed-storage-slots",
             "lower-memory-objects": "kernel-checked-memory-object-carriers",
+            "lower-arithmetic": "kernel-checked-unsigned-arithmetic",
+            "lower-slices": "kernel-checked-slice-projections",
         }.get(lowering, "kernel-checked-typed-jump-chain"),
         "functions": sorted(checked),
         "correspondence": checked,

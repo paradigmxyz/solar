@@ -527,6 +527,16 @@ def record(
                 assumptions.append(
                     "typed pointers retain their word carriers through addition and casts with the same allocation and memory handlers"
                 )
+            elif (
+                program.import_evidence["kind"] == "kernel-checked-unsigned-arithmetic"
+            ):
+                assumptions.append(
+                    "unsigned checked arithmetic preserves values and failure order; panic staging is observed through the exact revert bytes in aligned memory up to 64 KiB"
+                )
+            elif program.import_evidence["kind"] == "kernel-checked-slice-projections":
+                assumptions.append(
+                    "slice constructors have defined typed operands; removed projections read the same immutable fields across the checked control flow"
+                )
             if any(
                 any(details["product_initialization"])
                 for details in program.import_evidence["correspondence"].values()
