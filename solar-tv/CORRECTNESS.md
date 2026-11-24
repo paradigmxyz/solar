@@ -1132,6 +1132,51 @@ to one word. The modified pair loses the automatic proof. The certificate
 uses the typed importer and the memory-domain premises above. Dynamic byte
 keys, physical gas and bytecode placement remain outside this audit.
 
+### Strict memory object lowering audit
+
+The serial gate `evaluate --all --require-verified --pass lower-memory-objects
+--timeout 120 --seed 0` verified all 27 captures. The check IDs and before and
+after IR hashes match the full audit. All three contracts produced identical
+ABI and creation and runtime bytecode with and without validation.
+
+| Contract | Selected | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Solady WETH | 3 | 3 | 0 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 5 | 5 | 0 | 0 | 0 |
+| Morpho Blue | 19 | 19 | 0 | 0 | 0 |
+| Total | 27 | 27 | 0 | 0 | 0 |
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Checker on Lean 4.34.1 | `22f58cb27f23dbc4caeeeaa43f0972c6e43e15cfa8a9e9529a525fe34e6d13ec` |
+| `target/tv-lower-memory-objects-complete/results.json` | `9b6f3b8f0e97d535050fcf66aae18d7903a1c180c4eb324544c914d81fc52fa6` |
+
+The kernel checks that full-word pointer addition and the explicit word
+addition compute the same address. The carrier proofs check casts and
+chained offsets through every path, including loops with simultaneous phi
+inputs. Both sides preserve the subsequent memory requests, allocation
+requests, state effects and control transfers under shared handlers.
+The certificate checks the selected function and separate reachable bodies
+at their existing typed interfaces. Physical pointer validity, stack
+placement and gas remain separate obligations. The compiler's return-memory
+annotation is excluded from this MIR execution projection.
+
+Independent Rust replay agrees with Lean on a different returned word
+after changing a load's offset. The mutated pair loses the automatic
+proof. The fixtures keep both access ranges inside the same active memory.
+
+The combined strict gate for ABI encoding, integer lowering, storage slots
+and memory objects verifies 130 of 130 captures with the same budget. All
+four pass counts and original capture hashes match their individual gates.
+The combined run records 13 WETH, 25 ERC20Mock and 92 Morpho Blue proofs.
+There are zero unsupported, timed out or failed checks. The compiler and
+independent replay hashes match the full audit above.
+
+| Combined gate artifact | SHA-256 |
+| --- | --- |
+| Checker on Lean 4.34.1 | `9fc27e920f57d5f4e64caa76ece59c3b0ca68396f91712adb0322b732c2a76f4` |
+| `target/tv-four-mir-gates-final/results.json` | `cc3e6f1f89b5e5427d213254ec03b89c71845787b422c5ddcda1289bbe8335df` |
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
