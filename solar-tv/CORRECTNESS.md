@@ -1533,7 +1533,7 @@ token revert and a false result.
 | EVM entry stacks and indirect transfers | Fixed or symbolic entry stacks, checked physical-entry bounds, stack-carried jump and conditional targets, and compiler-bound table proofs with entry coverage for resolved jumps | Entry coverage through unresolved computed jumps, independent certification of block placement, and broader physical stack, gas and state correspondence. |
 | Importer correctness | Certificates for acyclic EVM regions and acyclic typed scalar MIR | Extend independently checked imports to calls, memory, state, ABI entries and symbolic checked powers; audit the remaining Rust and opcode boundaries. |
 | Physical code and resource correspondence | Explicit layout assumptions and selected priced execution | Backend layout certificates, complete caller work pricing and gas-sensitive transfers; observable code locations and resource failures must agree. |
-| Fork and transaction completeness | Signed set-code authorization processing through Osaka, Amsterdam reservoir initialization, debits and rollback | Other transaction envelopes, fee and block settlement, Amsterdam stateful opcode and nested-frame gas accounting. |
+| Fork and transaction completeness | Signed set-code authorization processing through Osaka, Amsterdam reservoir initialization, debits, refills and signed-ledger rollback | Other transaction envelopes, fee and block settlement, Amsterdam stateful opcode and nested-frame gas accounting. |
 | Practical evaluation and review | Pinned three-contract sampling plus regression pairs | Wider published corpus, stronger pass coverage, independently reproduced results and external soundness review. |
 
 In the initial sample, the largest blockers were unknown EVM entry heights and

@@ -47,6 +47,7 @@ struct Account {
 enum Debit {
     Execution(u32),
     State(u32),
+    Refill(u32),
     Rollback(()),
 }
 
@@ -149,6 +150,10 @@ pub(super) fn replay() -> Result<Value, String> {
                 let result = match charge {
                     Debit::Execution(cost) => gas.spend(cost.into()),
                     Debit::State(cost) => gas.spend_state(cost.into()),
+                    Debit::Refill(amount) => {
+                        gas.refill_reservoir(amount.into());
+                        Ok(())
+                    }
                     Debit::Rollback(()) => {
                         gas.rollback_state_gas();
                         Ok(())

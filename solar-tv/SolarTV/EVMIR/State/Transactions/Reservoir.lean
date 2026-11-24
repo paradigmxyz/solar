@@ -1,8 +1,7 @@
-/-! EIP-8037 transaction initialization and gas debits. Execution costs use
+/-! EIP-8037 transaction initialization and gas accounting. Execution costs use
 the execution pool exclusively. State costs consume the reservoir before
-spilling into execution gas. Reverting a frame refunds its state charges to
-the pools that paid them. This model does not implement intermediate refills
-or merge a child's state-gas ledger into its parent.
+spilling into execution gas. Refills credit spilled execution gas before
+the reservoir. Reverting a frame restores its net state charges.
 https://eips.ethereum.org/EIPS/eip-8037 -/
 
 namespace SolarTV.EVM.Transaction.Reservoir
@@ -10,7 +9,8 @@ namespace SolarTV.EVM.Transaction.Reservoir
 structure Meter where
   execution : Nat
   reservoir : Nat
-  stateSpent : Nat := 0
+  -- A frame can undo a state creation charged by an earlier frame.
+  stateSpent : Int := 0
   stateSpilled : Nat := 0
   deriving DecidableEq
 
@@ -31,17 +31,25 @@ def Meter.spendState (meter : Meter) (cost : Nat) : Option Meter :=
     let spill := cost-meter.reservoir
     some ⟨meter.execution-spill,meter.reservoir-cost,meter.stateSpent+cost,meter.stateSpilled+spill⟩
 
+def Meter.refill (meter : Meter) (amount : Nat) : Meter :=
+  let toExecution := min amount meter.stateSpilled
+  ⟨meter.execution+toExecution,meter.reservoir+(amount-toExecution),
+    meter.stateSpent-amount,meter.stateSpilled-toExecution⟩
+
 def Meter.rollback (meter : Meter) : Meter :=
-  ⟨meter.execution+meter.stateSpilled,meter.reservoir+meter.stateSpent-meter.stateSpilled,0,0⟩
+  ⟨meter.execution+meter.stateSpilled,
+    ((meter.reservoir : Int)+meter.stateSpent-meter.stateSpilled).toNat,0,0⟩
 
 inductive Charge where
   | execution (cost : Nat)
   | state (cost : Nat)
+  | refill (amount : Nat)
   | rollback
 
 def charge (meter : Meter) : Charge → Option Meter
   | .execution cost => meter.spendExecution cost
   | .state cost => meter.spendState cost
+  | .refill amount => some (meter.refill amount)
   | .rollback => some meter.rollback
 
 def trace (meter : Meter) : List Charge → List (Option Meter)
@@ -96,6 +104,36 @@ theorem rollback_state_charge (meter next : Meter) (cost : Nat)
     simp only [Option.some.injEq] at paid
     subst next
     simp only [Meter.rollback, Meter.available] at *
-    congr 1 <;> omega
+    congr 1
+    · omega
+    · apply congrArg Int.toNat
+      omega
+
+theorem refill_balance (meter : Meter) (amount : Nat) :
+    (meter.refill amount).available = meter.available + amount ∧
+      (meter.refill amount).stateSpent = meter.stateSpent - amount := by
+  simp only [Meter.refill, Meter.available]
+  constructor
+  · have := Nat.min_le_left amount meter.stateSpilled
+    omega
+  · trivial
+
+theorem refill_execution_first (meter : Meter) (amount : Nat)
+    (fits : amount ≤ meter.stateSpilled) :
+    meter.refill amount =
+      ⟨meter.execution+amount,meter.reservoir,meter.stateSpent-amount,meter.stateSpilled-amount⟩ := by
+  simp [Meter.refill, Nat.min_eq_left fits]
+
+/-- A refill within a frame leaves its rollback checkpoint intact, including
+when a prior frame paid for the state creation being undone. -/
+theorem rollback_state_refill (meter : Meter) (amount : Nat) :
+    (meter.refill amount).rollback = meter.rollback := by
+  have toExecution_le_amount := Nat.min_le_left amount meter.stateSpilled
+  have toExecution_le_spill := Nat.min_le_right amount meter.stateSpilled
+  simp only [Meter.refill, Meter.rollback]
+  congr 1
+  · omega
+  · apply congrArg Int.toNat
+    omega
 
 end SolarTV.EVM.Transaction.Reservoir

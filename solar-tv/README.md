@@ -1093,10 +1093,13 @@ solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/set-code-reve
 solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/amsterdam-reservoir.json
 ```
 
-The Amsterdam fixture checks reservoir initialization, execution-only debits,
-state charges that spill into the execution balance, insufficient gas, and
-restoration of state gas on rollback. These checks are separate from the
-existing `--world` entry and do not yet meter Amsterdam's stateful opcodes.
+The Amsterdam checks cover reservoir initialization, execution-only debits,
+insufficient gas, and state charges that spill into execution gas. Refills repay
+the spill before crediting the reservoir. The refill trace rolls back a negative
+frame ledger and preserves the execution-only charges. Lean checks each
+snapshot against the pinned `evm2` gas tracker for the supplied charge trace.
+Metering stateful opcodes, merging nested frame ledgers and settling the
+transaction remain separate obligations.
 
 ## Check passes during compilation
 

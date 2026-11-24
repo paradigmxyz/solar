@@ -103,3 +103,26 @@ class TransactionTests(unittest.TestCase):
         self.assertEqual(self.check(request), [[16756216, 150, 0, 0], None])
         request["charges"] = [{"state": 16756367}]
         self.assertEqual(self.check(request), [[16756216, 150, 0, 0], None])
+
+    def test_amsterdam_refills_spill_before_reservoir(self):
+        request = json.loads((EXAMPLES / "amsterdam-reservoir.json").read_text())
+        request["charges"] = [
+            {"state": 154},
+            {"refill": 2},
+            {"refill": 7},
+            {"refill": 155},
+            {"execution": 3},
+            {"rollback": None},
+        ]
+        self.assertEqual(
+            self.check(request),
+            [
+                [16756216, 150, 0, 0],
+                [16756212, 0, 154, 4],
+                [16756214, 0, 152, 2],
+                [16756216, 5, 145, 0],
+                [16756216, 160, -10, 0],
+                [16756213, 160, -10, 0],
+                [16756213, 150, 0, 0],
+            ],
+        )

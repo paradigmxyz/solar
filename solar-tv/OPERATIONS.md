@@ -99,7 +99,8 @@ EIP-7702 designators resolve once for execution; their target access costs/warmt
 and call contexts are replayed independently. Authorization processing precedes
 the explicit-world entry model. A separate transaction checker handles decoded
 set-code envelopes and signed authorizations through Osaka. Amsterdam admits
-environment/scalar/memory execution and separate reservoir certificates.
+environment/scalar/memory execution and separate reservoir certificates for
+debits, refills and rollback.
 State/account/call gas is still outside the Amsterdam interpreter. A zero `Missing` count does not make
 every EVM operation valid in arbitrary windows, forks or worlds.
 
@@ -261,7 +262,7 @@ the [type-pruning example](README.md#removing-unused-mir-type-declarations).
    explicit initialization and non-vacuity. Establishing that condition at
    every caller remains open. Direct MIR semantics and independent replay do
    not by themselves prove backend decisions correct.
-5. Integrate Amsterdam's reservoir initialization, debits and rollback with
+5. Integrate Amsterdam's reservoir initialization, debits, refills and rollback with
    stateful opcode execution, nested frames and transaction settlement. Expand
    differential boundary coverage.
 
