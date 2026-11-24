@@ -1097,6 +1097,41 @@ Rust replay agrees with Lean on the resulting return difference.
 The proof uses the typed importer and the stated entry relation. Physical
 frame placement and instruction gas remain separate obligations.
 
+### Strict storage slot lowering audit
+
+The serial gate `evaluate --all --require-verified --pass lower-mapping-slots
+--timeout 120 --seed 0` verified all 32 captures. The capture IDs, before and
+after hashes and compiler input and output fingerprints match the full audit
+above. The compiler, Rust replay and manifest fingerprints also match.
+Normal and validating compilations produced identical ABI and bytecode.
+
+| Contract | Selected | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Solady WETH | 0 | 0 | 0 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 7 | 7 | 0 | 0 | 0 |
+| Morpho Blue | 25 | 25 | 0 | 0 | 0 |
+| Total | 32 | 32 | 0 | 0 | 0 |
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Checker on Lean 4.34.1 | `0b824cd105d9b84b3d835995b3bb5395e541ced997d324f15e3b2949154b41ae` |
+| `target/tv-lower-mapping-slots-verified/results.json` | `db9c716daef075a7f874809f134bbe85425758a358d23078fd0986770efd8280` |
+
+Lean relates the semantic array data slot and fixed-width mapping slot to
+their one or two scratch stores followed by Keccak. The theorem preserves
+the hash input, the returned slot, active memory extent, scratch bytes and
+the rest of the frame for arbitrary aligned byte memory within 64 KiB.
+It holds for an arbitrary shared hash function. The graph certificate
+checks the expanded source against the imported target operations, including
+write addresses, sizes and live operands through loops. Eighteen checks
+compose direct calls using the checked callee graphs. The work bound counts
+logical actions after expanding the source hashing operations.
+
+Independent Rust replay agrees with Lean after cutting a two-word hash down
+to one word. The modified pair loses the automatic proof. The certificate
+uses the typed importer and the memory-domain premises above. Dynamic byte
+keys, physical gas and bytecode placement remain outside this audit.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
