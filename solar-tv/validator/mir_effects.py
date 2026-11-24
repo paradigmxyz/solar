@@ -76,8 +76,10 @@ def pure(op, args, bits, definitions):
 ABI_MESSAGE_REQUESTS = {"call", "callcode", "delegatecall", "staticcall"}
 
 
-def abi_context_read(name, args):
+def abi_context_read(name, args, bits):
     match name:
+        case "address" | "caller" | "origin":
+            return f"environment.{name}.setWidth {bits}"
         case "callvalue":
             return "environment.value"
         case "calldatasize":
@@ -103,6 +105,8 @@ def render(
     call_cuts=(),
     bytes_return=False,
     abi_encoder=None,
+    return_widths=None,
+    call_result_widths=None,
 ):
     def width(ty):
         if (
@@ -247,7 +251,15 @@ def render(
                     )
                     close.append(")")
                     if inst["result"] is not None:
-                        current[inst["result"]] = f"(reply{work}.setWidth {bits})", bits
+                        canonical = (
+                            call_result_widths[op["function"]]
+                            if call_result_widths is not None
+                            else bits
+                        )
+                        current[inst["result"]] = (
+                            f"((reply{work}.setWidth {canonical}).setWidth {bits})",
+                            bits,
+                        )
                     continue
                 expression = pure(op, args, bits, definitions)
                 if abi_fork and op["kind"] == "make_slice":
@@ -277,8 +289,14 @@ def render(
                     )
                     close.extend([")", ")"])
                     expression = f"ptr{work} ++ len{work}"
+                if (
+                    return_widths is not None
+                    and op["kind"] == "layout"
+                    and op["query"] == "heap_floor"
+                ):
+                    expression = "heapFloor"
                 if abi_fork and op["kind"] == "opcode":
-                    expression = abi_context_read(op["name"], args) or expression
+                    expression = abi_context_read(op["name"], args, bits) or expression
                 if expression is None:
                     if any(width != 256 for _, width in args):
                         raise Unsupported(
@@ -552,6 +570,16 @@ def render(
                 ):
                     raise Unsupported("effect-tree FMP signature mismatch")
             elif op["kind"] == "layout":
+                if return_widths is not None and op["query"] == "heap_floor":
+                    if (
+                        op["args"]
+                        or inst["result"] is None
+                        or width(inst["type"]) != 256
+                    ):
+                        raise Unsupported(
+                            "integer lowering needs a full-width heap floor"
+                        )
+                    continue
                 if abi_fork and op["query"] == "immutable_read":
                     if (
                         op["args"]
@@ -623,6 +651,11 @@ def render(
 
     def returned(args):
         if not abi_return:
+            if return_widths is not None:
+                args = [
+                    (value, bits)
+                    for (value, _), bits in zip(args, return_widths, strict=True)
+                ]
             return boundary("return", args)
         if bytes_return:
             return bytes_boundary(args)

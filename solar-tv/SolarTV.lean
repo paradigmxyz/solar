@@ -93,6 +93,7 @@ import SolarTV.MIR.Transforms.BoundedFill
 import SolarTV.MIR.State.LoopStep
 import SolarTV.MIR.Transforms.LowerAbiEncode
 import SolarTV.MIR.Transforms.LowerAbiEncode.ZeroCopy
+import SolarTV.MIR.Transforms.LowerIntegers
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
 -- proof introduces sorryAx and fails the build even if it lives in an import.

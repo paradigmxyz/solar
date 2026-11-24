@@ -842,6 +842,8 @@ def main() -> int:
             entry_trace=args.entry_trace,
             entry_stack=args.entry_stack,
         )
+        from . import lower_integers
+
         if args.entry_stack:
             if (
                 args.ir != "evmir"
@@ -1067,6 +1069,25 @@ def main() -> int:
                 version,
                 args.gas,
             )
+            programs = list(result.pair)
+        elif (
+            args.ir == "mir"
+            and args.function
+            and args.world is None
+            and args.gas is None
+            and (
+                result := lower_integers.check(
+                    (args.before, args.after),
+                    solar,
+                    rust_replay,
+                    version,
+                    args.timeout,
+                    args.function,
+                    verbose=args.verbose,
+                )
+            )
+            is not None
+        ):
             programs = list(result.pair)
         else:
             try:

@@ -223,6 +223,15 @@ def record(
                 assumptions.append(
                     "empty forwarding blocks preserve control and simultaneous phi assignment; work bounds count logical edges"
                 )
+        elif program and program.scope == "integer-width":
+            assumptions.extend(
+                [
+                    "typed MIR importer and unchanged function and call bindings",
+                    "widened arguments represent the source width with clean upper bits",
+                    "shared context and heap floor with ordered state, message and GAS handlers",
+                    "unpriced MIR with physical gas and backend placement outside the proof",
+                ]
+            )
         elif program and program.scope == "abi-encode":
             assumptions.extend(
                 [
@@ -828,6 +837,7 @@ def record(
                 "mir-cfg-flow",
                 "abi-effect-tree",
                 "abi-encode",
+                "integer-width",
             }
             and program.symbolic_mir is None
         ):
@@ -916,7 +926,7 @@ def record(
             "semantic-effects"
             if program
             and (
-                program.scope == "abi-encode"
+                program.scope in {"abi-encode", "integer-width"}
                 or program.symbolic_mir is not None
                 or program.world
                 and program.world.get("direct_mir")
@@ -935,7 +945,8 @@ def record(
                     "proof": program.import_evidence["kind"],
                 },
             }
-            if program and program.scope in {"abi-effect-tree", "abi-encode"}
+            if program
+            and program.scope in {"abi-effect-tree", "abi-encode", "integer-width"}
             else {}
         ),
         **(
