@@ -1305,8 +1305,3 @@ fn struct_names_other_kind() {
     let run = run_verifier(&["--json", "tests/cases/struct_names_other_kind.sol"]);
     assert!(!run.stdout.contains("\"verified\""), "{}\n{}", run.stdout, run.stderr);
 }
-
-#[test]
-fn lock_dead() {
-    check("tests/cases/lock_dead.sol")
-}

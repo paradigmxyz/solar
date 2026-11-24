@@ -76,7 +76,6 @@ struct LoopCtx {
     conts: Vec<(String, Env)>,
 }
 
-#[derive(Clone)]
 pub(crate) struct Opts {
     pub strict: bool,
     /// Infer loop invariants and termination measures (see `infer`).
@@ -185,13 +184,6 @@ pub(crate) struct Vc<'p, 'a> {
     /// Broadcast lemmas proved before this VC (see `crate::broadcast::prove_all`): only those
     /// are assumed.
     pub(crate) proved: FxHashMap<FnKey, bool>,
-    /// Whether an entry point open under the reentrancy lock reverts on every path once the lock
-    /// is held, the invariants hold and every `lock-stable` property holds (see `lock_dead`),
-    /// by its item's address.
-    lock_dead: FxHashMap<usize, bool>,
-    /// Set in the side analysis `lock_dead` runs, which must not rely on its own results.
-    no_dead: bool,
-    opts: Opts,
     /// Broadcast lemmas asserted for the whole VC of the function being verified.
     broadcast_on: FxHashSet<FnKey>,
     /// The function being verified, whose proof no broadcast it rests on may assume.
@@ -331,9 +323,6 @@ impl<'p, 'a> Vc<'p, 'a> {
             ret_alias: None,
             ret_alias_out: None,
             proved: FxHashMap::default(),
-            lock_dead: FxHashMap::default(),
-            no_dead: false,
-            opts: o.clone(),
             broadcast_on: FxHashSet::default(),
             cur_key: None,
             fn_tags: vec![],
@@ -2921,11 +2910,8 @@ impl<'p, 'a> Vc<'p, 'a> {
         let own = self.modset(f, &mut FxHashSet::default());
         let mut out = own.clone();
         if calls_out && out.is_some() {
-            let all: Vec<&'p Func<'a>> =
+            let open: Vec<&'p Func<'a>> =
                 self.c.funcs.iter().filter(|g| self.lock_open(g)).collect();
-            self.lock_modset.set(false);
-            let open = self.live_open(all);
-            self.lock_modset.set(true);
             let mut seen = FxHashSet::default();
             for g in open {
                 match (self.modset(g, &mut seen), out.as_mut()) {
@@ -5856,103 +5842,6 @@ impl<'p, 'a> Vc<'p, 'a> {
         called
     }
 
-    /// Whether open entry point `f` is dead under the lock: with the lock held, the invariants
-    /// and every `lock-stable` property assumed, no path through it returns. Such an entry point
-    /// writes nothing in a call reentered while those hold: the invariants are checked before the
-    /// call, every open entry point keeps them and the `lock-stable` properties (`verify_lock`),
-    /// and `f` reverts in every such state, so by induction on the reentry depth none of its
-    /// runs completes. Checked once, in a solver of its own, without relying on other entry
-    /// points being dead; anything it can't decide counts as live.
-    fn lock_dead(&mut self, f: &'p Func<'a>) -> bool {
-        if self.no_dead || self.c.lock_stable.is_empty() {
-            return false;
-        }
-        let key = std::ptr::from_ref(f.item).addr();
-        if let Some(&d) = self.lock_dead.get(&key) {
-            return d;
-        }
-        let smt = self.smt.sibling();
-        let mut sub = Vc::new(self.prog, self.c, smt, &self.opts);
-        sub.no_dead = true;
-        sub.proved = self.proved.clone();
-        let dead = sub.dead_under_lock(f);
-        self.lock_dead.insert(key, dead);
-        dead
-    }
-
-    fn dead_under_lock(&mut self, f: &'p Func<'a>) -> bool {
-        self.smt.send(
-            "(push 1)
-",
-        );
-        self.clear_scope();
-        self.smt.clear_error();
-        let r = (|| -> R<bool> {
-            let lemmas = broadcast::active(self.prog, self.c, f)?;
-            self.broadcast(lemmas, true)?;
-            self.init_env(false)?;
-            for (n, ty) in &f.params {
-                let v = self.fresh_var(n, ty);
-                self.env.insert(n.clone(), v);
-            }
-            for (n, ty) in &f.rets {
-                let z = self.zero_var(ty);
-                self.env.insert(n.clone(), z);
-            }
-            let Some(lt) = self.lock_term() else { return Ok(false) };
-            let lt = lt?;
-            self.assume(&lt);
-            let c = self.c;
-            for inv in &c.invariants {
-                let v = self.eval_spec(inv.expr)?;
-                self.assume(&v.t);
-            }
-            for p in &c.lock_stable {
-                let v = self.eval_spec(p.expr)?;
-                self.assume(&v.t);
-            }
-            self.old = Some(self.env.clone());
-            self.frames.push(Frame { rets: f.rets.clone(), exits: vec![] });
-            self.exec_fn_body(f, 0)?;
-            let fr = self.frames.pop().unwrap();
-            let mut st = fr.exits;
-            st.push((self.guard.clone(), self.env.clone()));
-            let (gd, _) = self.merge(st);
-            Ok(gd == "false" || matches!(self.smt.check(&gd, "false", &[]), Res::Unsat))
-        })();
-        self.smt.send(
-            "(pop 1)
-",
-        );
-        matches!(r, Ok(true))
-    }
-
-    /// The open entry points that can complete in a call made here under the lock: all of them,
-    /// less the dead ones (see `lock_dead`) when every `lock-stable` property holds now.
-    fn live_open(&mut self, open: Vec<&'p Func<'a>>) -> Vec<&'p Func<'a>> {
-        if self.no_dead || self.c.lock_stable.is_empty() || open.is_empty() {
-            return open;
-        }
-        let c = self.c;
-        let mut stable = vec![];
-        for p in &c.lock_stable {
-            match self.eval_spec(p.expr) {
-                Ok(v) => stable.push(v.t),
-                Err(_) => return open,
-            }
-        }
-        let goal = if stable.len() == 1 {
-            stable[0].clone()
-        } else {
-            format!("(and {})", stable.join(" "))
-        };
-        let guard = self.guard.clone();
-        if !matches!(self.smt.check(&guard, &goal, &[]), Res::Unsat) {
-            return open;
-        }
-        open.into_iter().filter(|f| !self.lock_dead(f)).collect()
-    }
-
     pub(crate) fn lock_open(&self, f: &'p Func<'a>) -> bool {
         let Some((g, _)) = &self.c.lock else {
             return false;
@@ -6082,9 +5971,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         // the call, and afterwards everything those entry points may write is unknown (each of
         // them preserves the invariants, which are proved separately).
         let open: Vec<&'p Func<'a>> = if locked && !ctor {
-            let all: Vec<&'p Func<'a>> =
-                self.c.funcs.iter().filter(|f| self.lock_open(f)).collect();
-            self.live_open(all)
+            self.c.funcs.iter().filter(|f| self.lock_open(f)).collect()
         } else {
             vec![]
         };
