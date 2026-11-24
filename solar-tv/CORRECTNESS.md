@@ -1060,6 +1060,43 @@ matching Lean and Rust counterexamples. The automatic proofs rely on the
 typed importer and the stated semantic adapters. Exact physical gas and
 correspondence to the emitted instructions remain open.
 
+### Strict integer lowering audit
+
+The serial gate `evaluate --all --require-verified --pass lower-integers
+--timeout 120 --seed 0` verified all 55 captures within 6.2 seconds each.
+Every capture ID and before and after hash matches the full audit above.
+The compiler, replay executable, manifest and compiler input and output
+fingerprints also match. Normal and validating compilations produced the
+same ABI and creation and runtime bytecode.
+
+| Contract | Selected | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Solady WETH | 10 | 10 | 0 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 11 | 11 | 0 | 0 | 0 |
+| Morpho Blue | 34 | 34 | 0 | 0 | 0 |
+| Total | 55 | 55 | 0 | 0 | 0 |
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Checker on Lean 4.34.1 | `3bd6acfc3e3fffb7f86e876ed5ecaf9641957760b4904f335eb8e3f1b9794848` |
+| `target/tv-lower-integers-verified/results.json` | `e48b8f13e3554c03ab164af87f8299dca34024d3ddabbd7576e1e280368d5302` |
+
+The kernel checks contextual effect equality after zero-extending each
+narrow source argument into its corresponding target word. At normal
+function returns, the target's entire word is compared with the widened
+source value. The fixed-width mask lemma covers every input word, and the
+one-bit lemma preserves the normalized branch predicate. Address reads,
+the heap floor and ordered message and GAS actions use the same logical
+context on each side.
+
+Forty-nine certificates expand the acyclic call closure. The other six
+check every body in that closure separately. The callers compare call IDs,
+full argument words and returned values at the related signatures. A
+mutated result mask in a widened callee loses verification and independent
+Rust replay agrees with Lean on the resulting return difference.
+The proof uses the typed importer and the stated entry relation. Physical
+frame placement and instruction gas remain separate obligations.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
