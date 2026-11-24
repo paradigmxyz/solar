@@ -1194,6 +1194,12 @@ a fixed height in both original and edited CFGs. Internal joins may have differe
 heights on different paths. Physical conditional continuations and structured
 jump fallthroughs retain the temporary stack growth of their lowering.
 
+Omit `--stack-height` to request a proof for every incoming stack. The importer
+uses input demand from the independent graph and opcode schema to track unknown
+incoming words. This permits regions that begin with stack reads. The kernel
+checks underflow, overflow and every incoming value, with the existing
+constant-address memory bounds and 32-word proof budget.
+
 [Region.lean](SolarTV/EVMIR/Region.lean) composes the existing instruction semantics;
 it does not add an instruction interpreter or obtain observations from native
 replay. The importer expands at most 256 block visits, 2,048 instructions and

@@ -283,6 +283,23 @@ The importer still checks constant access ranges; dynamic targets, unknown
 addresses, cycles and physical gas remain outside this route. Counterexamples
 on hypothetical stacks are not claimed to be reachable compiler failures.
 
+When an initial stack read exceeds the abstract constant-tracking list, the
+importer obtains its input demand from the independently exported graph and
+opcode schema. It retries tracking with that many unknown words, within the
+32-word proof budget. Those words guide import analysis only. The generated
+interpreter still receives the actual arbitrary stack, and the kernel checks
+all shorter stacks, ordinary executions and stack-limit failures. A real CFG
+coalescing regression starts with an incoming `DUP1`, stores its word twice and
+returns both copies. Changing one read has matching Lean and native witnesses
+from physical entry.
+
+A serial three-second recheck of the full audit's 152 unsupported
+`cfg-simplify-early` captures leaves all 152 unsupported. The reports are in
+`target/tv-entry-demand-20261124/`. Input-demand tracking closes an importer
+restriction, while the selected corpus still needs private-memory, stateful
+continuation and resource correspondence. The recorded full-audit counts retain
+their original semantics fingerprint.
+
 Scalar rewrites can also follow an identical memory prologue. The independent
 block export must agree on that entire prologue and on the remaining suffix,
 terminal and physical successor. `MemoryPrefix.charged` executes the shared

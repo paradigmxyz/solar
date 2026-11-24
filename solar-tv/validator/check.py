@@ -149,12 +149,38 @@ def load(
         except Unsupported as error:
             if str(error).startswith("unmodeled EVM IR instruction: "):
                 raise evm_region.UnmodeledInstruction(str(error)) from None
-            if (
-                stack_height is None
-                or str(error) != "cyclic EVM regions require loop invariants"
+            if stack_height is None and str(error) in {
+                "region entry stack cannot execute its instructions",
+                "region branch lacks its condition",
+                "region CALLDATALOAD lacks its offset",
+                "region output lacks offset and size",
+            }:
+                try:
+                    executable = replay_executable or native.default(solar)
+                    model = correspondence.export(
+                        projection, region, evm_version or "cancun", executable, timeout
+                    )
+                    catalog = {
+                        row["name"]: row
+                        for row in native.catalog(executable, timeout)["evmir"]
+                    }
+                    demand, peak = correspondence.stack_bounds(
+                        model["nodes"], model["entry"], catalog
+                    )
+                    if demand + peak > evm_region.PROOF_STACK_LIMIT:
+                        raise
+                    program = evm_region.translate(
+                        projection, region, None, demand=demand
+                    )
+                except Unsupported:
+                    raise error from None
+            elif (
+                stack_height is not None
+                and str(error) == "cyclic EVM regions require loop invariants"
             ):
+                program = evm_region.cyclic(projection, region, stack_height)
+            else:
                 raise
-            program = evm_region.cyclic(projection, region, stack_height)
         program.evm_version = evm_version or "cancun"
         # The source witness belongs to the compiler parse, not to a field an
         # importer can accidentally replace along with its generated tree.

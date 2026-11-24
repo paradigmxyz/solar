@@ -14,13 +14,14 @@ from . import audit, evmir, memory, regions
 from .common import Program, Unsupported
 
 UNFOLD = "EVM.Region.execute, EVM.Region.instructions"
+PROOF_STACK_LIMIT = 32
 
 
 class UnmodeledInstruction(Unsupported):
     """An instruction failed projection before any import certificate ran."""
 
 
-def translate(text: str, entry: str, height: int | None) -> Program:
+def translate(text: str, entry: str, height: int | None, *, demand=0) -> Program:
     bodies = regions.blocks(text)
     if entry not in bodies or height is not None and not 0 <= height <= 1024:
         raise Unsupported("missing region entry or invalid stack height")
@@ -123,7 +124,10 @@ def translate(text: str, entry: str, height: int | None) -> Program:
     # No incoming word is assumed constant. Unknown memory addresses remain
     # unsupported, while execution still uses the complete real incoming stack,
     # including underflow and overflow during a concrete transfer.
-    code = block(entry, [None] * (height or 0), set())
+    # Analysis words only preserve unknown operands during constant tracking.
+    # The universal interpreter and its import certificate keep the real stack,
+    # including stacks shorter than this independently computed demand.
+    code = block(entry, [None] * (demand if height is None else height), set())
     stack = [f"stack{i}" for i in range(height or 0)]
     inputs = ["calldatasize", "returndatasize", *stack, *memory.INPUTS]
     projection = (
@@ -193,8 +197,10 @@ def check_universal(a, b, timeout):
         raise Unsupported("universal EVM region interfaces differ")
     required = max(a.stack_required, b.stack_required)
     peak = required + max(a.stack_peak, b.stack_peak)
-    if peak > 32:
-        raise Unsupported("universal region exceeds the 32-word proof budget")
+    if peak > PROOF_STACK_LIMIT:
+        raise Unsupported(
+            f"universal region exceeds the {PROOF_STACK_LIMIT}-word proof budget"
+        )
     build = build_model(timeout)
     if build.returncode:
         raise Unsupported(build.stdout + build.stderr)

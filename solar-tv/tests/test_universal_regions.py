@@ -23,7 +23,7 @@ class UniversalRegionTests(unittest.TestCase):
         self.folder = Path(self.tmp.name)
         self.report = self.folder / "report.json"
 
-    def pair(self, before, after, *, status=0, flags=()):
+    def pair(self, before, after, *, status=0, flags=(), region="bb0"):
         paths = [self.folder / f"{name}.evmir" for name in ("before", "after")]
         for path, text in zip(paths, (before, after), strict=True):
             path.write_text(text)
@@ -32,8 +32,7 @@ class UniversalRegionTests(unittest.TestCase):
                 CLI,
                 "evmir",
                 *paths,
-                "--region",
-                "bb0",
+                *(["--region", region] if region is not None else []),
                 "--timeout",
                 "15",
                 "--report",
@@ -69,6 +68,91 @@ class UniversalRegionTests(unittest.TestCase):
             any("entry stack height" in item for item in record["assumptions"])
         )
         self.pair(before, (folder / "broken.evmir").read_text(), status=2)
+
+    def test_real_coalescing_reads_incoming_words_without_a_height_assumption(self):
+        before = """@module Incoming
+bb0 [stack=0]:
+  push bb1
+  push 0
+  mstore
+  push 37
+  push 0
+  mload
+  jump
+bb1:
+  dup 1
+  push 0
+  mstore
+  jump bb2
+bb2:
+  dup 1
+  push 32
+  mstore
+  push 64
+  push 0
+  return
+"""
+        source = self.folder / "source.evmir"
+        source.write_text(before)
+        command = [
+            SOLAR,
+            source,
+            "-j1",
+            "-Ogas",
+            "-Zevm-ir-pipeline=cfg-simplify-early",
+        ]
+        after = subprocess.check_output(
+            command,
+            text=True,
+            timeout=30,
+        )
+        self.assertNotIn("bb2:", after)
+        audit = self.folder / "audits"
+        audited = subprocess.run(
+            [*command, f"-Zsolar-tv={audit}"],
+            env={**os.environ, "SOLAR_TV": CLI, "SOLAR": SOLAR},
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=90,
+        )
+        self.assertEqual(audited.returncode, 0, audited.stderr)
+        self.assertEqual(audited.stdout, after)
+        records = [
+            json.loads(path.read_text()) for path in (audit / "audits").glob("*.json")
+        ]
+        self.assertTrue(
+            any(
+                row["status"] == "verified"
+                and row.get("region", {}).get("name") == "bb1"
+                and row["region"].get("proof") == "universal-stack-region"
+                for row in records
+            ),
+            audited.stderr,
+        )
+        _, record = self.pair(before, after, region="bb1")
+        self.assertEqual(record["region"]["proof"], "universal-stack-region")
+        self.assertIsNone(record["region"]["stack_height"])
+        self.assertEqual(
+            [entry["kind"] for entry in record["import_correspondence"]],
+            ["kernel-checked-cfg-expansion"] * 2,
+        )
+        self.assertFalse(
+            any("entry stack height" in item for item in record["assumptions"])
+        )
+
+        broken = after.replace("  dup 1\n", "  push 0\n", 1)
+        self.assertNotEqual(broken, after)
+        self.pair(before, broken, status=2, region="bb1")
+        world = self.folder / "world.json"
+        world.write_text('{"version":1,"gas":100000}')
+        _, witness = self.pair(
+            before, broken, status=1, flags=("--world", str(world)), region=None
+        )
+        self.assertEqual(
+            witness["witness"]["observations"],
+            witness["witness"]["native_observations"],
+        )
 
     def test_pass_hook_proves_an_unknown_height_terminal_region(self):
         before = (ROOT / "examples/evmir/tail-region/before.evmir").read_text()
@@ -137,8 +221,16 @@ class UniversalRegionTests(unittest.TestCase):
         ):
             with self.subTest(body=body):
                 text = "@module Unsupported\nbb0 [stack=1]:\n " + body + "\n"
-                _, record = self.pair(text, text, status=2)
-                self.assertIn(diagnostic, record["diagnostic"])
+                _, record = self.pair(text, text)
+                self.assertEqual(
+                    record["region"]["proof"], "universal-source-graph-identity"
+                )
+                # The direct interpreter still requires defined memory access
+                # and an acyclic import, even when structural identity applies.
+                with self.assertRaisesRegex(Unsupported, diagnostic):
+                    check.load(
+                        "evmir", self.folder / "before.evmir", SOLAR, 15, region="bb0"
+                    )
         text = "@module Unpriced\nbb0:\n stop\n"
         _, record = self.pair(text, text, status=2, flags=("--gas", "exact"))
         self.assertIn("physical transfer pricing", record["diagnostic"])
@@ -157,17 +249,20 @@ class UniversalRegionTests(unittest.TestCase):
                 program, program, 15, replay_command="unused", replay_executable=replay
             )
 
-    def test_identical_context_reads_have_a_distinct_structural_proof(self):
+    def test_identical_context_reads_have_certified_frame_execution(self):
         text = "@module Context\nbb0:\n callvalue\n pop\n stop\n"
         _, record = self.pair(text, text)
-        self.assertEqual(record["region"]["proof"], "universal-source-graph-identity")
-        self.assertEqual(record["gas_policy"], "unpriced-structural")
+        self.assertEqual(record["region"]["proof"], "universal-stack-region")
+        self.assertEqual(
+            [entry["kind"] for entry in record["import_correspondence"]],
+            ["kernel-checked-cfg-expansion"] * 2,
+        )
         self.assertNotIn("world", record)
 
     def test_changed_context_reads_are_not_replaced_by_zero(self):
         text = "@module Context\nbb0:\n callvalue\n push 0\n mstore\n push 32\n push 0\n return\n"
         _, record = self.pair(text, text.replace("callvalue", "push 0"), status=2)
-        self.assertIn("unmodeled EVM", record["diagnostic"])
+        self.assertIn("universal EVM region proof did not close", record["diagnostic"])
 
 
 if __name__ == "__main__":
