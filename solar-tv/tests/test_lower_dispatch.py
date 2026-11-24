@@ -208,21 +208,20 @@ contract C {
             "contract C {",
             "contract C { constructor() { require(msg.sender != address(0)); }",
         )
-        with (
-            patch.object(evaluate, "inputs", return_value=source),
-            patch.object(
-                evaluate,
-                "select",
-                side_effect=lambda rows, *_: [
-                    r for r in rows if r["pass"] == "lower-dispatch"
-                ],
-            ),
-        ):
+        with patch.object(evaluate, "inputs", return_value=source):
             evaluated = evaluate.evaluate_case(
-                self.case, SOLAR, folder / "evaluation", None, "0", 30
+                self.case,
+                SOLAR,
+                folder / "evaluation",
+                None,
+                "0",
+                30,
+                passes=("lower-dispatch",),
             )
         checks = evaluated["checks"]
         self.assertGreater(len(checks), 1)
+        self.assertEqual(evaluated["eligible"], len(checks))
+        self.assertGreater(evaluated["captured"], evaluated["eligible"])
         self.assertEqual({check["status"] for check in checks}, {"verified"})
         self.assertEqual(
             {check["proof_mode"] for check in checks}, {"routed-runtime-dispatch"}

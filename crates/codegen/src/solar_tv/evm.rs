@@ -44,7 +44,7 @@ impl<'a> EvmSnapshot<'a> {
             )?;
             return Ok(());
         }
-        if matches!(pass, "block-layout" | "loop-layout" | "compact-pushes")
+        if matches!(pass, "block-layout" | "loop-layout" | "compact-pushes" | "cfg-simplify-early")
             && !gcx.sess.opts.unstable.solar_tv_capture
             && std::env::var_os("SOLAR_TV_GAS").is_none()
         {

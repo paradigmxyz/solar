@@ -142,6 +142,9 @@ impl<'a> Snapshot<'a> {
                     command.arg("--evm-version").arg(gcx.sess.opts.evm_version.to_string());
                     if entry {
                         command.arg("--entry-trace");
+                        if pass == "cfg-simplify-early" {
+                            command.args(["--timeout", "120"]);
+                        }
                     } else if prune {
                         command.arg("--prune");
                         if debug_dispatch {

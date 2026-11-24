@@ -177,7 +177,10 @@ example : broken.checked = false := by decide +kernel
             any(
                 record["status"] == "verified"
                 and record.get("region", {}).get("proof")
-                == "kernel-checked-continuation-flow"
+                == "kernel-checked-entry-layout"
+                and all(
+                    side["physical_entry"] for side in record["import_correspondence"]
+                )
                 for record in reports
             )
         )

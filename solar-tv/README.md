@@ -2079,8 +2079,9 @@ status and each case's output identity. Use a fresh output directory for each ru
 CI retains the reports and full before/after pairs as an artifact.
 
 To check every captured region in the selected corpus, use `--all` in place of
-`--limit`. Add `--require-verified` to fail the run when a captured region lacks
-a proof:
+`--limit`. Repeat `--pass` to select specific passes across those contracts.
+Captures from other passes still appear in coverage as unselected. Add
+`--require-verified` to fail the run when an eligible region lacks a proof.
 
 ```sh
 solar-tv/evaluate --all --require-verified --timeout 30 \
@@ -2100,9 +2101,10 @@ contract. The run's fingerprints, per-pass counts and remaining proof scopes
 are recorded in [CORRECTNESS.md](CORRECTNESS.md#full-corpus-audit-on-2026-11-24).
 
 Selected records for the same dispatch pair share the module-level proof
-report. Layout and compact PUSH captures can also share a physical-entry proof
-when it covers the label on both sides. The evaluator retains each capture ID
-in the coverage totals. CI checks 24 selected records per pinned contract.
+report. Early CFG simplification, layout and compact PUSH captures can also
+share a physical-entry proof when it covers the label on both sides. The
+evaluator retains each capture ID in the coverage totals. CI checks 24
+selected records per pinned contract.
 
 EVM IR regions can verify after block coalescing or jump threading when both
 source graphs retain the same actions and branches. The checker contracts

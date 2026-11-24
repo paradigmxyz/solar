@@ -250,7 +250,7 @@ def covers_region(record, region):
     )
 
 
-def evaluate_case(case, solar, folder, limit, seed, timeout):
+def evaluate_case(case, solar, folder, limit, seed, timeout, *, passes=()):
     folder.mkdir()
     source = inputs(case)
     (folder / "input.json").write_text(json.dumps(source))
@@ -261,7 +261,8 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
     rows = captures(folder)
     if not rows:
         raise ValueError("no changed pass pairs captured")
-    chosen = select(rows, limit, seed)
+    eligible = [row for row in rows if not passes or row["pass"] in passes]
+    chosen = select(eligible, limit, seed)
     results = []
     dispatch_reports = {}
     entry_reports = {}
@@ -295,7 +296,8 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
         entry = None
         if (
             row["layer"] == "evmir"
-            and row["pass"] in {"block-layout", "loop-layout", "compact-pushes"}
+            and row["pass"]
+            in {"block-layout", "loop-layout", "compact-pushes", "cfg-simplify-early"}
             and region
         ):
             key = (*row["paths"], row["target"])
@@ -401,6 +403,7 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
         "baseline_seconds": baseline_seconds,
         "capture_seconds": capture_seconds,
         "captured": len(rows),
+        "eligible": len(eligible),
         "selected": len(chosen),
         "unselected": len(rows) - len(chosen),
         "checks": results,
@@ -430,13 +433,20 @@ def main():
     parser.add_argument(
         "--require-verified",
         action="store_true",
-        help="with --all, fail if any captured region remains unverified",
+        help="with --all, fail if any eligible region remains unverified",
     )
     parser.add_argument("--seed", default="0")
     parser.add_argument(
         "--timeout", type=int, default=15, help="seconds per prover invocation"
     )
     parser.add_argument("--case", action="append", default=[])
+    parser.add_argument(
+        "--pass",
+        dest="passes",
+        action="append",
+        default=[],
+        help="select a pass (repeatable)",
+    )
     args = parser.parse_args()
     if os.environ.get("SOLAR_TV_GAS"):
         parser.error("unset SOLAR_TV_GAS for the pinned sufficient-gas evaluation")
@@ -480,10 +490,11 @@ def main():
         "seed": args.seed,
         "limit": args.limit,
         "timeout": args.timeout,
+        "selected_passes": sorted(set(args.passes)),
         "cases": [],
         "expected_cases": len(cases),
         "sampling": (
-            "all captured regions, including rejected and unsupported regions"
+            "all eligible captured regions, including rejected and unsupported regions"
             if args.limit is None
             else "round-robin across layers and passes, stable hash order within groups; includes rejected and unsupported regions"
         ),
@@ -499,11 +510,19 @@ def main():
                     args.limit,
                     args.seed,
                     args.timeout,
+                    passes=args.passes,
                 )
             )
         except (OSError, ValueError, subprocess.TimeoutExpired) as error:
             report["errors"].append({"case": case["name"], "error": str(error)})
         audit.write(args.output / "results.json", report)
+    missing = set(args.passes) - {
+        row["pass"] for case in report["cases"] for row in case["pass_coverage"]
+    }
+    if missing:
+        report["errors"].append(
+            {"error": "no captures for passes: " + ", ".join(sorted(missing))}
+        )
     counts = {status: 0 for status in audit.STATUSES}
     for case in report["cases"]:
         for check in case["checks"]:
@@ -530,7 +549,7 @@ def main():
             or (
                 args.require_verified
                 and any(
-                    case["captured"]
+                    case["eligible"]
                     != sum(c["status"] == "verified" for c in case["checks"])
                     for case in report["cases"]
                 )
