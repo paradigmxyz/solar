@@ -764,6 +764,50 @@ loses its universal certificate, and direct execution of the original and
 altered lowered MIR produces a counterexample confirmed by independent
 Rust replay.
 
+### Follow-up MIR ABI audit
+
+The serial `evaluate --all --pass lower-abi --timeout 120 --seed 0` run
+checked all 65 captures under `target/tv-lower-abi-followup/`.
+It used checker fingerprint
+`daa645951a48066b58b5badb357d032210d3999912d55c98250ba7caa15bf904`.
+Compiler, replay, manifest, input, output and selected capture fingerprints
+match the targeted audit above. Each contract's normal and capture
+compilations agree on ABI, creation bytecode and runtime bytecode.
+
+| Contract | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: |
+| Solady WETH | 10 | 7 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 4 | 9 | 0 | 0 |
+| Morpho Blue | 10 | 25 | 0 | 0 |
+| Total | 24 | 41 | 0 | 0 |
+
+The ten new proofs cover WETH's deposit, receive, constructor, name, symbol
+and domain separator, and Morpho's market, position, market parameters and
+domain separator. The changed-return regression still produces matching
+Lean and independent Rust observations for each side of the counterexample.
+
+Of the 41 unsupported captures, 18 hit the direct MIR restriction on
+`GAS`, and 14 reach the ABI entry prover without closing. Four require loop
+invariants, three module rows need reasoning about newly added helpers,
+one constructor needs argument decoding from staged memory, and one
+internal body needs a stronger typed execution proof.
+
+The ABI checker also compares argument-free constructor initializers at their
+typed return boundary, and argument-free runtime entries returning one
+memory bytes object. The bytes certificate starts with a fresh free-memory
+pointer at 128. It reads the object's length and contents from the source
+execution and checks the result against the actual lowered offset, length,
+payload and zero padding. Full-word runtime immutable loads use arbitrary
+shared relocation values for unchanged declarations.
+
+Static output supports up to eight words. The kernel checks that narrowing
+the high half of a shifted storage word preserves its zero-extended ABI
+encoding. Guard-free void runtime wrappers can use an effect-tree proof.
+Their implicit ABI adapter maps the typed empty return to empty success.
+The resulting trees must agree on ordered requests and exits under every
+shared effect handler, with internal caller continuations expanded from
+both source inputs.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
