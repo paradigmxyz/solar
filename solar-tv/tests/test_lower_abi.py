@@ -1,4 +1,4 @@
-"""Check unsigned ABI words at a real implicit-to-explicit MIR entry."""
+"""Check real implicit-to-explicit MIR ABI entries."""
 
 import json
 import subprocess
@@ -21,11 +21,15 @@ class LowerAbiTests(unittest.TestCase):
                 "C.sol": {
                     "content": """
 contract C {
-    receive() external payable {}
+    uint256 total;
+    constructor() {}
+    receive() external payable { pay(); }
+    function pay() public payable { total = msg.value; }
     function decimals() external pure returns (uint8) { return 18; }
     function echo(uint256 x) external pure returns (uint256) { return x; }
     function narrow(address x) external pure returns (address) { return x; }
     function pair(uint256 x) external pure returns (uint256, uint256) { return (x, 19); }
+    function name() external pure returns (string memory) { return "Copper"; }
 }
 """
                 }
@@ -78,19 +82,27 @@ contract C {
                 )
                 return result, json.loads(report.read_text())
 
-            for function in ("decimals", "echo", "narrow", "pair"):
+            scopes = {
+                **dict.fromkeys(
+                    ("decimals", "echo", "narrow", "pair"), "static-abi-entry"
+                ),
+                "name": "bytes-abi-entry",
+                "constructor": "empty-constructor-abi-entry",
+                "pay": "void-abi-effect-tree",
+                "receive": "void-abi-effect-tree",
+            }
+            for function, scope in scopes.items():
                 with self.subTest(function=function):
                     result, proof = check(function, after)
                     self.assertEqual(
                         result.returncode, 0, result.stdout + result.stderr
                     )
                     self.assertEqual(proof["evidence"], "kernel-proof")
-                    self.assertEqual(
-                        proof["region"]["proof"], "kernel-checked-static-abi-entry"
-                    )
+                    certificate = f"kernel-checked-{scope}"
+                    self.assertEqual(proof["region"]["proof"], certificate)
                     self.assertEqual(
                         proof["import_correspondence"][0]["kind"],
-                        "kernel-checked-static-abi-entry",
+                        certificate,
                     )
 
             broken = folder / "broken.mir"

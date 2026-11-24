@@ -72,7 +72,7 @@ def pure(op, args, bits, definitions):
     raise Unsupported(f"unmodeled scalar effect-tree opcode `{name}`")
 
 
-def render(model, definitions):
+def render(model, definitions, *, abi_return=False):
     functions = {function["id"]: function for function in model["functions"]}
     if len(functions) != len(model["functions"]) or model["entry_id"] not in functions:
         raise Unsupported("invalid effect-tree function table")
@@ -374,20 +374,29 @@ def render(model, definitions):
         arguments,
         (entry["id"],),
         (),
-        lambda args: boundary("return", args),
+        lambda args: boundary("stop" if abi_return else "return", args),
     )
     if len(result) > 262144:
         raise Unsupported("effect-tree text exceeds 256 KiB")
     return result
 
 
-def check(a, b, timeout, executable):
+def check(a, b, timeout, executable, *, void_abi=False):
     from .check import PRELUDE, ROOT, build_model, run
 
     definitions = {
         row["name"]: row for row in native.catalog(executable, timeout)["evmir"]
     }
-    trees = [render(program.symbolic_mir["model"], definitions) for program in (a, b)]
+    if void_abi and any(
+        program.symbolic_mir["model"][signature]
+        for program in (a, b)
+        for signature in ("params", "returns")
+    ):
+        raise Unsupported("void ABI effect proof requires empty signatures")
+    trees = [
+        render(a.symbolic_mir["model"], definitions, abi_return=void_abi),
+        render(b.symbolic_mir["model"], definitions),
+    ]
     build = build_model(timeout)
     if build.returncode:
         raise Unsupported(build.stdout + build.stderr)
@@ -410,7 +419,7 @@ theorem pair_correct {binders} : before {args} = after {args} := by
     with tempfile.TemporaryDirectory(prefix="solar-tv-mir-effects-") as directory:
         path = Path(directory) / "Pair.lean"
         path.write_text(code)
-        result = run(["lake", "env", "lean", path], ROOT, timeout)
+        result = run(["lake", "env", "lean", "-j1", path], ROOT, timeout)
     # Reuse the same strict axiom policy as direct SSA proofs.
     axioms = re.search(r"'pair_correct' depends on axioms: \[(.*?)\]", result.stdout)
     if result.returncode or not (

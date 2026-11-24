@@ -196,17 +196,22 @@ def translate(text, function, executable, version, timeout):
     )
 
 
-def declaration(name, program):
+def declaration(name, program, *, layout=False):
     binders = " ".join(
         f"({arg} : BitVec {width})"
         for arg, width in zip(program.inputs, program.input_widths, strict=True)
     )
     code = program.symbolic_mir["code"]
     body = program.body.replace("cfg " + code, "cfg " + name + "Code")
+    if layout:
+        body = body.replace(
+            "\nMIR.State.execute", "\nlet cfg := {cfg with layout}\nMIR.State.execute"
+        )
     return (
         f"def {name}Code : MIR.State.Functions :=\n  {code}\n"
         + f"def {name} (environment : World.Environment) (context : Execution.Block)\n"
-        f" (debug : Bool) (frame : MIR.State.Frame) {binders} : MIR.State.Run :=\n"
+        + (" (layout : MIR.State.Layout)\n" if layout else "")
+        + f" (debug : Bool) (frame : MIR.State.Frame) {binders} : MIR.State.Run :=\n"
         + "\n".join("  " + line for line in body.splitlines())
         + "\n"
     )

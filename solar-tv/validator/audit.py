@@ -223,15 +223,30 @@ def record(
                 assumptions.append(
                     "empty forwarding blocks preserve control and simultaneous phi assignment; work bounds count logical edges"
                 )
-        elif program and program.scope == "static-abi-entry":
+        elif program and program.scope == "abi-entry":
+            boundary = program.import_evidence
             assumptions.extend(
                 [
-                    "selected implicit selector entry versus its explicit wrapper; selector dispatch itself is outside this proof",
+                    "selected constructor initializer, with exact direct MIR return and memory"
+                    if boundary["constructor"]
+                    else "selected implicit runtime entry versus its explicit wrapper; dispatch itself is outside this proof",
                     "fresh private memory and returndata, arbitrary journal and environment, calldata length representable as a word",
-                    "static unsigned ABI words; ABI layout from compiler-validated source declarations",
+                    "ABI layout from compiler-validated source declarations",
                     "MIR execution is unpriced; no emitted bytecode or backend layout claim",
                 ]
             )
+            if boundary["memory_bytes_return"]:
+                assumptions.append(
+                    "single memory bytes result, zero-padded ABI output, and a fresh free-memory pointer initialized to 128"
+                )
+            if boundary["runtime_immutables"]:
+                assumptions.append(
+                    "arbitrary shared runtime relocation words for immutable IDs with unchanged declarations"
+                )
+            if boundary["kind"] == "kernel-checked-void-abi-effect-tree":
+                assumptions.append(
+                    "same ordered requests under arbitrary shared effect handlers; the ABI adapter maps a typed empty return to public empty success"
+                )
         elif program and program.scope == "empty-dispatch":
             assumptions.extend(
                 [
@@ -1085,8 +1100,8 @@ def record(
                     if program.scope == "effect-tree"
                     else "producer-valid-fresh-heap-ssa"
                     if program.scope == "fresh-heap-function"
-                    else "kernel-checked-static-abi-entry"
-                    if program.scope == "static-abi-entry"
+                    else program.import_evidence["kind"]
+                    if program.scope == "abi-entry"
                     else "universal-caller-state",
                     "work_bounds": [side.symbolic_mir["fuel"] for side in result.pair],
                     "supplied_functions": len(
