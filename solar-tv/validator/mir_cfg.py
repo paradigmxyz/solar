@@ -698,6 +698,27 @@ def project_width_guards(i, bodies, definitions, fork):
     return tuple(map(import_graph, projected)), list(stats), "".join(certificates)
 
 
+def changed_control(paths, function):
+    """Select a typed CFG retry after the symbolic importer runs out of time."""
+    layouts = []
+    for path in paths:
+        if path.suffix != ".mir" or path.stat().st_size > 1024 * 1024:
+            return False
+        header, entries = prune.declarations(path.read_text())
+        if function not in entries:
+            return False
+        interface, *lines = entries[function]["text"]
+        control = tuple(
+            line
+            for line in lines
+            if line.startswith(("jump ", "jumpi ", "switch "))
+            or (line.startswith("bb") and line.endswith(":"))
+        )
+        layouts.append(((header, interface), control))
+    before, after = layouts
+    return before[0] == after[0] and before[1] != after[1]
+
+
 def check(
     paths,
     solar,

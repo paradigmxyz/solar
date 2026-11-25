@@ -6,12 +6,15 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
-from validator import native, world
+from validator import check, native, world
 from validator.common import Program
 
 
@@ -74,6 +77,22 @@ fn @count(arg0: i256) -> i256 {
             self.assertEqual(data["region"]["proof"], "kernel-checked-typed-jump-chain")
             self.assertEqual(data["gas_policy"], "unpriced-structural")
             self.assertEqual(data["region"]["functions"], ["count"])
+
+            with (
+                patch.object(sys, "argv", list(map(str, args))),
+                patch.object(
+                    check, "load", side_effect=subprocess.TimeoutExpired("load", 30)
+                ) as load,
+                redirect_stdout(StringIO()) as stdout,
+                redirect_stderr(StringIO()) as stderr,
+            ):
+                self.assertEqual(check.main(), 0, stdout.getvalue() + stderr.getvalue())
+                load.assert_called_once()
+            recovered = json.loads(report.read_text())
+            self.assertEqual(recovered["evidence"], "kernel-proof")
+            self.assertEqual(
+                recovered["import_correspondence"], data["import_correspondence"]
+            )
 
             source = after.read_text()
             self.assertIn("sstore 1,", source)

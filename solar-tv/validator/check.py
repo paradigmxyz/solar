@@ -1419,6 +1419,31 @@ def main() -> int:
                     if args.verbose:
                         print(f"EVM peephole proof: {retry}", file=sys.stderr)
         elif (
+            isinstance(error, subprocess.TimeoutExpired)
+            and args.ir == "mir"
+            and args.function
+            and not programs
+            and args.world is None
+            and args.gas is None
+            and not args.valid_heap
+            and not args.interaction_trace
+        ):
+            # A timeout while importing either symbolic body leaves no pair
+            # for the fallback below. Typed CFG import is independent of it.
+            from . import mir_cfg
+
+            paths = (args.before, args.after)
+            try:
+                if mir_cfg.changed_control(paths, args.function):
+                    fallback = mir_cfg.check(
+                        paths, solar, rust_replay, version, args.timeout, args.function
+                    )
+            except (Unsupported, OSError, subprocess.TimeoutExpired) as retry:
+                if args.verbose:
+                    print(
+                        f"MIR CFG proof after import timeout: {retry}", file=sys.stderr
+                    )
+        elif (
             isinstance(error, (Unsupported, subprocess.TimeoutExpired))
             and not isinstance(error, Inconclusive)
             and args.ir == "mir"

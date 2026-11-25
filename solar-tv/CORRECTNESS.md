@@ -3020,6 +3020,81 @@ This audit adds 23 verified capture IDs to the preceding saved coverage
 join, bringing it to 2,046 of 2,228. The paired-only result stays outside that
 total.
 
+### MIR CFG checks after an import timeout
+
+The earlier three-second census timed out on 23 Morpho MIR `cfg-simplify`
+captures before symbolic import returned a pair. Their reports have no
+canonical input hashes. For a function with a changed block or transfer
+layout and matching declarations, the CLI now attempts the independently
+exported typed CFG certificate after an import timeout. The text check
+selects a prover. The typed export and Lean certificate supply the evidence.
+The regression forces the import timeout on a real storage loop rewrite and
+checks that the CLI produces the same proof as the ordinary check.
+
+The serial `evaluate --all --pass cfg-simplify --timeout 3 --seed 0` run
+selects both IR layers. Its capture IDs and both raw IR hashes match the
+previous full audit. The compiler and input fingerprints also match, and
+plain and capture compilations produce identical ABI, creation bytecode and
+runtime bytecode. The three-second budget still imposes a limit on the
+largest typed proof stages.
+
+| Layer and contract | Captured | Verified | Unsupported | Timed out | Errors |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| MIR Solady WETH | 33 | 31 | 0 | 2 | 0 |
+| MIR OpenZeppelin ERC20Mock | 30 | 30 | 0 | 0 | 0 |
+| MIR Morpho Blue | 81 | 49 | 0 | 31 | 1 |
+| EVM IR OpenZeppelin ERC20Mock | 3 | 3 | 0 | 0 | 0 |
+| EVM IR Morpho Blue | 4 | 2 | 2 | 0 | 0 |
+| Total | 151 | 115 | 2 | 33 | 1 |
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Checker on Lean 4.34.1 | `2ed310c9123682ef1481ec9e66a5bf6a9d6f6109c1e7f259cd4c40e1f8fa629b` |
+| Independent Rust replay | `857e527dae753105ba83cbf5e55d8632d5062699d3dbfecbc643d03879d24008` |
+| `target/tv-cfg-import-recovery-full/results.json` | `aefb6b8de507010d67955fba1bfd345c2eda867a56132eaa85e5fcbc05a60af5` |
+
+All 34 remaining MIR records verify on serial retries through the ordinary
+`--function` entry with a 20-second budget per Lean invocation. That includes
+the record that reported a process error in the initial run. Every retry uses
+the typed jump-chain certificate. Lean checks the matched transfers, ordered
+effects, live SSA operands, simultaneous phi writes and the admitted direct
+callee graphs. The theorem quantifies over logical work bounds and shared
+handlers, including their gas samples and message replies. Parser/schema
+export and action binding remain trusted. Physical gas and ABI or backend
+placement require additional correspondence proofs.
+
+Both remaining EVM IR captures verify with `--entry-trace` and up to 120
+seconds per Lean stage. For `bb456`, the checked graph follows the stack-held
+return address where the rewritten block uses a dynamic `JUMP`. For `bb239`,
+the graph checks the conversion from a label push and inline `JUMPI` to the
+structured branch. Both graphs start at the physical entry with an empty
+stack and cover the captured label on both sides. The kernel checks stack
+bounds, label provenance and the sequence of shared interaction requests.
+The proof assumes shared call replies and leaves physical gas unpriced.
+
+| Entry report in `target/tv-cfg-import-recovery-retries/` | SHA-256 |
+| --- | --- |
+| `morpho-blue-000.json` for `bb456` | `233aeb1d6f4a3e779caf1e1655085b3c3d813f2fe9c729e714f5f1fa36f494a5` |
+| `morpho-blue-002.json` for `bb239` | `35cc6c46aa12b8320954fd6fe4abcf059a8c34b3c8d8a062b28fdd83b10f82c9` |
+
+Joining by capture ID verifies 144 of 144 MIR records and seven of seven
+EVM IR records, with zero remaining unsupported checks, timeouts or errors
+in the join. The join adds 25 previously unverified records to saved corpus
+coverage, bringing it to 2,071 of 2,228. The three-second census above keeps
+its original counts. `target/tv-cfg-import-recovery-retries/result.json`
+records all 36 retries and their proof report hashes. Its SHA-256 is
+`46991a7cdc33dd1f783f804301a0618a413ac8d8e5212f805cf0b9e131415357`.
+
+Independent Rust replay runs both captured Morpho `createMarket` MIR
+wrappers and the pinned deployed runtime with the zero-IRM success fixture.
+Both MIR runs complete six stores. All three executions agree on the final
+storage, event and empty return data. Short calldata reaches the same empty
+revert with no storage changes or logs. This compares concrete observations
+at ABI entry and terminal completion for two fixtures. General MIR-to-bytecode
+correspondence and MIR gas pricing remain open. The replay result at
+`target/tv-cfg-create-market-replay/result.json` has SHA-256
+`059873de06f41adc6708cd72ab13c402d831966ecc6a01e2ffd8df726272b2ec`.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
