@@ -110,8 +110,9 @@ impl<'a> Snapshot<'a> {
             && gas_policy.is_none()
             && region.is_some_and(|r| r.kind == "region")
             && rejection == Some("incoming EVM stack height is unknown");
-        let added_private_helper = matches!(pass, "lower-checks" | "lower-alloc")
-            && rejection == Some("functions were added; interprocedural edits are not modeled");
+        let added_private_helper =
+            matches!(pass, "lower-checks" | "lower-alloc" | "lower-builtins")
+                && rejection == Some("functions were added; interprocedural edits are not modeled");
         let prune = layer == "mir"
             && (added_private_helper
                 || matches!(

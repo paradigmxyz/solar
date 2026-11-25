@@ -696,6 +696,24 @@ def check(
         )
         callees = []
         code = STORAGE_PROOF
+    elif any(op["kind"] == "load_storage_bytes" for op in operations):
+        from . import storage_lowering
+
+        require(not final_call, "final bytecode certificate requires a CALL")
+        storage_lowering.check_loader(
+            old,
+            new,
+            [d[function]["targets"] for d in declarations],
+            executable,
+            timeout,
+        )
+        callees, helpers = [], []
+        kind = "contextual-storage-bytes-load"
+        boundary = (
+            "unpriced storage-byte CFG with equal returned pointer, live frame, "
+            "slot warming and revert payload; 64 KiB memory and 2048-word work domain"
+        )
+        code = STORAGE_LOAD_PROOF
     elif any(authorization_lowering.is_recovery(op) for op in operations):
         require(
             not final_call and version != "amsterdam",
@@ -1065,5 +1083,16 @@ open SolarTV.MIR.LowerStorageBytes
 theorem contextual (cfg : Config) (frame : Frame) (slot object : Word) :
     lowered cfg frame slot object = storeStorageBytes cfg frame slot object none :=
   store cfg frame slot object
+#print axioms contextual
+"""
+
+
+STORAGE_LOAD_PROOF = """
+open SolarTV.MIR.State EvmRules
+open SolarTV.MIR.LowerStorageLoad
+theorem contextual (cfg : Config) (frame : Frame) (slot : Word)
+    (bounded : frame.memory.length ≤ 65536) :
+    lowered cfg frame slot = loadStorageBytes cfg frame slot :=
+  load cfg frame slot bounded
 #print axioms contextual
 """

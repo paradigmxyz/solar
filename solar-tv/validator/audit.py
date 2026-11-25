@@ -639,10 +639,15 @@ def record(
                     ]
                 )
         elif program and program.scope == "builtin-lowering":
+            storage_module = (
+                program.import_evidence["kind"] == "contextual-storage-bytes-module"
+            )
             assumptions.extend(
                 [
                     "selected typed SSA and exact lowering operands, phis and successors checked against the proved expansion",
-                    "trusted compiler parser/schema export and typed SSA expansion matching; compositional semantic proof for one function",
+                    "trusted compiler parser/schema export, typed constructor renderer and SSA expansion matching across the retained module"
+                    if storage_module
+                    else "trusted compiler parser/schema export and typed SSA expansion matching; compositional semantic proof for one function",
                 ]
             )
             if program.gas == "exact-caller-continuation":
@@ -665,7 +670,9 @@ def record(
                     )
             else:
                 assumptions.append(
-                    "unpriced MIR steps; no caller instruction gas, physical layout or whole-pass claim"
+                    "unpriced MIR module context calling the two checked bodies through their logical frame effects; physical placement and resource correspondence outside scope"
+                    if storage_module
+                    else "unpriced MIR steps; no caller instruction gas, physical layout or whole-pass claim"
                 )
             if program.import_evidence["kind"] == "contextual-call-returndata-lowering":
                 assumptions.extend(
@@ -687,6 +694,21 @@ def record(
             elif program.gas == "exact-caller-continuation":
                 assumptions.append(
                     "bounded returndata materialization; same child effects, copied memory, canonical boolean check and helper exit"
+                )
+            elif program.import_evidence["kind"] == "contextual-storage-bytes-load":
+                assumptions.extend(
+                    [
+                        "shared initial frame and storage slot; arbitrary header, ordered storage reads and slot warming, scratch hashing and exact panic payloads",
+                        "64 KiB active memory and at most 2048 storage words; executions outside the defined model domain are excluded",
+                    ]
+                )
+            elif storage_module:
+                assumptions.extend(
+                    [
+                        "identical retained typed bodies, interfaces and entry bindings; private clear helper reachable only from the exact storage writer expansion",
+                        "arbitrary storage headers and defined load/store frames; ordered storage and memory effects, live memory and exact panic data",
+                        "64 KiB active memory, at most 2048 words per loop and sufficient work and call depth for the expansion; unsupported states outside the model are excluded",
+                    ]
                 )
             else:
                 assumptions.extend(
@@ -1225,6 +1247,9 @@ def record(
                 "region": {
                     "kind": "loop-region"
                     if program.scope == "storage-induction"
+                    else "module"
+                    if program.import_evidence["kind"]
+                    == "contextual-storage-bytes-module"
                     else "function",
                     "name": program.selector,
                     "proof": program.import_evidence["kind"],

@@ -288,7 +288,7 @@ def evaluate_case(case, solar, folder, limit, seed, timeout, *, passes=()):
         dispatch_key = (*row["paths"], row["target"], debug_reverts)
         prune = row["layer"] == "mir" and (
             dispatch
-            or row["pass"] in {"lower-checks", "lower-alloc"}
+            or row["pass"] in {"lower-checks", "lower-alloc", "lower-builtins"}
             and row["rejection"]
             == "functions were added; interprocedural edits are not modeled"
             or row["rejection"]

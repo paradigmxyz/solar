@@ -110,7 +110,14 @@ def check(paths, solar, version, timeout, *, executable=None, debug_reverts=Fals
         and "@phase lowered" not in old_header
         and len(after) > len(before)
     ):
-        from . import lower_alloc, lower_checks, lower_dispatch, mir_cfg, native
+        from . import (
+            lower_alloc,
+            lower_checks,
+            lower_dispatch,
+            mir_cfg,
+            native,
+            storage_lowering,
+        )
 
         replay = executable or native.default(solar)
         if not debug_reverts and lower_checks.helper_addition(before, after):
@@ -120,6 +127,10 @@ def check(paths, solar, version, timeout, *, executable=None, debug_reverts=Fals
         if not debug_reverts and lower_alloc.helper_addition(before, after):
             return mir_cfg.check(
                 paths, solar, replay, version, timeout, None, lowering="lower-alloc"
+            )
+        if not debug_reverts and storage_lowering.helper_addition(before, after):
+            return storage_lowering.check_module(
+                texts, (before, after), replay, version, timeout
             )
 
         return lower_dispatch.check(
