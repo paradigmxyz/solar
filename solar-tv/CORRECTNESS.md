@@ -2676,6 +2676,35 @@ tv-integer-cleanup-bytecode-probe/sha256.txt` from `target` to check them.
 | Morpho after runtime | `d2c1c3d7bb22df8c2e0e9853f10f2657af1c547028e7287b0452a9943a23cd2e` |
 | Evidence manifest | `e174d1a66b8866b77ce39d004588109886b446b349944b1c6bed2be7caf4688a` |
 
+The Morpho authorization fixture independently runs each suffix-emitted
+constructor with the same owner, preserves its storage, and uses its
+returned runtime and domain separator. At 2,000,000 initial gas, the Rust
+EVM confirms that a valid signed authorization produces the same nonce
+and authorization writes and the same two logs. A malformed boolean word
+and an invalid signature both revert with the original storage and no logs.
+
+| Calldata | Before gas remaining | After gas remaining |
+| --- | ---: | ---: |
+| Valid signed authorization | 1,947,526 | 1,947,555 |
+| Boolean word `2` | 1,999,696 | 1,999,696 |
+| Invalid signature | 1,973,646 | 1,973,675 |
+
+For the valid signature, Lean checks both emitted paths from PC 0 to the
+`ECRECOVER` static call at PCs 7140 and 6946. It checks identical 128-byte
+inputs and an increase in requested gas from 1,976,883 to 1,976,912. For
+the malformed boolean, Lean checks both complete runs and their exact
+observation equality, including storage, logs, refund and remaining gas.
+The combined theorems use `propext`, and the trace theorems also use
+`Quot.sound`. The full signed-path kernel trace reached the signature
+precompile and exceeded its 2 GiB limit. A kernel proof through successful
+signature recovery and arbitrary-input gas refinement remain open.
+
+The 152-file manifest at
+`target/tv-integer-cleanup-authorization-replay/sha256.txt` fingerprints
+the emitted bytes, captures, fixtures, executables, Rust results and
+Lean certificates. Its SHA-256 is
+`750d9b4a090f501d072029de6e307783e3edc9f04fdaa90623d0c14c7a6d9280`.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
