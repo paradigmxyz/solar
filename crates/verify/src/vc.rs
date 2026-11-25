@@ -95,6 +95,9 @@ struct Decl<'a> {
     calldata: bool,
 }
 
+/// Storage pointers' targets, captured index values and names (see `Vc::ptr_state`).
+type PtrState<'a> = (FxHashMap<String, &'a Expr<'a>>, FxHashMap<String, Env>, FxHashSet<String>);
+
 pub(crate) struct Opts {
     pub strict: bool,
     /// Infer loop invariants and termination measures (see `infer`).
@@ -2316,6 +2319,28 @@ impl<'p, 'a> Vc<'p, 'a> {
         }
     }
 
+    /// Where every storage pointer points now.
+    fn ptr_state(&self) -> PtrState<'a> {
+        (self.aliases.clone(), self.alias_env.clone(), self.slocals.clone())
+    }
+
+    fn set_ptr_state(&mut self, p: PtrState<'a>) {
+        (self.aliases, self.alias_env, self.slocals) = p;
+    }
+
+    /// Whether two pointer states point every storage pointer at the same location.
+    fn same_ptrs(a: &PtrState<'a>, b: &PtrState<'a>) -> bool {
+        let same_env = |x: &Env, y: &Env| {
+            x.len() == y.len()
+                && x.iter().all(|(k, v)| y.get(k).is_some_and(|w| w.t == v.t && w.len == v.len))
+        };
+        a.2 == b.2
+            && a.0.len() == b.0.len()
+            && a.0.iter().all(|(k, t)| b.0.get(k).is_some_and(|u| std::ptr::eq(*t, *u)))
+            && a.1.len() == b.1.len()
+            && a.1.iter().all(|(k, e)| b.1.get(k).is_some_and(|f| same_env(e, f)))
+    }
+
     /// A local of `name` names calldata while it is in scope exactly when it is declared so.
     fn note_calldata(&mut self, name: &str, loc: Option<ast::DataLocation>) {
         if loc == Some(ast::DataLocation::Calldata) {
@@ -2522,17 +2547,30 @@ impl<'p, 'a> Vc<'p, 'a> {
                     self.splits.push(cv.t.clone());
                 }
                 let (g0, env0) = (self.guard.clone(), self.env.clone());
+                let p0 = self.ptr_state();
                 self.assume(&cv.t);
                 self.exec_stmt(a)?;
                 let s1 = (
                     std::mem::replace(&mut self.guard, g0),
                     std::mem::replace(&mut self.env, env0),
                 );
+                let p1 = self.ptr_state();
+                self.set_ptr_state(p0);
                 self.assume(&format!("(not {})", cv.t));
                 if let Some(b) = b {
                     self.exec_stmt(b)?;
                 }
                 let s2 = (self.guard.clone(), self.env.clone());
+                // Storage pointers are not merged: branches that both go on must leave each
+                // pointing where the other does.
+                if s2.0 == "false" {
+                    self.set_ptr_state(p1);
+                } else if s1.0 != "false" && !Self::same_ptrs(&p1, &self.ptr_state()) {
+                    return Err((
+                        s.span,
+                        "storage pointer pointed at different locations on the branches of an `if` is not supported".into(),
+                    ));
+                }
                 let (g, e) = self.merge(vec![s1, s2]);
                 self.guard = g;
                 self.env = e;
@@ -2659,6 +2697,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 // chosen nondeterministically; a failure no clause catches reverts us too.
                 let sel = self.decl("try_path", &Ty::Uint(8));
                 let (g0, env0) = (self.guard.clone(), self.env.clone());
+                let p0 = self.ptr_state();
                 let mut states = vec![];
                 self.assume(&format!("(= {sel} 0)"));
                 let saved_try = self.try_call.replace(t.expr.span);
@@ -2704,6 +2743,13 @@ impl<'p, 'a> Vc<'p, 'a> {
                     states.push((
                         std::mem::replace(&mut self.guard, g0.clone()),
                         std::mem::replace(&mut self.env, env0.clone()),
+                    ));
+                }
+                if !Self::same_ptrs(&p0, &self.ptr_state()) {
+                    return Err((
+                        s.span,
+                        "storage pointer pointed elsewhere in a `try` clause is not supported"
+                            .into(),
                     ));
                 }
                 let (g, e) = self.merge(states);
@@ -3331,7 +3377,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             ExprKind::Index(base, IndexKind::Index(Some(idx))) => {
                 let b = self.eval(base)?;
-                let mut i = self.eval(idx)?;
+                let mut i = self.eval_index(idx)?;
                 if b.ty == Ty::Opaque {
                     // memory bytes written in place: another name may share them, and their
                     // contents (not tracked) become unknown
@@ -3768,7 +3814,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             ExprKind::Index(base, IndexKind::Index(Some(idx))) => {
                 let b = self.eval(base)?;
-                let i = self.eval(idx)?;
+                let i = self.eval_index(idx)?;
                 match &b.ty {
                     Ty::Map(k, v) => {
                         let i = Self::coerce(k, i);
@@ -6984,14 +7030,30 @@ impl<'p, 'a> Vc<'p, 'a> {
     /// The values of the variables an access chain's index expressions read, so that the
     /// location it names can be found again after they change (`p` in `S storage p = m[i]`
     /// keeps pointing at `i`'s value when bound). `None` when it reads none.
-    fn index_capture(&self, e: &'a Expr<'a>) -> R<Option<Env>> {
+    fn index_capture(&mut self, e: &'a Expr<'a>) -> R<Option<Env>> {
         let mut ids: Vec<(String, Span)> = vec![];
+        let mut pins: Vec<&'a Expr<'a>> = vec![];
         let mut cur = e.peel_parens();
         loop {
             match &cur.kind {
                 ExprKind::Member(b, _) => cur = b.peel_parens(),
                 ExprKind::Index(b, k) => {
                     if let IndexKind::Index(Some(i)) = k {
+                        // An index without effects is evaluated once, where the location is
+                        // bound, and that value stands for it at every use (see `pin_key`).
+                        let mut plain = true;
+                        walk::sub_exprs(i, &mut |x| {
+                            plain &= !matches!(
+                                &x.kind,
+                                ExprKind::Assign(..) | ExprKind::Call(..) | ExprKind::Delete(_)
+                            ) && !matches!(&x.kind, ExprKind::Unary(op, _) if matches!(
+                                op.kind,
+                                UnOpKind::PreInc | UnOpKind::PostInc | UnOpKind::PreDec | UnOpKind::PostDec
+                            ));
+                        });
+                        if plain {
+                            pins.push(i);
+                        }
                         walk::sub_exprs(i, &mut |x| {
                             if let ExprKind::Ident(id) = &x.kind {
                                 ids.push((id.as_str().to_string(), x.span));
@@ -7004,7 +7066,54 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
         }
         let mut cap = Env::new();
-        for (n, span) in ids {
+        for (n, span) in &ids {
+            if self.aliases.contains_key(n) {
+                return Err((
+                    *span,
+                    format!(
+                        "storage location indexed through storage pointer `{n}` is not supported"
+                    ),
+                ));
+            }
+        }
+        for i in &pins {
+            let v = self.eval(i)?;
+            cap.insert(Self::pin_key(i), v);
+        }
+        // Indices with effects are evaluated again at each use, from the names they read as
+        // they were here: an index that reads the location's own root would then read it as it
+        // was here too, and the location's own writes would be lost when it is put back.
+        let roots = walk::root(e);
+        let pinned: FxHashSet<Span> = pins.iter().map(|i| i.span).collect();
+        let mut fallback: Vec<(String, Span)> = vec![];
+        let mut cur = e.peel_parens();
+        loop {
+            match &cur.kind {
+                ExprKind::Member(b, _) => cur = b.peel_parens(),
+                ExprKind::Index(b, k) => {
+                    if let IndexKind::Index(Some(i)) = k
+                        && !pinned.contains(&i.span)
+                    {
+                        walk::sub_exprs(i, &mut |x| {
+                            if let ExprKind::Ident(id) = &x.kind {
+                                fallback.push((id.as_str().to_string(), x.span));
+                            }
+                        });
+                    }
+                    cur = b.peel_parens();
+                }
+                _ => break,
+            }
+        }
+        for (n, span) in fallback {
+            if roots.contains(&n) {
+                return Err((
+                    span,
+                    format!(
+                        "storage location whose index both has effects and reads its own root `{n}` is not supported"
+                    ),
+                ));
+            }
             if self.aliases.contains_key(&n) {
                 return Err((
                     span,
@@ -7018,6 +7127,21 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
         }
         Ok((!cap.is_empty()).then_some(cap))
+    }
+
+    /// The key under which a captured storage location holds the value of its index expression
+    /// `e`, evaluated once where the location was bound.
+    fn pin_key(e: &Expr<'_>) -> String {
+        format!("#pin:{:x}", std::ptr::from_ref(e).addr())
+    }
+
+    /// The value of index expression `idx`: the one captured where its location was bound, if
+    /// any, else its value now.
+    fn eval_index(&mut self, idx: &'a Expr<'a>) -> R<Val> {
+        match self.env.get(&Self::pin_key(idx)) {
+            Some(v) => Ok(v.clone()),
+            None => self.eval(idx),
+        }
     }
 
     /// Runs f with the variables of cap set to their captured values, then restores them.
@@ -7041,7 +7165,7 @@ impl<'p, 'a> Vc<'p, 'a> {
     /// only when nothing else reaches the same storage during the call, so two storage
     /// arguments with one root, or a callee that names an argument's root, are refused.
     fn storage_arg_caps(
-        &self,
+        &mut self,
         f: &'p Func<'a>,
         args: &[&'a Expr<'a>],
         span: Span,

@@ -276,8 +276,16 @@ impl<'p, 'a> Vc<'p, 'a> {
             self.reverts_if("true");
         }
         let rec_at = self.loop_recs.len();
+        let p0 = self.ptr_state();
         self.loops.push(LoopCtx { breaks: vec![], conts: vec![], depth: self.decl_scopes.len() });
         self.exec_stmt(body)?;
+        // Storage pointers are not havocked at the head: the body must leave each where it was.
+        if !Self::same_ptrs(&p0, &self.ptr_state()) {
+            return Err((
+                s.span,
+                "storage pointer pointed elsewhere inside a loop is not supported".into(),
+            ));
+        }
         let ctx = self.loops.pop().unwrap();
         let mut st = ctx.conts;
         st.push((self.guard.clone(), self.env.clone()));
