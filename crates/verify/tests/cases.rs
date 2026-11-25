@@ -1378,3 +1378,13 @@ fn sound_mem_shadow_state() {
 fn sound_ptr_shadow_alias() {
     check("tests/cases/sound_ptr_shadow_alias.sol")
 }
+
+#[test]
+fn sound_ptr_self_index() {
+    check("tests/cases/sound_ptr_self_index.sol")
+}
+
+#[test]
+fn sound_ptr_branch_rebind() {
+    check("tests/cases/sound_ptr_branch_rebind.sol")
+}
