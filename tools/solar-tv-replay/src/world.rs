@@ -396,18 +396,7 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
                 .map(Value::to_string)
                 .ok_or_else(|| format!("bytecode probe was not reached ({:?})", outcome.stop));
         }
-        let stop = match outcome.stop {
-            stop if stop.is_success() => "success",
-            InstrStop::Revert => "revert",
-            InstrStop::OutOfGas
-            | InstrStop::MemoryOOG
-            | InstrStop::MemoryLimitOOG
-            | InstrStop::PrecompileOOG
-            | InstrStop::InvalidOperandOOG
-            | InstrStop::ReentrancySentryOOG
-            | InstrStop::CreateInitCodeSizeLimit => "out-of-gas",
-            _ => "exception",
-        };
+        let stop = stop_name(outcome.stop);
         let mut accounts = BTreeMap::new();
         for (&addr, account) in &evm.overlay_db().cache.accounts {
             let Some(account) = account else { continue };
@@ -534,4 +523,19 @@ fn database(
         database.insert_block_hash(&word(request, number)?, &word(request, hash)?.into());
     }
     Ok(database)
+}
+
+pub(super) fn stop_name(stop: InstrStop) -> &'static str {
+    match stop {
+        stop if stop.is_success() => "success",
+        InstrStop::Revert => "revert",
+        InstrStop::OutOfGas
+        | InstrStop::MemoryOOG
+        | InstrStop::MemoryLimitOOG
+        | InstrStop::PrecompileOOG
+        | InstrStop::InvalidOperandOOG
+        | InstrStop::ReentrancySentryOOG
+        | InstrStop::CreateInitCodeSizeLimit => "out-of-gas",
+        _ => "exception",
+    }
 }

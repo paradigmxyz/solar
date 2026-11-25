@@ -112,8 +112,10 @@ set-code envelopes, signed authorizations and fee settlement through Osaka.
 Amsterdam admits environment/scalar/memory execution and reservoir certificates for
 debits, refills, rollback and child ledger merging. An explicit bytecode entry
 also checks `SLOAD` and `SSTORE` with independent execution and reservoir
-balances. Account access, message and creation opcodes still need Amsterdam
-metering.
+balances. Decoded EIP-1559 call fixtures cover Amsterdam admission, fees and
+gas settlement, and sequences of those calls check the split block limits,
+header gas and cumulative receipts. Account access, nested message and creation
+opcodes still need Amsterdam metering.
 
 [MIR/State/](SolarTV/MIR/State/) executes typed SSA directly, with scalar memory
 pointers, persistent/transient cells, context, logs, terminal outcomes and cyclic
@@ -277,8 +279,8 @@ the [type-pruning example](README.md#removing-unused-mir-type-declarations).
 1. Generalize fixed-world proofs to arbitrary symbolic accounts and aliases.
    Derive general MIR message budgets from priced execution rather than supplied
    boundary inputs; model root reentry through MIR entry semantics.
-2. Extend decoded set-code transaction admission to the other envelope types
-   and prove full fee settlement and block accumulation.
+2. Extend transaction admission and settlement beyond decoded set-code and
+   Amsterdam dynamic-fee calls. Prove consensus block validation and roots.
 3. Generalize calldata/returndata/program-data access and physical code layout
    from complete-entry execution to arbitrary local windows.
 4. Extend the per-import correspondence certificates beyond acyclic EVM regions
@@ -288,9 +290,8 @@ the [type-pruning example](README.md#removing-unused-mir-type-declarations).
    explicit initialization and non-vacuity. Establishing that condition at
    every caller remains open. Direct MIR semantics and independent replay do
    not by themselves prove backend decisions correct.
-5. Integrate Amsterdam's reservoir initialization, debits, refills and rollback with
-   stateful opcode execution, nested frames and transaction settlement. Expand
-   differential boundary coverage.
+5. Extend Amsterdam's execution and state gas accounting to account access,
+   nested messages and creation. Expand differential boundary coverage.
 
 Unsupported semantics remain explicit. A local proof does not establish
 whole-contract equivalence or an all-input correspondence theorem for the Rust

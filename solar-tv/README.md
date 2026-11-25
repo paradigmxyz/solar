@@ -1122,6 +1122,8 @@ solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/set-code-reve
 solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/amsterdam-reservoir.json
 solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/amsterdam-nested-reservoir.json
 solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/amsterdam-storage-refill.json
+solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/amsterdam-dynamic-fee.json
+solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/amsterdam-dynamic-fee-block.json
 ```
 
 The Amsterdam checks cover reservoir initialization, execution-only debits,
@@ -1132,15 +1134,24 @@ snapshot against the pinned `evm2` gas tracker for the supplied charge trace.
 The nested trace supplies the forwarded gas, stipend, upfront state charge,
 and child exit. Lean checks the inherited checkpoint across every transition.
 The replay compares both pools, signed ledgers, refund counters, and depth
-through child success, revert, and halt. Opcode-derived forwarding and charges,
-interpreter integration for nested calls, and Amsterdam transaction settlement
-remain open.
+through child success, revert, and halt. Opcode-derived forwarding and charges
+and interpreter integration for nested calls remain open.
 
 The Amsterdam storage fixture executes raw bytecode with supplied execution gas
 and reservoir balances. Lean compares the settled meter, refund, output, and
 persistent state with `evm2`. The regressions exercise cold and warm storage
 pricing, creation and restoration of a zero slot, the execution-gas sentry, and
 spill repayment and journal rollback on revert.
+
+The decoded Amsterdam EIP-1559 fixtures supply the outer signers, initial
+accounts and block fee parameters. Lean checks gas and fee settlement for
+messages in the storage bytecode fragment and for top-level precompiles. The
+checker compares admission, execution and state gas, refunds, floor, output,
+logs and selected accounts with the pinned transaction handler. The block
+fixture carries committed accounts and fresh journals between transactions. It
+checks both block admission limits and compares header gas and cumulative
+receipt gas with independent replay. The header uses the maximum of the two
+block gas counters.
 
 ## Check passes during compilation
 

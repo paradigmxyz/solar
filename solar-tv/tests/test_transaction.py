@@ -124,6 +124,186 @@ class TransactionTests(unittest.TestCase):
         self.assertTrue(report["admitted"])
         self.assertEqual(report["accounts"], [[0, []], [2, []]])
 
+    def test_amsterdam_dynamic_fee_commits_storage_and_both_gas_components(self):
+        request = json.loads((EXAMPLES / "amsterdam-dynamic-fee.json").read_text())
+        report = self.check(request)
+        self.assertTrue(report["admitted"])
+        self.assertEqual(report["stop"], "success")
+        self.assertEqual(report["floor_gas"], 15_000)
+        self.assertEqual(report["execution_gas"], 27_105)
+        self.assertEqual(report["state_gas"], 97_920)
+        self.assertEqual(report["gas_used"], 125_025)
+        self.assertEqual(
+            [(int(key, 0), int(value, 0)) for key, value in report["accounts"][1][3]],
+            [(0, 1)],
+        )
+        self.assertEqual(int(report["sender_balance"], 0), 10**12 - 5 * 125_025)
+        self.assertEqual(int(report["beneficiary_balance"], 0), 2 * 125_025)
+
+    def test_amsterdam_dynamic_fee_rejects_bad_chain_nonce_and_fees(self):
+        for field, value in (
+            ("chainId", "0x2"),
+            ("nonce", "0x1"),
+            ("maxFeePerGas", "0x2"),
+            ("maxPriorityFeePerGas", "0x9"),
+        ):
+            with self.subTest(field=field):
+                request = json.loads(
+                    (EXAMPLES / "amsterdam-dynamic-fee.json").read_text()
+                )
+                request["tx"][field] = value
+                self.assertEqual(self.check(request), {"admitted": False})
+
+    def test_amsterdam_dynamic_fee_caps_refund_and_enforces_floor(self):
+        request = json.loads((EXAMPLES / "amsterdam-dynamic-fee.json").read_text())
+        request["accounts"][0]["code"] = "0x60015f555f5f5500"
+        request["tx"]["input"] = "0x" + "00" * 600
+        report = self.check(request)
+        self.assertEqual(report["stop"], "success")
+        self.assertEqual(report["spent"], 29_609)
+        self.assertEqual(report["refund"], 5_921)
+        self.assertEqual(report["gas_used"], 53_400)
+        self.assertEqual((report["execution_gas"], report["state_gas"]), (53_400, 0))
+        self.assertEqual(report["accounts"][1][3], [])
+        self.assertEqual(int(report["sender_balance"], 0), 10**12 - 5 * 53_400)
+
+    def test_amsterdam_dynamic_fee_keeps_fees_but_reverts_transfer_and_storage(self):
+        request = json.loads((EXAMPLES / "amsterdam-dynamic-fee.json").read_text())
+        request["accounts"][0]["code"] = "0x60015f555f5ffd"
+        request["tx"]["value"] = "0x11"
+        report = self.check(request)
+        self.assertEqual(report["stop"], "revert")
+        self.assertEqual((report["gas_used"], report["state_gas"]), (33_109, 0))
+        self.assertEqual(report["accounts"][0][0], 1)
+        self.assertEqual(int(report["accounts"][1][1], 0), 0)
+        self.assertEqual(report["accounts"][1][3], [])
+        self.assertEqual(report["logs"], [])
+        self.assertEqual(int(report["sender_balance"], 0), 10**12 - 5 * 33_109)
+
+    def test_amsterdam_dynamic_fee_new_recipient_state_reservation(self):
+        request = json.loads((EXAMPLES / "amsterdam-dynamic-fee.json").read_text())
+        request["accounts"].pop(0)
+        request["tx"].update(gas=hex(204_600), value="0x11")
+        report = self.check(request)
+        self.assertEqual(report["stop"], "success")
+        self.assertEqual(
+            (report["execution_gas"], report["state_gas"]), (21_000, 183_600)
+        )
+        self.assertEqual(int(report["accounts"][1][1], 0), 17)
+        self.assertEqual(len(report["logs"]), 1)
+        self.assertEqual(int(report["sender_balance"], 0), 10**12 - 5 * 204_600 - 17)
+
+        request["tx"]["gas"] = hex(204_599)
+        report = self.check(request)
+        self.assertTrue(report["admitted"])
+        self.assertEqual(report["stop"], "out-of-gas")
+        self.assertEqual(report["execution_gas"], 204_599)
+        self.assertEqual(report["state_gas"], 0)
+        self.assertIsNone(report["accounts"][1])
+        self.assertEqual(report["logs"], [])
+
+    def test_amsterdam_dynamic_fee_delegation_resolves_warm_and_cold_targets(self):
+        request = json.loads((EXAMPLES / "amsterdam-dynamic-fee.json").read_text())
+        library = "0x0000000000000000000000000000000000010004"
+        request["accounts"][0]["code"] = "0xef0100" + library[2:]
+        request["accounts"].append(
+            {"address": library, "nonce": 1, "balance": "0x0", "code": "0x60015f5500"}
+        )
+        for access_list, spent in (
+            ([], 128_025),
+            ([{"address": library, "storageKeys": []}], 129_305),
+        ):
+            with self.subTest(access_list=access_list):
+                request["tx"]["accessList"] = access_list
+                report = self.check(request)
+                self.assertEqual(report["stop"], "success")
+                self.assertEqual(report["spent"], spent)
+                self.assertEqual(report["state_gas"], 97_920)
+                self.assertEqual(int(report["accounts"][1][3][0][1], 0), 1)
+
+    def test_amsterdam_block_separates_header_and_receipt_gas(self):
+        request = json.loads(
+            (EXAMPLES / "amsterdam-dynamic-fee-block.json").read_text()
+        )
+        report = self.check(request)
+        self.assertTrue(report["admitted"])
+        self.assertTrue(report["header_matches"])
+        self.assertEqual(report["header_gas_used"], 97_920)
+        self.assertEqual(report["execution_gas"], 44_210)
+        self.assertEqual(report["state_gas"], 97_920)
+        self.assertEqual(report["cumulative_gas"], 142_130)
+        self.assertEqual(
+            [row["cumulative_gas"] for row in report["receipts"]], [125_025, 142_130]
+        )
+        self.assertEqual(report["accounts"][0][0], 2)
+        self.assertEqual(int(report["accounts"][0][1], 0), 10**12 - 5 * 142_130)
+
+        request["header_gas_used"] = 142_130
+        report = self.check(request)
+        self.assertTrue(report["admitted"])
+        self.assertFalse(report["header_matches"])
+
+    def test_amsterdam_block_checks_both_inclusion_limits(self):
+        request = json.loads(
+            (EXAMPLES / "amsterdam-dynamic-fee-block.json").read_text()
+        )
+        request["transactions"][0]["tx"]["gas"] = hex(130_000)
+        request["block_gas_limit"] = 217_920
+        self.assertTrue(self.check(request)["admitted"])
+        # Transaction two has room in execution but is short one unit of state gas.
+        request["block_gas_limit"] -= 1
+        self.assertFalse(self.check(request)["admitted"])
+
+        request["accounts"][0]["storage"] = [["0x0", "0x1"]]
+        # A cold no-op SSTORE uses 17,105 execution gas and zero state gas.
+        request["block_gas_limit"] = 137_105
+        request["header_gas_used"] = 34_210
+        self.assertTrue(self.check(request)["header_matches"])
+        request["block_gas_limit"] -= 1
+        self.assertFalse(self.check(request)["admitted"])
+
+    def test_amsterdam_block_keeps_fees_and_nonce_after_message_revert(self):
+        request = json.loads(
+            (EXAMPLES / "amsterdam-dynamic-fee-block.json").read_text()
+        )
+        request["accounts"][0]["code"] = "0x60015f555f5ffd"
+        request["transactions"][0]["tx"]["value"] = "0x11"
+        request["transactions"][1]["tx"]["to"] = (
+            "0x0000000000000000000000000000000000010004"
+        )
+        request["header_gas_used"] = 48_109
+        report = self.check(request)
+        self.assertTrue(report["header_matches"])
+        self.assertEqual(
+            [row["stop"] for row in report["receipts"]], ["revert", "success"]
+        )
+        self.assertEqual([row["logs"] for row in report["receipts"]], [[], []])
+        self.assertEqual(report["state_gas"], 0)
+        self.assertEqual(report["accounts"][0][0], 2)
+        self.assertEqual(int(report["accounts"][0][1], 0), 10**12 - 5 * 48_109)
+        self.assertEqual(int(report["accounts"][1][1], 0), 0)
+        self.assertEqual(report["accounts"][1][3], [])
+
+    def test_amsterdam_dynamic_fee_precompile_uses_only_execution_gas(self):
+        request = json.loads((EXAMPLES / "amsterdam-dynamic-fee.json").read_text())
+        request["tx"].update(
+            to="0x0000000000000000000000000000000000000004",
+            gas=hex(15_192),
+            input="0x010203",
+        )
+        report = self.check(request)
+        self.assertEqual(report["output"], [1, 2, 3])
+        self.assertEqual((report["spent"], report["gas_used"]), (15_066, 15_192))
+        self.assertEqual(report["state_gas"], 0)
+
+        request["tx"].update(input="0x", gas=hex(15_015))
+        self.assertEqual(self.check(request)["stop"], "success")
+        request["tx"]["gas"] = hex(15_014)
+        report = self.check(request)
+        self.assertTrue(report["admitted"])
+        self.assertEqual(report["stop"], "out-of-gas")
+        self.assertEqual(report["state_gas"], 0)
+
     def test_amsterdam_state_gas_spills_after_reservoir(self):
         request = json.loads((EXAMPLES / "amsterdam-reservoir.json").read_text())
         self.assertEqual(

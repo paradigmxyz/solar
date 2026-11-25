@@ -307,12 +307,17 @@ def configuration(
     replay: str | None = None,
     *,
     root_is_mir: bool = False,
+    allow_precompile_entry: bool = False,
 ) -> str:
     catalog = native.catalog(replay or native.default(solar), timeout)
     precompiles = catalog.get("precompiles")
     if not isinstance(precompiles, dict):
         raise Unsupported("rebuild the native replay helper for precompile activation")
-    if not root_is_mir and fixture["address"] in precompiles.get(version, []):
+    if (
+        not root_is_mir
+        and not allow_precompile_entry
+        and fixture["address"] in precompiles.get(version, [])
+    ):
         raise Unsupported(
             "world root must be a bytecode account, not an active precompile"
         )

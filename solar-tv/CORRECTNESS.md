@@ -2066,8 +2066,47 @@ capped refund, floor, charged receipt gas, the gas breakdown and the two
 committed balances. The nonzero-fee revert case spends 55,604 gas and
 earns a capped refund of 11,120, with the calldata floor setting the
 receipt to 45,000. The tests also cover sender and beneficiary aliasing
-and a successful value transfer. Amsterdam transaction integration and
-block-level settlement remain open.
+and a successful value transfer.
+
+### Amsterdam dynamic-fee calls and block gas
+
+The Amsterdam model starts from decoded EIP-1559 call envelopes with supplied
+outer signers and persistent accounts. It checks sender nonce and funds,
+chain ID, fees, the execution gas cap and intrinsic and floor gas. Value
+transfer, EIP-7708 logs, new-account state reservations and one-level code
+delegation execute from the transaction checkpoint. The message runs through
+the Amsterdam storage fragment or a top-level precompile using the pinned
+registry's Osaka tariff. A failed message restores its own checkpoint while
+retaining the sender nonce increment and settling the paid fees. The kernel
+proves the root halt consumes restored execution gas and a root revert
+discards the child's refund.
+
+The pinned `evm2` EIP-1559 handler independently executes each message. The
+kernel checks exact agreement on admission, outcome and return bytes, selected
+account nonces, balances, code and storage, and the logs. It compares the
+pre-refund gas spend, capped refund, floor, receipt gas and both block gas
+components. The regressions cover a cold slot with a 97,920 state charge,
+restoration to zero capped by the receipt floor, value and slot rollback,
+warm and cold delegate access, and identity precompile success and exhaustion.
+A value transfer to a new account succeeds with 204,600 gas and exhausts the
+budget one gas below it.
+
+Block fixtures carry the preceding committed accounts into a fresh journal for
+each message. The Lean admission check caps the requested execution component
+at 2^24 and uses the full request for state gas. The kernel proves that each
+capacity is required separately and that a transaction whose resulting charges
+respect its request preserves the header limit. The pinned block runner's
+inclusion policy is reproduced over independent `evm2` transaction results.
+The two-transaction fixture's header gas is 97,920 and its cumulative receipt
+gas is 142,130. Boundary tests check both admission limits one gas below their
+threshold and preserve fee balances and nonces across a reverted message.
+
+These certificates bind concrete caller and block fixtures. The message
+runner uses up to 512 steps per transaction, gas limits below 2^32 and up to
+16 messages per block fixture. The outer signer, opcode catalog, and host
+fixture renderer are inputs. Other envelopes, general Amsterdam opcode pricing,
+nested call and creation execution, consensus header validation and state and
+receipt roots are separate obligations.
 
 ### Full corpus after MIR and backend coverage
 
@@ -3443,7 +3482,7 @@ token revert and a false result.
 | EVM entry stacks and indirect transfers | Fixed or symbolic entry stacks, checked physical-entry bounds, stack-carried jump and conditional targets, and compiler-bound table proofs with entry coverage for resolved jumps | Entry coverage through unresolved computed jumps, independent certification of block placement, and broader physical stack, gas and state correspondence. |
 | Importer correctness | Certificates for acyclic EVM regions and acyclic typed scalar MIR | Extend independently checked imports to calls, memory, state, ABI entries and symbolic checked powers; audit the remaining Rust and opcode boundaries. |
 | Physical code and resource correspondence | Explicit layout assumptions and selected priced execution | Backend layout certificates, complete caller work pricing and gas-sensitive transfers; observable code locations and resource failures must agree. |
-| Fork and transaction completeness | Signed set-code authorization and fee settlement through Osaka, Amsterdam reservoir initialization, debits, refills, signed-ledger rollback, nested meter transitions for supplied frame charges, and explicit Amsterdam storage bytecode fixtures | Other transaction envelopes, Amsterdam fee settlement, block settlement, Amsterdam account and message pricing, and nested-frame integration in the interpreter. |
+| Fork and transaction completeness | Signed set-code authorization and fee settlement through Osaka, Amsterdam storage and nested gas-meter fixtures, and replayed Amsterdam EIP-1559 calls with fee and split block settlement | Other envelopes, Amsterdam account and message opcode pricing, nested-frame interpreter integration, and consensus block validation. |
 | Practical evaluation and review | Pinned three-contract sampling plus regression pairs | Wider published corpus, stronger pass coverage, independently reproduced results and external soundness review. |
 
 In the initial sample, the largest blockers were unknown EVM entry heights and

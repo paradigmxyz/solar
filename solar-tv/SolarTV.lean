@@ -78,6 +78,9 @@ import SolarTV.EVMIR.State.Transactions.SetCode
 import SolarTV.EVMIR.State.Transactions.Reservoir
 import SolarTV.EVMIR.State.Transactions.NestedReservoir
 import SolarTV.EVMIR.State.Transactions.Storage
+import SolarTV.EVMIR.State.Transactions.AmsterdamMessage
+import SolarTV.EVMIR.State.Transactions.BlockGas
+import SolarTV.EVMIR.State.Transactions.AmsterdamBlock
 import SolarTV.MIR.Transforms.FreshHeap
 import SolarTV.MIR.Transforms.TypeDCE
 import SolarTV.MIR.Transforms.LowerDispatch
