@@ -144,6 +144,10 @@ byte-key copies, memory expansion and wrapping arithmetic. Storage byte helpers
 validate short/long headers before allocation or mutation, retain full-word reads,
 mask dirty padding and clear truncated long tails. Clearing and copying beyond
 the documented memory or 2048-word storage limits are unsupported, never truncated.
+Kernel proofs check the emitted load, store and clear loops and compose their
+logical effects with the retained caller table of the pinned ERC20Mock capture.
+The load proof covers slot warmth, the allocation cursor, live byte memory and
+exact panic payloads. The typed expansion matcher and renderer remain trusted.
 Storage-array loads reserve a word-strided memory array, unpack signed integers
 and left-aligned fixed bytes, check enum bounds, and allocate nested bytes objects
 in order. Packing ignores dirty unused bits and reads only the declared elements;

@@ -1345,6 +1345,50 @@ heap-floor substitutions and replay the uint64-limit and wrapping failures.
 Changing the shared helper's panic code loses the proof and produces
 matching Lean and Rust revert-data counterexamples in both failure cases.
 
+### Strict builtin lowering audit
+
+The serial gate at 120 seconds per prover invocation verifies all six
+`lower-builtins` captures and rechecks all 16 `lower-abi-encode` captures.
+Each check uses the capture ID and before and after MIR hashes from the
+full audit. The three pinned inputs and compiler output fingerprints match
+that audit. Normal and capture compilations produce identical ABI and
+creation and runtime bytecode for each contract.
+
+| Pass | Solady WETH | OpenZeppelin ERC20Mock | Morpho Blue | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `lower-builtins` | 0/0 | 3/3 | 3/3 | 6 | 0 | 0 | 0 |
+| `lower-abi-encode` | 0/0 | 2/2 | 14/14 | 16 | 0 | 0 | 0 |
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Compiler executable | `7d123ab7483266256ead8e4b3d86cbce427376f186b5714969110d19139335e8` |
+| Serial compiler launcher | `4e5a4f6faa73f5d017a534afaa4d3f9a8c052abe1c2435f192108577b79239e9` |
+| Independent replay | `649ae6a1ae51d75ca501093d1a0f0a1181ff098d4f386e09b6e5754c01374365` |
+| Corpus manifest | `b08af7eb00ac67a5ef1200d50273beedc48d5517838ed67504bd1a76ba96b7b7` |
+| Checker on Lean 4.34.1 | `c46f7750f47a89de784bdecbb707853a4b3b540143a6a256c5097652c4f5cdaa` |
+| `target/tv-lower-builtins-final/results.json` | `5161da37e0fbb53d945f5e1b249e21ad7002994f9f9888926d40df093d419763` |
+
+The storage-byte load theorem checks arbitrary headers, the rounded extent
+and its overflow guard, checked allocation, short payload masking, and the
+long loop's unsigned guard, index advance and memory offsets. It preserves
+the returned pointer, live frame and warm slots on success, and checks the
+exact malformed-header panic bytes. The module certificate compares the
+resolved caller table and both replaced function signatures. The two
+replacement equations compose in any shared context using those logical
+frame effects. The only added function is the private clear helper, whose
+body and call binding match the writer expansion. The live hook checks
+that module path and preserves emitted MIR.
+
+The linked certificate uses unpriced MIR effects, at most 64 KiB of active
+memory and 2048 words per storage loop, and sufficient logical work and call
+depth. It trusts the typed exporter, constructor renderer and association
+between the exact SSA shapes and their operational projections. A changed
+phi initializer, loop stride, panic code or retained caller binding loses
+this proof. Independent Rust replay and the kernel agree on the altered
+stride's returned word and memory counterexample. The Morpho checks cover
+the two local builtin rewrites and the priced emitted CALL continuation,
+at its reported boundary.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
