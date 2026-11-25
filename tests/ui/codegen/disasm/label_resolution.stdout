@@ -1,7 +1,7 @@
 ; === label_resolution (runtime) ===
-; bb0
-JUMPDEST
-PUSH1 0x01
-ISZERO
-PUSH0 ; bb0
-JUMPI
+bb0:
+  0000  JUMPDEST
+  0001  PUSH1 0x01
+  0003  ISZERO
+  0004  PUSH0
+  0005  JUMPI  ; -> bb0

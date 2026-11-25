@@ -24,13 +24,14 @@ bb0:                                              ; runtime dispatch entry
   push 0
   return
 ; === ROOT/tests/ui/codegen/mir/none/bytecode.mir:Bytecode (runtime) ===
-PUSH1 0x01
-PUSH0
-CALLDATALOAD
-ADD
-PUSH0
-MSTORE
-PUSH1 0x20
-PUSH0
-RETURN
+bb0:
+  0000  PUSH1 0x01
+  0002  PUSH0
+  0003  CALLDATALOAD
+  0004  ADD
+  0005  PUSH0
+  0006  MSTORE
+  0007  PUSH1 0x20
+  0009  PUSH0
+  000a  RETURN
 {"contracts":{"ROOT/tests/ui/codegen/mir/none/bytecode.mir:Bytecode":{"abi":[],"bin-runtime":"60015f35015f5260205ff3"}},"version":"VERSION"}

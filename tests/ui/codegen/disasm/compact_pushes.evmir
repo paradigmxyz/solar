@@ -11,6 +11,7 @@
 @module compact_pushes
 
 // COMPACT-LABEL: ; === compact_pushes (runtime) ===
+// COMPACT-NEXT: bb0:
 // COMPACT-NEXT: PUSH0
 // COMPACT-NEXT: NOT
 // COMPACT-NEXT: DUP1
@@ -28,6 +29,7 @@
 // COMPACT-NEXT: SHL
 
 // NONE-LABEL: ; === compact_pushes (runtime) ===
+// NONE-NEXT: bb0:
 // NONE-NEXT: PUSH0
 // NONE-NEXT: NOT
 // NONE-NEXT: PUSH0
@@ -42,6 +44,7 @@
 
 // There is no `PUSH0`: the empty return data buffer supplies the zero.
 // BERLIN-LABEL: ; === compact_pushes (runtime) ===
+// BERLIN-NEXT: bb0:
 // BERLIN-NEXT: RETURNDATASIZE
 // BERLIN-NEXT: NOT
 bb0:

@@ -10,19 +10,16 @@ contract LoopRotation {
     // The latch falls into the header, whose branch closes the loop, so an
     // iteration runs no `JUMP`. The overflow check branches to the cold panic
     // block, so the hot path falls through it.
-    // CHECK: {{^}}JUMP{{$}}
-    // CHECK-NEXT: {{^}}; [[BODY:bb[0-9]+]]{{$}}
+    // CHECK: {{JUMP +; -> bb[0-9]+$}}
+    // CHECK-NEXT: [[BODY:bb[0-9]+]]:
     // CHECK-NEXT: JUMPDEST
     // CHECK: MUL
-    // CHECK: PUSH{{[12]}} {{0x[0-9a-f]+}} ; [[PANIC:bb[0-9]+]]
-    // CHECK-NEXT: JUMPI
-    // CHECK-NOT: {{^}}JUMP{{$}}
-    // CHECK: {{^}}; {{bb[0-9]+}}{{$}}
-    // CHECK-NEXT: JUMPDEST
-    // CHECK-NOT: {{^}};
-    // CHECK: PUSH{{[12]}} {{0x[0-9a-f]+}} ; [[BODY]]
-    // CHECK-NEXT: JUMPI
-    // CHECK: {{^}}; [[PANIC]]{{$}}
+    // CHECK: JUMPI ; -> [[PANIC:bb[0-9]+]], else bb{{[0-9]+}}
+    // CHECK-NOT: {{JUMP +; -> bb[0-9]+$}}
+    // CHECK: JUMPDEST
+    // CHECK-NOT: bb{{[0-9]+}}:
+    // CHECK: JUMPI ; -> [[BODY]], else bb{{[0-9]+}}
+    // CHECK: [[PANIC]]:
     // CHECK-NEXT: JUMPDEST
     // CHECK-NEXT: PUSH1 0x11
     function route(uint256 amount, uint256 hops) external pure returns (uint256) {

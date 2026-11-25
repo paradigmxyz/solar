@@ -4,9 +4,10 @@
 @module sparse_label
 
 // CHECK-LABEL: ; === sparse_label (runtime) ===
+// CHECK-NEXT: bb0:
 // CHECK-NEXT: PUSH1 0x03
 // CHECK-NEXT: POP
-// CHECK-NEXT: ; bb0
+// CHECK-NEXT: bb1:
 // CHECK-NEXT: JUMPDEST
 bb0:
   push bb4294967295

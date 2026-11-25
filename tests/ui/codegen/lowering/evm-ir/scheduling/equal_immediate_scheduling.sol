@@ -11,16 +11,14 @@ contract EqualImmediateScheduling {
     // GAS: push 0x123456789abcde
     // GAS-NOT: push 0x123456789abcde
     // GAS: dup 1
-    // GAS-LABEL: {{^; bb0$}}
-    // GAS-NEXT: JUMPDEST
+    // GAS: JUMPDEST
     // GAS-NEXT: PUSH0
     // GAS-NEXT: PUSH0
     // GAS-NEXT: REVERT
     // SIZE: push 0x123456789abcde
     // SIZE-NOT: push 0x123456789abcde
     // SIZE: dup 1
-    // SIZE-LABEL: {{^; bb0$}}
-    // SIZE-NEXT: JUMPDEST
+    // SIZE: JUMPDEST
     // SIZE-NEXT: PUSH0
     // SIZE-NEXT: PUSH0
     // SIZE-NEXT: REVERT

@@ -13,13 +13,13 @@
 // CHECK-NEXT: BYTE
 // CHECK-NEXT: PUSH1 [[BASE:0x[0-9a-f]+]]
 // CHECK-NEXT: ADD
-// CHECK-NEXT: JUMP ; unknown
+// CHECK-NEXT: JUMP ; -> ?
 // CHECK: PUSH10
 // CHECK-NEXT: SWAP1
 // CHECK-NEXT: BYTE
 // CHECK-NEXT: PUSH1 [[BASE]]
 // CHECK-NEXT: ADD
-// CHECK-NEXT: JUMP ; unknown
+// CHECK-NEXT: JUMP ; -> ?
 bb0:
   push 1
   indexed_jump bb3, bb4, bb5, bb6, bb7, bb8, bb9, bb10, bb11, bb12

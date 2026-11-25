@@ -12,7 +12,7 @@
 // stack carries the stepped word through the loop and the exit computes the old one from it,
 // instead of the backedge dropping the old word on every iteration.
 // CHECK-LABEL: === {{.*}}:C (runtime) ===
-// CHECK: {{JUMPI[[:space:]]+POP[[:space:]]+PUSH1 0x20[[:space:]]+ADD[[:space:]]+MSTORE}}
+// CHECK: {{JUMPI.*[[:space:]]+bb[0-9]+:[[:space:]]+[0-9a-f]+[[:space:]]+POP[[:space:]]+[0-9a-f]+[[:space:]]+PUSH1 0x20[[:space:]]+[0-9a-f]+[[:space:]]+ADD[[:space:]]+[0-9a-f]+[[:space:]]+MSTORE}}
 contract C {
     function sorted() external pure returns (uint256, uint256, uint256, uint256) {
         uint256[4] memory a = [uint256(4), 3, 2, 1];

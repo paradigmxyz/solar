@@ -4,6 +4,7 @@
 @module simple
 
 // CHECK-LABEL: ; === simple (runtime) ===
+// CHECK-NEXT: bb0:
 // CHECK-NEXT: PUSH1 0x2a
 // CHECK-NEXT: PUSH1 0x0a
 // CHECK-NEXT: ADD

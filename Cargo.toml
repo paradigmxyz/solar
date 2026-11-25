@@ -146,10 +146,8 @@ alloy-dyn-abi = "1.6"
 alloy-primitives = "1.3"
 alloy-json-abi = "1.3"
 bs58 = "0.5"
-evm2 = { git = "https://github.com/alloy-rs/evm2", rev = "9b037449c846515624ff6afde739f2b764851446", default-features = false, features = [
+evm2 = { git = "https://github.com/alloy-rs/evm2", rev = "175884c15398e817b2043c34ef427ec5f0465f33", default-features = false, features = [
     "std",
-    "map-foldhash",
-    "asm-keccak",
 ] }
 ripemd = "0.2"
 ruint = { version = "1.16", features = ["num-integer"] }

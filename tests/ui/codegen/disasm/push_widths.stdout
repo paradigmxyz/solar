@@ -1,3 +1,4 @@
 ; === push_widths (runtime) ===
-PUSH4 0x80000000
-PUSH1 0x02
+bb0:
+  0000  PUSH4 0x80000000
+  0005  PUSH1 0x02

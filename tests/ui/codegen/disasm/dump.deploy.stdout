@@ -1,16 +1,18 @@
 ; === ROOT/tests/ui/codegen/disasm/dump.sol:C (deployment) ===
-CALLVALUE
-PUSH1 0x0d ; bb0
-JUMPI
-PUSH1 0x48
-DUP1
-PUSH1 0x11
-PUSH0
-CODECOPY
-PUSH0
-RETURN
-; bb0
-JUMPDEST
-PUSH0
-PUSH0
-REVERT
+bb0:
+  0000  CALLVALUE
+  0001  PUSH1 0x0d
+  0003  JUMPI  ; -> bb2, else bb1
+bb1:
+  0004  PUSH1 0x48
+  0006  DUP1
+  0007  PUSH1 0x11
+  0009  PUSH0
+  000a  CODECOPY
+  000b  PUSH0
+  000c  RETURN
+bb2:
+  000d  JUMPDEST
+  000e  PUSH0
+  000f  PUSH0
+  0010  REVERT

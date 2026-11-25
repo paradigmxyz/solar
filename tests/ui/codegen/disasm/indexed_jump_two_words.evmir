@@ -10,6 +10,7 @@
 @module two_words
 
 // WIDE-LABEL: ; === two_words (runtime) ===
+// WIDE-NEXT: bb0:
 // WIDE-NEXT: PUSH1 0x01
 // WIDE-NEXT: DUP1
 // WIDE-NEXT: PUSH1 0x05
@@ -23,12 +24,13 @@
 // WIDE-NEXT: MUL
 // WIDE-NEXT: ADD
 // JIT-LABEL: ; === two_words (runtime) ===
+// JIT-NEXT: bb0:
 // JIT-NEXT: PUSH1 0x01
 // JIT-NEXT: PUSH1 0x04
 // JIT-NEXT: MUL
 // JIT-NEXT: PUSH2
 // JIT-NEXT: ADD
-// JIT-NEXT: JUMP ; unknown
+// JIT-NEXT: JUMP ; -> ?
 bb0:
   push 1
   indexed_jump bb1, bb2, bb3, bb4, bb5, bb6, bb7, bb8, bb9, bb10, bb11, bb12, bb13, bb14, bb15, bb16, bb17, bb18, bb19, bb20, bb21, bb22, bb23, bb24, bb25, bb26, bb27, bb28, bb29, bb30, bb31, bb32, bb33

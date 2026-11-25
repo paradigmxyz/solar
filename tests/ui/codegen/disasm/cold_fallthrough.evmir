@@ -4,6 +4,7 @@
 @module cold_fallthrough
 
 // CHECK-LABEL: ; === cold_fallthrough (runtime) ===
+// CHECK-NEXT: bb0:
 // CHECK-NEXT: PUSH0
 // CHECK-NEXT: PUSH0
 // CHECK-NEXT: REVERT

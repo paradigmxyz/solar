@@ -921,6 +921,18 @@ fn write_highlighted(writer: &mut ConsoleWriter, text: String, syntax: Syntax) -
             let comment_start = line.find(';');
             let (code, comment) = comment_start.map_or((line, ""), |i| line.split_at(i));
             let (code, metadata) = code.find(" !").map_or((code, ""), |i| code.split_at(i + 1));
+            // A disassembled instruction starts with its program counter.
+            let (pc, code) = if matches!(syntax, Syntax::Disasm) && code.starts_with(' ') {
+                let trimmed = code.trim_start();
+                let indent = code.len() - trimmed.len();
+                code.split_at(indent + trimmed.find(char::is_whitespace).unwrap_or(trimmed.len()))
+            } else {
+                ("", code)
+            };
+            if !pc.is_empty() {
+                let (indent, pc) = pc.split_at(pc.len() - pc.trim_start().len());
+                write!(writer, "{indent}{MUTED_STYLE}{pc}{MUTED_STYLE:#}")?;
+            }
             let start = code.len() - code.trim_start().len();
             let trimmed = &code[start..];
             let token_start = if trimmed.starts_with('@')

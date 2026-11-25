@@ -21,7 +21,7 @@ alloy-consensus.workspace = true
 alloy-dyn-abi.workspace = true
 alloy-json-abi.workspace = true
 alloy-primitives.workspace = true
-evm2.workspace = true
+evm2 = { workspace = true, features = ["map-foldhash", "asm-keccak"] }
 regex.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true

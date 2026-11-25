@@ -28,6 +28,7 @@ alloy-primitives.workspace = true
 arrayvec.workspace = true
 derive_more.workspace = true
 either.workspace = true
+evm2.workspace = true
 memchr.workspace = true
 serde_json.workspace = true
 smallvec.workspace = true
