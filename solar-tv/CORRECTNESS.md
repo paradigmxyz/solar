@@ -2705,6 +2705,113 @@ the emitted bytes, captures, fixtures, executables, Rust results and
 Lean certificates. Its SHA-256 is
 `750d9b4a090f501d072029de6e307783e3edc9f04fdaa90623d0c14c7a6d9280`.
 
+### Full corpus after guarded MIR effect proofs
+
+The serial audit at `cb7b029051` ran `evaluate --all --timeout 3 --seed 0`
+with the pinned compiler and replay executable. The 2,228 capture IDs bind
+identical source records and raw IR hashes in both full runs. The checker
+fingerprint stayed constant. The pinned inputs and baseline ABI, creation
+bytecode and runtime bytecode hashes match the previous audit for all three
+contracts. Capture compilation emits the same outputs as plain compilation.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Compiler executable | `f996616dcf2ebacf05fc5cc439f4814dc38fe953fad90b698754281c59ef139c` |
+| Serial compiler launcher | `4e5a4f6faa73f5d017a534afaa4d3f9a8c052abe1c2435f192108577b79239e9` |
+| Pinned Rust replay | `e829627c74937c09a8d331602150c67b642f96a359bb2116110e507093b1a9df` |
+| Lean checker on 4.34.1 | `f0296ae9ec37500fe0fdf02ace855911e4c494b65964229923f13cf5a5c9f944` |
+| Corpus manifest | `b08af7eb00ac67a5ef1200d50273beedc48d5517838ed67504bd1a76ba96b7b7` |
+| Complete results.json | `af462e2894fc26200bd23b5e7aaee8cc6f07bdbbce3d26927a3104897bf4cfc6` |
+| Comparison with previous full run | `e357a79cd47137bb73b07f79d6310d2b68bbe6f7c17d7f18d4f7350fc692d36e` |
+
+| Contract | Input SHA-256 | ABI and bytecode SHA-256 |
+| --- | --- | --- |
+| Solady WETH | `b751f0da2642fba80d176248ff576b06d45601fda253d9de32f9a78e3b70a4c0` | `671d642b2c47309ccd86125a4b1e35b281d4d2c367df2b88acacfcffb1c3c978` |
+| OpenZeppelin ERC20Mock | `c85c24c264a2ae9a97b32050f93426376c8cb20e15f6e5ad5dc1414ee46ce2c4` | `5e5fb3a0613c6ec21d8b61be398fc1ee325fcce75b144d13107356276d288213` |
+| Morpho Blue | `01f4aaf9db4940ea9a62aba808ba1655ef399c671b6ed29875f8a91c3efeba53` | `8ef2219d25d2b256dad76949a880ba655074bee6eb7f53bdf38e14381f43d8a0` |
+
+| Contract | Captured | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Solady WETH | 330 | 268 | 36 | 26 | 0 |
+| OpenZeppelin ERC20Mock | 372 | 299 | 36 | 37 | 0 |
+| Morpho Blue | 1526 | 925 | 430 | 171 | 0 |
+| Total | 2228 | 1492 | 502 | 234 | 0 |
+
+| Pass | Total | Verified | Unsupported | Timeout | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| evmir `block-cse` | 10 | 4 | 5 | 1 | 0 |
+| evmir `block-layout` | 368 | 299 | 68 | 1 | 0 |
+| evmir `cfg-simplify` | 7 | 5 | 2 | 0 | 0 |
+| evmir `cfg-simplify-early` | 291 | 136 | 150 | 5 | 0 |
+| evmir `compact-pushes` | 118 | 74 | 44 | 0 | 0 |
+| evmir `copy-loop-blocks` | 2 | 2 | 0 | 0 | 0 |
+| evmir `dce` | 2 | 0 | 0 | 2 | 0 |
+| evmir `inline-returns` | 14 | 7 | 6 | 1 | 0 |
+| evmir `late-word` | 19 | 0 | 19 | 0 | 0 |
+| evmir `loop-layout` | 29 | 27 | 2 | 0 | 0 |
+| evmir `outline` | 7 | 1 | 6 | 0 | 0 |
+| evmir `peephole-early` | 35 | 11 | 24 | 0 | 0 |
+| evmir `reorder-expressions` | 1 | 1 | 0 | 0 | 0 |
+| evmir `reorder-pushes` | 5 | 0 | 5 | 0 | 0 |
+| evmir `stack-normalize` | 5 | 0 | 5 | 0 | 0 |
+| evmir `stack-reschedule` | 17 | 0 | 17 | 0 | 0 |
+| evmir `tail-merge` | 49 | 45 | 3 | 1 | 0 |
+| evmir `terminal-dedup` | 124 | 106 | 18 | 0 | 0 |
+| mir `byte-run-loads` | 14 | 14 | 0 | 0 | 0 |
+| mir `call-cleanup` | 1 | 0 | 0 | 1 | 0 |
+| mir `cfg-simplify` | 144 | 121 | 0 | 23 | 0 |
+| mir `check-elim` | 7 | 2 | 4 | 1 | 0 |
+| mir `coalesce-allocs` | 1 | 1 | 0 | 0 | 0 |
+| mir `cse` | 48 | 39 | 3 | 6 | 0 |
+| mir `dce` | 86 | 69 | 0 | 17 | 0 |
+| mir `dead-arg-elim` | 11 | 0 | 11 | 0 | 0 |
+| mir `egraph` | 116 | 92 | 0 | 24 | 0 |
+| mir `evm-inst-schedule` | 32 | 0 | 14 | 18 | 0 |
+| mir `function-dce` | 3 | 0 | 0 | 3 | 0 |
+| mir `indvar-simplify` | 2 | 0 | 2 | 0 | 0 |
+| mir `inline` | 58 | 29 | 12 | 17 | 0 |
+| mir `integer-cleanup` | 35 | 23 | 12 | 0 | 0 |
+| mir `jump-threading` | 52 | 42 | 6 | 4 | 0 |
+| mir `licm` | 1 | 0 | 1 | 0 | 0 |
+| mir `lower-abi` | 65 | 58 | 2 | 5 | 0 |
+| mir `lower-abi-encode` | 16 | 15 | 0 | 1 | 0 |
+| mir `lower-alloc` | 19 | 11 | 7 | 1 | 0 |
+| mir `lower-arithmetic` | 16 | 9 | 7 | 0 | 0 |
+| mir `lower-builtins` | 6 | 5 | 1 | 0 | 0 |
+| mir `lower-checks` | 31 | 31 | 0 | 0 | 0 |
+| mir `lower-dispatch` | 73 | 0 | 0 | 73 | 0 |
+| mir `lower-evm-shaped` | 3 | 2 | 0 | 1 | 0 |
+| mir `lower-immutables` | 1 | 0 | 1 | 0 | 0 |
+| mir `lower-integers` | 55 | 54 | 1 | 0 | 0 |
+| mir `lower-mapping-slots` | 32 | 22 | 10 | 0 | 0 |
+| mir `lower-memory-objects` | 27 | 27 | 0 | 0 | 0 |
+| mir `lower-memory-zero` | 1 | 1 | 0 | 0 | 0 |
+| mir `lower-slices` | 1 | 1 | 0 | 0 | 0 |
+| mir `lower-structs` | 1 | 0 | 0 | 1 | 0 |
+| mir `memory-dse` | 10 | 3 | 6 | 1 | 0 |
+| mir `memory-dse-unread` | 1 | 1 | 0 | 0 | 0 |
+| mir `merge-aborts` | 42 | 7 | 20 | 15 | 0 |
+| mir `place-reads` | 33 | 32 | 0 | 1 | 0 |
+| mir `sccp` | 12 | 9 | 2 | 1 | 0 |
+| mir `simplify-phis` | 1 | 0 | 1 | 0 | 0 |
+| mir `specialize` | 1 | 0 | 0 | 1 | 0 |
+| mir `spell-width-tests` | 38 | 31 | 0 | 7 | 0 |
+| mir `storage-dse` | 10 | 10 | 0 | 0 | 0 |
+| mir `storage-promotion` | 12 | 12 | 0 | 0 | 0 |
+| mir `word-sequence` | 6 | 1 | 4 | 1 | 0 |
+| mir `word-sequence-early` | 1 | 0 | 1 | 0 | 0 |
+
+The verified count rose by 94. The previous full run overlapped separate
+Foundry builds, so some status changes reflect wall-clock load. The distinct
+strict-budget gates remain applicable to the same capture IDs.
+
+MIR `merge-aborts` has 35 unverified captures and `evm-inst-schedule` has 32.
+The next coverage work starts with `evm-inst-schedule`. An offline comparison
+of the frozen source pairs finds 31 schedules that preserve the order of
+stateful operations after treating immutable frame reads as total actions.
+One schedule also permutes `SLOAD` requests and needs a storage-read and
+slot-warmth proof. These shape checks guide the next certificate.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
