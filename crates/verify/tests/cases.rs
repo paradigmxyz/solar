@@ -1413,3 +1413,43 @@ fn sound_transfer_transient() {
 fn sound_try_decode() {
     check("tests/cases/sound_try_decode.sol")
 }
+
+#[test]
+fn sound_names_enum_contract() {
+    check("tests/cases/sound_names_enum_contract.sol")
+}
+
+#[test]
+fn sound_names_enum_enum() {
+    check("tests/cases/sound_names_enum_enum.sol")
+}
+
+#[test]
+fn sound_names_enum_udvt() {
+    check("tests/cases/sound_names_enum_udvt.sol")
+}
+
+#[test]
+fn sound_names_udvt_shadow() {
+    check("tests/cases/sound_names_udvt_shadow.sol")
+}
+
+#[test]
+fn sound_lin_diamond() {
+    check("tests/cases/sound_lin_diamond.sol")
+}
+
+#[test]
+fn sound_overload_erasure() {
+    check("tests/cases/sound_overload_erasure.sol")
+}
+
+#[test]
+fn sound_using_udvt_overload() {
+    check("tests/cases/sound_using_udvt_overload.sol")
+}
+
+#[test]
+fn sound_using_unattached() {
+    check("tests/cases/sound_using_unattached.sol")
+}

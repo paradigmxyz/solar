@@ -4554,6 +4554,20 @@ impl<'p, 'a> Vc<'p, 'a> {
                 // a file-level (free) function
                 let free = self.prog.contract(FREE);
                 let Some((lib, f)) = free.and_then(|l| Some((l, pick(&l.funcs, n, &vals)?))) else {
+                    let overloads = c
+                        .funcs
+                        .iter()
+                        .chain(free.map(|l| &l.funcs[..]).unwrap_or(&[]))
+                        .filter(|f| f.name == n && f.params.len() == vals.len())
+                        .count();
+                    if overloads > 1 {
+                        return Err((
+                            e.span,
+                            format!(
+                                "cannot tell the overloads of `{n}` apart: their parameter types differ only in what the verifier erases (user-defined value types, `string` and `bytes`)"
+                            ),
+                        ));
+                    }
                     return Err((e.span, format!("unknown function `{n}`")));
                 };
                 let caps = self.storage_arg_caps(f, &argv, e.span)?;
@@ -6476,6 +6490,9 @@ impl<'p, 'a> Vc<'p, 'a> {
     /// User-defined value types share their underlying type in `Ty`, so this is what tells
     /// overloads such as TransientSlot's `tload(BooleanSlot)` and `tload(Int256Slot)` apart.
     fn nominal(&self, e: &'a Expr<'a>) -> Option<String> {
+        if let ExprKind::Ident(n) = &e.peel_parens().kind {
+            return self.var_type_name(n.as_str());
+        }
         let ExprKind::Call(callee, args) = &e.peel_parens().kind else {
             return None;
         };
@@ -6489,7 +6506,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                     return Some(bn.as_str().to_string());
                 }
                 let n = args.exprs().count();
-                let cands = self.prog.using_fns(m, n);
+                let cands = self.prog.attached_fns(&self.c.name, m, n);
                 let want = self.nominal(b);
                 let f = cands
                     .iter()
@@ -6498,7 +6515,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                             && f.item.header.parameters.first().and_then(|p| decl_type_name(&p.ty))
                                 == want
                     })
-                    .or(cands.first())?
+                    .or(if cands.len() == 1 { cands.first() } else { None })?
                     .1;
                 f.item.header.returns().first().and_then(|p| decl_type_name(&p.ty))
             }
@@ -6510,6 +6527,36 @@ impl<'p, 'a> Vc<'p, 'a> {
         }
     }
 
+    /// The declared type name of variable `n` of the function being verified, while its own
+    /// body (not a callee's or a modifier's) runs and every declaration of `n` in it agrees.
+    fn var_type_name(&self, n: &str) -> Option<String> {
+        let f = self.cur_func?;
+        if self.depth != 0 || self.cur.last().is_none_or(|c| c.is_empty()) {
+            return None;
+        }
+        let mut names: FxHashSet<Option<String>> = FxHashSet::default();
+        let mut note = |v: &'a ast::VariableDefinition<'a>| {
+            if v.name.is_some_and(|m| m.as_str() == n) {
+                names.insert(decl_type_name(&v.ty));
+            }
+        };
+        for p in f.item.header.parameters.iter().chain(f.item.header.returns().iter()) {
+            note(p);
+        }
+        for s in f.item.body.iter().flat_map(|b| b.stmts.iter()) {
+            walk::all_stmts(s, &mut |s| match &s.kind {
+                StmtKind::DeclSingle(v) => note(v),
+                StmtKind::DeclMulti(vs, _) => {
+                    for v in vs.iter().filter_map(|v| v.as_ref().unspan()) {
+                        note(v);
+                    }
+                }
+                _ => {}
+            });
+        }
+        if names.len() == 1 { names.into_iter().next().unwrap() } else { None }
+    }
+
     /// Resolve `base.m(argv)` to a `using L for T` library function: by the receiver's declared
     /// named type when it is known, otherwise by argument types.
     #[allow(clippy::type_complexity)]
@@ -6519,7 +6566,9 @@ impl<'p, 'a> Vc<'p, 'a> {
         m: &str,
         argv: &[&'a Expr<'a>],
     ) -> R<Option<(&'p Contract<'a>, &'p Func<'a>, Vec<Val>, Vec<&'a Expr<'a>>)>> {
-        let cands = self.prog.using_fns(m, argv.len());
+        // Only what a `using` directive in force here attaches: without one `arr.pop()` is
+        // the builtin, whatever library function shares its name.
+        let cands = self.prog.attached_fns(&self.c.name, m, argv.len());
         if cands.is_empty() {
             return Ok(None);
         }
@@ -6539,6 +6588,23 @@ impl<'p, 'a> Vc<'p, 'a> {
             match named {
                 Some(x) => x,
                 None => {
+                    // Overloads whose receivers erase to the receiver's type (user-defined value
+                    // types over one underlying type) are told apart by its declared type alone.
+                    let tied: FxHashSet<Option<String>> = cands
+                        .iter()
+                        .filter(|(_, f)| f.params.first().is_some_and(|p| p.1 == vals[0].ty))
+                        .map(|(_, f)| {
+                            f.item.header.parameters.first().and_then(|p| decl_type_name(&p.ty))
+                        })
+                        .collect();
+                    if tied.len() > 1 {
+                        return Err((
+                            base.span,
+                            format!(
+                                "cannot tell which overload of `{m}` the receiver's declared type selects"
+                            ),
+                        ));
+                    }
                     let fs: Vec<&'p Func<'a>> = cands.iter().map(|(_, f)| *f).collect();
                     let f = pick_in(fs, &vals).unwrap_or(cands[0].1);
                     *cands.iter().find(|(_, g)| std::ptr::eq(*g, f)).unwrap()
@@ -7425,7 +7491,7 @@ fn pick_in<'q, 'a>(cands: Vec<&'q Func<'a>>, args: &[Val]) -> Option<&'q Func<'a
             _ => None,
         }
     };
-    cands
+    let scored: Vec<(u32, &'q Func<'a>)> = cands
         .into_iter()
         .filter_map(|f| {
             let mut tot = 0;
@@ -7434,8 +7500,16 @@ fn pick_in<'q, 'a>(cands: Vec<&'q Func<'a>>, args: &[Val]) -> Option<&'q Func<'a
             }
             Some((tot, f))
         })
-        .max_by_key(|(t, _)| *t)
-        .map(|(_, f)| f)
+        .collect();
+    let best = scored.iter().map(|(t, _)| *t).max()?;
+    let mut top = scored.into_iter().filter(|(t, _)| *t == best);
+    let first = top.next()?.1;
+    // Overloads the erased types cannot tell apart (user-defined value types over one type,
+    // `string` and `bytes`): which one runs depends on declared types, which are not kept here.
+    if top.next().is_some() {
+        return None;
+    }
+    Some(first)
 }
 
 /// Bitvector view of an Int term: SSA names defined by a term are viewed through their
