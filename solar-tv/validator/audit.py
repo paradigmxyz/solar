@@ -919,6 +919,10 @@ def record(
                     "remaining gas may increase; the shared continuation may require a separate gas-sensitive correspondence proof",
                 ]
             )
+            if "low_mask_counts" in program.import_evidence:
+                assumptions.append(
+                    "kernel-checked literal mask windows composed with matched operations, including the fork-selected SSTORE admission threshold"
+                )
             if observers := program.import_evidence["continuation_observers"]:
                 assumptions.append(
                     "continuation needs paired gas/code observations and outcomes for "

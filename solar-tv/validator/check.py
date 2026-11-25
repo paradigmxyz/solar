@@ -1415,6 +1415,8 @@ def main() -> int:
                         args.timeout,
                         entry,
                     )
+                except peephole.UnpairedContinuation as retry:
+                    error = retry
                 except (Unsupported, OSError, subprocess.TimeoutExpired) as retry:
                     if args.verbose:
                         print(f"EVM peephole proof: {retry}", file=sys.stderr)

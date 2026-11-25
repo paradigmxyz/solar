@@ -12,6 +12,7 @@ from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
 from validator import evm_effects, native
+from validator.check import load
 from validator.common import Unsupported
 
 
@@ -176,6 +177,85 @@ class EffectPrefixTests(unittest.TestCase):
         for instruction in ("jump", "jumpi", "gas", "sstore", "staticcall", "codesize"):
             with self.subTest(instruction=instruction), self.assertRaises(Unsupported):
                 evm_effects.instructions([instruction], catalog, "cancun")
+
+    def test_low_mask_refines_at_the_storage_sentry(self):
+        before, after, wrong, world = (
+            self.directory / name
+            for name in ("before.evmir", "after.evmir", "wrong.evmir", "world.json")
+        )
+        before.write_text("""@module StoreMask
+bb0:
+  push 0
+  calldataload
+  push 0
+  not
+  push 96
+  shr
+  and
+  push 7
+  sstore
+  stop
+""")
+        after.write_text(
+            subprocess.check_output(
+                [
+                    SOLAR,
+                    before,
+                    "-Ogas",
+                    "-Zevm-ir-pipeline=late-word",
+                    "--evm-version=cancun",
+                ],
+                text=True,
+                timeout=20,
+            )
+        )
+        verified, record = self.cli([before, after], "--prefix", "bb0")
+        self.assertEqual(verified.returncode, 0, verified.stdout + verified.stderr)
+        self.assertEqual(
+            record["region"]["proof"], "kernel-checked-contextual-low-mask"
+        )
+        self.assertEqual(record["import_correspondence"][0]["storage_admissions"], 1)
+
+        low = 1 << 159
+        data = ((1 << 200) | low).to_bytes(32, "big")
+        fixture = {
+            "version": 1,
+            "gas": 2322,
+            "calldata": "0x" + data.hex(),
+            "accounts": [{"address": 65536, "storage": {"7": str(low)}}],
+        }
+        world.write_text(json.dumps(fixture))
+        replay = native.default(SOLAR)
+        pair = [
+            load(
+                "evmir",
+                path,
+                SOLAR,
+                30,
+                gas_mode="refine",
+                world_path=world,
+                replay_executable=replay,
+            )
+            for path in (before, after)
+        ]
+        observed = native.replay(*pair, [], executable=replay, timeout=30)
+        self.assertEqual(
+            [json.loads(x)[0] for x in observed["observations"]],
+            ["out-of-gas", "success"],
+        )
+        checked, _ = self.cli([before, after], "--world", world, "--gas", "refine")
+        self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
+
+        wrong.write_text(after.read_text().replace("push 96", "push 97"))
+        world.write_text(json.dumps({**fixture, "gas": 100000}))
+        rejected, record = self.cli(
+            [before, wrong], "--world", world, "--gas", "refine"
+        )
+        self.assertEqual(rejected.returncode, 1, rejected.stdout + rejected.stderr)
+        self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+        self.assertEqual(
+            record["witness"]["observations"], record["witness"]["native_observations"]
+        )
 
 
 if __name__ == "__main__":

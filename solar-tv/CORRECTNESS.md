@@ -3020,6 +3020,69 @@ This audit adds 23 verified capture IDs to the preceding saved coverage
 join, bringing it to 2,046 of 2,228. The paired-only result stays outside that
 total.
 
+### Pinned EVM late-word audit
+
+The serial `evaluate --all --pass late-word --timeout 20 --seed 0` run
+verifies 17 of 19 captures by default. All 19 come from Morpho Blue. Their
+capture IDs and both raw IR hashes match the full audit, as do the compiler
+and pinned input fingerprints. Plain and capture compilation produce
+identical ABI, creation bytecode and runtime bytecode for all three
+contracts.
+
+| Captured | Verified | Unsupported | Timed out | Failed |
+| ---: | ---: | ---: | ---: | ---: |
+| 19 | 17 | 2 | 0 | 0 |
+
+The kernel checks that the independently exported instruction lists expand
+from the same edits and common instructions. Each edit replaces the low mask
+with a left shift followed by a right shift with the same literal count.
+The word identity holds for all 256-bit input words and shift counts. The
+stack proof retains each original success, including the full outgoing stack
+and resolved conditional edge. It composes across shared dynamic requests
+by comparing the charge accumulated before each effect. The 17 default
+certificates cover 24 mask replacements and ten `SSTORE` admissions in five
+windows. Each storage write checks the fork-selected EIP-2200 sentry before
+the shared handler supplies its price and state update. Original failures
+remain unconstrained. The source exporter, opcode renderer, shared handler
+binding and remaining code placement stay trusted.
+
+The storage regression runs the real compiler rewrite ahead of a cold no-op
+store. At 2,322 input gas the original reaches the sentry with 2,300 gas and
+runs out of gas. The rewritten code arrives with 2,302 gas and succeeds.
+Independent Rust replay confirms both outcomes. Replacing the shift count
+of 96 with 97 changes the stored word at a funded entry. Lean and Rust
+agree on that counterexample.
+
+The two remaining blocks reach `GAS` before `CALL` in `bb111` and before
+`STATICCALL` in `bb407`. The explicit `--interaction-trace` proofs verify
+both instruction windows up to those continuations. Their premise for
+composition is paired downstream gas observations and child outcomes.
+These results leave the default unsupported count unchanged.
+
+Independent Rust replay assembles the actual Morpho EVM IR captures with
+later passes disabled and binds both immutable pushes to the same 32-byte
+fixture word. It also assembles the original capture with only `bb111`
+replaced. On the 500,000-gas `createMarket` input, that isolated replacement
+raises the gas operand at PC 2458 from 371,664 to 371,672. An IRM fixture
+that writes a fixed word produces the same call input, storage and event on
+both images. A second local IRM fixture stores its own `gasleft()` in slot
+7. It records 363,296 on the original and 363,304 on the isolated rewrite.
+This observed storage difference shows why call composition needs a premise
+on the child. The local Lean window proof ends before the `GAS` instruction.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Checker on Lean 4.34.1 | `bab058ba6f7a7ac6cc457d3fcc6be9203c8116177d955ea4fd692da97770ca2d` |
+| Independent Rust replay | `857e527dae753105ba83cbf5e55d8632d5062699d3dbfecbc643d03879d24008` |
+| `target/tv-late-word-final/results.json` | `5ad4f4c047d9154aafff116773085e9d0169818b2190a0ee559613e6e8e7d420` |
+| `target/tv-late-word-paired-final/bb111.json` | `73a82575bc24b808d76bdde376ab659325842cea7413425124c259d6b06f43bc` |
+| `target/tv-late-word-paired-final/bb407.json` | `c7700820f26558b17e0fccc2be8657a102482bd1d070cc322fc5c6007696a56f` |
+| `target/tv-late-word-emitted/result.json` | `9a1171d47d2e8ef26c5c4978e206b826df7fef47793c4c41d03a83e103b712e5` |
+| `target/tv-late-word-emitted/gas-observer-result.json` | `bda1371270f7fd6fb595706eb3a27f37ecfb37eed344127bf417a85c76ddb507` |
+
+The 17 default checks bring coverage across saved audits to 2,088 of
+2,228 capture IDs. The explicit paired results remain outside that count.
+
 ### MIR CFG checks after an import timeout
 
 The earlier three-second census timed out on 23 Morpho MIR `cfg-simplify`

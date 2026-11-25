@@ -294,6 +294,13 @@ length query to both assembled images. A gas-sensitive continuation requires
 exact gas or an explicit paired observation via `--interaction-trace`.
 [Pinned audit and proof assumptions](CORRECTNESS.md#pinned-evm-peephole-audit)
 
+For `late-word` low-mask replacements, the kernel checks both expanded
+instruction lists and composes the edits through matched memory, storage
+and guard operations. The proof checks the storage-write gas sentry and
+accounts for the handler's dynamic debit. Windows that reach `GAS` and a
+child call can be checked up to that boundary with `--interaction-trace`.
+[Late-word audit and bytecode replay](CORRECTNESS.md#pinned-evm-late-word-audit)
+
 ### EVM rewrites after precompiles
 
 WETH's predicate peephole replaces `EQ; ISZERO` with `SUB` after a recovery

@@ -31,9 +31,13 @@ EFFECTS = {
     "log3",
     "log4",
 }
+COMPOSED_EFFECTS = EFFECTS | {"address", "sload", "sstore", "timestamp"}
 
 
-def instructions(lines, catalog, version, labels=None, *, code_tail=False):
+def instructions(
+    lines, catalog, version, labels=None, *, code_tail=False, composed=False
+):
+    admitted = COMPOSED_EFFECTS if composed else EFFECTS
     rendered = []
     required = peak = delta = 0
     index = 0
@@ -73,11 +77,12 @@ def instructions(lines, catalog, version, labels=None, *, code_tail=False):
         else:
             row = catalog.get(line)
             if (
-                line not in EFFECTS
+                line not in admitted
                 or row is None
                 or not row["forks"][version]["available"]
                 or row["observes_code"]
                 or row["observes_gas"]
+                and line != "sstore"
                 or row["sets_returndata"]
                 or row["stack"] is None
             ):
@@ -94,7 +99,7 @@ def instructions(lines, catalog, version, labels=None, *, code_tail=False):
         delta += outputs - inputs
         peak = max(peak, delta)
         index += 1
-    if len(lines) > 64 or required + peak > 32:
+    if not composed and (len(lines) > 64 or required + peak > 32):
         raise Unsupported(
             "effectful prefix exceeds the 64-operation/32-word proof budget"
         )

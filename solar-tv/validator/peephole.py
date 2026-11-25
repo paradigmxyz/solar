@@ -19,6 +19,10 @@ from . import (
 from .common import Program, Unsupported
 
 
+class UnpairedContinuation(Unsupported):
+    """A changed charge reaches a resource-sensitive continuation."""
+
+
 def partition(models):
     if any(models[0][key] != models[1][key] for key in ("terminal", "following")):
         raise Unsupported("peephole continuation changed")
@@ -48,11 +52,55 @@ def partition(models):
     return left[:start], middles, left[len(left) - end :]
 
 
-def certificate(common, tail, models, imported, version, prelude):
-    need = max(row[1] for row in imported)
-    peak = max(row[2] for row in imported)
-    if need + peak > 32:
-        raise Unsupported("peephole island exceeds the 32-word stack proof budget")
+def low_mask_edits(left, right):
+    """Propose matched instruction runs and exact low-mask replacements."""
+    edits, common = [], []
+    a = b = 0
+    while a < len(left) and b < len(right):
+        window = left[a : a + 5]
+        if (
+            len(window) == 5
+            and window[:2] == ["push 0", "not"]
+            and (count := re.fullmatch(r"push (\d+)", window[2]))
+            and window[3:] == ["shr", "and"]
+            and right[b : b + 4] == [window[2], "shl", window[2], "shr"]
+        ):
+            edits.extend((common, int(count[1])))
+            common = []
+            a += 5
+            b += 4
+        elif left[a] == right[b]:
+            common.append(left[a])
+            a += 1
+            b += 1
+        else:
+            return None
+    if edits and a == len(left) and b == len(right):
+        return [*edits, common]
+    return None
+
+
+def observes_resources(line, catalog):
+    row = catalog.get(line, {})
+    return any(
+        row.get(key) for key in ("observes_gas", "sets_returndata", "observes_code")
+    )
+
+
+def low_mask_tail(tail, catalog):
+    """Retain supported suffix instructions, including storage admission."""
+    for index, line in enumerate(tail):
+        if (
+            line != "sstore"
+            and observes_resources(line, catalog)
+            or line.startswith("push bb")
+            and tail[index + 1 : index + 2] != ["jumpi"]
+        ):
+            return tail[:index], tail[index:]
+    return tail, []
+
+
+def certificate(common, tail, models, imported, version, prelude, *, edits=None):
     code = prelude + "set_option maxHeartbeats 3000000\n"
     for name, model, ops in zip(("before", "after"), models, imported, strict=True):
         following = (
@@ -73,17 +121,29 @@ theorem middle (prices : Nat → Nat × Nat) (ctx : EVM.Context) (stack : EVM.St
     EVM.Effects.Refines (EVM.Effects.expand ctx .{version} (after prices) stack 0)
       (EVM.Effects.expand ctx .{version} (before prices) stack 0) true := by
 """
-    for i in range(16):
-        code += f"  have index{i} : (({i} : Fin 256) : Nat) = {i} := by decide\n"
-    arithmetic = (
-        ", EVM.eq_iszero_zero, EVM.sub_zero, EVM.ContextualPeephole.double_iszero_zero, "
-        "EVM.ContextualPeephole.invert_lt, EVM.ContextualPeephole.odd_word, "
-        "EVM.ContextualPeephole.add_literal"
-    )
-    proof = evm_effects.stack_proof(
-        need, peak, arithmetic, discharger="first | decide | omega"
-    )
-    code += "\n".join("  " + line for line in proof.splitlines())
+    if edits is None:
+        need = max(row[1] for row in imported)
+        peak = max(row[2] for row in imported)
+        if need + peak > 32:
+            raise Unsupported("peephole island exceeds the 32-word stack proof budget")
+        for i in range(16):
+            code += f"  have index{i} : (({i} : Fin 256) : Nat) = {i} := by decide\n"
+        arithmetic = (
+            ", EVM.eq_iszero_zero, EVM.sub_zero, EVM.ContextualPeephole.double_iszero_zero, "
+            "EVM.ContextualPeephole.invert_lt, EVM.ContextualPeephole.odd_word, "
+            "EVM.ContextualPeephole.add_literal"
+        )
+        proof = evm_effects.stack_proof(
+            need, peak, arithmetic, discharger="first | decide | omega"
+        )
+        code += "\n".join("  " + line for line in proof.splitlines())
+    else:
+        code += f"""  let edits : List EVM.LateWord.Edit := [{",".join(edits)}]
+  have source : before prices = EVM.LateWord.instructions false edits := rfl
+  have target : after prices = EVM.LateWord.instructions true edits := rfl
+  rw [source, target]
+  exact EVM.LateWord.refines ctx .{version} edits stack 0 0 (Nat.le_refl 0)
+"""
     code += f"""
 
 theorem contextual {{World Halt : Type}}
@@ -119,26 +179,46 @@ def check(paths, solar, replay, version, timeout, entry, *, paired_observers=Fal
     if len(common) + max(map(len, middles)) + len(tail) > 256:
         raise Unsupported("peephole context exceeds 256 instructions")
     catalog = {row["name"]: row for row in native.catalog(replay, timeout)["evmir"]}
-    observers = sorted(
-        {
-            line
-            for line in tail
-            if catalog.get(line, {}).get("observes_gas")
-            or catalog.get(line, {}).get("sets_returndata")
-            or catalog.get(line, {}).get("observes_code")
-        }
-    )
+    edits = low_mask_edits(*middles)
+    if edits is not None:
+        include, tail = low_mask_tail(tail, catalog)
+        edits[-1].extend(include)
+        middles = [middle + include for middle in middles]
+    observers = sorted({line for line in tail if observes_resources(line, catalog)})
     if observers and not paired_observers:
+        if edits is not None:
+            raise UnpairedContinuation(
+                "low-mask continuation requires paired observations for "
+                + ", ".join(observers)
+            )
         return interior.check(texts, models, entry, catalog, version, timeout)
     layout = code_relocations.bind(models, texts, solar, version, timeout, catalog)
     labels = set(block_labels[0])
     imported = [
         evm_effects.instructions(
-            code, catalog, version, labels, code_tail=layout is not None
+            code,
+            catalog,
+            version,
+            labels,
+            code_tail=layout is not None,
+            composed=edits is not None,
         )
         for code in middles
     ]
-    code = certificate(common, tail, models, imported, version, PRELUDE)
+    edits_proof = None
+    if edits is not None:
+        edits_proof = []
+        for edit in edits:
+            if isinstance(edit, int):
+                edits_proof.append(f".lowMask {edit}#256")
+            else:
+                ops, _, _ = evm_effects.instructions(
+                    edit, catalog, version, labels, composed=True
+                )
+                edits_proof.extend(f".same ({op})" for op in ops)
+    code = certificate(
+        common, tail, models, imported, version, PRELUDE, edits=edits_proof
+    )
     build = build_model(timeout)
     if build.returncode:
         raise Unsupported(build.stdout + build.stderr)
@@ -169,7 +249,9 @@ def check(paths, solar, replay, version, timeout, entry, *, paired_observers=Fal
             gas="refine",
             evm_version=version,
             import_evidence={
-                "kind": "kernel-checked-contextual-peephole",
+                "kind": "kernel-checked-contextual-low-mask"
+                if edits
+                else "kernel-checked-contextual-peephole",
                 "source_sha256": hashlib.sha256(
                     json.dumps(model, sort_keys=True).encode()
                 ).hexdigest(),
@@ -177,6 +259,14 @@ def check(paths, solar, replay, version, timeout, entry, *, paired_observers=Fal
                 "changed_window_operations": len(middle),
                 "continuation_operations": len(tail),
                 "continuation_observers": observers,
+                **(
+                    {
+                        "low_mask_counts": [e for e in edits if isinstance(e, int)],
+                        "storage_admissions": middle.count("sstore"),
+                    }
+                    if edits
+                    else {}
+                ),
                 **({"constructor_code_tail": relocation} if relocation else {}),
             },
         )
