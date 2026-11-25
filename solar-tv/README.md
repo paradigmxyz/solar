@@ -2107,6 +2107,11 @@ invocation. It includes all 31 conditional-check captures and the module
 that introduces the private short-string revert helper.
 [Proof scopes and fingerprints](CORRECTNESS.md#strict-conditional-check-audit)
 
+The allocation gate checks all 19 pinned `lower-alloc` captures, including
+the module that adds the shared checked allocation helper. Its 67-capture
+run also checks conditional branches, ABI encoding and memory zeroing.
+[Allocation audit](CORRECTNESS.md#strict-allocation-lowering-audit)
+
 Selected records for the same dispatch pair share the module-level proof
 report. Early CFG simplification, layout and compact PUSH captures can also
 share a physical-entry proof when it covers the label on both sides. The

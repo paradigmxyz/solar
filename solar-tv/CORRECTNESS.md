@@ -1299,6 +1299,52 @@ effect handlers retain the same scope as the other MIR graph proofs.
 Copying from offset zero instead produces a matching Lean and Rust
 counterexample with nonzero calldata.
 
+### Strict allocation lowering audit
+
+The serial gate at 120 seconds per prover invocation verifies **19 of 19**
+`lower-alloc` captures. The same run verifies all 31 `lower-checks`, 16
+`lower-abi-encode`, and one `lower-memory-zero` capture, for 67 of 67.
+Capture IDs and before and after MIR hashes match the full audit. The
+normal and capture compilations match on ABI and both bytecode outputs,
+and the three contracts' input and output fingerprints match that audit.
+
+| Contract | Selected | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Solady WETH | 1 | 1 | 0 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 2 | 2 | 0 | 0 | 0 |
+| Morpho Blue | 16 | 16 | 0 | 0 | 0 |
+| Total for `lower-alloc` | 19 | 19 | 0 | 0 | 0 |
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Compiler | `bc8f77555ef879823f0560ec38bd0faf2791940ad0a213be36edfe491996e49b` |
+| Independent replay | `649ae6a1ae51d75ca501093d1a0f0a1181ff098d4f386e09b6e5754c01374365` |
+| Corpus manifest | `b08af7eb00ac67a5ef1200d50273beedc48d5517838ed67504bd1a76ba96b7b7` |
+| Checker on Lean 4.34.1 | `41d31b1a81f24705c85ff982ba630c473c7628541ef9fa598dc372b08f202bc9` |
+| `target/tv-lower-alloc-final/results.json` | `3f0181b00233a5bc2ef72a405fbb76f1713e9c7a66eed5b935649c00e58a5ce1` |
+
+The kernel checks the FMP slot read, wrapping and uint64 limit tests,
+successful cursor store, optional zero fill and exact `Panic(0x41)` bytes.
+The shared checked allocation helper has a direct interpreter certificate
+for its returned pointer and shared memory, including the one-result return
+convention. The module certificate covers 48 functions with the same public
+bindings and composes the procedure table after checking it in nine serial
+Lean modules. The live compiler also checks the added helper. The prior
+allocation-prefix, fresh-heap and effect-tree cases retain their certificates.
+
+The graph proof uses aligned memory within the 64 KiB model. An infallible
+reservation requires a valid source cursor bump. A substituted heap floor
+requires the named placement to equal the live FMP in an active slot at
+the allocation. Creation and dispatch activations are excluded from that
+substitution. The typed exporter, source expansion and action binding
+remain trusted. Establishing the heap-floor premise from the ABI entry
+and emitted layout and pricing the physical execution are separate tasks.
+
+The 42 focused tests exercise the live checker, retain the rejected
+heap-floor substitutions and replay the uint64-limit and wrapping failures.
+Changing the shared helper's panic code loses the proof and produces
+matching Lean and Rust revert-data counterexamples in both failure cases.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
