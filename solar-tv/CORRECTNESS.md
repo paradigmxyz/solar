@@ -1894,10 +1894,40 @@ with an enabled zero IRM address, an enabled LLTV, an uncreated market and
 timestamp 91. Both MIR wrappers and the emitted runtime agree on the
 successful output, persistent storage and event after six stores. The
 emitted path succeeds at 103,466 gas with all slots initially cold. One
-unit less rolls back every write and the event. The kernel proof past the
-market-status cut remains open. The replay record
+unit less rolls back every write and the event. The replay record
 `target/tv-routed-heap/market-no-irm-native.json` has SHA-256
 `53becec60ed0b7321d86930cfa0463112c44318e8537f540772a22f7b80b10e3`.
+
+### First Morpho market write from ABI entry
+
+Lean advances the permission cut through the first timestamp store.
+Both MIR wrappers reach the cut after 68 transitions. The emitted path
+reaches PC 1978 after 191 instructions. The worlds and active memories
+agree there. The check uses a writable fresh transaction journal, a
+zero low 128-bit market timestamp, and timestamp 1 in both block
+contexts, with the earlier permission and decoder premises.
+
+The kernel equates the emitted XOR sequence with the MIR mask and OR.
+Both retain the upper fee bits and write the new low timestamp bits at
+the checked market slot. The emitted path spends 862 gas plus the three
+read charges and the warm store charge. The warm store costs 20,000 for
+a zero prior word or 2,900 for a nonzero prior word. The kernel checks
+the admitted store, zero refund change, and rollback for every budget
+below the full prefix charge.
+
+Independent Rust replay confirms the slot and value before the store,
+the emitted cut at 27,162 or 10,062 gas for the two initially cold
+fixtures, and rollback one unit below either threshold. The subsequent
+writes, event, and any IRM child call remain beyond the kernel cut.
+
+| Artifact in `target/tv-routed-heap/` | SHA-256 |
+| --- | --- |
+| `MarketPackedStore.lean` | `1a3a8ab075f8c40ac2f0ead4b1041fa1954223df9d2061e371fc1e4607ec2b47` |
+| `MarketBeforeFirstStoreEVM.lean` | `fe01e01ff7e6c28824c9f0a9b2fcd4683808ecfd905e9bef111e2aceb75b71ef` |
+| `MarketFirstStoreEVM.lean` | `e16cbc06059489d904cb9897fb8dfd493457e0e6f648af1115e80cdb3d782568` |
+| `MarketFirstStoreMIR.lean` | `f2b4d80e88f040a6c95550651c7c8a3ea77cd7e1189ab82a0bbfc0ab9c24422d` |
+| `MarketFirstStoreAgreement.lean` | `b284d0d0e882a91ecfe3522850422c8d0ea7a1b21e401b245a495185e44ab7cf` |
+| `market-first-write-native.json` | `e5404db26eb75b5f42da80497f6d2c76c7f4bc676a5ab0fb87991b3f6ee72187` |
 
 ### Decoded set-code fee settlement
 
