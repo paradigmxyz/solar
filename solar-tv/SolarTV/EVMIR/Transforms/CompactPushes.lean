@@ -226,28 +226,71 @@ structure Point where
   recipe : List Instruction
   edges : Edges
   address : Option AddressFold
+  pushOffset : Nat
 
 def resolve (points : ProofTable.View Point) (pc destination : Nat) : Option Nat := do
   if (← points.get? destination).pc == pc then some destination else none
 
-private structure Projection where
-  nodes : List Node := []
+structure Row where
+  node : Node
   pushes : List Node := []
-  prices : List Nat := []
-  pushCount : Nat := 0
+  price : Option Nat := none
+  deriving DecidableEq
 
-private def appendRecipe (view : Projection) (size : Nat) (words : Stack)
-    (peak price next : Nat) : Projection :=
-  let start := size + view.pushCount
+private def recipeRow (start : Nat) (words : Stack) (peak price next : Nat) : Row :=
   let literals := words.zipIdx |>.map fun (value,index) =>
     .operation 0 (Instruction.push value).text
       (if index + 1 = words.length then next else start + index + 1)
-  {
-    nodes := .jump 0 peak start :: view.nodes
-    pushes := literals.reverseAux view.pushes
-    prices := price :: view.prices
-    pushCount := view.pushCount + words.length
-  }
+  ⟨.jump 0 peak start, literals, some price⟩
+
+def projectEntry (source : Nat) (points : ProofTable.View Point) : Option Nat := do
+  if (← points.get? 0).pushOffset != 0 then none else resolve points source 0
+
+private def projectAction (nodes : ProofTable.View Node) (fork : Fork)
+    (points : ProofTable.View Point) (relocated : Nat → Bool) (interactions : Bool)
+    (facts : Nat → StackWords.Facts) (point : Point) : Option Row := do
+  let find (pc destination : Nat) := resolve points pc destination
+  let start := points.size + point.pushOffset
+  if let some fold := point.address then
+    let .next successor := point.edges | none
+    if !point.recipe.isEmpty then none else
+    let next ← find (← readAddressFold nodes relocated facts point.pc fold) successor
+    return recipeRow start [fold.base + fold.offset] 2 (Prefix.cost fork fold.ops) next
+  else
+    match point.recipe with
+    | [] =>
+      let node ← match ← nodes.get? point.pc, point.edges with
+      | .operation _ name next, .next destination =>
+        if name == "gas" && !interactions then none else
+        pure (.operation 0 name (← find next destination))
+      | .jump _ growth next, .next destination =>
+        if growth > 4 then none else pure (.jump 0 growth (← find next destination))
+      | .branch _ yes no, .branch target other =>
+        pure (.branch 0 (← find yes target) (← find no other))
+      | .terminal _ name, .terminal =>
+        if name == "jump" then none else pure (.terminal 0 name)
+      | _, _ => none
+      return {node := node}
+    | recipe =>
+      match ← summarize recipe [], point.edges with
+      | ⟨word :: rest,peak⟩, .next successor =>
+        let next ← find (← scan nodes fork relocated recipe point.pc) successor
+        return recipeRow start (word :: rest).reverse peak (charge fork recipe) next
+      | _, _ => none
+
+def projectRow (nodes : ProofTable.View Node) (fork : Fork) (points : ProofTable.View Point)
+    (relocated : Nat → Bool) (interactions : Bool) (facts : Nat → StackWords.Facts)
+    (index : Nat) : Option Row := do
+  let point ← points.get? index
+  let result ← projectAction nodes fork points relocated interactions facts point
+  -- Literal offsets start at zero and advance by exactly each row's outputs.
+  match points.get? (index + 1) with
+  | some next =>
+    if next.pushOffset == point.pushOffset + result.pushes.length then some result else none
+  | none => if index + 1 == points.size then some result else none
+
+def assemble (entry : Nat) (rows : List Row) : Nat × List Node × List Nat :=
+  (entry, rows.map Row.node ++ rows.flatMap Row.pushes, rows.filterMap Row.price)
 
 /-- Each recipe becomes a stack guard followed by its literal outputs. Gas
 reads outside recipes are allowed only as explicit shared interactions. -/
@@ -255,39 +298,9 @@ def projectView (source : Nat) (nodes : ProofTable.View Node) (fork : Fork)
     (points : ProofTable.View Point) (relocated : Nat → Bool) (interactions : Bool)
     (facts : Nat → StackWords.Facts) :
     Option (Nat × List Node × List Nat) := do
-  let entry ← resolve points source 0
-  let view ← (List.range points.size).foldlM (init := ({} : Projection))
-    fun view index => do
-      let point ← points.get? index
-      let find (pc destination : Nat) := resolve points pc destination
-      if let some fold := point.address then
-        let .next successor := point.edges | none
-        if !point.recipe.isEmpty then none else
-        let next ← find (← readAddressFold nodes relocated facts point.pc fold) successor
-        return appendRecipe view points.size [fold.base + fold.offset] 2
-          (Prefix.cost fork fold.ops) next
-      else
-      match point.recipe with
-      | [] =>
-        let node ← match ← nodes.get? point.pc, point.edges with
-        | .operation _ name next, .next destination =>
-          if name == "gas" && !interactions then none else
-          pure (.operation 0 name (← find next destination))
-        | .jump _ growth next, .next destination =>
-          if growth > 4 then none else pure (.jump 0 growth (← find next destination))
-        | .branch _ yes no, .branch target other =>
-          pure (.branch 0 (← find yes target) (← find no other))
-        | .terminal _ name, .terminal =>
-          if name == "jump" then none else pure (.terminal 0 name)
-        | _, _ => none
-        return {view with nodes := node :: view.nodes}
-      | recipe =>
-        match ← summarize recipe [], point.edges with
-        | ⟨word :: rest,peak⟩, .next successor =>
-          let next ← find (← scan nodes fork relocated recipe point.pc) successor
-          return appendRecipe view points.size (word :: rest).reverse peak (charge fork recipe) next
-        | _, _ => none
-  return (entry, view.nodes.reverse ++ view.pushes.reverse, view.prices.reverse)
+  let entry ← projectEntry source points
+  let rows ← (List.range points.size).mapM (projectRow nodes fork points relocated interactions facts)
+  return assemble entry rows
 
 def project (program : Program) (fork : Fork) (points : Array Point)
     (relocated : Nat → Bool) (interactions : Bool) (facts : Nat → StackWords.Facts) :
@@ -309,6 +322,29 @@ theorem project_checked (program : Program) (fork : Fork) (points : Array Point)
   rw [project, checked]
   cases result
   rfl
+
+theorem project_rows (program : Program) (fork : Fork) (points : Array Point)
+    (nodesView : ProofTable.View Node) (pointsView : ProofTable.View Point)
+    (relocated : Nat → Bool) (interactions : Bool) (facts : Nat → StackWords.Facts)
+    (result : Program) (prices : List Nat) (rows : ProofTable.Tree Row)
+    (nodesEq : nodesView = ProofTable.ofArray program.nodes)
+    (pointsEq : pointsView = ProofTable.ofArray points)
+    (rowsEq : rows.view = ProofTable.ofArray rows.rows.toArray)
+    (count : pointsView.size = rows.view.size)
+    (entry : projectEntry program.entry pointsView = some result.entry)
+    (assembled : assemble result.entry rows.rows = (result.entry,result.nodes.toList,prices))
+    (checked : ∀ i < pointsView.size, ProofTable.checkedRow rows.view
+      (projectRow nodesView fork pointsView relocated interactions facts) i = true) :
+    project program fork points relocated interactions facts = some (result,prices) := by
+  apply project_checked program fork points nodesView pointsView relocated interactions facts
+    result prices nodesEq pointsEq
+  have gatherRows : (List.range pointsView.size).mapM
+      (projectRow nodesView fork pointsView relocated interactions facts) = some rows.rows := by
+    rw [count]
+    apply ProofTable.gather rows.rows rows.view rowsEq
+    intro i inside
+    exact checked i (count.symm ▸ inside)
+  simp [projectView, entry, gatherRows, assembled]
 
 open StackGraph
 

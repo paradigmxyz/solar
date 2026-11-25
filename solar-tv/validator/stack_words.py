@@ -61,7 +61,7 @@ class Facts:
         for point, index in confirmed:
             self.words.setdefault(point, set()).add((index, word))
 
-    def declarations(self, name, catalog):
+    def declarations(self, name, catalog, *, chunked=False):
         rows = [
             "["
             + ",".join(
@@ -73,8 +73,9 @@ class Facts:
         special = ",".join(
             f"({json.dumps(op)},{term})" for op, term in sorted(self.specials.items())
         )
-        return (
-            f"\nnamespace {name}WordFacts\n"
+        namespace = f"{name}WordFacts"
+        code = (
+            f"\nnamespace {namespace}\n"
             + cfg_flow.table("rows", "EVM.StackWords.Facts", rows, lookup=False)
             + cfg_flow.signatures_declaration(self.signatures, catalog)
             + f"""
@@ -83,13 +84,31 @@ def specials (name : String) : Option Movement :=
   ([{special}] : List (String × Movement)).lookup name
 def facts (i : Nat) : Facts := (rows.get? i).getD []
 def check := closedAt {name}GraphNodes.view signatures specials {name}Protected facts
-theorem closed : (List.range {name}GraphNodes.size).all check = true := by decide +kernel
+end {namespace}
+"""
+        )
+        if chunked:
+            code += cfg_flow.check_rows(
+                f"{namespace}.closed", f"{namespace}.check", len(rows)
+            )
+            closed = "closed i (Nat.zero_le _) inside"
+        else:
+            code += f"""
+theorem {namespace}.closed : (List.range {name}GraphNodes.size).all {namespace}.check = true :=
+  by decide +kernel
+"""
+            closed = "List.all_eq_true.mp closed i (List.mem_range.mpr inside)"
+        return (
+            code
+            + f"""
+namespace {namespace}
+open EVM.StackWords
 theorem constantAt {{pc : Nat}} {{stack : EVM.Stack}}
     (reach : Reaches {name}GraphNodes.view signatures specials {name}Protected {name}Graph.entry pc stack) :
     Holds (facts pc) stack :=
   (invariant (by decide +kernel) (by decide +kernel)
-    (fun i inside => List.all_eq_true.mp closed i (List.mem_range.mpr inside)) reach).2
-end {name}WordFacts
+    (fun i inside => {closed}) reach).2
+end {namespace}
 """
         )
 

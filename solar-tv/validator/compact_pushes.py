@@ -117,6 +117,7 @@ def pair(
     points, indices = [], {}
     witnesses = [[], []]
     nodes, pushes, meters = [[], []], [[], []], [[], []]
+    recipe_rows = {}
     local_edges = [[], []]
     carried = None
     folds = []
@@ -154,11 +155,11 @@ def pair(
                     edge = ".terminal"
             for field, successor in zip(fields, successors, strict=True):
                 left[field] = right[field] = successor
-            for pc, rows, terms, node in zip(
-                positions, nodes, witnesses, (left, right), strict=True
-            ):
-                rows.append(node)
-                terms.append(f"⟨{pc},[],{edge},none⟩")
+            for side, node in enumerate((left, right)):
+                nodes[side].append(node)
+                witnesses[side].append(
+                    f"⟨{positions[side]},[],{edge},none,{len(pushes[side])}⟩"
+                )
             continue
         if (
             positions[0] in protected[0]
@@ -222,6 +223,7 @@ def pair(
             gas += charge
             before, after = next_left["next"], next_right["next"]
         successor = index((before, after))
+        recipe_rows[len(nodes[0])] = (len(pushes[0]), len(outputs), len(meters[0]))
         for side, (steps, growth, charge) in enumerate(
             ((old_recipe, old_peak, old_gas), (recipe, peak, gas))
         ):
@@ -240,7 +242,7 @@ def pair(
                     local_edges[side].append(push)
             witnesses[side].append(
                 f"⟨{positions[side]},[{','.join(steps)}],.next {successor},"
-                f"{address if side == 0 else 'none'}⟩"
+                f"{address if side == 0 else 'none'},{guard['next']}⟩"
             )
             meters[side].append(
                 {
@@ -266,7 +268,7 @@ def pair(
         }
         for rows, literals in zip(nodes, pushes, strict=True)
     ]
-    return projected, witnesses, meters, carried, folds
+    return projected, witnesses, meters, carried, folds, recipe_rows
 
 
 def check(
@@ -344,9 +346,10 @@ def check(
     relocated_code = code_relocations.bind(
         sources, texts, solar, version, timeout, catalog
     )
-    projected, points, meters, carried, folds = pair(
+    projected, points, meters, carried, folds, recipe_rows = pair(
         graphs, catalog, version, protected, from_entry=from_entry or bound_from_entry
     )
+    chunked = from_entry and len(points[0]) > 2048
     signatures = stack_layout.signatures(projected[0], catalog)
     requests = sorted(source_identity.INTERACTION_OPS & signatures.keys())
     if interactions and not requests and not (from_entry or bound_from_entry):
@@ -361,16 +364,17 @@ def check(
         raise RecipeRejected(f"compact PUSH stack certificate: {error}") from error
     prelude = (
         PRELUDE
-        + """
+        + f"""
 open EVM.SourceGraph (Program)
 open EVM.ControlFlow (Edges)
 open EVM.CompactPushes EVM.StackGraph
 noncomputable section
-set_option maxRecDepth 16384
+set_option maxRecDepth {65536 if chunked else 16384}
 set_option maxHeartbeats 3500000
 """
     )
-    code = prelude
+    stages = []
+    code = ""
     if mask:
         bits = ",".join(str(tag).lower() for tag in mask)
         code += f"\ndef callerMask : List Bool := [{bits}]\n"
@@ -409,20 +413,30 @@ set_option maxHeartbeats 3500000
             )
             code += cfg_flow.table(f"{label}Nodes", "EVM.SourceGraph.Node", rows)
             code += f"def {label} : Program := ⟨{start},{label}Nodes.rows.toArray⟩\n"
+            if chunked:
+                stages.append(code)
+                code = ""
         code += cfg_flow.table(f"{name}Recipes", "Point", points[side])
         guard = "fun _ => false"
         if witnesses:
             code += cfg_flow.continuation_proof(
-                name, witnesses[side], f"{name}Graph", inherited=bool(mask)
+                name,
+                witnesses[side],
+                f"{name}Graph",
+                inherited=bool(mask),
+                chunked=chunked,
             )
             guard = f"EVM.ContinuationFlow.pushesLabel {name}SourceNodes.view {name}Points.view"
+            if chunked:
+                stages.append(code)
+                code = ""
         prices = ",".join(str(step["gas"]) for step in meters[side])
         code += f"""
 def {name}Protected : Nat → Bool := {guard}
 """
         facts = "(fun _ => [])"
         if side == 0 and carried:
-            code += carried.declarations(name, catalog)
+            code += carried.declarations(name, catalog, chunked=chunked)
             facts = "beforeWordFacts.facts"
             proof_names.append("beforeWordFacts.constantAt")
             for i, (pc, offset, depth, base) in enumerate(folds):
@@ -432,6 +446,41 @@ def {name}Protected : Nat → Bool := {guard}
 def {name}RecipeProjection (source : Program) : Option (Program × List Nat) :=
   project source .{version} {name}Recipes.rows.toArray {name}Protected {str(interactions).lower()} {facts}
 def {name}Prices : List Nat := [{prices}]
+"""
+        if chunked:
+            size = len(points[side])
+            output_rows = []
+            for index, node in enumerate(rows[:size]):
+                if index in recipe_rows:
+                    offset, count, meter = recipe_rows[index]
+                    literals = ",".join(rows[size + offset : size + offset + count])
+                    price = meters[side][meter]["gas"]
+                    output_rows.append(f"⟨{node},[{literals}],some {price}⟩")
+                else:
+                    output_rows.append(f"⟨{node},[],none⟩")
+            result = f"{name}Output"
+            arguments = (
+                f"{name}Recipes.view "
+                f"{name}Protected {str(interactions).lower()} {facts}"
+            )
+            code += cfg_flow.table(result, "Row", output_rows)
+            code += cfg_flow.check_rows(
+                f"{name}RecipeRows",
+                f"EVM.ProofTable.checkedRow {result}.view "
+                f"(projectRow {name}GraphNodes.view .{version} {arguments})",
+                size,
+            )
+            code += f"""
+theorem {name}Checked : {name}RecipeProjection {name}Graph = some ({name},{name}Prices) :=
+  project_rows {name}Graph .{version} {name}Recipes.rows.toArray {name}GraphNodes.view {arguments}
+    {name} {name}Prices {result} {name}GraphNodesLookup {name}RecipesLookup {result}Lookup
+    (by decide +kernel) (by rfl) (by rfl)
+    (fun i inside => {name}RecipeRows i (Nat.zero_le _) inside)
+"""
+            stages.append(code)
+            code = ""
+        else:
+            code += f"""
 theorem {name}Checked : {name}RecipeProjection {name}Graph = some ({name},{name}Prices) :=
   project_checked {name}Graph .{version} {name}Recipes.rows.toArray
     {name}GraphNodes.view {name}Recipes.view {name}Protected {str(interactions).lower()} {facts} {name} {name}Prices
@@ -439,12 +488,25 @@ theorem {name}Checked : {name}RecipeProjection {name}Graph = some ({name},{name}
 """
     code += cfg_flow.table("stackBounds", "Nat", list(map(str, bounds)))
     code += cfg_flow.signatures_declaration(signatures, catalog)
-    code += f"""
+    code += """
 def heights (i : Nat) : Nat := (stackBounds.get? i).getD 0
+"""
+    if chunked:
+        code += cfg_flow.check_rows(
+            "matchedHeights",
+            "checkIndex beforeNodes.view afterNodes.view id heights signatures",
+            len(bounds),
+        )
+        valid_check = "valid_rows"
+        checked = "(fun i inside => matchedHeights i (Nat.zero_le _) inside)"
+    else:
+        valid_check = "valid_views"
+        checked = "(by decide +kernel)"
+    code += f"""
 theorem valid : Valid before after id heights signatures {bound} :=
-  valid_views before after beforeNodes.view afterNodes.view id heights signatures {bound}
+  {valid_check} before after beforeNodes.view afterNodes.view id heights signatures {bound}
     beforeNodesLookup afterNodesLookup (by decide +kernel) (by rfl)
-    (by decide +kernel) (by decide +kernel)
+    (by decide +kernel) {checked}
 def observe {{World Observation : Type}} (handlers : Handlers World Observation)
     (fuel : Nat) (state : State World) (p : Program × List Nat) :=
   execute p.1 signatures handlers fuel p.1.entry state
@@ -548,18 +610,24 @@ theorem matchedFromEntryBound {World Observation : Type}
         raise Unsupported(built.stdout + built.stderr)
     with tempfile.TemporaryDirectory(prefix="solar-tv-compact-pushes-") as folder:
         directory = Path(folder)
-        env = None
-        if roots:
-            try:
-                imports, env = entry_stack.compile_callers(
-                    directory, roots, catalog, bound, prelude, timeout
+        if chunked:
+            result = cfg_flow.check_stages(directory, prelude, [*stages, code], timeout)
+        else:
+            env = None
+            header = prelude
+            if roots:
+                try:
+                    imports, env = entry_stack.compile_callers(
+                        directory, roots, catalog, bound, prelude, timeout
+                    )
+                except Unsupported as error:
+                    raise RecipeRejected(str(error)) from error
+                header = header.replace(
+                    "import SolarTV\n", "import SolarTV\n" + imports, 1
                 )
-            except Unsupported as error:
-                raise RecipeRejected(str(error)) from error
-            code = code.replace("import SolarTV\n", "import SolarTV\n" + imports, 1)
-        proof = directory / "Pair.lean"
-        proof.write_text(code)
-        result = run(["lake", "env", "lean", "-j1", proof], ROOT, timeout, env=env)
+            proof = directory / "Pair.lean"
+            proof.write_text(header + code)
+            result = run(["lake", "env", "lean", "-j1", proof], ROOT, timeout, env=env)
     if result.returncode:
         raise RecipeRejected(
             "compact PUSH certificate did not close\n" + result.stdout + result.stderr

@@ -2453,6 +2453,54 @@ the kernel correspondence check. These certificates use IR semantics
 and the compiler's opcode schema. The emitted bytes and concrete EVM
 replay are outside the retry proofs.
 
+### Physical entry audit for compact PUSHes
+
+The full audit above verified 71 of the 118 pinned `compact-pushes`
+captures. Five serial `--entry-trace` retries with 120 seconds per Lean
+stage cover all 47 remaining regions. The join checks the capture IDs,
+unchanged before and after IR hashes, and the covered labels on both
+sides. The compiler and source fingerprints are those of the full audit.
+
+| Contract | Audit verified | Entry retries verified | Total verified |
+| --- | ---: | ---: | ---: |
+| Solady WETH | 2 | 3 | 5 |
+| OpenZeppelin ERC20Mock | 2 | 4 | 6 |
+| Morpho Blue | 67 | 40 | 107 |
+| Total | 71 | 47 | 118 |
+
+| Entry report | Regions covered by retry | Report SHA-256 |
+| --- | ---: | --- |
+| Morpho Blue `evmirO0R3PD` | 39 | `8b67d54d119d5a5fad505b8f0be31d2d70f8d55061fed473429deeacde47775a` |
+| Morpho Blue `evmirfiWjak` | 1 | `f6d00b0c402924fe0e6a80ff0fcd8a7cab826eab172c8b2af8c0e41117e7b6ce` |
+| OpenZeppelin ERC20Mock `evmir7uHTUu` | 1 | `3428d9a2cff4032d895d2953714914941955975b1a2e98a56e160661a5ad9c6d` |
+| OpenZeppelin ERC20Mock `evmirEseLY6` | 3 | `d389a667eebf1aff1aaee0d4c199ac671de8a15f501a6643526ad54ba5af67f5` |
+| Solady WETH `evmir5Vv94e` | 3 | `0db5ac46306e393d17ba54b498dfa41b6573464863fbfe593f1bfeb98b511aef` |
+
+The largest Morpho pair timed out at 120 seconds in the original
+single-file certificate. The new certificate checks continuation
+provenance, recipe rows, address-fold facts and stack bounds in bounded
+batches. Lean checks that literal offsets start at zero and advance by
+exactly the verified outputs of each row, and that the assembled graph
+and recipe charges agree with the proposed result. The proof covers
+288 labels, 261 recipes, 12 address folds and 178 resolved returns on
+each side. Its after IR is the before IR of the largest layout pair.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Before IR | `6af690dc2e99104cdde412147293fd84eaf280c2077fba9b560ee6a5657e54f5` |
+| After IR | `dae865fd353b0be4cf42183bae7f46f46509db76663fe4bcf820c4d3c906e497` |
+| Lean checker on 4.34.1 | `56cc7a3e395841fc2b83a277e0037f3d6891d70338b5bd2f11976c24b9870d9a` |
+
+The kernel checks the Cancun recipe tariffs and equality of literal
+outputs under sufficient funding. For Morpho and WETH calls with
+interactions, matching requests use shared preceding replies and
+position-independent handlers. Actual `GAS` and code-size replies,
+physical transfer charges, forwarded gas and child behavior remain
+environment obligations. The Rust exporter supplies the source graph.
+The corpus retries prove IR correspondences. Independent replay tests
+exercise a wrong literal and a wrong folded address, and confirm the
+observed divergence against the Lean execution model.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through

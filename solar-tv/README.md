@@ -2170,6 +2170,12 @@ module-entry certificates with a 120-second per-stage budget cover the
 logical actions, return labels and stack bounds under the unpriced entry
 policy. [Layout audit](CORRECTNESS.md#physical-entry-audit-for-block-layout)
 
+All 118 pinned EVM IR `compact-pushes` captures have proofs. The 47
+entry retries include a Morpho module whose continuation checks, recipe
+rows, address-fold facts and stack bounds are checked in batches. The
+recipe proof checks fork-specific charges under sufficient funding.
+[Compact PUSH audit](CORRECTNESS.md#physical-entry-audit-for-compact-pushes)
+
 The combined strict gate verifies all 178 pinned captures for MIR ABI
 encoding, checked arithmetic, conditional checks, integer lowering, storage
 slots, memory objects and slice projections at 120 seconds per prover
