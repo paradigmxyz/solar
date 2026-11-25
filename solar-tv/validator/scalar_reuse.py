@@ -4,7 +4,9 @@ The compiler has checked SSA dominance and defined result widths. This importer
 checks the reused operand and type bindings and proposes independent path
 witnesses for cross-block reuse. GAS, calls, and mutable observations remain
 actions, including actions with dead results. The message projection compares
-effective destinations and ignores offsets only for empty ranges.
+effective destinations and ignores offsets only for empty ranges. The DCE
+projection also uses immutable calldata and unchanged, empty callees.
+A dead load following CALL must fit its established active output range.
 """
 
 from collections import Counter, defaultdict, deque
@@ -53,6 +55,13 @@ AXIOMS = """
 #print axioms MIR.CallOperands.call_ranges_with_value
 #print axioms MIR.CallOperands.call_ranges_without_value
 #print axioms MIR.CallOperands.code_size
+#print axioms MIR.State.DceEffects.fixed_calldata_word
+#print axioms MIR.State.DceEffects.fixed_calldata_size
+#print axioms MIR.State.DceEffects.insert_undefined
+#print axioms MIR.State.DceEffects.insert_existing
+#print axioms MIR.State.DceEffects.empty_call
+#print axioms MIR.State.DceEffects.call_output
+#print axioms MIR.State.DceEffects.covered_word_read
 """
 
 
@@ -89,8 +98,31 @@ def dominance(successors):
     return dom, parents
 
 
+def calldata_read(inst, definitions, fork):
+    op = inst["operation"]
+    return (
+        inst["result"] is not None
+        and inst["type"] == WORD
+        and op["kind"] == "opcode"
+        and op["name"] in {"calldataload", "calldatasize"}
+        and definitions[op["name"]]["forks"][fork]["available"]
+        and [arg["type"] for arg in op["args"]]
+        == ([WORD] if op["name"] == "calldataload" else [])
+    )
+
+
 def total(inst, definitions, fork):
     op = inst["operation"]
+    if op["kind"] == "insert_value" and inst["result"] is not None:
+        shape, slot = op["aggregate_type"], op["index"]
+        base, value = op["args"]
+        return (
+            shape["kind"] == "product"
+            and shape == inst["type"] == base["type"]
+            and 0 <= slot < len(shape["fields"])
+            and value["type"] == shape["fields"][slot]
+            and value["kind"] != "undefined"
+        )
     if (
         inst["result"] is None
         or any(arg["kind"] == "undefined" for arg in op["args"])
@@ -104,6 +136,12 @@ def total(inst, definitions, fork):
         return inst["type"] == WORD
     if op["kind"] in {"make_slice", "extract_value"}:
         return dead_ssa.erasable(inst, definitions)
+    if calldata_read(inst, definitions, fork):
+        return True
+    if op["kind"] == "word" and inst["type"]["kind"] == "pointer":
+        return inst["type"]["bits"] == 256 and [arg["type"] for arg in op["args"]] == [
+            WORD
+        ]
     if op["kind"] == "low_bits" and op["bits"] == 256 and inst["type"] == WORD:
         (source,) = op["args"]
         if source["type"]["kind"] == "pointer" and source["type"]["bits"] == 256:
@@ -500,8 +538,11 @@ def erase_dead(blocks, retained, stats):
             continue
         live.remove(result)
         inst = retained[result]
-        if inst["operation"].get("name") == "codesize":
+        opcode = inst["operation"].get("name")
+        if opcode == "codesize":
             stats["discarded_code_sizes"] += 1
+        elif opcode == "mload":
+            stats["covered_dead_loads"] += 1
         else:
             stats["dead_scalars"] += 1
         for operand in dead_ssa.reads(inst, reject_undefined=False):
@@ -515,7 +556,30 @@ def erase_dead(blocks, retained, stats):
         ]
 
 
-def normalize(body, definitions, fork):
+def empty_call(inst, targets):
+    op = inst["operation"]
+    return (
+        inst["result"] is None
+        and op["kind"] == "call"
+        and op["function"] in targets
+        and [arg["type"] for arg in op["args"]] == targets[op["function"]]
+        and all(arg["kind"] != "undefined" for arg in op["args"])
+    )
+
+
+def call_output_word(block, definitions, fork):
+    if not block["instructions"] or not definitions["call"]["forks"][fork]["available"]:
+        return False
+    op = block["instructions"][-1]["operation"]
+    return (
+        op["kind"] == "opcode"
+        and op["name"] == "call"
+        and len(op["args"]) == 7
+        and op["args"][-2:] == [literal(0, WORD), literal(32, WORD)]
+    )
+
+
+def normalize(body, definitions, fork, *, empty_targets=None):
     """Return the normalized body and the sites the kernel must check."""
     blocks = body["blocks"]
     if len(blocks) > 1024:
@@ -532,6 +596,11 @@ def normalize(body, definitions, fork):
     updated, stats, sites, return_sizes = {}, Counter(), set(), set()
     for index in sorted(dom, key=lambda block: (len(dom[block]), block)):
         block = blocks[index]
+        covered = bool(
+            index
+            and len(parents[index]) == 1
+            and call_output_word(blocks[next(iter(parents[index]))], definitions, fork)
+        )
         phis, instructions = [], []
         for phi in block["phis"]:
             operand = phi_source(phi, parents[index], aliases) if index else None
@@ -550,7 +619,38 @@ def normalize(body, definitions, fork):
         for original in block["instructions"]:
             inst = substitute(original, aliases)
             result = inst["result"]
+            op = inst["operation"]
+            if empty_targets and empty_call(inst, empty_targets):
+                stats["empty_calls"] += 1
+                continue
+            if calldata_read(inst, definitions, fork):
+                if not op["args"]:
+                    aliases[result] = {"kind": "calldata_size", "type": WORD}
+                    stats["fixed_calldata_size"] += 1
+                    continue
+                (offset,) = op["args"]
+                if offset["kind"] == "constant":
+                    aliases[result] = {
+                        "kind": "calldata_word",
+                        "type": WORD,
+                        "offset": int(offset["value"]),
+                    }
+                    stats["fixed_calldata_words"] += 1
+                    continue
             if not total(inst, definitions, fork):
+                if (
+                    covered
+                    and result is not None
+                    and inst["type"] == WORD
+                    and op
+                    == {"kind": "opcode", "name": "mload", "args": [literal(0, WORD)]}
+                    and definitions["mload"]["forks"][fork]["available"]
+                ):
+                    retained[result] = inst
+                    instructions.append(inst)
+                    continue
+                if not (op["kind"] == "check" or returned_word(inst, "returndatasize")):
+                    covered = False
                 if (
                     returned_word(inst, "returndatasize")
                     and definitions["returndatasize"]["forks"][fork]["available"]
@@ -608,13 +708,13 @@ def normalize(body, definitions, fork):
     result = substitute(
         [updated.get(index, block) for index, block in enumerate(blocks)], aliases
     )
-    canonicalize_branches(result, retained, stats, definitions, fork)
     if definitions["codesize"]["forks"][fork]["available"]:
         for block in result:
             for inst in block["instructions"]:
                 if returned_word(inst, "codesize"):
                     retained[inst["result"]] = inst
     erase_dead(result, retained, stats)
+    canonicalize_branches(result, retained, stats, definitions, fork)
     return {**body, "blocks": result}, dict(stats), sites
 
 

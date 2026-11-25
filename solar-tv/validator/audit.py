@@ -523,7 +523,7 @@ def record(
             ):
                 assumptions.extend(
                     [
-                        "defined SSA values and typed total scalar definitions; the kernel checks dominance witnesses for cross-block reuse",
+                        "defined SSA values and typed total scalar and product definitions; the kernel checks dominance witnesses for cross-block reuse",
                         "CALLER and TIMESTAMP are fixed within each activation; GAS samples and message effects retain their order and shared replies in the unpriced action model",
                     ]
                 )
@@ -546,6 +546,21 @@ def record(
                 if any(side.get("returndata_extent_guards") for side in stats):
                     assumptions.append(
                         "each RETURNDATASIZE used in a removed rounding guard observes a live byte buffer with length below 2^255"
+                    )
+                if any(
+                    side.get("fixed_calldata_words") or side.get("fixed_calldata_size")
+                    for side in stats
+                ):
+                    assumptions.append(
+                        "projected calldata words and size come from the same immutable input of the activation"
+                    )
+                if any(side.get("empty_calls") for side in stats):
+                    assumptions.append(
+                        "removed direct calls have typed arguments, sufficient call depth and work, and the same empty, void callee on both sides"
+                    )
+                if any(side.get("covered_dead_loads") for side in stats):
+                    assumptions.append(
+                        "memory is aligned and at most 64 KiB. The continuing CALL activates its 32-byte output at offset zero and the removed MLOAD reads that active word"
                     )
             if program.import_evidence["kind"] == "kernel-checked-fixed-storage-slots":
                 assumptions.append(

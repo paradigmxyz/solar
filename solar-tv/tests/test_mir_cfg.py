@@ -506,6 +506,70 @@ fn @choose(arg0: i256) -> i256 {
                 left, right = map(json.loads, result["observations"])
                 self.assertEqual(left == right, target is programs[1])
 
+    def test_dce_requires_active_memory_for_an_unused_load(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{name}.mir" for name in ("before", "after"))
+            source = """@module CoveredLoad
+fn @choose(arg0: i256) -> i256 {
+  bb0:
+    v0 = call 100000, arg0, 0, 0, 0, 0, 32
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = mload 0
+    v2 = msize
+    ret v2
+  bb2:
+    ret 0
+}
+"""
+            reduced = source.replace("    v1 = mload 0\n", "")
+            before.write_text(source)
+            after.write_text(reduced)
+            record = self.check_loop(root, 0)
+            scalar = record["import_correspondence"][0]["correspondence"]["choose"][
+                "scalar_reuse"
+            ]
+            self.assertEqual(scalar[0]["covered_dead_loads"], 1)
+
+            without_output = [
+                text.replace(", 0, 32\n", ", 0, 0\n") for text in (source, reduced)
+            ]
+            before.write_text(without_output[0])
+            after.write_text(without_output[1])
+            self.check_loop(root, 2)
+
+            fixture = root / "world.json"
+            fixture.write_text(
+                '{"version":1,"accounts":[{"address":65537,"nonce":1,"code":"0x00"}]}'
+            )
+            initial = world.read(fixture, SOLAR, None, kind="mir")
+            for left, right in ((source, reduced), without_output):
+                programs = [
+                    Program(
+                        ("world-entry", "mir"),
+                        ["arg0"],
+                        "",
+                        "",
+                        replay_ir=text,
+                        selector="choose",
+                        evm_version="cancun",
+                        world=initial,
+                    )
+                    for text in (left, right)
+                ]
+                result = native.replay(
+                    *programs,
+                    [65537],
+                    executable=native.default(SOLAR),
+                    timeout=20,
+                )
+                old, new = map(json.loads, result["observations"])
+                self.assertEqual((old["outcome"], new["outcome"]), ("return", "return"))
+                self.assertEqual(old["values"], ["32"])
+                self.assertEqual(new["values"], ["32" if left == source else "0"])
+                self.assertEqual(old == new, left == source)
+
     def test_egraph_loop_with_wrapping_words_and_pointer_callee(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

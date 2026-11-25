@@ -698,6 +698,20 @@ def check(paths, solar, executable, version, timeout, function, *, lowering=None
         for table, model in zip(tables, models, strict=True)
     ):
         raise Unsupported("MIR CFG proof requires unambiguous names")
+    empty_targets = {
+        body["id"]: body["params"]
+        for name, body in tables[0].items()
+        if body == tables[1].get(name)
+        and not body["returns"]
+        and body["blocks"]
+        == [
+            {
+                "phis": [],
+                "instructions": [],
+                "terminator": {"kind": "return", "args": []},
+            }
+        ]
+    }
     helper = None
     if helper_adapter is not None:
         helper = helper_adapter.bind_helper(tables, declarations)
@@ -925,7 +939,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 normalized = []
                 for side, body in enumerate((first, second)):
                     reduced, stats, sites = scalar_reuse.normalize(
-                        body, scalar_definitions, version
+                        body, scalar_definitions, version, empty_targets=empty_targets
                     )
                     normalized.append(import_graph(reduced))
                     scalar_stats.append(stats)
