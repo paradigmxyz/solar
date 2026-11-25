@@ -1,8 +1,10 @@
 //! Legacy Solidity instruction source maps.
 
 use core::fmt::NumBuffer;
-use solar_codegen::backend::evm::{DebugFunctionExit, DebugInfo, DebugInstruction, op};
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_codegen::backend::evm::{
+    DebugFunction, DebugFunctionExit, DebugInfo, DebugInstruction, op,
+};
+use solar_data_structures::map::FxHashMap;
 use solar_interface::{BytePos, source_map::SourceMapFiles};
 use solar_sema::{Gcx, hir::SourceId};
 
@@ -34,13 +36,7 @@ impl SourceMapEncoder {
 
     /// Encodes final EVM instructions.
     pub(crate) fn encode(&self, gcx: Gcx<'_>, bytecode: &[u8], debug_info: &DebugInfo) -> String {
-        let function_entries = debug_info
-            .instructions(bytecode)
-            .filter(|instruction| {
-                instruction.location.function_invoke.is_some_and(|function| !function.dispatched)
-            })
-            .map(|instruction| instruction.offset)
-            .collect::<FxHashSet<_>>();
+        let function_entries = function_entries(debug_info, bytecode);
         let files = gcx.sess.source_map().files();
         let mut previous = None;
         let entries = debug_info.instructions(bytecode).map(|instruction| {
@@ -56,7 +52,7 @@ impl SourceMapEncoder {
         &self,
         files: &SourceMapFiles<'_>,
         bytecode: &[u8],
-        function_entries: &FxHashSet<u32>,
+        function_entries: &FxHashMap<u32, DebugFunction>,
         previous: Option<&DebugInstruction<'_>>,
         instruction: &DebugInstruction<'_>,
     ) -> SourceMapEntry {
@@ -81,12 +77,14 @@ impl SourceMapEncoder {
         // callee. The dispatcher's jumps and the jump into a constructor are not calls: the
         // function they enter ends in a halt, so no `o` follows.
         let is_jump = instruction.opcode == op::JUMP;
-        let enters_function = static_jump_target(bytecode, previous, instruction)
-            .and_then(|target| u32::try_from(target).ok())
-            .is_some_and(|target| function_entries.contains(&target));
-        let jump = if is_jump && enters_function {
-            b'i'
-        } else if is_jump && instruction.location.function_exit == Some(DebugFunctionExit::Return) {
+        let returns = instruction.location.function_exit == Some(DebugFunctionExit::Return);
+        // A tail call is a jump into a function that also leaves the caller. It opens a frame and
+        // closes one, so the depth stays and the jump has no marker.
+        let jump = if is_jump
+            && function_callee(bytecode, previous, instruction, function_entries).is_some()
+        {
+            if returns { b'-' } else { b'i' }
+        } else if is_jump && returns {
             b'o'
         } else {
             b'-'
@@ -100,6 +98,32 @@ impl SourceMapEncoder {
             modifier_depth: i64::from(instruction.location.modifier_depth),
         }
     }
+}
+
+/// Returns the entry offsets of the functions that calls enter, with the function each one starts.
+pub(crate) fn function_entries(
+    debug_info: &DebugInfo,
+    bytecode: &[u8],
+) -> FxHashMap<u32, DebugFunction> {
+    debug_info
+        .instructions(bytecode)
+        .filter_map(|instruction| {
+            let function = instruction.location.function_invoke?;
+            (!function.dispatched).then_some((instruction.offset, function))
+        })
+        .collect()
+}
+
+/// Returns the function that a `JUMP` enters at its statically encoded destination, with that
+/// destination, when the destination is the entry of a function that calls enter.
+pub(crate) fn function_callee(
+    bytecode: &[u8],
+    previous: Option<&DebugInstruction<'_>>,
+    instruction: &DebugInstruction<'_>,
+    function_entries: &FxHashMap<u32, DebugFunction>,
+) -> Option<(u32, DebugFunction)> {
+    let target = u32::try_from(static_jump_target(bytecode, previous, instruction)?).ok()?;
+    function_entries.get(&target).map(|&function| (target, function))
 }
 
 /// Returns the statically encoded destination of a jump preceded by `PUSH`.
