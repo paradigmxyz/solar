@@ -74,6 +74,25 @@ struct Frame {
 struct LoopCtx {
     breaks: Vec<(String, Env)>,
     conts: Vec<(String, Env)>,
+    /// How many scopes of `decl_scopes` were open where the loop starts: a `break` or
+    /// `continue` leaves the ones its body opened since.
+    depth: usize,
+}
+
+/// What a name stood for just before a declaration of it in a scope (see `Vc::note_decl`).
+#[derive(Clone)]
+struct Decl<'a> {
+    name: String,
+    slocal: bool,
+    alias: Option<&'a Expr<'a>>,
+    alias_env: Option<Env>,
+    /// The outer local's value, or none when the name was unbound or a state variable that
+    /// this declaration held apart (`stashed`).
+    val: Option<Var>,
+    /// The declaration moved a state variable of its name to `Vc::st_key`.
+    stashed: bool,
+    /// The name was a calldata local or parameter.
+    calldata: bool,
 }
 
 pub(crate) struct Opts {
@@ -137,8 +156,7 @@ pub(crate) struct Vc<'p, 'a> {
     /// For each block (or for statement) being executed, innermost last: the names it has
     /// declared so far, with what each stood for just before its declaration (see
     /// `note_decl`), put back when the block ends.
-    #[allow(clippy::type_complexity)]
-    decl_scopes: Vec<Vec<(String, bool, Option<&'a Expr<'a>>, Option<Env>, Option<Var>)>>,
+    decl_scopes: Vec<Vec<Decl<'a>>>,
     /// For each call whose body runs, innermost last: the storage returns its body bound,
     /// once a modifier's `_` held them apart from the modifier's own names.
     #[allow(clippy::type_complexity)]
@@ -1634,15 +1652,30 @@ impl<'p, 'a> Vc<'p, 'a> {
         self.in_ctor = ctor;
         self.init_env(ctor)?;
         self.rets = f.rets.iter().map(|(n, _)| n.clone()).collect();
+        let c = self.c;
+        if ctor {
+            // State initializers run in the contract's scope, before the constructor: none of
+            // its parameters is visible to them.
+            self.cd_params.clear();
+            self.frame_names.clear();
+            for sv in c.state.iter().filter(|s| !s.constant) {
+                if let Some(init) = sv.init {
+                    let v = self.eval(init)?;
+                    self.env.insert(sv.name.clone(), Var { ty: sv.ty.clone(), t: v.t, len: v.len });
+                }
+            }
+        }
         for (n, ty) in &f.params {
             let v = self.fresh_var(n, ty);
             if ty.bounds().is_some() || matches!(ty, Ty::Bool) {
                 self.cex_terms.push((n.clone(), v.t.clone()));
             }
+            self.shadow(n);
             self.env.insert(n.clone(), v);
         }
         for (n, ty) in &f.rets {
             let z = self.zero_var(ty);
+            self.shadow(n);
             self.env.insert(n.clone(), z);
         }
         for (p, (n, _)) in f.item.header.returns().iter().zip(&f.rets) {
@@ -1651,34 +1684,33 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
         }
         (self.cd_params, self.frame_names) = Self::frame_of(f.item);
-        let c = self.c;
         if ctor {
-            for sv in c.state.iter().filter(|s| !s.constant) {
-                if let Some(init) = sv.init {
-                    let v = self.eval(init)?;
-                    self.env.insert(sv.name.clone(), Var { ty: sv.ty.clone(), t: v.t, len: v.len });
-                }
-            }
             // Solidity order: every base constructor's arguments are evaluated first, from the
             // most derived constructor down (a base constructor's modifier list can pass arguments
             // to its own bases, evaluated with its parameters bound), then bodies run base-first.
             let mut argvals: FxHashMap<String, Vec<Val>> = FxHashMap::default();
             {
                 let mut sources: ModifierSources<'a> = vec![(&f.item.header.modifiers[..], vec![])];
+                // Arguments in the inheritance list are evaluated in the contract's scope, where no
+                // constructor parameter is visible.
+                let outer = self.split_locals();
                 for (bn, a) in &c.base_args {
                     if !argvals.contains_key(bn) {
                         let vals = a.exprs().map(|x| self.eval(x)).collect::<R<Vec<_>>>()?;
                         argvals.insert(bn.clone(), vals);
                     }
                 }
+                self.restore_locals(outer);
                 for (bn, bf) in c.base_ctors.iter().rev() {
                     let mut found = argvals.contains_key(bn);
                     if !found {
-                        for (mods, scope) in sources.iter() {
+                        for (si, (mods, scope)) in sources.iter().enumerate() {
                             if let Some(m) = mods.iter().find(|m| m.name.last().as_str() == bn) {
-                                let mut saved = vec![];
+                                // A base constructor's modifier list sees its own parameters,
+                                // not the most derived constructor's.
+                                let outer = (si > 0).then(|| self.split_locals());
                                 for (n, ty, v) in scope {
-                                    saved.push((n.clone(), self.env.remove(n)));
+                                    self.shadow(n);
                                     self.bind(n, ty.clone(), v.clone());
                                 }
                                 let vals = m
@@ -1686,11 +1718,9 @@ impl<'p, 'a> Vc<'p, 'a> {
                                     .exprs()
                                     .map(|x| self.eval(x))
                                     .collect::<R<Vec<_>>>();
-                                for (n, old) in saved {
-                                    match old {
-                                        Some(v) => self.env.insert(n, v),
-                                        None => self.env.remove(&n),
-                                    };
+                                if let Some(outer) = outer {
+                                    self.split_locals();
+                                    self.restore_locals(outer);
                                 }
                                 argvals.insert(bn.clone(), vals?);
                                 found = true;
@@ -1749,11 +1779,29 @@ impl<'p, 'a> Vc<'p, 'a> {
                         ));
                     }
                 };
-                let mut bound = vec![];
+                // NOTE: a base constructor's own modifiers would run around its body; they are not
+                // modelled, so such a constructor is refused rather than run without them.
+                if let Some(m) = bf
+                    .header
+                    .modifiers
+                    .iter()
+                    .find(|m| !c.lin.iter().any(|b| b == m.name.last().as_str()))
+                {
+                    return Err((
+                        bf.header.span,
+                        format!(
+                            "modifier `{}` on base constructor {bn} is not supported",
+                            m.name.last()
+                        ),
+                    ));
+                }
+                // The base constructor's body sees its own parameters and the state, not the
+                // most derived constructor's names.
+                let outer = self.split_locals();
                 for (p, v) in bf.header.parameters.iter().zip(vals) {
                     let n = p.name.map(|n| n.as_str().to_string()).unwrap_or_default();
                     let ty = self.ty_of_decl(&p.ty);
-                    bound.push((n.clone(), self.env.remove(&n)));
+                    self.shadow(&n);
                     self.bind(&n, ty, v);
                 }
                 if let Some(b) = &bf.body {
@@ -1775,19 +1823,15 @@ impl<'p, 'a> Vc<'p, 'a> {
                     self.guard = g;
                     self.env = e;
                 }
-                for (n, old) in bound {
-                    match old {
-                        Some(v) => self.env.insert(n, v),
-                        None => self.env.remove(&n),
-                    };
-                }
+                self.split_locals();
+                self.restore_locals(outer);
             }
         } else if f.is_entry() || !f.has_contract() {
             // An internal function without its own contract is inlined at every call site, which
             // is where it is really checked; its standalone run starts from a state satisfying the
             // invariants, so it does not report invariant failures no caller can produce.
             for inv in &c.invariants {
-                let v = self.eval_spec(inv.expr)?;
+                let v = self.eval_state_spec(inv.expr)?;
                 self.assume(&v.t);
                 self.inv_entry.insert(v.t);
             }
@@ -1885,13 +1929,16 @@ impl<'p, 'a> Vc<'p, 'a> {
             );
             self.guard = exit;
         }
+        let exit_env = self.env.clone();
+        self.spec_exit_env(f);
         for en in &f.ensures {
             let v = self.eval_spec(en.expr)?;
             self.check(&v.t, "postcondition not satisfied", en.span, Some(en));
         }
+        self.env = exit_env;
         if f.is_entry() {
             for inv in &c.invariants {
-                let v = self.eval_spec(inv.expr)?;
+                let v = self.eval_state_spec(inv.expr)?;
                 let kind = if ctor {
                     "contract invariant not established by constructor"
                 } else {
@@ -1912,11 +1959,12 @@ impl<'p, 'a> Vc<'p, 'a> {
                     continue;
                 }
                 let saved = self.env.clone();
+                self.env = Self::storage_view(&saved);
                 for (n, ty) in &trans {
                     let z = self.zero_var(ty);
                     self.env.insert(n.clone(), z);
                 }
-                let v = self.eval_spec(inv.expr);
+                let v = self.eval_state_spec(inv.expr);
                 self.env = saved;
                 let v = v?;
                 self.check(
@@ -1928,6 +1976,32 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
         }
         Ok(())
+    }
+
+    /// The environment `f`'s postconditions read once it returns: a value parameter is what the
+    /// caller passed (as callers assume it of their arguments, however the body reassigned it),
+    /// and a state variable a body local shadows is the state again. Memory and storage
+    /// reference parameters keep their final contents, which `old` tells from the initial ones.
+    fn spec_exit_env(&mut self, f: &'p Func<'a>) {
+        let old = self.old.clone().unwrap_or_default();
+        for (p, (n, ty)) in f.item.header.parameters.iter().zip(&f.params) {
+            if !Self::writes_back(p, ty)
+                && let Some(v) = old.get(n)
+            {
+                self.env.insert(n.clone(), v.clone());
+            }
+        }
+        let held: Vec<String> = self
+            .env
+            .keys()
+            .filter_map(|k| k.strip_prefix("@st."))
+            .filter(|n| !f.params.iter().chain(&f.rets).any(|(m, _)| m == n))
+            .map(str::to_string)
+            .collect();
+        for n in held {
+            let v = self.env.remove(&Self::st_key(&n)).unwrap();
+            self.env.insert(n, v);
+        }
     }
 
     /// Runs `f`'s body from its modifier `mi` on, in a scope stack of its own: the blocks of
@@ -1998,7 +2072,9 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             let fn_locals = self.split_locals();
             for (p, v) in mdef.header.parameters.iter().zip(vals) {
-                self.env.insert(p.name.map(|n| n.as_str().to_string()).unwrap_or_default(), v);
+                let n = p.name.map(|n| n.as_str().to_string()).unwrap_or_default();
+                self.shadow(&n);
+                self.env.insert(n, v);
             }
             self.ph.push((f, mi + 1, fn_locals));
             if let Some(b) = &mdef.body {
@@ -2018,7 +2094,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             let (_, _, fn_locals) = self.ph.pop().unwrap();
             self.split_locals();
-            self.env.extend(fn_locals);
+            self.restore_locals(fn_locals);
             return Ok(());
         }
         if let Some(b) = &f.item.body {
@@ -2069,44 +2145,178 @@ impl<'p, 'a> Vc<'p, 'a> {
         r
     }
 
-    /// Before a declaration of @@n@@ in the innermost scope: what @@n@@ stands for now (an outer
-    /// local's value, a storage pointer, or nothing), the first time this scope declares it.
+    /// Before a declaration of `n`: a state variable of its name is held apart while the
+    /// declaration is in scope (see `shadow`), and in the innermost scope, what `n` stands for
+    /// now (an outer local's value, a storage pointer, or nothing), the first time this scope
+    /// declares it.
     fn note_decl(&mut self, n: &str) {
+        let stashed = self.shadow(n);
         let Some(top) = self.decl_scopes.last() else { return };
-        if top.iter().any(|e| e.0 == n) {
+        if top.iter().any(|e| e.name == n) {
             return;
         }
-        let e = (
-            n.to_string(),
-            self.slocals.contains(n),
-            self.aliases.get(n).copied(),
-            self.alias_env.get(n).cloned(),
-            self.env.get(n).cloned(),
-        );
+        let e = Decl {
+            name: n.to_string(),
+            slocal: self.slocals.contains(n),
+            alias: self.aliases.get(n).copied(),
+            alias_env: self.alias_env.get(n).cloned(),
+            val: if stashed { None } else { self.env.get(n).cloned() },
+            stashed,
+            calldata: self.cd_params.contains(n),
+        };
         self.decl_scopes.last_mut().unwrap().push(e);
     }
 
     /// The innermost scope ends: each name it declared stands again for what it stood for
     /// before, so an outer local, storage pointer or state variable of that name is seen again.
     fn end_scope(&mut self) {
-        for (n, sl, al, ae, v) in self.decl_scopes.pop().unwrap_or_default() {
-            if sl {
+        for d in self.decl_scopes.pop().unwrap_or_default().into_iter().rev() {
+            Self::undo_decl(&mut self.env, &d);
+            let n = d.name;
+            if d.slocal {
                 self.slocals.insert(n.clone());
             } else {
                 self.slocals.remove(&n);
             }
-            match al {
+            if d.calldata {
+                self.cd_params.insert(n.clone());
+            } else {
+                self.cd_params.remove(&n);
+            }
+            match d.alias {
                 Some(a) => self.aliases.insert(n.clone(), a),
                 None => self.aliases.remove(&n),
             };
-            match ae {
-                Some(e) => self.alias_env.insert(n.clone(), e),
+            match d.alias_env {
+                Some(e) => self.alias_env.insert(n, e),
                 None => self.alias_env.remove(&n),
             };
-            match v {
-                Some(v) => self.env.insert(n, v),
-                None => self.env.remove(&n),
-            };
+        }
+    }
+
+    /// Puts back in `env` what the name of declaration `d` stood for before it.
+    fn undo_decl(env: &mut Env, d: &Decl<'a>) {
+        if d.stashed {
+            env.remove(&d.name);
+            if let Some(v) = env.remove(&Self::st_key(&d.name)) {
+                env.insert(d.name.clone(), v);
+            }
+            return;
+        }
+        match &d.val {
+            Some(v) => env.insert(d.name.clone(), v.clone()),
+            None => env.remove(&d.name),
+        };
+    }
+
+    /// The environment as it is once the scopes opened above `depth` end: what a `return`,
+    /// `break` or `continue` carries out of the blocks it leaves.
+    fn unwound(&self, depth: usize) -> Env {
+        let mut env = self.env.clone();
+        for scope in self.decl_scopes.iter().skip(depth).rev() {
+            for d in scope.iter().rev() {
+                Self::undo_decl(&mut env, d);
+            }
+        }
+        env
+    }
+
+    /// Where a state variable `n` is held while a local of its name shadows it. Every other
+    /// part of the verifier reads state by its bare name, which while a shadowing local is in
+    /// scope names the local.
+    fn st_key(n: &str) -> String {
+        format!("@st.{n}")
+    }
+
+    /// Whether `n` names a variable of the running contract's storage.
+    fn is_state(&self, n: &str) -> bool {
+        self.c.state.iter().any(|s| s.name == n && !s.constant)
+    }
+
+    /// The key that holds state variable `n` now: its bare name, or `st_key` while shadowed.
+    fn skey(&self, n: &str) -> String {
+        let k = Self::st_key(n);
+        if self.env.contains_key(&k) { k } else { n.to_string() }
+    }
+
+    /// Before a local, parameter or return variable `n` is bound: a state variable of that
+    /// name, not already shadowed, moves to `st_key`, where the state's own readers and writers
+    /// (calls, invariants, havoc) still find it. Whether this call moved it.
+    fn shadow(&mut self, n: &str) -> bool {
+        if !self.is_state(n) {
+            return false;
+        }
+        let k = Self::st_key(n);
+        if self.env.contains_key(&k) {
+            return false;
+        }
+        match self.env.remove(n) {
+            Some(v) => {
+                self.env.insert(k, v);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// `env` with every shadowed state variable under its own name again, and the locals that
+    /// shadowed them dropped: the state as code outside the running body sees it.
+    fn storage_view(env: &Env) -> Env {
+        let mut out = env.clone();
+        for k in env.keys().filter(|k| k.starts_with("@st.")) {
+            let v = out.remove(k).unwrap();
+            out.insert(k[4..].to_string(), v);
+        }
+        out
+    }
+
+    /// Runs `f` with every shadowed state variable under its own name (see `storage_view`),
+    /// then shadows them again, keeping what `f` wrote to them.
+    fn with_storage<T>(&mut self, f: impl FnOnce(&mut Self) -> R<T>) -> R<T> {
+        let names: Vec<String> =
+            self.env.keys().filter_map(|k| k.strip_prefix("@st.")).map(str::to_string).collect();
+        if names.is_empty() {
+            return f(self);
+        }
+        let mut locals = vec![];
+        for n in &names {
+            let l = self.env.remove(n);
+            let v = self.env.remove(&Self::st_key(n)).unwrap();
+            self.env.insert(n.clone(), v);
+            locals.push(l);
+        }
+        let r = f(self);
+        for (n, l) in names.into_iter().zip(locals) {
+            if let Some(v) = self.env.remove(&n) {
+                self.env.insert(Self::st_key(&n), v);
+            }
+            if let Some(l) = l {
+                self.env.insert(n, l);
+            }
+        }
+        r
+    }
+
+    /// A contract invariant (or other spec over the state alone) in the current state.
+    fn eval_state_spec(&mut self, e: &'a Expr<'a>) -> R<Val> {
+        self.with_storage(|s| s.eval_spec(e))
+    }
+
+    /// Binds the locals `split_locals` took out again, each shadowing the state variable of
+    /// its name.
+    fn restore_locals(&mut self, locals: Env) {
+        for (k, v) in locals {
+            self.shadow(&k);
+            self.env.insert(k, v);
+        }
+    }
+
+    /// A local of `name` names calldata while it is in scope exactly when it is declared so.
+    fn note_calldata(&mut self, name: &str, loc: Option<ast::DataLocation>) {
+        if loc == Some(ast::DataLocation::Calldata) {
+            self.cd_params.insert(name.to_string());
+        } else {
+            self.cd_params.remove(name);
         }
     }
 
@@ -2268,6 +2478,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 let name = v.name.map(|n| n.as_str().to_string()).unwrap_or_default();
                 self.note_decl(&name);
                 self.unalias(&name);
+                self.note_calldata(&name, v.data_location);
                 self.bind(&name, ty, val);
             }
             StmtKind::DeclMulti(vars, e) => {
@@ -2278,6 +2489,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                         let name = v.name.map(|n| n.as_str().to_string()).unwrap_or_default();
                         self.note_decl(&name);
                         self.unalias(&name);
+                        self.note_calldata(&name, v.data_location);
                         self.bind(&name, ty, val);
                     }
                 }
@@ -2334,14 +2546,18 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             StmtKind::Return(e) => {
                 let rets = self.frames.last().map(|f| f.rets.clone()).unwrap_or_default();
-                if let Some(e) = e {
-                    let vals = self.eval_multi(e)?;
-                    for ((n, ty), v) in rets.iter().zip(vals) {
-                        let v = Self::coerce(ty, v);
-                        self.env.insert(n.clone(), Var { ty: ty.clone(), t: v.t, len: v.len });
-                    }
+                let vals = match e {
+                    Some(e) => self.eval_multi(e)?,
+                    None => vec![],
+                };
+                // The blocks the return leaves end: their names stand for what they did before,
+                // and then the return variables take the values returned.
+                let mut env = self.unwound(0);
+                for ((n, ty), v) in rets.iter().zip(vals) {
+                    let v = Self::coerce(ty, v);
+                    env.insert(n.clone(), Var { ty: ty.clone(), t: v.t, len: v.len });
                 }
-                let st = (self.guard.clone(), self.env.clone());
+                let st = (self.guard.clone(), env);
                 self.frames.last_mut().unwrap().exits.push(st);
                 self.guard = "false".into();
             }
@@ -2355,7 +2571,8 @@ impl<'p, 'a> Vc<'p, 'a> {
                 }
             }
             StmtKind::Break => {
-                let st = (self.guard.clone(), self.env.clone());
+                let depth = self.loops.last().map_or(0, |l| l.depth);
+                let st = (self.guard.clone(), self.unwound(depth));
                 self.loops
                     .last_mut()
                     .ok_or((s.span, "break outside loop".to_string()))?
@@ -2364,7 +2581,8 @@ impl<'p, 'a> Vc<'p, 'a> {
                 self.guard = "false".into();
             }
             StmtKind::Continue => {
-                let st = (self.guard.clone(), self.env.clone());
+                let depth = self.loops.last().map_or(0, |l| l.depth);
+                let st = (self.guard.clone(), self.unwound(depth));
                 self.loops
                     .last_mut()
                     .ok_or((s.span, "continue outside loop".to_string()))?
@@ -2376,12 +2594,15 @@ impl<'p, 'a> Vc<'p, 'a> {
                 let (f, i, fn_locals) =
                     self.ph.pop().ok_or((s.span, "placeholder outside modifier".to_string()))?;
                 let mod_locals = self.split_locals();
-                self.env.extend(fn_locals);
+                self.restore_locals(fn_locals);
                 self.frames.push(Frame { rets: f.rets.clone(), exits: vec![] });
+                // The function's body runs with its own calldata parameters.
+                let saved_cd = std::mem::replace(&mut self.cd_params, Self::frame_of(f.item).0);
                 // The modifier's storage pointers stay bound across `_`: what the function body
                 // declares of their names is its own.
                 let ptrs = (self.slocals.clone(), self.aliases.clone(), self.alias_env.clone());
                 let r = self.exec_fn_body(f, i);
+                self.cd_params = saved_cd;
                 // The function's own storage returns keep what its body bound them to: the call
                 // returns them once the modifier ends.
                 let rets: Vec<_> = f
@@ -2423,7 +2644,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 self.guard = g;
                 self.env = e;
                 let fn_locals = self.split_locals();
-                self.env.extend(mod_locals);
+                self.restore_locals(mod_locals);
                 self.ph.push((f, i, fn_locals));
             }
             StmtKind::Assembly(a) => self.exec_asm(a, s.span)?,
@@ -2440,13 +2661,20 @@ impl<'p, 'a> Vc<'p, 'a> {
                 self.try_call = saved_try;
                 let vals = vals?;
                 if let Some(c) = t.clauses.first() {
+                    // A clause's parameters are in scope in its block only.
+                    self.decl_scopes.push(vec![]);
                     for (p, val) in c.args.iter().zip(vals) {
                         if let Some(n) = p.name {
                             let ty = self.ty_of_decl(&p.ty);
+                            self.note_decl(n.as_str());
+                            self.unalias(n.as_str());
+                            self.cd_params.remove(n.as_str());
                             self.bind(n.as_str(), ty, val);
                         }
                     }
-                    self.exec_block(&c.block)?;
+                    let r = self.exec_block(&c.block);
+                    self.end_scope();
+                    r?;
                 }
                 states.push((
                     std::mem::replace(&mut self.guard, g0.clone()),
@@ -2454,14 +2682,20 @@ impl<'p, 'a> Vc<'p, 'a> {
                 ));
                 for (i, c) in t.clauses.iter().enumerate().skip(1) {
                     self.assume(&format!("(= {sel} {i})"));
+                    self.decl_scopes.push(vec![]);
                     for p in c.args.iter() {
                         if let Some(n) = p.name {
                             let ty = self.ty_of_decl(&p.ty);
                             let v = self.fresh_var(n.as_str(), &ty);
+                            self.note_decl(n.as_str());
+                            self.unalias(n.as_str());
+                            self.cd_params.remove(n.as_str());
                             self.bind(n.as_str(), ty, v);
                         }
                     }
-                    self.exec_block(&c.block)?;
+                    let r = self.exec_block(&c.block);
+                    self.end_scope();
+                    r?;
                     states.push((
                         std::mem::replace(&mut self.guard, g0.clone()),
                         std::mem::replace(&mut self.env, env0.clone()),
@@ -2478,21 +2712,33 @@ impl<'p, 'a> Vc<'p, 'a> {
         Ok(())
     }
 
-    /// Remove and return the local (non-state, non-environment) bindings of `env`.
+    /// Remove and return the local (non-state, non-environment) bindings of `env`: a state
+    /// variable a local shadowed is under its own name again.
     fn split_locals(&mut self) -> Env {
-        let c = self.c;
         let keys: Vec<String> = self
             .env
             .keys()
-            .filter(|k| !(k.contains('.') || *k == "this" || c.state.iter().any(|s| &s.name == *k)))
+            .filter(|k| {
+                !(k.contains('.')
+                    || *k == "this"
+                    || self.is_state(k) && !self.env.contains_key(&Self::st_key(k)))
+            })
             .cloned()
             .collect();
-        keys.into_iter()
+        let out: Env = keys
+            .into_iter()
             .map(|k| {
                 let v = self.env.remove(&k).unwrap();
                 (k, v)
             })
-            .collect()
+            .collect();
+        let held: Vec<String> =
+            self.env.keys().filter(|k| k.starts_with("@st.")).cloned().collect();
+        for k in held {
+            let v = self.env.remove(&k).unwrap();
+            self.env.insert(k[4..].to_string(), v);
+        }
+        out
     }
 
     fn bind(&mut self, name: &str, ty: Ty, val: Val) {
@@ -2514,14 +2760,20 @@ impl<'p, 'a> Vc<'p, 'a> {
         ty_of(self.prog, t)
     }
 
-    fn loop_targets(&self, body: &'a Stmt<'a>, next: Option<&'a Expr<'a>>) -> BTreeSet<String> {
+    fn loop_targets(
+        &self,
+        cond: Option<&'a Expr<'a>>,
+        body: &'a Stmt<'a>,
+        next: Option<&'a Expr<'a>>,
+    ) -> BTreeSet<String> {
         let mut out = BTreeSet::new();
         let mut all_state = false;
         let visit = |e: &'a Expr<'a>, out: &mut BTreeSet<String>, all: &mut bool| {
             walk::sub_exprs(e, &mut |x| self.effects(x, out, all, &mut FxHashSet::default()));
         };
-        if let Some(n) = next {
-            visit(n, &mut out, &mut all_state);
+        // The guard runs at every head too: what it writes changes between iterations.
+        for e in cond.into_iter().chain(next) {
+            visit(e, &mut out, &mut all_state);
         }
         walk::all_stmts(body, &mut |s| {
             walk::stmt_exprs(s, &mut |e| visit(e, &mut out, &mut all_state));
@@ -2552,7 +2804,9 @@ impl<'p, 'a> Vc<'p, 'a> {
                 out.insert(sv.name.clone());
             }
         }
-        out.into_iter().filter(|n| self.env.contains_key(n)).collect()
+        out.into_iter()
+            .filter(|n| self.env.contains_key(n) || self.env.contains_key(&Self::st_key(n)))
+            .collect()
     }
 
     /// Syntactic write effects of one expression node (names may be locals, params or storage
@@ -4976,7 +5230,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         let roots = walk::root(e);
         !roots.is_empty()
             && roots.iter().all(|r| {
-                (self.c.state.iter().any(|s| s.name == *r) && !self.frame_names.contains(r))
+                (self.is_state(r) && !self.env.contains_key(&Self::st_key(r)))
                     || self.slocals.contains(r)
                     || self.cd_params.contains(r)
             })
@@ -5010,9 +5264,8 @@ impl<'p, 'a> Vc<'p, 'a> {
                 _ => {}
             });
         }
-        // a calldata name declared again in the body is not the parameter wherever that
-        // declaration is in scope, so it is no longer known to name calldata
-        cd.retain(|n| !body_names.contains(n));
+        // A calldata name declared again in a block is not the parameter while that declaration
+        // is in scope: `note_calldata` and `end_scope` track it.
         names.extend(body_names);
         (cd, names)
     }
@@ -5735,7 +5988,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             let mut pre = vec![];
             if open {
                 for inv in &c.invariants {
-                    let v = self.eval_spec(inv.expr)?;
+                    let v = self.eval_state_spec(inv.expr)?;
                     self.assume(&v.t);
                 }
                 for p in &c.lock_stable {
@@ -5961,6 +6214,11 @@ impl<'p, 'a> Vc<'p, 'a> {
     }
 
     fn external_call(&mut self, rets: Vec<Ty>, is_static: bool, span: Span) -> R<Vec<Val>> {
+        // Outside code reads and writes the state, not the running body's locals of its names.
+        self.with_storage(|s| s.external_call_inner(rets, is_static, span))
+    }
+
+    fn external_call_inner(&mut self, rets: Vec<Ty>, is_static: bool, span: Span) -> R<Vec<Val>> {
         if self.in_library() {
             return self.with_host(|s| s.external_call(rets, is_static, span));
         }
@@ -5990,7 +6248,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 stable_pre.push(self.eval_spec(p.expr)?.t);
             }
             for inv in &c.invariants {
-                let v = self.eval_spec(inv.expr)?;
+                let v = self.eval_state_spec(inv.expr)?;
                 self.check_inv(&v.t, "contract invariant must hold before an external call (entry points without the reentrancy lock can still run)", span, inv);
             }
         }
@@ -6029,7 +6287,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                     }
                 }
                 for inv in &c.invariants {
-                    let v = self.eval_spec(inv.expr)?;
+                    let v = self.eval_state_spec(inv.expr)?;
                     self.assume(&v.t);
                 }
                 for (p, pre) in c.lock_stable.iter().zip(&stable_pre) {
@@ -6041,7 +6299,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         if !self.spec && !is_static && !locked {
             let c = self.c;
             for inv in &c.invariants {
-                let v = self.eval_spec(inv.expr)?;
+                let v = self.eval_state_spec(inv.expr)?;
                 self.check_inv(
                     &v.t,
                     "contract invariant must hold before an external call (reentrancy)",
@@ -6055,7 +6313,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 self.env.insert(sv.name.clone(), v);
             }
             for inv in &c.invariants {
-                let v = self.eval_spec(inv.expr)?;
+                let v = self.eval_state_spec(inv.expr)?;
                 self.assume(&v.t);
             }
         }
@@ -6336,7 +6594,9 @@ impl<'p, 'a> Vc<'p, 'a> {
         let saved_old = self.old.take();
         let saved_c = std::mem::replace(&mut self.c, c);
         let caller_lib = saved_c.kind == ast::ContractKind::Library;
-        for (k, v) in &saved_env {
+        // The callee sees the caller's state, never a caller local that shadows it.
+        let caller_store = Self::storage_view(&saved_env);
+        for (k, v) in &caller_store {
             if k.contains('.') || k == "this" || (!library && c.state.iter().any(|s| &s.name == k))
             {
                 self.env.insert(k.clone(), v.clone());
@@ -6347,6 +6607,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         }
         for ((n, ty), a) in f.params.iter().zip(&args) {
             let a = Self::coerce(ty, a.clone());
+            self.shadow(n);
             self.env.insert(n.clone(), Var { ty: ty.clone(), t: a.t, len: a.len });
         }
         let result = (|| -> R<Vec<Val>> {
@@ -6402,7 +6663,8 @@ impl<'p, 'a> Vc<'p, 'a> {
                     for n in ms {
                         if let Some(sv) = c.state.iter().find(|s| s.name == n) {
                             let v = self.fresh_var(&n, &sv.ty);
-                            self.env.insert(n, v);
+                            let k = self.skey(&n);
+                            self.env.insert(k, v);
                         } else if let Some(hv) = self.env.get(&format!("@host.{n}")).cloned() {
                             // raw/transient storage a library writes with sstore/tstore
                             let v = self.fresh_var(&n, &hv.ty);
@@ -6414,7 +6676,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                     let c = self.c;
                     for inv in &c.invariants {
                         if self.spec_state_names(inv.expr).iter().all(|n| !own.contains(n)) {
-                            let v = self.eval_spec(inv.expr)?;
+                            let v = self.eval_state_spec(inv.expr)?;
                             self.assume(&v.t);
                         }
                     }
@@ -6455,6 +6717,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 }
                 for (n, ty) in &f.rets {
                     let v = self.fresh_var(n, ty);
+                    self.shadow(n);
                     self.env.insert(n.clone(), v);
                 }
                 let saved_rets = std::mem::replace(
@@ -6481,6 +6744,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 self.old = Some(self.env.clone());
                 for (n, ty) in &f.rets {
                     let z = self.zero_var(ty);
+                    self.shadow(n);
                     self.env.insert(n.clone(), z);
                 }
                 for (p, (n, _)) in f.item.header.returns().iter().zip(&f.rets) {
@@ -6573,17 +6837,23 @@ impl<'p, 'a> Vc<'p, 'a> {
         let mut rets = result?;
         self.ret_alias = self.ret_alias_out.take();
         self.storage_param_out = rets.split_off(f.rets.len());
-        for (k, v) in callee_env {
-            if let Some(n) = k.strip_prefix("@host.").filter(|_| !caller_lib) {
-                if self.env.contains_key(n) {
-                    self.env.insert(n.to_string(), v);
+        // The callee's state (not its locals of a state variable's name) becomes the caller's
+        // state (not the caller's locals of that name).
+        let callee_store = Self::storage_view(&callee_env);
+        self.with_storage(|s| {
+            for (k, v) in callee_store {
+                if let Some(n) = k.strip_prefix("@host.").filter(|_| !caller_lib) {
+                    if s.env.contains_key(n) {
+                        s.env.insert(n.to_string(), v);
+                    }
+                } else if s.env.contains_key(&k)
+                    && (k.contains('.') || (!library && c.state.iter().any(|s| s.name == k)))
+                {
+                    s.env.insert(k, v);
                 }
-            } else if self.env.contains_key(&k)
-                && (k.contains('.') || (!library && c.state.iter().any(|s| s.name == k)))
-            {
-                self.env.insert(k, v);
             }
-        }
+            Ok(())
+        })?;
         Ok(rets)
     }
 
