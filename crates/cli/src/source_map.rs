@@ -1,7 +1,7 @@
 //! Legacy Solidity instruction source maps.
 
+use alloy_primitives::U256;
 use core::fmt::NumBuffer;
-use evm2_bytecode::{Instruction, opcode::OpCode};
 use solar_codegen::backend::evm::{DebugFunctionExit, DebugInfo, DebugInstruction, op};
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::{BytePos, source_map::SourceMapFiles};
@@ -113,15 +113,12 @@ pub(crate) fn static_jump_target(
         return None;
     }
     let previous = previous?;
-    let opcode = OpCode::new_or_unknown(previous.opcode);
-    let pc = previous.offset as usize;
-    if !opcode.is_push()
-        || pc + 1 + usize::from(opcode.immediate_size()) != instruction.offset as usize
-    {
+    let width = previous.opcode.checked_sub(op::PUSH0)? as usize;
+    let immediate = bytecode.get(previous.offset as usize + 1..instruction.offset as usize)?;
+    if !(1..=32).contains(&width) || immediate.len() != width {
         return None;
     }
-    let immediate = bytecode.get(pc + 1..instruction.offset as usize)?;
-    let target = usize::try_from(Instruction { pc, opcode, immediate }.push_value()?).ok()?;
+    let target = usize::try_from(U256::from_be_slice(immediate)).ok()?;
     (bytecode.get(target).copied() == Some(op::JUMPDEST)).then_some(target)
 }
 

@@ -4407,7 +4407,6 @@ dependencies = [
  "bitflags 2.13.2",
  "bs58",
  "clap",
- "evm2-bytecode",
  "indexmap 2.14.2",
  "libc",
  "mimalloc",

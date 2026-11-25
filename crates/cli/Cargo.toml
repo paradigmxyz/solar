@@ -29,7 +29,6 @@ anstyle.workspace = true
 bitflags.workspace = true
 bs58.workspace = true
 clap = { workspace = true, features = ["derive"] }
-evm2-bytecode.workspace = true
 indexmap = { workspace = true, features = ["serde"] }
 rayon.workspace = true
 serde = { workspace = true, features = ["derive"] }

@@ -129,9 +129,10 @@ pub fn disassemble_standard_json(bytecode: &[u8], evm_version: EvmVersion) -> St
 
     for instruction in Instructions::new(bytecode, spec_id) {
         let opcode = instruction.opcode;
-        if opcode.is_push() {
-            write!(output, "{} 0x{:X}", opcode.as_str(), instruction.push_value().unwrap())
-                .unwrap();
+        if opcode.is_push()
+            && let Some(value) = instruction.push_value()
+        {
+            write!(output, "{} 0x{value:X}", opcode.as_str()).unwrap();
         } else if !opcode.is_valid()
             || (matches!(opcode.get(), op::DUPN | op::SWAPN | op::EXCHANGE | op::SLOTNUM)
                 && !opcode.is_enabled(spec_id))

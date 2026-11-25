@@ -467,7 +467,7 @@ pub fn spec_id(evm_version: EvmVersion) -> SpecId {
         EvmVersion::Prague => SpecId::PRAGUE,
         EvmVersion::Osaka => SpecId::OSAKA,
         // `EvmVersion` is `#[non_exhaustive]`: a version without a spec is the latest.
-        EvmVersion::Amsterdam | _ => SpecId::AMSTERDAM,
+        _ => SpecId::AMSTERDAM,
     }
 }
 
