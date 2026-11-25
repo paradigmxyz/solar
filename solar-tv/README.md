@@ -2108,11 +2108,11 @@ including unsupported inputs and timeouts. The counts cover the captured
 corpus; a pass that never changes that corpus needs other inputs.
 
 The latest full serial audit checks all 2,228 pinned captures at three
-seconds per prover invocation. It verifies 1,059, with 844 unsupported
-checks, 324 timeouts, one tool error and zero counterexamples. ABI and both
-bytecode outputs match between normal and capture compilation for every
-contract. Fingerprints and per-pass counts are recorded in
-[CORRECTNESS.md](CORRECTNESS.md#full-corpus-after-abi-entry-coverage).
+seconds per prover invocation. It verifies 1,392 and records
+569 unsupported checks, 267 timeouts and 0 failed checks.
+The normal and capture compilations agree on ABI, creation bytecode and
+runtime bytecode. The per-pass counts and fingerprints are in
+[CORRECTNESS.md](CORRECTNESS.md#full-corpus-after-mir-and-backend-coverage).
 
 The combined strict gate verifies all 178 pinned captures for MIR ABI
 encoding, checked arithmetic, conditional checks, integer lowering, storage
