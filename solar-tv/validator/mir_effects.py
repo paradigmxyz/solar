@@ -182,6 +182,7 @@ def render(
     return_widths=None,
     call_result_widths=None,
     inline_effects=False,
+    keep_context_requests=False,
 ):
     def width(ty):
         if inline_effects and word_pair(ty):
@@ -387,7 +388,7 @@ def render(
                     and op["query"] == "heap_floor"
                 ):
                     expression = "heapFloor"
-                if abi_fork and op["kind"] == "opcode":
+                if abi_fork and not keep_context_requests and op["kind"] == "opcode":
                     expression = abi_context_read(op["name"], args, bits) or expression
                 if expression is None:
                     typed_request = inline_effects and op["kind"] in TYPED_REQUESTS
@@ -903,38 +904,15 @@ def guarded_mask_prefix(model, masks, definitions):
     return "  | (solve\n    | " + first.strip() + "\n" + "\n".join(rest) + ")\n"
 
 
-def check(a, b, timeout, executable, *, void_abi=False):
-    from .check import PRELUDE, ROOT, build_model, run
-
-    definitions = {
-        row["name"]: row for row in native.catalog(executable, timeout)["evmir"]
-    }
-    if void_abi and any(
-        program.symbolic_mir["model"][signature]
-        for program in (a, b)
-        for signature in ("params", "returns")
-    ):
-        raise Unsupported("void ABI effect proof requires empty signatures")
-    trees = [
-        render(a.symbolic_mir["model"], definitions, abi_return=void_abi),
-        render(b.symbolic_mir["model"], definitions),
-    ]
-    build = build_model(timeout)
-    if build.returncode:
-        raise Unsupported(build.stdout + build.stderr)
-    binders = " ".join(
-        f"({arg} : BitVec {bits})"
-        for arg, bits in zip(a.inputs, a.input_widths, strict=True)
-    )
-    args = " ".join(a.inputs)
-    code = PRELUDE + "set_option maxHeartbeats 1000000\n"
+def equality_code(old, new, trees, definitions, prelude, binders, args):
+    code = prelude + "set_option maxHeartbeats 1000000\n"
     for name, tree in zip(("before", "after"), trees, strict=True):
         code += f"def {name} {binders} : MIR.Effects.Tree :=\n{tree}\n"
     rules = """before, after, MIR.compare, MIR.eval, MIR.cast, MIR.shift, Word.shift,
     Word.binary, MIR.unary, Word.unary, MIR.select, MIR.wordBinary, MIR.ternary,
     MIR.LowerAlloc.freePointerRequest, MIR.LowerAlloc.constructorRequest,
     BitVec.ofNatLT_eq_ofNat, BitVec.ult, MIR.Effects.abiReturn"""
-    masks = low_masks(a.symbolic_mir["model"]) - low_masks(b.symbolic_mir["model"])
+    masks = low_masks(old) - low_masks(new)
     tactic = f"simp [{rules}]"
     if masks:
         lemmas = []
@@ -954,15 +932,95 @@ private theorem {right}Guard (word : BitVec {width}) :
   simp [MIR.compare, BitVec.ult]
 """
             lemmas.extend((right, left))
-        prefix = guarded_mask_prefix(a.symbolic_mir["model"], masks, definitions)
+        prefix = guarded_mask_prefix(old, masks, definitions)
         tactic = f"""first
 {prefix}  | (solve | {tactic})
   | simp (config := {{contextual := true}}) (disch := omega) [{rules}, {", ".join(lemmas)}]"""
-    code += f"""
+    return (
+        code
+        + f"""
 theorem pair_correct {binders} : before {args} = after {args} := by
   {tactic}
 #print axioms pair_correct
 """
+    )
+
+
+def check_interactions(paths, solar, replay, version, timeout, function):
+    from . import abi_effects
+    from .check import PRELUDE
+
+    texts, _, modules = abi_effects.typed_pair(paths, solar, replay, version, timeout)
+    left, right = [
+        {key: value for key, value in module.items() if key != "functions"}
+        for module in modules
+    ]
+    (old, before), (new, after) = [
+        abi_effects.selected_body(module, function) for module in modules
+    ]
+    if left != right or any(before[key] != after[key] for key in ("params", "returns")):
+        raise Unsupported("MIR interaction proof requires unchanged entry bindings")
+    definitions = {row["name"]: row for row in native.catalog(replay, timeout)["evmir"]}
+    widths = [scalar_width(ty) for ty in before["params"]]
+    returns = [scalar_width(ty) for ty in before["returns"]]
+    args = [f"arg{i}" for i in range(len(widths))]
+    trees = [
+        render(
+            model,
+            definitions,
+            abi_fork=version,
+            abi_arguments=args,
+            return_widths=returns,
+            keep_context_requests=True,
+        )
+        for model in (old, new)
+    ]
+    binders = [
+        "(heapFloor : Word)",
+        *(f"({arg} : BitVec {bits})" for arg, bits in zip(args, widths, strict=True)),
+    ]
+    code = equality_code(
+        old,
+        new,
+        trees,
+        definitions,
+        PRELUDE,
+        " ".join(binders),
+        " ".join(["heapFloor", *args]),
+    )
+    return abi_effects.certificate(
+        code,
+        texts,
+        function,
+        version,
+        timeout,
+        {"kind": "kernel-checked-mir-interaction-effects", "function": function},
+        scope="mir-interaction-tree",
+    )
+
+
+def check(a, b, timeout, executable, *, void_abi=False):
+    from .check import PRELUDE, ROOT, build_model, run
+
+    definitions = {
+        row["name"]: row for row in native.catalog(executable, timeout)["evmir"]
+    }
+    old, new = (program.symbolic_mir["model"] for program in (a, b))
+    if void_abi and any(
+        model[signature] for model in (old, new) for signature in ("params", "returns")
+    ):
+        raise Unsupported("void ABI effect proof requires empty signatures")
+    trees = [render(old, definitions, abi_return=void_abi), render(new, definitions)]
+    build = build_model(timeout)
+    if build.returncode:
+        raise Unsupported(build.stdout + build.stderr)
+    binders = " ".join(
+        f"({arg} : BitVec {bits})"
+        for arg, bits in zip(a.inputs, a.input_widths, strict=True)
+    )
+    code = equality_code(
+        old, new, trees, definitions, PRELUDE, binders, " ".join(a.inputs)
+    )
     with tempfile.TemporaryDirectory(prefix="solar-tv-mir-effects-") as directory:
         path = Path(directory) / "Pair.lean"
         path.write_text(code)

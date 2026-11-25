@@ -853,6 +853,15 @@ def record(
                     "unpriced scalar work and block transfers; GAS, code observers, external calls and placement queries excluded; SSTORE failures retained but physical gas and the EIP-2200 sentry's scalar-work costs are not certified",
                 ]
             )
+        elif program and program.scope == "mir-interaction-tree":
+            assumptions.extend(
+                [
+                    "unchanged typed interface and entry bindings; supplied acyclic MIR callees",
+                    "shared heap floor and identical ordered requests and exits for arbitrary initial state and shared replies, including failing handlers",
+                    "shared GAS, code observations and child replies remain premises; physical gas, forwarded gas and backend placement require separate proofs",
+                    "trusted compiler parser, independent schema export and effect-tree renderer",
+                ]
+            )
         elif program and program.scope == "effect-tree":
             assumptions.extend(
                 [
@@ -1042,7 +1051,7 @@ def record(
             else "unpriced-shared-interactions"
             if program
             and (
-                program.scope == "interaction-flow"
+                program.scope in {"interaction-flow", "mir-interaction-tree"}
                 or program.scope == "layout-flow"
                 and program.import_evidence["interactions"]
             )
@@ -1099,6 +1108,18 @@ def record(
         ),
         "assumptions": assumptions,
         "inputs": sources,
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "function",
+                    "name": program.selector,
+                    "proof": program.import_evidence["kind"],
+                },
+            }
+            if program and program.scope == "mir-interaction-tree"
+            else {}
+        ),
         **(
             {
                 "whole_pass": False,

@@ -184,6 +184,21 @@ distinct ordered requests, with arbitrary results and no selected placement.
 External calls, tail calls, other layout queries, GAS sampling and code observers
 are rejected by this route.
 
+For a typed MIR function that reads `GAS` or makes an external call, request
+the shared-interaction proof explicitly:
+
+```sh
+solar-tv/solar-tv mir before.mir after.mir --function permit \
+  --interaction-trace --report target/tv/permit-interactions.json
+```
+
+Lean compares the ordered requests, including `GAS`, supported code
+observations and calls with their gas operands. It also compares terminal
+outcomes. The theorem quantifies over a shared heap floor, arbitrary typed
+arguments and shared stateful handlers. Actual `GAS` values, code observations,
+child outcomes and physical gas costs require a separate binding to the emitted
+bytecode. The report records `unpriced-shared-interactions`.
+
 The `lower-alloc` example is reduced from Morpho's constructor. Its FMP read
 becomes `mload(0x40)` followed by a pointer-carrier cast. The request constructors
 in [MIR/Transforms/LowerAlloc.lean](SolarTV/MIR/Transforms/LowerAlloc.lean) have

@@ -2563,6 +2563,32 @@ remaining tree. The pinned WETH and ERC20Mock checks finish in 4.11 and
 1.29 seconds, respectively. This is a compositional effect proof using
 the same source-export and renderer boundary as the preceding run.
 
+#### Shared interactions for the GAS-dependent captures
+
+The opt-in `--function NAME --interaction-trace` mode checks the 12
+unsupported pairs from the default audit with a shared heap floor and
+arbitrary typed arguments. The certificate preserves ordered requests
+and exits under shared replies, including the `GAS` request and the gas
+operand passed to each call. The physical `GAS` value, call admission,
+forwarded gas and child behavior remain separate obligations.
+
+At 15 seconds per check, Lean verifies WETH `permit` and Morpho Blue
+`flashLoan`. Eight other pairs are unsupported, including six whose
+expanded call trees exceed the nesting bound. `_accrueInterest` and
+`setFee` time out. The retry reports bind the unchanged raw IR hashes
+to the original check IDs. A synthetic regression changes the operand
+of `STATICCALL` by one and confirms that the conditional proof fails.
+The ordinary serial gate retains the same 23 verified and 12 unsupported
+results on identical inputs and bytecode.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Lean checker on 4.34.1 | `4a3b571570270df095956499a4250f369a569c9f1ae0444125fc80b55753a752` |
+| Shared-interaction retry results | `702c6b10364caa43f033078de30cb9c63331292ec716206e642bd59d92ca9331` |
+| WETH `permit` entry report | `b68901580b4d8a99662d7eadafcf689b84164087730f7646a08bcd70629740c8` |
+| Morpho `flashLoan` entry report | `238618b47b2dd373bc91d40dd955ae14cff9243b4a676e92f46774d431c56840` |
+| Default results.json | `566c342bdde37566336b1ccb34cd9e4ec5bedc8471068cac328bf2578ebc6eb1` |
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through

@@ -756,7 +756,7 @@ def main() -> int:
     parser.add_argument(
         "--interaction-trace",
         action="store_true",
-        help="compare EVM region requests under shared interaction responses",
+        help="compare MIR function or EVM region requests under shared responses",
     )
     parser.add_argument(
         "--entry-stack",
@@ -970,6 +970,28 @@ def main() -> int:
                     raise Unsupported(
                         f"{error}; layout: {layout_error}"
                     ) from layout_error
+            programs = list(result.pair)
+        elif args.interaction_trace and args.ir == "mir":
+            if (
+                not args.function
+                or args.gas is not None
+                or args.world is not None
+                or args.stack_height is not None
+                or args.valid_heap
+            ):
+                raise Unsupported(
+                    "--interaction-trace requires an unpriced MIR function"
+                )
+            from . import mir_effects
+
+            result = mir_effects.check_interactions(
+                (args.before, args.after),
+                solar,
+                rust_replay,
+                version,
+                args.timeout,
+                args.function,
+            )
             programs = list(result.pair)
         elif args.interaction_trace:
             if (

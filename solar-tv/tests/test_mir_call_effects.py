@@ -202,6 +202,51 @@ bb2:
         witness = record["witness"]
         self.assertEqual(witness["observations"], witness["native_observations"])
 
+    def test_mir_interaction_trace_preserves_the_call_gas_operand(self):
+        before = self.directory / "before.mir"
+        after = self.directory / "after.mir"
+        report = self.directory / "report.json"
+        before.write_text(
+            program(
+                "v0 = gas\nv1 = add v0, 0\nv2 = staticcall v1, 4, 0, 0, 0, 0\nret 0"
+            )
+        )
+        equivalent = program("v0 = gas\nv2 = staticcall v0, 4, 0, 0, 0, 0\nret 0")
+        changed = before.read_text().replace("add v0, 0", "add v0, 1")
+        command = [
+            CLI,
+            "mir",
+            before,
+            after,
+            "--solar",
+            SOLAR,
+            "--function",
+            "f",
+            "--interaction-trace",
+            "--timeout",
+            "20",
+            "--report",
+            report,
+        ]
+        for text, status in ((equivalent, 0), (changed, 2)):
+            after.write_text(text)
+            result = subprocess.run(
+                command, capture_output=True, text=True, check=False, timeout=90
+            )
+            self.assertEqual(result.returncode, status, result.stdout + result.stderr)
+            if status == 0:
+                record = json.loads(report.read_text())
+                self.assertEqual(record["gas_policy"], "unpriced-shared-interactions")
+                self.assertEqual(
+                    record["region"],
+                    {
+                        "kind": "function",
+                        "name": "f",
+                        "proof": "kernel-checked-mir-interaction-effects",
+                        "stack_height": None,
+                    },
+                )
+
     def test_unmodeled_callee_instructions_and_excess_expansion_are_rejected(self):
         definitions = {
             row["name"]: row for row in native.catalog(self.replay, 20)["evmir"]
