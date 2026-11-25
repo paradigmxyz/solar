@@ -63,8 +63,10 @@ contract LiveCalls {
     function bad_contracted_outside() external view { _d(); }
     /// @custom:succeeds_if true
     function bad_external() external { i.g(); }
+    // A try does not catch the check for code before the call, which reverts the caller
+    // when `i` has none.
     /// @custom:succeeds_if true
-    function ok_try() external { try i.g() {} catch {} }
+    function bad_try() external { try i.g() {} catch {} }
     /// @custom:succeeds_if true
     function ok_iface_live() external { i.h(); }
 }

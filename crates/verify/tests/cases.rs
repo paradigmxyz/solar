@@ -1388,3 +1388,28 @@ fn sound_ptr_self_index() {
 fn sound_ptr_branch_rebind() {
     check("tests/cases/sound_ptr_branch_rebind.sol")
 }
+
+#[test]
+fn sound_ptr_recursion() {
+    check("tests/cases/sound_ptr_recursion.sol")
+}
+
+#[test]
+fn sound_delegate_lock() {
+    check("tests/cases/sound_delegate_lock.sol")
+}
+
+#[test]
+fn sound_transfer_named() {
+    check("tests/cases/sound_transfer_named.sol")
+}
+
+#[test]
+fn sound_transfer_transient() {
+    check("tests/cases/sound_transfer_transient.sol")
+}
+
+#[test]
+fn sound_try_decode() {
+    check("tests/cases/sound_try_decode.sol")
+}
