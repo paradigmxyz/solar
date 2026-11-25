@@ -2857,6 +2857,36 @@ over symbolic caller memory.
 | Lean checker on 4.34.1 | `efdb46315e26f88af88f22bca42c19e2dd3e61b71da2ba8294b3b567f7456a02` |
 | Strict schedule results | `3b5d26042e2241d1ecf74c3312b6c7bbe9baf267ddd74d852ef9ac429720d52e` |
 
+#### Emitted Morpho getter with scheduled storage reads
+
+Re-importing the final lowered MIR emitted an 8,656-byte scheduled runtime.
+The pinned Solidity compilation emits 8,463 bytes. Final lowered MIR text
+round-trip correspondence remains open. Replaying the earlier integer-cleanup
+snapshot through the canonical suffix with the final schedule enabled
+reproduces the pinned creation and runtime bytecode exactly. Running the same
+suffix without the final schedule emits the comparison runtime of 8,412
+bytes. The kernel also proves the recaptured `idToMarketParams` MIR pair
+from this compilation, whose raw snapshot hashes differ from the frozen gate.
+
+The Rust EVM follows the actual emitted `SLOAD`s from ABI entry. On a market
+with five populated slots it observes offsets `0, 1, 2, 3, 4` before and
+`1, 2, 3, 4, 0` afterward. Both images return the same five words and
+preserve persistent state and logs. The scheduled runtime saves three gas
+with cold or warm slots. Selector-only calldata reverts with empty data
+and identical gas on both images.
+
+Lean checks both complete emitted runs for the cold fixture at 500,000
+initial gas, including the returndata, persistent state, refund, logs and
+remaining gas. The joined kernel theorem establishes `.refine` and rejects
+`.exact` on that fixture. Its only axiom is `propext`. The byte execution
+trace theorems also use `Quot.sound`. The result covers this calldata and
+initial world. Arbitrary-input emitted correspondence remains open.
+
+The 80-file manifest at `target/tv-mir-schedule-emitted-bound/sha256.txt`
+binds the two sets of MIR captures, the compiler and replay executables,
+the emitted images, the fixtures and the Lean and Rust results. Its
+SHA-256 is `1e30192c0193d1a0b6d0a961193ee2461dcb0e19c9d8d3ec1629b72715dfd22d`.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
