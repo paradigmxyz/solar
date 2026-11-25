@@ -2,10 +2,9 @@
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
 
-// A tail call leaves the caller and enters the callee with one `JUMP`, so that `JUMP` carries the
-// `return` and the callee's `invoke` together with `transform: ["tailcall"]`, as the ethdebug
-// format marks a tail call. The `invoke` target is the callee's entry `JUMPDEST`, which keeps its
-// own `invoke`. A call that has work left after it is no tail call.
+// A tail call leaves the caller and enters the callee with one `JUMP`. That `JUMP` carries the
+// caller's `return` and `transform: ["tailcall"]` and no `invoke`: the callee's entry `JUMPDEST`
+// carries it, as for any call. A call that has work left after it is no tail call.
 // CHECK-LABEL: "ethdebug-runtime"
 
 // A call whose result is still used is a plain call, and so is recursion that multiplies it.
@@ -15,16 +14,13 @@
 // An inline-assembly function that calls another one in tail position.
 // CHECK: "identifier": "viaTwice"
 // CHECK: "mnemonic": "JUMP"
-// CHECK-NOT: "mnemonic"
-// CHECK: "identifier": "twice"
-// CHECK: "jump": true
-// CHECK: "offset": [[TWICE:[0-9]+]]
+// CHECK-NOT: "invoke"
 // CHECK: "return": {}
 // CHECK-NEXT: "transform": [
 // CHECK-NEXT: "tailcall"
-// CHECK: "offset": [[TWICE]],
 // CHECK: "mnemonic": "JUMPDEST"
-// CHECK-NOT: "mnemonic"
+// CHECK-NEXT: },
+// CHECK-NEXT: "context": {
 // CHECK: "identifier": "twice"
 // CHECK: "return": {}
 // CHECK-NOT: "tailcall"
@@ -32,16 +28,13 @@
 // A Solidity function that calls another one in tail position.
 // CHECK: "identifier": "tailOuter"
 // CHECK: "mnemonic": "JUMP"
-// CHECK-NOT: "mnemonic"
-// CHECK: "identifier": "leaf"
-// CHECK: "jump": true
-// CHECK: "offset": [[LEAF:[0-9]+]]
+// CHECK-NOT: "invoke"
 // CHECK: "return": {}
 // CHECK-NEXT: "transform": [
 // CHECK-NEXT: "tailcall"
-// CHECK: "offset": [[LEAF]],
 // CHECK: "mnemonic": "JUMPDEST"
-// CHECK-NOT: "mnemonic"
+// CHECK-NEXT: },
+// CHECK-NEXT: "context": {
 // CHECK: "identifier": "leaf"
 // CHECK: "return": {}
 // CHECK-NOT: "tailcall"
@@ -52,13 +45,8 @@
 
 // A function that calls itself in tail position jumps back to its own entry.
 // CHECK: "identifier": "countdown"
-// CHECK: "jump": true
-// CHECK: "offset": [[COUNTDOWN:[0-9]+]]
 // CHECK: "mnemonic": "JUMP"
-// CHECK-NOT: "mnemonic"
-// CHECK: "identifier": "countdown"
-// CHECK: "jump": true
-// CHECK: "offset": [[COUNTDOWN]]
+// CHECK-NOT: "invoke"
 // CHECK: "return": {}
 // CHECK-NEXT: "transform": [
 // CHECK-NEXT: "tailcall"

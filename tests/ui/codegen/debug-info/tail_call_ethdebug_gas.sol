@@ -2,18 +2,12 @@
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
 
-// A tail call whose jump survives layout carries `return` and the callee's `invoke` at -Ogas too.
-// Mutual recursion keeps `even` and `odd` from being inlined.
+// A tail call whose jump survives layout carries `return` and the tail-call transform at -Ogas
+// too. Mutual recursion keeps `even` and `odd` from being inlined.
 // CHECK-LABEL: "ethdebug-runtime"
-// CHECK: "identifier": "even"
-// CHECK: "jump": true
-// CHECK: "offset": [[EVEN:[0-9]+]]
 // CHECK: "identifier": "odd"
 // CHECK: "mnemonic": "JUMP"
-// CHECK-NOT: "mnemonic"
-// CHECK: "identifier": "even"
-// CHECK: "jump": true
-// CHECK: "offset": [[EVEN]]
+// CHECK-NOT: "invoke"
 // CHECK: "return": {}
 // CHECK-NEXT: "transform": [
 // CHECK-NEXT: "tailcall"

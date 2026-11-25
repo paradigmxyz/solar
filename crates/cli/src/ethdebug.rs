@@ -9,7 +9,7 @@ use solar_codegen::{
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::{Gcx, hir::ContractId};
 
-use crate::source_map::{function_callee, function_entries};
+use crate::source_map::{enters_function, function_entries};
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(untagged)]
@@ -388,7 +388,7 @@ fn make_ethdebug_context(
     gcx: Gcx<'_>,
     source_ids: &FxHashMap<u32, u32>,
     bytecode: &[u8],
-    function_entries: &FxHashMap<u32, DebugFunction>,
+    function_entries: &FxHashSet<u32>,
     previous: Option<&DebugInstruction<'_>>,
     instruction: &DebugInstruction<'_>,
 ) -> Option<EthdebugContext> {
@@ -415,14 +415,9 @@ fn make_ethdebug_context(
         _ if location.all_source_spans => (None, Vec::new(), contexts),
         _ => (None, contexts, Vec::new()),
     };
-    // The event marks the first instruction of the callee: its entry `JUMPDEST`, which is where
-    // the ethdebug format places an internal call's `invoke`.
-    // NOTE: Code that nothing jumps into, such as an inlined body or a constructor without
-    // helpers, starts at another instruction, and there is no jump target to point at.
-    let mut invoke = location.function_invoke.and_then(|function| {
-        let target = (instruction.opcode == op::JUMPDEST).then_some(instruction.offset);
-        make_ethdebug_function_invoke(gcx, source_ids, function, target)
-    });
+    let invoke = location
+        .function_invoke
+        .and_then(|function| make_ethdebug_function_invoke(gcx, source_ids, function, instruction));
     let (r#return, revert) = match (location.function_exit, instruction.opcode) {
         (Some(DebugFunctionExit::Return), 0x00 | 0x56 | 0x57 | 0xf3) => {
             (Some(EthdebugFunctionExit {}), None)
@@ -430,17 +425,14 @@ fn make_ethdebug_context(
         (Some(DebugFunctionExit::Revert), 0xfd) => (None, Some(EthdebugFunctionExit {})),
         _ => (None, None),
     };
-    // A tail call leaves the caller and enters the callee with one `JUMP`, so `return` and
-    // `invoke` share the instruction, as the ethdebug format marks a tail call. The callee's entry
-    // `JUMPDEST` carries the same `invoke` as for any call; a consumer merges an `invoke` that
-    // repeats the frame the previous instruction opened.
+    // A tail call leaves the caller and enters the callee with one `JUMP`, so that jump carries the
+    // caller's `return` and `transform: ["tailcall"]`. The callee's entry `JUMPDEST` carries its
+    // `invoke`, as for any call, so the jump needs none.
     let mut transform = Vec::new();
     if r#return.is_some()
         && instruction.opcode == op::JUMP
-        && let Some((target, function)) =
-            function_callee(bytecode, previous, instruction, function_entries)
+        && enters_function(bytecode, previous, instruction, function_entries)
     {
-        invoke = make_ethdebug_function_invoke(gcx, source_ids, function, Some(target));
         transform.push("tailcall");
     }
     if code.is_none()
@@ -460,16 +452,25 @@ fn make_ethdebug_function_invoke(
     gcx: Gcx<'_>,
     source_ids: &FxHashMap<u32, u32>,
     function: DebugFunction,
-    target: Option<u32>,
+    instruction: &DebugInstruction<'_>,
 ) -> Option<EthdebugFunctionInvoke> {
+    // The event marks the first instruction of the callee: its entry `JUMPDEST`, which is where
+    // the ethdebug format places an internal call's `invoke`.
+    // NOTE: Code that nothing jumps into, such as an inlined body or a constructor without
+    // helpers, starts at another instruction, and there is no jump target to point at.
+    let target = (instruction.opcode == op::JUMPDEST).then_some(EthdebugInvocationTarget {
+        pointer: EthdebugCodePointer {
+            location: "code",
+            offset: instruction.offset as usize,
+            length: 1,
+        },
+    });
     Some(EthdebugFunctionInvoke {
         identifier: (function.identifier != solar_interface::sym::_anonymous)
             .then(|| function.identifier.to_string()),
         declaration: make_ethdebug_source_range(gcx, source_ids, function.declaration)?,
         jump: true,
-        target: target.map(|offset| EthdebugInvocationTarget {
-            pointer: EthdebugCodePointer { location: "code", offset: offset as usize, length: 1 },
-        }),
+        target,
     })
 }
 
