@@ -254,19 +254,24 @@ def check(a, b, timeout, *, replay_command, replay_executable, verbose):
         # cannot be substituted for arbitrary caller memory without this
         # explicitly reported producer obligation.
         return fresh_heap.check(a, b, timeout, replay_executable)
-    # Large effectful bodies can spend most of their proof budget
-    # unfolding identical storage and memory. Try the exact interaction-trace
-    # obligation first; it is explicitly reported as a different certificate.
-    if sum(
-        len(block["instructions"])
-        for function in a.symbolic_mir["model"]["functions"]
-        for block in function["blocks"]
-    ) >= 40 or any(
-        inst["operation"]["kind"] == "layout"
-        and inst["operation"]["query"] == "constructor"
-        for function in a.symbolic_mir["model"]["functions"]
-        for block in function["blocks"]
-        for inst in block["instructions"]
+    # The effect tree can use path facts before unfolding any storage or memory
+    # effects. It also avoids expanding shared operations in large bodies.
+    if (
+        mir_effects.low_masks(a.symbolic_mir["model"])
+        - mir_effects.low_masks(b.symbolic_mir["model"])
+        or sum(
+            len(block["instructions"])
+            for function in a.symbolic_mir["model"]["functions"]
+            for block in function["blocks"]
+        )
+        >= 40
+        or any(
+            inst["operation"]["kind"] == "layout"
+            and inst["operation"]["query"] == "constructor"
+            for function in a.symbolic_mir["model"]["functions"]
+            for block in function["blocks"]
+            for inst in block["instructions"]
+        )
     ):
         try:
             return mir_effects.check(a, b, timeout, replay_executable)

@@ -189,4 +189,14 @@ example : interpret (fun _ (_ : Nat) => .error 7) (fun _ _ => 0)
     (resume (fun _ => .done ⟨"return",[]⟩)
       (.request ⟨.allocate true false,[64],true⟩ (fun _ => .done ⟨"return",[]⟩))) 0 = 7 := by decide
 
+/-- A reached unsigned width guard makes the corresponding low mask redundant. -/
+theorem mask_of_bound (width bits : Nat) (word : BitVec width) (fits : bits ≤ width)
+    (small : word.toNat < 2^bits) : word &&& BitVec.ofNat width (2^bits - 1) = word := by
+  have within : 2^bits ≤ 2^width := Nat.pow_le_pow_right (by decide) fits
+  have positive := Nat.two_pow_pos bits
+  have maskFits : 2^bits - 1 < 2^width := by omega
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_and, BitVec.toNat_ofNat, Nat.mod_eq_of_lt maskFits,
+    Nat.and_two_pow_sub_one_eq_mod, Nat.mod_eq_of_lt small]
+
 end SolarTV.MIR.Effects

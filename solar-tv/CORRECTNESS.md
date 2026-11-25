@@ -2501,6 +2501,43 @@ The corpus retries prove IR correspondences. Independent replay tests
 exercise a wrong literal and a wrong folded address, and confirm the
 observed divergence against the Lean execution model.
 
+### Guarded MIR integer cleanup
+
+The serial `evaluate --all --pass integer-cleanup --timeout 15 --seed 0`
+run verifies 21 of 35 captures. The same budget on the preceding checker
+verified zero, with 29 unsupported, five timeouts and one inconclusive
+check. The new run has zero timeouts, failed checks or counterexamples.
+All 35 capture IDs and pinned inputs match the preceding run. The ABI,
+creation bytecode and runtime bytecode match between plain and capture
+compilation for each contract.
+
+| Contract | Verified | Unsupported |
+| --- | ---: | ---: |
+| Solady WETH | 5 | 2 |
+| OpenZeppelin ERC20Mock | 6 | 1 |
+| Morpho Blue | 10 | 11 |
+| Total | 21 | 14 |
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Compiler launcher | `4e5a4f6faa73f5d017a534afaa4d3f9a8c052abe1c2435f192108577b79239e9` |
+| Pinned Rust replay | `e829627c74937c09a8d331602150c67b642f96a359bb2116110e507093b1a9df` |
+| Lean checker on 4.34.1 | `858d64b20c1f96cf7b0f7381b50fb5ea8a52f88780518d4da389ff2af2e974b1` |
+| Complete results.json | `464c687b19f91a7add9f582b55e6cfc3ec75c887e89c1bf7c346dddd96c20fb4` |
+
+Lean uses the condition on the reached branch to prove that a low mask
+leaves its input unchanged. WETH `balanceOf`, for example, checks that
+the decoded calldata word fits in 160 bits before using it in the
+storage-key calculation. The resulting effect tree has identical
+requests and terminal outcomes for arbitrary replies and handlers.
+The compiler parser, independent source export and effect-tree renderer
+remain trusted. A regression widens an eight-bit guard by one and checks
+that the mask removal loses its proof. The pinned Rust replay agrees
+with Lean on the different returned words when calldata is 256.
+The two `transferFrom` proofs still fail to close. The other 12 captures
+contain `GAS` in a body or supplied callee and need a gas-observation
+proof.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through

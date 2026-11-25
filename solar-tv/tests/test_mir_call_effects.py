@@ -150,6 +150,58 @@ bb0:
         before = program("v0 = alloc checked 32 !metadata(preserves_fmp)\nret 0")
         self.pair(before, program("ret 0"), succeeds=False)
 
+    def test_mask_removal_requires_a_reached_width_bound(self):
+        guard = "v1 = gt v0, 255"
+        mask = "  v2 = and v0, 255\n"
+        before = program(f"""v0 = calldataload 0
+{guard}
+jumpi v1, bb1, bb2
+bb1:
+  revert 0, 0
+bb2:
+{mask}  mstore 0, v2
+  returndata 0, 32""")
+        after = before.replace(mask, "").replace("mstore 0, v2", "mstore 0, v0")
+        self.pair(before, after)
+        self.pair(before.replace("and v0, 255", "and 255, v0"), after)
+
+        widened = "v1 = gt v0, 256"
+        invalid = [text.replace(guard, widened) for text in (before, after)]
+        self.pair(*invalid, succeeds=False)
+
+        paths = [self.directory / f"{side}.mir" for side in ("before", "after")]
+        for path, text in zip(paths, invalid, strict=True):
+            path.write_text(text)
+        world = self.directory / "world.json"
+        world.write_text(json.dumps({"version": 1, "calldata": f"0x{256:064x}"}))
+        report = self.directory / "report.json"
+        result = subprocess.run(
+            [
+                CLI,
+                "mir",
+                *paths,
+                "--solar",
+                SOLAR,
+                "--function",
+                "f",
+                "--world",
+                world,
+                "--timeout",
+                "20",
+                "--report",
+                report,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=90,
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        record = json.loads(report.read_text())
+        self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+        witness = record["witness"]
+        self.assertEqual(witness["observations"], witness["native_observations"])
+
     def test_unmodeled_callee_instructions_and_excess_expansion_are_rejected(self):
         definitions = {
             row["name"]: row for row in native.catalog(self.replay, 20)["evmir"]

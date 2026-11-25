@@ -16,6 +16,7 @@ import hashlib
 import json
 import re
 import tempfile
+from collections import Counter
 from dataclasses import replace
 from pathlib import Path
 
@@ -32,6 +33,25 @@ def scalar_width(ty):
     if ty.get("kind", "word") != "word":
         raise Unsupported("effect trees require integers or memory pointers")
     return int(mir_state.width(ty["bits"]))
+
+
+def low_masks(model):
+    counts = Counter()
+    for function in model["functions"]:
+        for block in function["blocks"]:
+            for inst in block["instructions"]:
+                op = inst["operation"]
+                if op["kind"] != "opcode" or op["name"] != "and":
+                    continue
+                for value in op["args"]:
+                    if value["kind"] != "constant" or value["type"]["kind"] != "word":
+                        continue
+                    mask = int(value["value"])
+                    bits = mask.bit_length()
+                    width = int(mir_state.width(value["type"]["bits"]))
+                    if 0 < bits < width and mask == (1 << bits) - 1:
+                        counts[width, bits] += 1
+    return counts
 
 
 def pure(op, args, bits, definitions):
@@ -827,12 +847,33 @@ def check(a, b, timeout, executable, *, void_abi=False):
     code = PRELUDE + "set_option maxHeartbeats 1000000\n"
     for name, tree in zip(("before", "after"), trees, strict=True):
         code += f"def {name} {binders} : MIR.Effects.Tree :=\n{tree}\n"
-    code += f"""
-theorem pair_correct {binders} : before {args} = after {args} := by
-  simp [before, after, MIR.compare, MIR.eval, MIR.cast, MIR.shift, Word.shift,
+    rules = """before, after, MIR.compare, MIR.eval, MIR.cast, MIR.shift, Word.shift,
     Word.binary, MIR.unary, Word.unary, MIR.select, MIR.wordBinary, MIR.ternary,
     MIR.LowerAlloc.freePointerRequest, MIR.LowerAlloc.constructorRequest,
-    BitVec.ofNatLT_eq_ofNat, BitVec.ult, MIR.Effects.abiReturn]
+    BitVec.ofNatLT_eq_ofNat, BitVec.ult, MIR.Effects.abiReturn"""
+    masks = low_masks(a.symbolic_mir["model"]) - low_masks(b.symbolic_mir["model"])
+    tactic = f"simp [{rules}]"
+    if masks:
+        lemmas = []
+        for width, bits in sorted(masks):
+            right = f"lowMask{width}_{bits}"
+            left = f"{right}Left"
+            mask = f"{(1 << bits) - 1}#{width}"
+            binder = f"(word : BitVec {width}) (small : word.toNat < {1 << bits})"
+            code += f"""
+private theorem {right} {binder} : word &&& {mask} = word :=
+  MIR.Effects.mask_of_bound {width} {bits} word (by decide) small
+private theorem {left} {binder} : {mask} &&& word = word := by
+  rw [BitVec.and_comm]
+  exact {right} word small
+"""
+            lemmas.extend((right, left))
+        tactic = f"""first
+  | (solve | {tactic})
+  | simp (config := {{contextual := true}}) (disch := omega) [{rules}, {", ".join(lemmas)}]"""
+    code += f"""
+theorem pair_correct {binders} : before {args} = after {args} := by
+  {tactic}
 #print axioms pair_correct
 """
     with tempfile.TemporaryDirectory(prefix="solar-tv-mir-effects-") as directory:
