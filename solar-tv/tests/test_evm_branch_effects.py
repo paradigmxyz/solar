@@ -165,6 +165,47 @@ class BranchEffectTests(unittest.TestCase):
             with self.subTest(lines=lines), self.assertRaises(Unsupported):
                 evm_effects.instructions(lines, catalog, "cancun", {"bb0"})
 
+    def test_peephole_preserves_branch_truth_and_replays_a_wrong_guard(self):
+        before, after, broken, world = (
+            self.directory / name
+            for name in ("before.evmir", "after.evmir", "broken.evmir", "world.json")
+        )
+        source = """@module Guard
+bb0:
+  calldatasize
+  iszero
+  iszero
+  push bb2
+  jumpi
+  jump bb1
+bb1:
+  stop
+bb2:
+  push 0
+  push 0
+  revert
+"""
+        before.write_text(source)
+        after.write_text(source.replace("  iszero\n  iszero\n", ""))
+        checked, record = self.cli([before, after], "--prefix", "bb0")
+        self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
+        self.assertEqual(
+            record["region"]["proof"], "kernel-checked-contextual-peephole"
+        )
+
+        broken.write_text(after.read_text().replace("calldatasize", "push 0"))
+        rejected, record = self.cli([before, broken], "--prefix", "bb0")
+        self.assertEqual(rejected.returncode, 2, rejected.stdout + rejected.stderr)
+        self.assertEqual(record["status"], "unsupported")
+
+        world.write_text('{"version":1,"gas":100000,"calldata":"0x01"}')
+        replay, record = self.cli([before, broken], "--world", world)
+        self.assertEqual(replay.returncode, 1, replay.stdout + replay.stderr)
+        self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+        self.assertEqual(
+            record["witness"]["observations"], record["witness"]["native_observations"]
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

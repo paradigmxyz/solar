@@ -64,11 +64,10 @@ def bind(sources, texts, solar, version, timeout, catalog):
             raise Unsupported(
                 "declared bytes are absent from the end of the assembled code"
             )
-        operations = [
-            node["operation"]
-            for row in source["nodes"]
-            if operation((node := row["node"]).get("operation", ""))
-        ]
+        names = source.get("instructions")
+        if names is None:
+            names = [row["node"].get("operation", "") for row in source["nodes"]]
+        operations = [name for name in names if operation(name)]
         evidence.append(
             {
                 "image_sha256": hashlib.sha256(image).hexdigest(),

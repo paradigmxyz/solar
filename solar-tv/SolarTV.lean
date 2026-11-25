@@ -19,6 +19,7 @@ import SolarTV.MIR.Transforms.LowerAllocPrefix
 import SolarTV.EVMIR.Transforms.EqIszeroJumpi
 import SolarTV.EVMIR.Transforms.BranchLayout
 import SolarTV.EVMIR.Transforms.StackPeephole
+import SolarTV.EVMIR.Transforms.ContextualPeephole
 import SolarTV.EVMIR.Transforms.RelocatedReturn
 import SolarTV.EVMIR.Transforms.EncodedTable
 import SolarTV.EVMIR.Transforms.IndexedGuard

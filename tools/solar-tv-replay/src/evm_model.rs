@@ -40,6 +40,8 @@ struct Input {
     #[serde(default)]
     window: bool,
     #[serde(default)]
+    window_code_tail: bool,
+    #[serde(default)]
     labels: bool,
     #[serde(default)]
     indexed_tables: bool,
@@ -76,7 +78,7 @@ pub(super) fn export() -> Result<Value, String> {
             .find(|(_, b)| input.entry.is_none_or(|label| b.label == label))
             .ok_or("missing EVM model entry")?;
         if input.window {
-            window(&module, entry)
+            window(&module, entry, input.window_code_tail)
         } else {
             graph(&module, entry, input.labels, input.entry.is_none())
         }
@@ -289,23 +291,37 @@ fn instruction(inst: &Instruction) -> Result<String, String> {
 
 /// Export every operation in a block, including its final transfer. Consumers
 /// may prove a prefix only if the entire remaining continuation is identical.
-fn window(module: &Module, entry: BlockId) -> Result<Value, String> {
+fn window(module: &Module, entry: BlockId, code_tail: bool) -> Result<Value, String> {
     let block = &module.blocks[entry];
-    let instructions = block
-        .instructions
-        .iter()
-        .map(|inst| {
-            if let Some(target) = inst.pushed_block() {
-                Ok(format!("push bb{}", module.blocks[target].label))
-            } else {
-                instruction(inst)
-            }
-        })
-        .collect::<Result<Vec<_>, String>>()?;
+    let suffix = code_tail.then(|| relocations::suffix(module)).flatten();
+    let mut body = block.instructions.as_slice();
+    let mut instructions = Vec::new();
+    let mut reads_code_tail = false;
+    while let Some((inst, rest)) = body.split_first() {
+        if let Some(read) = suffix.and_then(|suffix| relocations::recognize(body, suffix.len()))
+            && read.name == "size-init-tail"
+        {
+            instructions.push(read.name);
+            body = &body[read.count..];
+            reads_code_tail = true;
+            continue;
+        }
+        let rendered = if let Some(target) = inst.pushed_block() {
+            format!("push bb{}", module.blocks[target].label)
+        } else {
+            instruction(inst)?
+        };
+        instructions.push(rendered);
+        body = rest;
+    }
     let terminal = &block.terminator.as_ref().ok_or("missing EVM window terminator")?.kind;
-    Ok(json!({
+    let mut window = json!({
         "instructions": instructions,
         "terminal": format!("{terminal:?}"),
         "following": module.next_block(entry).map(|id| module.blocks[id].label),
-    }))
+    });
+    if reads_code_tail {
+        window["data_suffix"] = alloy_primitives::hex::encode(suffix.unwrap()).into();
+    }
+    Ok(window)
 }

@@ -18,10 +18,13 @@ from pathlib import Path
 from . import audit, evmir, native, regions
 from .common import Program, Unsupported
 
-UNFOLD = "EVM.Prefix.run, EVM.stepChecked, EVM.step, Evm.add, BitVec.add_comm"
+UNFOLD = (
+    "EVM.Prefix.run, EVM.stepChecked, EVM.step, Evm.add, BitVec.add_comm, "
+    "EVM.ContextualPeephole.odd_word"
+)
 
 
-def export(text, entry, version, executable, timeout):
+def export(text, entry, version, executable, timeout, *, code_tail=False):
     response = subprocess.run(
         [executable, "--evm-model"],
         input=json.dumps(
@@ -31,6 +34,7 @@ def export(text, entry, version, executable, timeout):
                 "entry": int(entry.removeprefix("bb")),
                 "evm_version": version,
                 "window": True,
+                **({"window_code_tail": True} if code_tail else {}),
             }
         ),
         text=True,

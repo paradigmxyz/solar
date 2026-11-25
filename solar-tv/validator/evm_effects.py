@@ -33,12 +33,21 @@ EFFECTS = {
 }
 
 
-def instructions(lines, catalog, version, labels=None):
+def instructions(lines, catalog, version, labels=None, *, code_tail=False):
     rendered = []
     required = peak = delta = 0
     index = 0
     while index < len(lines):
         line = lines[index]
+        if line == "size-init-tail" and code_tail:
+            # The recognized PUSH/CODESIZE/SUB sequence uses two scratch
+            # slots and leaves one word. Its matched relocation and charge
+            # are supplied by the bound constructor code context.
+            rendered.extend((".reserve 2", ".effect 256 0 1"))
+            peak = max(peak, delta + 2)
+            delta += 1
+            index += 1
+            continue
         if guard := re.fullmatch(r"push bb(\d+)", line):
             target = int(guard[1])
             if (
@@ -92,7 +101,7 @@ def instructions(lines, catalog, version, labels=None):
     return rendered, required, peak
 
 
-def stack_proof(required, peak, extra=""):
+def stack_proof(required, peak, extra="", *, discharger="omega"):
     definitions = (
         "before, after, EVM.Effects.expand, EVM.Effects.Refines, EVM.stepChecked, "
         "EVM.step, EVM.Effects.guardStack, EVM.Gas.pureCost, Fork.atLeast, Evm.add, BitVec.add_comm, "
@@ -101,6 +110,7 @@ def stack_proof(required, peak, extra=""):
         + ", ".join(f"index{i}" for i in range(16))
         + extra
     )
+    solve = f"simp (disch := {discharger}) [{definitions}, {{hypotheses}}]"
 
     def body():
         offset = required + peak
@@ -111,18 +121,18 @@ def stack_proof(required, peak, extra=""):
             f"  have h{i} : 1024 < stack.length + {i} := by omega"
             for i in range(1, offset + 1)
         ]
-        lines += [f"  simp [{definitions}, {hypotheses}]"]
+        lines += ["  " + solve.format(hypotheses=hypotheses)]
         for i in range(offset):
             lines += [
                 f"by_cases edge{i} : stack.length = {1024 - i}",
-                f"· simp [{definitions}, edge{i}]",
+                "· " + solve.format(hypotheses=f"edge{i}"),
             ]
         lines += [
             f"have h{i} : ¬1024 < stack.length{' + ' + str(i) if i else ''} := by omega"
             for i in range(offset + 1)
         ]
         # Subtraction-based effect arities need lower as well as upper bounds.
-        lines += [f"simp (disch := omega) [{definitions}, {hypotheses}]"]
+        lines += [solve.format(hypotheses=hypotheses)]
         return "\n".join(lines)
 
     def cases(index):
@@ -130,7 +140,9 @@ def stack_proof(required, peak, extra=""):
             return body()
         return (
             "cases stack with\n"
-            + f"| nil => simp [{definitions}]\n"
+            + "| nil => "
+            + solve.format(hypotheses="Nat.add_zero")
+            + "\n"
             + f"| cons word{index} stack =>\n"
             + "\n".join("  " + line for line in cases(index + 1).splitlines())
         )

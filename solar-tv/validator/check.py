@@ -1008,7 +1008,7 @@ def main() -> int:
                 raise Unsupported(
                     "--interaction-trace requires an unpriced EVM IR region with symbolic stack and world"
                 )
-            from . import compact_pushes, source_identity
+            from . import compact_pushes, peephole, source_identity
 
             paths = (args.before, args.after)
             try:
@@ -1038,7 +1038,20 @@ def main() -> int:
                 except compact_pushes.RecipeRejected as retry:
                     raise retry from None
                 except Unsupported:
-                    raise error from None
+                    try:
+                        result = peephole.check(
+                            paths,
+                            solar,
+                            rust_replay,
+                            version,
+                            args.timeout,
+                            args.region,
+                            paired_observers=True,
+                        )
+                    except Unsupported as retry:
+                        if args.verbose:
+                            print(f"EVM peephole trace: {retry}", file=sys.stderr)
+                        raise error from None
             programs = list(result.pair)
         elif args.prune:
             if (
@@ -1372,7 +1385,7 @@ def main() -> int:
             and args.world is None
             and args.gas is None
         ):
-            from . import compact_pushes
+            from . import compact_pushes, peephole
 
             try:
                 fallback = compact_pushes.check(
@@ -1392,6 +1405,19 @@ def main() -> int:
                 error = retry
             except Unsupported:
                 pass
+            if fallback is None:
+                try:
+                    fallback = peephole.check(
+                        (args.before, args.after),
+                        solar,
+                        rust_replay,
+                        version,
+                        args.timeout,
+                        entry,
+                    )
+                except (Unsupported, OSError, subprocess.TimeoutExpired) as retry:
+                    if args.verbose:
+                        print(f"EVM peephole proof: {retry}", file=sys.stderr)
         elif (
             isinstance(error, (Unsupported, subprocess.TimeoutExpired))
             and not isinstance(error, Inconclusive)
@@ -1551,6 +1577,10 @@ def main() -> int:
                 )
                 if args.stack_height is not None:
                     record["region"]["requested_stack_height"] = args.stack_height
+                record["region"]["stack_height"] = None
+            if result.program and result.program.scope == "peephole-window":
+                record["region"]["kind"] = "window"
+                record["region"]["proof"] = result.program.import_evidence["kind"]
                 record["region"]["stack_height"] = None
             if args.region and len(programs) == 2:
                 record["region"]["blocks_before"] = list(

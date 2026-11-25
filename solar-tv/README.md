@@ -284,6 +284,16 @@ JUMPI charges, including PUSH0. Binding that context to relocated bytecode
 remains trusted. A changed exit is rejected, and a broken decoder store offset
 has a counterexample independently checked by Lean and the Rust interpreter.
 
+### EVM stack and branch peepholes
+
+The contextual peephole check retains an unchanged prefix and continuation
+around the edited operations. Lean checks ordered effect requests, the
+outgoing stack, static branch selection and remaining gas for every
+successful source window. The constructor case binds the ordinary code-tail
+length query to both assembled images. A gas-sensitive continuation requires
+exact gas or an explicit paired observation via `--interaction-trace`.
+[Pinned audit and proof assumptions](CORRECTNESS.md#pinned-evm-peephole-audit)
+
 ### EVM rewrites after precompiles
 
 WETH's predicate peephole replaces `EQ; ISZERO` with `SUB` after a recovery

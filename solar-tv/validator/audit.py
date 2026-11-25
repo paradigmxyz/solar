@@ -910,6 +910,24 @@ def record(
                     "abstract MIR operations unpriced; no physical gas, backend placement or whole-contract claim",
                 ]
             )
+        elif program and program.scope == "peephole-window":
+            assumptions.extend(
+                [
+                    "independently exported common prefix and continuation, including terminal and physical successor; shared executor and relocation bindings remain trusted",
+                    "kernel-checked original-success refinement of the changed window for all incoming stacks, shared dynamic replies and prices",
+                    "matched taken branches retain live stack and world; skipped context retains every prefix halt",
+                    "remaining gas may increase; the shared continuation may require a separate gas-sensitive correspondence proof",
+                ]
+            )
+            if observers := program.import_evidence["continuation_observers"]:
+                assumptions.append(
+                    "continuation needs paired gas/code observations and outcomes for "
+                    + ", ".join(observers)
+                )
+            if "constructor_code_tail" in program.import_evidence:
+                assumptions.append(
+                    "bound constructor data-end relocation; shared constructor argument length and charge"
+                )
         elif program and program.scope == "interior-window":
             assumptions.extend(
                 [
@@ -1027,6 +1045,7 @@ def record(
                 "mint-layout",
                 "burn-layout",
                 "interior-window",
+                "peephole-window",
                 "compact-pushes",
                 "source-identity",
                 "stack-layout",
@@ -1128,6 +1147,7 @@ def record(
                 "effectful-prefix",
                 "shared-prefix-suffix",
                 "interior-window",
+                "peephole-window",
                 "compact-pushes",
             }
             else policy

@@ -2948,6 +2948,78 @@ This join uses multiple checker revisions, proof budgets and scopes. The
 single three-second run remains at 1,492 verified. Among the remaining records
 in the join, EVM IR `peephole-early` has 24 and MIR `cfg-simplify` has 23.
 
+### Pinned EVM peephole audit
+
+The serial `evaluate --all --pass peephole-early --timeout 25 --seed 0`
+run verifies 34 of 35 captures. All capture IDs, raw IR hashes, compiler
+inputs and output fingerprints match the full audit. ABI and creation and
+runtime bytecode match between plain and capture compilation.
+
+| Contract | Captured | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Solady WETH | 3 | 3 | 0 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 4 | 4 | 0 | 0 | 0 |
+| Morpho Blue | 28 | 27 | 1 | 0 | 0 |
+| Total | 35 | 34 | 1 | 0 | 0 |
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Checker on Lean 4.34.1 | `c53d90bc1d4709a8bcc84751f5f21627bca8a0645530f4cb0c5f65cbd35d6b90` |
+| Independent replay with constructor window export | `857e527dae753105ba83cbf5e55d8632d5062699d3dbfecbc643d03879d24008` |
+| `target/tv-peephole-audit-first/results.json` | `9ee70244cf384eb3c8cef8b0aa0c67747614b4192808110a6bb349155fd597e1` |
+| `target/tv-peephole-morpho-paired.json` | `05fffa18c73a53a4af8eb82869a47fa5131e55eb9e862b25fa4ad9bc6459dd69` |
+
+The kernel checks the matched scalar windows on every stack under the
+1024-word limit. At conditional consumers it compares the taken label and
+complete outgoing stack. That proves the zero-test elimination, subtraction
+guard, and adjusted comparison bound without requiring equality of the
+consumed condition word. The proof retains ordered effect requests and
+charges. For every original success the target reaches the same exit with
+the same stack and world and at least as much gas. This policy leaves
+source failures unconstrained. Shared prefixes preserve their full source
+instruction list and may halt before the window. The typed export, renderer,
+shared executor and continuation bindings remain trusted.
+
+The constructor window exports the recognized `PUSH` / `CODESIZE` / `SUB`
+argument-length computation and binds both assembled images to the declared
+data end. The local proof charges a shared reply and checks the two scratch
+slots. It proves the folded extent under that shared argument-length and
+charge binding. ERC20Mock's packed word rewrite proves exact gas into the
+shared `SSTORE` continuation.
+
+Morpho `bb111` retains an immediate `GAS` / `CALL` continuation. The default
+audit leaves it unsupported. The separate `--interaction-trace` check
+proves the changed stack window up to the common tail with paired downstream
+gas observations and outcomes as a premise for using that tail. The local
+kernel theorem ends before `GAS` and does not equate the real child budgets.
+
+Independent bytecode replay starts from the pinned `createMarket` ABI input
+with 500,000 gas and the stateful IRM that writes slot 7 and returns a word.
+The images assemble the complete captured EVM IR with later passes disabled
+and both immutable pushes bound to the same 32-byte fixture word. A third
+image starts from the original capture and replaces only `bb111` with the
+actual rewritten block. All three runs send the same 356 bytes to the same
+IRM with zero value. They commit the same storage and event on this fixture.
+
+| Image | Physical CALL PC | CALL gas operand | Gas at exit |
+| --- | ---: | ---: | ---: |
+| Before peephole pass | 3218 | 371752 | 346993 |
+| After complete peephole pass | 3203 | 371764 | 347005 |
+| Only `bb111` changed | 3216 | 371758 | 346999 |
+
+The isolated change raises the gas operand by six. The independent replay
+result in `target/tv-peephole-morpho-emitted/result.json` binds the originals,
+the fixture, the laid-out inputs and the three byte images. Its SHA-256 is
+`6a23efa0bafc7edde25a270e549f8418bff8af3cd35ea4e66f38090019aa3ce2`.
+The altered-guard regression independently checks the failure mode. Replacing
+the consumed calldata-size condition with zero changes a taken revert to a
+successful fallthrough for one byte of calldata. Lean and the Rust replay
+agree on both outcomes.
+
+This audit adds 23 verified capture IDs to the preceding saved coverage
+join, bringing it to 2,046 of 2,228. The paired-only result stays outside that
+total.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
