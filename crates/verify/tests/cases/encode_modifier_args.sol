@@ -20,7 +20,7 @@ contract EncodeModifierArgs {
     }
 
     // Only the modifier argument of `_step` writes `a`.
-    // expect: solver returned unknown
+    // expect: postcondition not satisfied
     /// @custom:ensures r == keccak256(abi.encode(x, uint256(2)))
     function bad_modifier_arg_write(uint256 x) external pure returns (bytes32 r) {
         uint256[1] memory a;

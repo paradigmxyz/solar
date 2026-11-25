@@ -12,7 +12,7 @@ contract EncodeLibraryPush {
     using L for uint256;
 
     // The library `push` writes `a[0]` before the compiled code encodes `a`.
-    // expect: solver returned unknown
+    // expect: postcondition not satisfied
     /// @custom:ensures result == keccak256(abi.encode(uint256(0), uint256(2)))
     function bad_library_push() external pure returns (bytes32 result) {
         uint256[1] memory a;

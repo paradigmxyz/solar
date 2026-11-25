@@ -18,7 +18,7 @@ contract EncodeOverloadKey {
     uint256[1] internal st;
 
     // The `uint256` overload writes `st[0]` before the compiled code encodes `st`.
-    // expect: solver returned unknown
+    // expect: postcondition not satisfied
     /// @custom:ensures r == keccak256(abi.encode(x, uint256(2)))
     function bad_overload_key(uint256 x, uint256 v) external returns (bytes32 r) {
         st[0] = x;
