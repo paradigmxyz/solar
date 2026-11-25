@@ -147,6 +147,8 @@ pub(crate) struct Vc<'p, 'a> {
     /// Whether this VC runs a constructor: this contract's address holds no code until it
     /// returns, so outside code it calls cannot call back in (see `external_call`).
     in_ctor: bool,
+    /// While the call being made is a `delegatecall` (see `external_call`).
+    delegate: bool,
     /// While computing what entry points open under the reentrancy lock may write: their external
     /// calls run under the same lock, so they reach only those entry points again.
     lock_modset: std::cell::Cell<bool>,
@@ -325,6 +327,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             revert_sites: vec![],
             try_call: None,
             in_ctor: false,
+            delegate: false,
             lock_modset: std::cell::Cell::new(false),
             effect_frames: Default::default(),
             walk_scope: Default::default(),
@@ -2924,8 +2927,13 @@ impl<'p, 'a> Vc<'p, 'a> {
                             }
                             return;
                         }
-                        if m == "transfer" || m == "send" {
+                        if (m == "transfer" || m == "send") && argv.len() == 1 {
                             out.insert("__balance".into());
+                            // The recipient's code runs with the stipend, which can still write
+                            // transient storage (see `transfer_send`).
+                            for sv in self.c.state.iter().filter(|s| s.transient) {
+                                out.insert(sv.name.clone());
+                            }
                         }
                         if let ExprKind::Ident(b) = &base.kind {
                             let b = b.as_str();
@@ -2971,7 +2979,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                             }
                             return;
                         }
-                        if !self.static_member(m) && !self.lock_modset.get() {
+                        if !self.static_member(m, argv.len()) && !self.lock_modset.get() {
                             *all = true;
                         }
                     }
@@ -3167,18 +3175,10 @@ impl<'p, 'a> Vc<'p, 'a> {
         out
     }
 
-    fn static_member(&self, m: &str) -> bool {
-        if [
-            "transfer",
-            "send",
-            "encode",
-            "encodePacked",
-            "encodeWithSelector",
-            "decode",
-            "staticcall",
-        ]
-        .contains(&m)
-        {
+    fn static_member(&self, m: &str, nargs: usize) -> bool {
+        // The address members, which take one argument; a contract's function of the same
+        // name (a token's `transfer(to, amount)`) may run any code. `abi.*` never reaches here.
+        if nargs == 1 && ["transfer", "send", "staticcall"].contains(&m) {
             return true;
         }
         let mut found = false;
@@ -4907,11 +4907,13 @@ impl<'p, 'a> Vc<'p, 'a> {
                         // delegated code runs on our storage, even in a constructor
                         let in_ctor = self.in_ctor;
                         self.in_ctor &= m != "delegatecall";
+                        let delegate = std::mem::replace(&mut self.delegate, m == "delegatecall");
                         let r = self.external_call(
                             vec![Ty::Bool, Ty::Opaque],
                             m == "staticcall",
                             e.span,
                         );
+                        self.delegate = delegate;
                         self.in_ctor = in_ctor;
                         let mut r = r?;
                         r[0] = Self::val(Ty::Bool, ok);
@@ -4960,6 +4962,17 @@ impl<'p, 'a> Vc<'p, 'a> {
                             match live {
                                 Some(p) => self.reverts_if(&format!("(not {p})")),
                                 None => self.reverts_if("true"),
+                            }
+                        } else {
+                            // A try catches only the callee's own revert. The code check before
+                            // the call and the decoding of what it returns run in the caller,
+                            // and revert it, unless the target runs code of the program here
+                            // (this contract, or one this VC created).
+                            let this = self.env.get("this").map(|v| v.t.clone());
+                            let known = this.as_deref() == Some(bv.t.as_str())
+                                || self.known_code.iter().any(|(a, _)| *a == bv.t);
+                            if !known || target.is_none() {
+                                self.reverts_if("true");
                             }
                         }
                         // a contract this VC created whose code here runs nothing outside
@@ -6174,6 +6187,16 @@ impl<'p, 'a> Vc<'p, 'a> {
 
     /// addr.transfer(v) / addr.send(v): moves v wei out of this contract (2300 gas: no reentry).
     fn transfer_send(&mut self, m: &str, to: &str, v: Val) -> R<Vec<Val>> {
+        // The recipient runs with a 2300 gas stipend: too little to write storage (SSTORE
+        // needs more than 2300 gas left) but enough to reenter us and write transient storage.
+        self.with_storage(|s| {
+            let c = s.c;
+            for sv in c.state.iter().filter(|sv| sv.transient && !sv.constant) {
+                let fv = s.fresh_var(&sv.name, &sv.ty);
+                s.env.insert(sv.name.clone(), fv);
+            }
+            Ok(())
+        })?;
         let (Some(bal), Some(this)) =
             (self.env.get("__balance").cloned(), self.env.get("this").cloned())
         else {
@@ -6283,7 +6306,9 @@ impl<'p, 'a> Vc<'p, 'a> {
         // of it: the call acts as one under a reentrancy lock that leaves no entry point open.
         // Only a delegatecall runs outside code on our storage, and it clears `in_ctor`.
         let ctor = self.in_ctor && !self.spec && !is_static;
-        let locked = ctor || !self.spec && !is_static && self.lock_held();
+        // Delegated code runs on our storage whatever lock we hold: it may write anything,
+        // the lock included, and spend our ETH.
+        let locked = ctor || !self.spec && !is_static && !self.delegate && self.lock_held();
         // Entry points the callee can still reach under the lock: the invariants must hold before
         // the call, and afterwards everything those entry points may write is unknown (each of
         // them preserves the invariants, which are proved separately).
@@ -6944,22 +6969,35 @@ impl<'p, 'a> Vc<'p, 'a> {
         seen: &mut FxHashSet<String>,
     ) -> bool {
         let mut calls: Vec<String> = vec![];
+        // A call through a function pointer may run any function referenced as a value.
+        let mut ptr_call = false;
+        let is_fn = |n: &str| {
+            self.prog
+                .contracts
+                .iter()
+                .any(|c| c.funcs.iter().chain(c.overridden.iter()).any(|g| g.name == n))
+        };
         for s in &stmts {
             walk::all_stmts(s, &mut |s| {
                 walk::stmt_exprs(s, &mut |e| {
-                    walk::sub_exprs(e, &mut |x| {
-                        if let ExprKind::Call(c, _) = &x.kind {
-                            match &c.kind {
-                                ExprKind::Ident(i) => calls.push(i.as_str().to_string()),
-                                ExprKind::Member(_, m) => calls.push(m.as_str().to_string()),
-                                _ => {}
+                    walk::sub_exprs(e, &mut |x| match &x.kind {
+                        ExprKind::Call(c, _) => match &c.peel_parens().kind {
+                            ExprKind::Ident(i) => {
+                                ptr_call |= !is_fn(i.as_str()) || self.var_named(i.as_str());
+                                calls.push(i.as_str().to_string());
                             }
-                        }
+                            ExprKind::Member(_, m) => calls.push(m.as_str().to_string()),
+                            ExprKind::New(_) | ExprKind::Type(_) => {}
+                            _ => ptr_call = true,
+                        },
+                        // A function named as a value (a pointer's target) may be called.
+                        ExprKind::Ident(i) => calls.push(i.as_str().to_string()),
+                        _ => {}
                     })
                 });
             });
         }
-        if calls.iter().any(|n| n == target) {
+        if calls.iter().any(|n| n == target) || ptr_call && self.fn_value_named(target) {
             return true;
         }
         for n in calls {
@@ -6975,6 +7013,44 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
         }
         false
+    }
+
+    /// Whether some function of the program names function `n` other than as the callee of a
+    /// call: a function pointer may then hold it.
+    fn fn_value_named(&self, n: &str) -> bool {
+        let mut found = false;
+        for c in &self.prog.contracts {
+            for g in c.funcs.iter().chain(c.overridden.iter()) {
+                for s in self.fn_stmts(g) {
+                    walk::all_stmts(s, &mut |s| {
+                        walk::stmt_exprs(s, &mut |e| {
+                            let mut callees: FxHashSet<Span> = FxHashSet::default();
+                            walk::sub_exprs(e, &mut |x| {
+                                if let ExprKind::Call(c, _) = &x.kind {
+                                    callees.insert(c.peel_parens().span);
+                                }
+                            });
+                            walk::sub_exprs(e, &mut |x| {
+                                if let ExprKind::Ident(i) = &x.kind
+                                    && i.as_str() == n
+                                    && !callees.contains(&x.span)
+                                {
+                                    found = true;
+                                }
+                            });
+                        });
+                    });
+                }
+            }
+            for sv in &c.state {
+                if let Some(init) = sv.init {
+                    walk::sub_exprs(init, &mut |x| {
+                        found |= matches!(&x.kind, ExprKind::Ident(i) if i.as_str() == n);
+                    });
+                }
+            }
+        }
+        found
     }
 
     /// An implicit conversion of v to type ty: a `bytesM` widens to a wider `bytesN` by padding
