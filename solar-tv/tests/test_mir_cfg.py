@@ -506,6 +506,52 @@ fn @choose(arg0: i256) -> i256 {
                 left, right = map(json.loads, result["observations"])
                 self.assertEqual(left == right, target is programs[1])
 
+    def test_cse_reuses_a_warm_slot_across_a_disjoint_write(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{name}.mir" for name in ("before", "after"))
+            source = """@module WarmSlotReuse
+fn @choose(arg0: i256) -> i256 {
+  bb0:
+    v0 = mapping_slot arg0, 3
+    v1 = sload v0
+    v2 = ne arg0, 0
+    jumpi v2, bb1, bb2
+  bb1:
+    v3 = add v0, 1
+    sstore v3, 19
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v4 = mapping_slot arg0, 3
+    v5 = sload v4
+    v6 = add v1, v5
+    ret v6
+}
+"""
+            reduced = source.replace(
+                "    v4 = mapping_slot arg0, 3\n    v5 = sload v4\n", ""
+            ).replace("add v1, v5", "add v1, v1")
+            before.write_text(source)
+            after.write_text(reduced)
+            proof = self.check_loop(root, 0)
+            reuse = proof["import_correspondence"][0]["correspondence"]["choose"][
+                "state_read_reuse"
+            ]
+            self.assertEqual(reuse, [{"mapping": 1, "sload": 1}, {}])
+
+            original, optimized = [
+                text.replace("add v0, 1", "add v0, 0") for text in (source, reduced)
+            ]
+            before.write_text(original)
+            after.write_text(optimized)
+            self.check_loop(root, 2)
+            matched = self.replay_loop(root, source, reduced, [7])
+            broken = self.replay_loop(root, original, optimized, [7])
+            self.assertEqual(matched, [["0"], ["0"]])
+            self.assertEqual(broken, [["19"], ["0"]])
+
     def test_dce_requires_active_memory_for_an_unused_load(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

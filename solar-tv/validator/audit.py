@@ -562,6 +562,17 @@ def record(
                     assumptions.append(
                         "memory is aligned and at most 64 KiB. The continuing CALL activates its 32-byte output at offset zero and the removed MLOAD reads that active word"
                     )
+            if any(
+                check.get("state_read_reuse")
+                for check in program.import_evidence["correspondence"].values()
+            ):
+                assumptions.extend(
+                    [
+                        "a kernel-checked backward slice requires a producer on every path to each reused read and preservation on intervening edges",
+                        "memory is aligned and at most 64 KiB. The typed projection binds active memory words, persistent or transient storage cells, and fixed mapping scratch writes to their producer and preserving actions",
+                        "normal-return summaries for direct callees are checked from their exported bodies. Storage offsets share a modular base or are exact constants. Mapping hashes use the same bytes and hash function",
+                    ]
+                )
             if program.import_evidence["kind"] == "kernel-checked-fixed-storage-slots":
                 assumptions.append(
                     "fixed storage keys preserve scratch bytes and hash input in aligned memory up to 64 KiB at each expanded logical action"

@@ -16,6 +16,7 @@ from . import (
     prune,
     scalar_checks,
     scalar_reuse,
+    state_read_reuse,
     type_prune,
 )
 from .common import Program, Unsupported
@@ -817,6 +818,7 @@ set_option maxHeartbeats 2000000
 """
     bodies = []
     scalar_definitions = None
+    read_only = None
     while work:
         name = work.pop()
         if name in checked:
@@ -909,7 +911,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 f"(fun graph => run graph {limit} handle work 0 locals state) identical{i}"
             )
         else:
-            scalar_stats = []
+            scalar_stats, state_stats = [], []
             try:
                 points, edges, live, limit, word_rewrites, increment_rewrites = pairing(
                     old, new
@@ -941,17 +943,53 @@ theorem identical{i} : before{i} = after{i} := by rfl
                     reduced, stats, sites = scalar_reuse.normalize(
                         body, scalar_definitions, version, empty_targets=empty_targets
                     )
-                    normalized.append(import_graph(reduced))
+                    normalized.append(reduced)
                     scalar_stats.append(stats)
                     body_code += scalar_reuse.certificate(
                         f"scalar{i}_{side}", body, sites
                     )
-                if not any(scalar_stats):
-                    raise error from None
-                old, new = normalized
-                points, edges, live, limit, word_rewrites, increment_rewrites = pairing(
-                    old, new
-                )
+                old, new = map(import_graph, normalized)
+                try:
+                    pairs = pairing(old, new)
+                except Unsupported:
+                    first_state_use = read_only is None
+                    if first_state_use:
+                        read_only = [
+                            state_read_reuse.read_only_functions(
+                                table.values(), scalar_definitions, version
+                            )
+                            for table in tables
+                        ]
+                        setup += state_read_reuse.AXIOMS
+                    projected = []
+                    for side, body in enumerate(normalized):
+                        reduced, flow, reuses = state_read_reuse.normalize(
+                            body, scalar_definitions, version, read_only=read_only[side]
+                        )
+                        if reuses:
+                            body_code += state_read_reuse.certificate(
+                                f"reads{i}_{side}", flow, reuses
+                            )
+                            untrimmed = reduced
+                            reduced, stats, sites = scalar_reuse.normalize(
+                                untrimmed,
+                                scalar_definitions,
+                                version,
+                                empty_targets=empty_targets,
+                            )
+                            scalar_stats[side] = dict(
+                                Counter(scalar_stats[side]) + Counter(stats)
+                            )
+                            body_code += scalar_reuse.certificate(
+                                f"readScalars{i}_{side}", untrimmed, sites
+                            )
+                        projected.append(import_graph(reduced))
+                        state_stats.append(dict(Counter(space for space, _ in reuses)))
+                    if not any(state_stats):
+                        raise error from None
+                    old, new = projected
+                    pairs = pairing(old, new)
+                points, edges, live, limit, word_rewrites, increment_rewrites = pairs
             witnesses = [
                 render_point(point, targets, locals_)
                 for point, targets, locals_ in zip(points, edges, live, strict=True)
@@ -970,6 +1008,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 "increment_guard_rewrites": increment_rewrites,
                 "literal_branches": literal_branches,
                 **({"scalar_reuse": scalar_stats} if any(scalar_stats) else {}),
+                **({"state_read_reuse": state_stats} if any(state_stats) else {}),
             }
         checked[name]["product_initialization"] = product_initialization
         checked[name].update(expansions)

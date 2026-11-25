@@ -45,7 +45,7 @@ theorem empty_call (cfg : Config) (functions : Functions) (id : Nat)
   simp [transition, target, required, enter, typedWords, publishReturns,
     Bind.bind, Except.bind, Pure.pure, Except.pure]
 
-private theorem expanded_size (memory grown : List Byte) (offset count : Nat)
+theorem expanded_size (memory grown : List Byte) (offset count : Nat)
     (aligned : memory.length % 32 = 0)
     (expanded : expand memory offset count = .ok grown) :
     grown.length = 32 * requiredWords memory offset count ∧ grown.length ≤ 65536 := by
