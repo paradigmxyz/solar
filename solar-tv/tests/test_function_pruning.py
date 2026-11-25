@@ -12,7 +12,8 @@ from pathlib import Path
 from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
-from validator import evaluate, prune
+from validator import evaluate, native, prune, world
+from validator.common import Program
 
 
 class FunctionPruningTests(unittest.TestCase):
@@ -216,6 +217,95 @@ bb0:
             {row["region"]["name"] for row in rows},
             {"unused", "unused_leaf", "live", "spin", "loop"},
         )
+
+    def test_live_inline_certificate_and_changed_return_replay(self):
+        before, after, changed = (
+            self.directory / f"{side}.mir" for side in ("before", "after", "changed")
+        )
+        before.write_text("""@module InlineStorage
+fn @f() -> i256 [selector=0x01020304, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @read
+    ret v0
+}
+fn @read() -> i256 {
+  bb0:
+    v0 = sload 0
+    v1 = ne v0, 7
+    jumpi v1, bb1, bb2
+  bb1:
+    ret v0
+  bb2:
+    ret 42
+}
+""")
+        audit = self.directory / "inline-audit"
+        env = {**os.environ, "SOLAR": SOLAR, "SOLAR_TV": CLI}
+        command = [
+            SOLAR,
+            before,
+            "-Ogas",
+            "-Zmir-pipeline=inline",
+            "-Zvalidate-ir=true",
+        ]
+        original, audited = [
+            subprocess.run(
+                [*command, *flags],
+                env=env,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=100,
+            )
+            for flags in ([], [f"-Zsolar-tv={audit}"])
+        ]
+        for result in (original, audited):
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(original.stdout, audited.stdout)
+        records = [
+            json.loads(path.read_text()) for path in (audit / "audits").glob("*.json")
+        ]
+        self.assertEqual(len(records), 1, audited.stderr)
+        record = records[0]
+        self.assertEqual(record["status"], "verified")
+        self.assertEqual(record["gas_policy"], "semantic-effects")
+        self.assertEqual(record["region"]["proof"], "rooted-inline-effects")
+        self.assertEqual(record["region"]["changed_entries"], ["f"])
+
+        after.write_text(original.stdout)
+        self.assertRegex(original.stdout, r"phi .*: 42\]")
+        changed.write_text(original.stdout.replace(": 42]", ": 43]"))
+        result, failure = self.cli([before, changed], "--prune")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("MIR inline entry f failed", failure["diagnostic"])
+
+        fixture_path = self.directory / "state.json"
+        fixture_path.write_text(
+            '{"version":1,"accounts":[{"address":65536,"storage":{"0":"7"}}]}'
+        )
+        state = world.read(fixture_path, SOLAR, None, kind="mir")
+        programs = [
+            Program(
+                ("world-entry", "mir"),
+                [],
+                "",
+                "",
+                world=state,
+                evm_version="cancun",
+                selector="f",
+                canonical_ir=path.read_text(),
+            )
+            for path in (before, after, changed)
+        ]
+        for program, expected in zip(programs[1:], ("42", "43"), strict=True):
+            sources = native.replay(
+                programs[0], program, [], executable=native.default(SOLAR), timeout=20
+            )
+            source, target = [json.loads(obs) for obs in sources["observations"]]
+            self.assertEqual(source["values"], ["42"])
+            self.assertEqual(target["values"], [expected])
+            if expected == "42":
+                self.assertEqual(source, target)
 
     def test_structural_certificate_does_not_accept_world_or_gas_claims(self):
         for flags in (("--gas", "refine"), ("--world", self.folder / "before.mir")):

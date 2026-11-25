@@ -1905,13 +1905,54 @@ the corresponding check open under this budget. Failed checks include
 0 tool errors, 0 inconclusive results and
 0 independently confirmed counterexamples.
 
-Matching saved targeted reports to the same capture IDs identifies MIR
-inlining as the largest outstanding group. This run verified two of 58
+Matching saved targeted reports to the same capture IDs identified MIR
+inlining as the largest outstanding group at this baseline. It verified two of 58
 `inline` captures, with 51 unsupported and five timeouts. The checker
 rejected 36 after inlining changed a retained body and removed a call
 target. Another 12 reached a function-local route that excludes GAS.
 A rooted module certificate needs to retain both the changed entry
 closures and their ordered effects.
+
+### Strict MIR inlining audit
+
+The serial `evaluate --all --require-verified --pass inline --timeout 120
+--seed 0` run verifies all 58 pinned captures. Every capture ID and input
+and output fingerprint matches the full audit. Normal and capture
+compilation agree on ABI, creation bytecode and runtime bytecode.
+
+| Contract | Verified | Changed entry proofs | Certificate SHA-256 |
+| --- | ---: | ---: | --- |
+| Solady WETH | 16/16 | 8 | `04f92117faa8b23214e5d9bf84e751b40febdcda16963483dee69f16029627e6` |
+| OpenZeppelin ERC20Mock | 13/13 | 5 | `91667bab756b4982e03d10b009489f7060676c5f29bc3a748d18d74728db11a1` |
+| Morpho Blue | 29/29 | 10 | `8426cff9af58e362c66dc5bff34f0e04c02bc35a47229f0e10c55634b4bbf7aa` |
+
+The compiler executable fingerprint is
+`f996616dcf2ebacf05fc5cc439f4814dc38fe953fad90b698754281c59ef139c`.
+The serial launcher and replay fingerprints match the full audit above.
+The Lean checker fingerprint is
+`57bb55b11c5853e4af58e9e4d75d8a51ebfdd39831223db836e6710a38260930`.
+The complete `target/tv-inline-final/results.json` has SHA-256
+`a734499fe221b568aadc8789dc5f2a5d4b6197fa7a77ea3481cbbe2a2a720c2b`.
+
+Lean checks the public entry table and the closed set of unchanged
+callees. It compares the expanded typed effect trees of changed entries
+for every logical argument, environment, initial state and shared effect
+handler. Calls to unchanged function closures keep a named request.
+The kernel checks initialization of admitted two-word products.
+Checks, messages, returndata and GAS keep their operands and order.
+The typed renderer and bindings from these requests to their concrete
+handlers are trusted. Physical gas and backend placement remain open.
+
+The live hook emits a module certificate for a Solidity storage-reading
+helper. Normal and validation-enabled compiles produce identical ABI,
+creation bytecode and runtime bytecode, with contract output SHA-256
+`99df4a4cd52613c63c437e1b40c55780477d1ad64c4ba197ef67fdc8c7ae7fd1`.
+
+Independent Rust replay gives the same maximum allowance on the
+original and inlined WETH pair for the Permit2 path. Changing the
+inlined flag gives zero and loses the module certificate. The replay
+under `target/tv-routed-heap/inline-weth-native.json` has SHA-256
+`2e037a498ad0103ab99a6eae3ceebefd01c6d6a2ceb3483ccf06af603203589d`.
 
 ### Stack-carried continuations
 

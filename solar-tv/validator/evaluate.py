@@ -212,11 +212,11 @@ def checked_status(process, record):
     return status
 
 
-def check_entry(solar, row, target, timeout):
+def check_entry(solar, row, target, timeout, mode="--entry-trace"):
     log = target.with_suffix(".log")
     try:
         process = run(
-            [*audit_command(solar, row, target, timeout), "--entry-trace"],
+            [*audit_command(solar, row, target, timeout), mode],
             ROOT,
             timeout * 16,
         )
@@ -225,7 +225,11 @@ def check_entry(solar, row, target, timeout):
         record = {
             "version": 1,
             "status": "timeout",
-            "diagnostic": "entry checker wall-time budget",
+            "diagnostic": (
+                "module checker wall-time budget"
+                if mode == "--prune"
+                else "entry checker wall-time budget"
+            ),
         }
         audit.write(target, record)
         return record
@@ -269,6 +273,15 @@ def evaluate_case(
     results = []
     dispatch_reports = {}
     entry_reports = {}
+    inline_reports = {}
+    removed = "function was removed or its identity changed"
+    inline_pairs = {
+        (*row["paths"], row["target"])
+        for row in eligible
+        if row["layer"] == "mir"
+        and row["pass"] == "inline"
+        and row["rejection"] == removed
+    }
     for index, row in enumerate(chosen):
         target = folder / f"check-{index:03}.json"
         start = time.monotonic()
@@ -300,6 +313,21 @@ def evaluate_case(
             }
         )
         entry = None
+        if row["layer"] == "mir" and row["pass"] == "inline":
+            inline_key = (*row["paths"], row["target"])
+            if inline_key in inline_pairs:
+                if inline_key not in inline_reports:
+                    module_path = folder / f"inline-{index:03}.json"
+                    inline_reports[inline_key] = (
+                        module_path,
+                        check_entry(solar, row, module_path, timeout, "--prune"),
+                    )
+                candidate = inline_reports[inline_key]
+                if (
+                    candidate[1]["status"] in {"verified", "counterexample"}
+                    or row["rejection"] == removed
+                ):
+                    entry = candidate
         if (
             row["layer"] == "evmir"
             and row["pass"]

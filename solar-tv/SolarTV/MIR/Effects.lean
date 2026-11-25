@@ -36,6 +36,8 @@ inductive Operation where
   | immutableRead (slot : Nat)
   | immutableStore (slot : Nat)
   | internalCall (callee : Nat)
+  /-- Retain a semantic check or message with its exact typed schema and operand widths. -/
+  | typedRequest (descriptor : String) (widths : List Nat)
   deriving DecidableEq
 
 structure Request where

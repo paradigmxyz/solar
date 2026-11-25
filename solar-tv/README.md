@@ -1588,9 +1588,24 @@ an `unpriced-structural` gas policy. Primitive instruction semantics and state
 are shared abstract parameters. The compiler parser/display, named-reference
 extraction and binding to this call machine remain trusted. This is not an
 instruction-semantics, physical gas or backend-layout certificate. Numeric
-function-pointer dispatchers, backend-memory records, changed surviving bodies
-or globals, and modules without explicit entry points are unsupported. Each
-module is limited to 1 MiB and 128 functions.
+function-pointer dispatchers, backend-memory records, changed globals, and
+modules without explicit entry points are unsupported. Each module is limited
+to 1 MiB and 128 functions.
+
+### Checking MIR inlining across public entries
+
+When inlining removes a called private function and changes a surviving
+body, `--prune` tries the rooted inlining certificate. It checks the public
+entry bindings and independently expands the changed, acyclic call closures
+into typed effect trees. Calls into a closed set of unchanged functions
+keep the same named request. Lean checks equality for arbitrary logical
+arguments and shared handlers, including stateful requests that may fail.
+
+The opt-in compiler hook tries this module certificate before local checks.
+The report uses the `rooted-inline-effects` proof and `semantic-effects` gas
+policy. All 58 pinned `inline` captures verify under this scope. Physical
+gas and return placement are separate proof obligations.
+[Audit results and replay](CORRECTNESS.md#strict-mir-inlining-audit)
 
 ### Removing dead SSA definitions in MIR loops
 

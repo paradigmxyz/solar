@@ -667,6 +667,15 @@ def record(
                     "code-image observers and calls excluded; logical labels and shared declarations retained; no backend layout, physical gas or whole-pass claim",
                 ]
             )
+        elif program and program.scope == "module-inline":
+            assumptions.extend(
+                [
+                    "independently exported named function tables, unchanged module bindings and matching public signatures",
+                    "kernel-checked rooted call closures and ordered effect trees with shared stateful replies, including GAS, messages, checks and returndata",
+                    "admitted changed calls expand to acyclic traces; unchanged closed call targets retain their full named bodies",
+                    "logical work and physical gas are independent; executable ABI staging, stack placement and handler correspondence remain separate obligations",
+                ]
+            )
         elif program and program.scope == "function-pruning":
             assumptions.extend(
                 [
@@ -916,6 +925,7 @@ def record(
             and program.scope
             and program.scope
             not in {
+                "module-inline",
                 "function-pruning",
                 "unused-type-erasure",
                 "phase-advance",
@@ -954,6 +964,7 @@ def record(
                 "prefix-window",
                 "effectful-prefix",
                 "shared-prefix-suffix",
+                "module-inline",
                 "function-pruning",
                 "unused-type-erasure",
                 "phase-advance",
@@ -1070,7 +1081,7 @@ def record(
             "semantic-effects"
             if program
             and (
-                program.scope in {"abi-encode", "integer-width"}
+                program.scope in {"abi-encode", "integer-width", "module-inline"}
                 or program.symbolic_mir is not None
                 or program.world
                 and program.world.get("direct_mir")
@@ -1102,6 +1113,21 @@ def record(
                 },
             }
             if program and program.scope == "allocation-prefix"
+            else {}
+        ),
+        **(
+            {
+                "whole_pass": False,
+                "region": {
+                    "kind": "module",
+                    "proof": "rooted-inline-effects",
+                    "changed_entries": program.import_evidence["changed_entries"],
+                    "unchanged_closed_functions": program.import_evidence[
+                        "unchanged_closed_functions"
+                    ],
+                },
+            }
+            if program and program.scope == "module-inline"
             else {}
         ),
         **(

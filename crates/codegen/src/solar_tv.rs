@@ -57,6 +57,10 @@ impl<'a> Snapshot<'a> {
             return Ok(false);
         }
         let entry = region.is_some_and(|r| r.kind == "entry");
+        let rooted_inline = layer == "mir"
+            && pass == "inline"
+            && region.is_none()
+            && rejection == Some("function was removed or its identity changed");
         let gas_policy = (layer == "evmir").then(|| env::var_os("SOLAR_TV_GAS")).flatten();
         let mut context = format!("solar-tv: {layer} pass `{pass}` on `{module}`");
         if entry {
@@ -244,7 +248,7 @@ impl<'a> Snapshot<'a> {
             }
         };
         let inconclusive = matches!(outcome, "unsupported" | "timeout" | "inconclusive");
-        if entry && inconclusive {
+        if (entry || rooted_inline) && inconclusive {
             // The regional checks will report their own results and retain replay pairs.
             return Ok(false);
         }

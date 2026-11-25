@@ -161,14 +161,28 @@ def check(paths, solar, version, timeout, *, executable=None, debug_reverts=Fals
         raise Unsupported("function pruning requires deletion-only table changes")
     if not any(body["root"] for body in before.values()):
         raise Unsupported("function pruning requires explicit module entry points")
-    if any(before[name] != body for name, body in after.items()):
-        raise Unsupported("function pruning changed a retained body or interface")
     if any(body["root"] for name, body in before.items() if name in removed):
         raise Unsupported("function pruning removed an external entry point")
     if any(set(body["targets"]) - after.keys() for body in after.values()):
         raise Unsupported("function pruning removed a retained call target")
     if any(set(re.findall(rf"@({NAME})", line)) & set(removed) for line in old_header):
         raise Unsupported("function pruning removed a shared declaration reference")
+    if any(before[name] != body for name, body in after.items()):
+        if not any(
+            set(before[name]["targets"]).intersection(removed) for name in after
+        ):
+            raise Unsupported("function pruning changed a retained body or interface")
+        if "@phase lowered" in old_header:
+            raise Unsupported("inline proof requires logical return conventions")
+        from . import inline, native
+
+        return inline.check(
+            texts,
+            (before, after),
+            executable or native.default(solar),
+            version,
+            timeout,
+        )
 
     def table(name, bodies):
         entries = []

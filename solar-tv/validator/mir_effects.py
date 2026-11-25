@@ -74,6 +74,14 @@ def pure(op, args, bits, definitions):
 
 
 ABI_MESSAGE_REQUESTS = {"call", "callcode", "delegatecall", "staticcall"}
+CHECK_REQUESTS = {
+    "check",
+    "checked",
+    "require_short",
+    "require_encode",
+    "require_literal",
+}
+TYPED_REQUESTS = CHECK_REQUESTS | {"extcall", "returndata_bytes"}
 
 
 def abi_context_read(name, args, bits):
@@ -95,6 +103,46 @@ def encoder_layout(op):
     )
 
 
+def word_pairs(args):
+    for value, bits in args:
+        if bits == 512:
+            yield f"({value}).extractLsb' 256 256", 256
+            yield f"({value}).extractLsb' 0 256", 256
+        else:
+            yield value, bits
+
+
+def word_pair(ty):
+    return (
+        ty.get("kind") == "product"
+        and len(ty.get("fields", ())) == 2
+        and all(t.get("kind") == "word" and t.get("bits") == 256 for t in ty["fields"])
+    )
+
+
+def check_pair_initialization(function):
+    from .dead_ssa import reads
+
+    blocks = function["blocks"]
+    all_reads = reads(blocks, reject_undefined=False)
+    for block in blocks:
+        insts = block["instructions"]
+        for i, inst in enumerate(insts):
+            op = inst["operation"]
+            if op["kind"] != "insert_value" or op["args"][0]["kind"] != "undefined":
+                continue
+            if i + 1 == len(insts) or all_reads.count(inst["result"]) != 1:
+                raise Unsupported("first product field escapes before initialization")
+            other = insts[i + 1]["operation"]
+            if (
+                other["kind"] != "insert_value"
+                or other["index"] == op["index"]
+                or other["args"][0]["kind"] != "local"
+                or other["args"][0].get("index") != inst["result"]
+            ):
+                raise Unsupported("first product field escapes before initialization")
+
+
 def render(
     model,
     definitions,
@@ -107,8 +155,11 @@ def render(
     abi_encoder=None,
     return_widths=None,
     call_result_widths=None,
+    inline_effects=False,
 ):
     def width(ty):
+        if inline_effects and word_pair(ty):
+            return 512
         if (
             abi_fork
             and ty.get("kind") == "slice"
@@ -191,7 +242,15 @@ def render(
                 if work > 4096:
                     raise Unsupported("effect-tree expansion exceeds 4096 instructions")
                 op = inst["operation"]
-                args = [operand(value, current, arguments) for value in op["args"]]
+                args = [
+                    ("0#512", 512)
+                    if inline_effects
+                    and op["kind"] == "insert_value"
+                    and i == 0
+                    and value["kind"] == "undefined"
+                    else operand(value, current, arguments)
+                    for i, value in enumerate(op["args"])
+                ]
                 bits = width(inst["type"]) if inst["type"] is not None else 256
                 if op["kind"] == "call" and op["function"] not in call_cuts:
                     callee = functions[op["function"]]
@@ -264,6 +323,13 @@ def render(
                 expression = pure(op, args, bits, definitions)
                 if abi_fork and op["kind"] == "make_slice":
                     expression = f"({args[0][0]} ++ {args[1][0]})"
+                if inline_effects and op["kind"] == "insert_value":
+                    base, value = args[0][0], args[1][0]
+                    expression = (
+                        f"(({value}) ++ ({base}).extractLsb' 0 256)"
+                        if op["index"] == 0
+                        else f"(({base}).extractLsb' 256 256 ++ ({value}))"
+                    )
                 if abi_fork and op["kind"] == "extract_value":
                     start = 256 if op["index"] == 0 else 0
                     expression = f"({args[0][0]}).extractLsb' {start} 256"
@@ -298,7 +364,8 @@ def render(
                 if abi_fork and op["kind"] == "opcode":
                     expression = abi_context_read(op["name"], args, bits) or expression
                 if expression is None:
-                    if any(width != 256 for _, width in args):
+                    typed_request = inline_effects and op["kind"] in TYPED_REQUESTS
+                    if any(width != 256 for _, width in args) and not typed_request:
                         raise Unsupported(
                             "effect-tree raw operands require word carriers"
                         )
@@ -309,6 +376,19 @@ def render(
                         request = f"(MIR.LowerAlloc.constructorRequest {'true' if op['end'] else 'false'})"
                     elif op["kind"] == "allocate":
                         operation = f".allocate {'true' if op['zeroed'] else 'false'} {'true' if op['checked'] else 'false'}"
+                    elif typed_request:
+                        signature = {
+                            "operand_types": [opnd["type"] for opnd in op["args"]],
+                            "result_type": inst["type"],
+                        }
+                        widths = ",".join(str(width) for _, width in args)
+                        operation = (
+                            f".typedRequest {encoder_layout(op | signature)} [{widths}]"
+                        )
+                        args = [
+                            (f"({value}).setWidth 256", 256)
+                            for value, _ in word_pairs(args)
+                        ]
                     elif op["kind"] == "mapping_slot":
                         operation = ".mappingSlot"
                     elif op["kind"] == "abi_encode_tree":
@@ -349,7 +429,11 @@ def render(
                     name = f"local{work}"
                     prefix.append(f"let {name} : BitVec {bits} := {expression}\n")
                     current[inst["result"]] = name, bits
-                elif expression is not None and op["kind"] not in {"opcode", "layout"}:
+                elif (
+                    expression is not None
+                    and op["kind"] not in {"opcode", "layout"}
+                    and not (inline_effects and op["kind"] in TYPED_REQUESTS)
+                ):
                     raise Unsupported("effect-tree scalar instruction lacks a result")
             term = block["terminator"]
             args = [
@@ -399,6 +483,8 @@ def render(
         return walk(0, current)
 
     def boundary(kind, args):
+        if inline_effects and kind == "return":
+            args = list(word_pairs(args))
         if any(bits > 256 for _, bits in args):
             raise Unsupported("effect-tree boundary requires scalar carriers")
         values = ",".join(f"({bits},({value}).setWidth 256)" for value, bits in args)
@@ -463,6 +549,37 @@ def render(
                     )
                 if row["pure"]:
                     pure(op, [("0#256", 256)] * len(op["args"]), 256, definitions)
+            elif op["kind"] in CHECK_REQUESTS and inline_effects:
+                if (inst["result"] is not None) != (op["kind"] == "checked") or any(
+                    width(v["type"]) > 256 for v in op["args"]
+                ):
+                    raise Unsupported("invalid conditional-failure effect")
+            elif op["kind"] == "returndata_bytes" and inline_effects:
+                if (
+                    op["args"]
+                    or inst["result"] is None
+                    or inst["type"].get("location") != "memory"
+                ):
+                    raise Unsupported("invalid returndata object request")
+            elif op["kind"] == "extcall" and inline_effects:
+                if (
+                    inst["result"] is None
+                    or width(inst["type"]) > 256
+                    or op["name"] not in ABI_MESSAGE_REQUESTS
+                    or not definitions[op["name"]]["forks"][abi_fork]["available"]
+                ):
+                    raise Unsupported("unsupported typed message boundary")
+            elif op["kind"] == "insert_value" and inline_effects:
+                ty = op["aggregate_type"]
+                if (
+                    not word_pair(ty)
+                    or inst["type"] != ty
+                    or len(op["args"]) != 2
+                    or op["args"][0]["type"] != ty
+                    or op["index"] not in (0, 1)
+                    or op["args"][1]["type"] != ty["fields"][op["index"]]
+                ):
+                    raise Unsupported("unsupported effect-tree product")
             elif op["kind"] == "mapping_slot" and abi_fork:
                 if (
                     len(op["args"]) != 2
@@ -626,7 +743,11 @@ def render(
                 raise Unsupported(f"unmodeled effect-tree operation `{op['kind']}`")
             for value in op["args"]:
                 width(value["type"])
-                if value["kind"] == "undefined":
+                if value["kind"] == "undefined" and not (
+                    inline_effects
+                    and op["kind"] == "insert_value"
+                    and value is op["args"][0]
+                ):
                     raise Unsupported("undefined effect-tree operand")
         for value in block["terminator"].get("args", []):
             width(value["type"])
@@ -639,6 +760,8 @@ def render(
         for ty in [*function["params"], *function["returns"]]:
             width(ty)
         if function["id"] not in call_cuts:
+            if inline_effects:
+                check_pair_initialization(function)
             for block in function["blocks"]:
                 validate_block(block)
     entry = functions[model["entry_id"]]
