@@ -122,19 +122,7 @@ def align(before, after, total):
             bind(options.popleft(), new)
             close()
 
-    def rename(value):
-        if isinstance(value, list):
-            return [rename(item) for item in value]
-        if not isinstance(value, dict):
-            return value
-        renamed = {key: rename(item) for key, item in value.items()}
-        if renamed.get("kind") == "local":
-            renamed["index"] = known[renamed["index"]]
-        if renamed.get("result") is not None:
-            renamed["result"] = known[renamed["result"]]
-        return renamed
-
-    return rename(after)
+    return dead_ssa.rename_locals(after, known)
 
 
 def proof(old, new, definitions, version, prelude):

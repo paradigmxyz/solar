@@ -60,6 +60,23 @@ def signature(value):
     }
 
 
+def rename_locals(value, mapping):
+    if isinstance(value, list):
+        return [rename_locals(item, mapping) for item in value]
+    if not isinstance(value, dict):
+        return value
+    result = {key: rename_locals(item, mapping) for key, item in value.items()}
+    if result.get("kind") == "local":
+        if result["index"] not in mapping:
+            raise Unsupported("dead SSA has an unmapped local use")
+        result["index"] = mapping[result["index"]]
+    if result.get("result") is not None:
+        if result["result"] not in mapping:
+            raise Unsupported("dead SSA has an unmapped definition")
+        result["result"] = mapping[result["result"]]
+    return result
+
+
 def align(before, after):
     if len(before["blocks"]) != len(after["blocks"]):
         raise Unsupported("dead SSA requires unchanged block identities")
@@ -102,23 +119,7 @@ def align(before, after):
     if len(dead) != len(set(dead)) or set(dead) & set(mapping.values()):
         raise Unsupported("dead SSA result correspondence overlaps erased definitions")
 
-    def rename(value):
-        if isinstance(value, list):
-            return [rename(item) for item in value]
-        if not isinstance(value, dict):
-            return value
-        result = {key: rename(item) for key, item in value.items()}
-        if result.get("kind") == "local":
-            if result["index"] not in mapping:
-                raise Unsupported("dead SSA has an unmapped local use")
-            result["index"] = mapping[result["index"]]
-        if result.get("result") is not None:
-            if result["result"] not in mapping:
-                raise Unsupported("dead SSA has an unmapped definition")
-            result["result"] = mapping[result["result"]]
-        return result
-
-    aligned = rename(after)
+    aligned = rename_locals(after, mapping)
     expected = copy.deepcopy(before)
     for block in expected["blocks"]:
         block["instructions"] = [

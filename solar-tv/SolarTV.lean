@@ -1,6 +1,7 @@
 import SolarTV.MIR.Transforms.DCE
 import SolarTV.MIR.Transforms.DeadSSA
 import SolarTV.MIR.Transforms.Schedule
+import SolarTV.MIR.Transforms.MergeAborts
 import SolarTV.MIR.Transforms.DeadSlice
 import SolarTV.MIR.Transforms.FunctionDCE
 import SolarTV.MIR.Transforms.CoalesceAlloc

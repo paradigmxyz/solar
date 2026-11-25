@@ -2887,6 +2887,67 @@ binds the two sets of MIR captures, the compiler and replay executables,
 the emitted images, the fixtures and the Lean and Rust results. Its
 SHA-256 is `1e30192c0193d1a0b6d0a961193ee2461dcb0e19c9d8d3ec1629b72715dfd22d`.
 
+### Strict MIR abort-merge audit
+
+The serial `evaluate --all --require-verified --pass merge-aborts --timeout 15
+--seed 0` gate verifies all 42 captures. The capture IDs, raw IR, compiler,
+inputs and outputs match the full audit. Plain and capture compilation produce
+identical ABI, creation bytecode and runtime bytecode for all three contracts.
+
+| Contract | Captured | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Solady WETH | 8 | 8 | 0 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 9 | 9 | 0 | 0 | 0 |
+| Morpho Blue | 25 | 25 | 0 | 0 | 0 |
+| Total | 42 | 42 | 0 | 0 | 0 |
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Checker on Lean 4.34.1 | `40477c000c14bf2cae99a292f93b28dae58a484a42b7d83d6081027424b11c06` |
+| `target/tv-mir-abort-merge-final/results.json` | `60ebb357a13b2ccde16d126e36d820c8cf37b6eeb0b1a6ee638cadbaaca53fa0` |
+
+Thirty-five captures use the abort-merge certificate. The kernel checks that
+the actual combined condition rejects exactly when any source condition
+rejects. The chain theorem relates early exit to deferred rejection for any
+total stages and any continuation observing rejection or the completed frame.
+The remaining seven captures use the existing typed jump-chain certificate.
+
+The typed exporter and host checks bind the stages to the unchanged actions,
+SSA operands and shared terminal in each selected function and its reachable
+direct and tail callees. The importer checks that the speculated stages have
+no other entry and that the terminal cannot read their local definitions.
+Three captures require defined layout bindings shared by both runs. Lean
+checks the immutable heap-floor equation for Morpho's `extSloads` and its
+dispatcher and the constructor-range equation for the ERC20Mock constructor.
+The guard-chain partition, SSA correspondence and totality classification
+remain trusted. The proof uses shared handler replies, including gas and code
+observations. Physical out-of-gas thresholds and backend placement remain open.
+
+Replacing the merged `or` with `and` removes its certificate. Lean and the
+independent Rust MIR interpreter agree on the counterexample. With zero call
+value and empty calldata, the original rejects while the changed guard lets
+the function stop successfully.
+
+#### Coverage across saved audits
+
+Joining the full census to saved retries by capture ID gives 1,912 distinct
+verified records. Each capture ID binds the region descriptor and both raw IR
+hashes. The join requires the same corpus manifest, compiler inputs, ABI and
+bytecode outputs, and excludes runs with the optional valid-heap or supplied
+interaction modes. Matching the standalone layout and compact-PUSH proofs by
+both raw IR hashes and reachable label adds another 111 records.
+
+| Contract | Captured | Saved proof | Uncovered by this join |
+| --- | ---: | ---: | ---: |
+| Solady WETH | 330 | 320 | 10 |
+| OpenZeppelin ERC20Mock | 372 | 353 | 19 |
+| Morpho Blue | 1526 | 1350 | 176 |
+| Total | 2228 | 2023 | 205 |
+
+This join uses multiple checker revisions, proof budgets and scopes. The
+single three-second run remains at 1,492 verified. Among the remaining records
+in the join, EVM IR `peephole-early` has 24 and MIR `cfg-simplify` has 23.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through

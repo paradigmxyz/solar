@@ -875,6 +875,19 @@ def record(
                     "shared GAS, code observations and child replies remain premises; physical gas and backend placement require separate proofs",
                 ]
             )
+        elif program and program.scope == "mir-abort-merge":
+            assumptions.extend(
+                [
+                    "unchanged typed actions, phis, interfaces and shared handler replies in the selected function and supplied direct and tail callees",
+                    "trusted guard-chain partition, resolved schema, injective local alignment and total operation classification; no side entrance into the speculated stages",
+                    "kernel-checked conjunctions or disjunctions of the actual guard operands; rejection retains the inputs of the common terminal and success retains all common assignments",
+                    "shared gas and code observations and child replies; physical out-of-gas thresholds and backend placement require separate proofs",
+                ]
+            )
+            if queries := program.import_evidence["speculative_layout_queries"]:
+                assumptions.append(
+                    "shared defined layout for speculated " + ", ".join(queries)
+                )
         elif program and program.scope == "effect-tree":
             assumptions.extend(
                 [
@@ -969,6 +982,7 @@ def record(
                 "dead-ssa",
                 "builtin-lowering",
                 "mir-schedule",
+                "mir-abort-merge",
             }
         ):
             assumptions.append(
@@ -1027,6 +1041,7 @@ def record(
                 "integer-width",
                 "mir-interaction-tree",
                 "mir-schedule",
+                "mir-abort-merge",
             }
             and program.symbolic_mir is None
         ):
@@ -1070,7 +1085,12 @@ def record(
             if program
             and (
                 program.scope
-                in {"interaction-flow", "mir-interaction-tree", "mir-schedule"}
+                in {
+                    "interaction-flow",
+                    "mir-interaction-tree",
+                    "mir-schedule",
+                    "mir-abort-merge",
+                }
                 or program.scope == "layout-flow"
                 and program.import_evidence["interactions"]
             )
@@ -1136,7 +1156,9 @@ def record(
                     "proof": program.import_evidence["kind"],
                 },
             }
-            if program and program.scope in {"mir-interaction-tree", "mir-schedule"}
+            if program
+            and program.scope
+            in {"mir-interaction-tree", "mir-schedule", "mir-abort-merge"}
             else {}
         ),
         **(

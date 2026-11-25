@@ -1707,6 +1707,16 @@ The 32 pinned schedules verify in the strict serial audit. Physical gas
 and emitted stack placement have separate obligations.
 [Audit results](CORRECTNESS.md#strict-mir-instruction-scheduling-audit)
 
+### Checking merged MIR abort guards
+
+Function checks recognize `merge-aborts` chains that share a terminal rejection.
+Lean checks the combined guard against the actual source conditions and proves
+that deferring rejection preserves the result when the intervening actions are
+total. Speculated constructor or heap-floor reads require shared, defined
+layout bindings. Handler replies are shared and physical gas is unpriced.
+All 42 pinned captures verify in the strict serial audit.
+[Audit results](CORRECTNESS.md#strict-mir-abort-merge-audit)
+
 ### Checking a calldata pointer recurrence
 
 Capture the real `indvar-simplify` rewrite of `CalldataPointerExit.stopAt` and

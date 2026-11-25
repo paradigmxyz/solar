@@ -11,7 +11,7 @@ from pathlib import Path
 from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
-from validator import mir_effects, mir_symbolic, native
+from validator import merge_aborts, mir_effects, mir_symbolic, native
 from validator.common import Unsupported
 
 
@@ -300,6 +300,75 @@ bb2:
         )
         result = subprocess.run(
             [*args, "--world", fixture],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=90,
+        )
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        record = json.loads(report.read_text())
+        self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+        self.assertEqual(
+            record["witness"]["observations"], record["witness"]["native_observations"]
+        )
+
+    def test_merge_requires_every_original_rejection(self):
+        before, after, report, fixture = (
+            self.directory / name
+            for name in ("before.mir", "after.mir", "report.json", "world.json")
+        )
+        source = """@module MergedGuards
+fn @f() {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb2, bb1
+  bb1:
+    v2 = calldatasize
+    v3 = lt v2, 32
+    jumpi v3, bb2, bb3
+  bb2:
+    revert 0, 0
+  bb3:
+    stop
+}
+"""
+        merged = source.replace("jumpi v1, bb2, bb1", "jump bb1").replace(
+            "jumpi v3, bb2, bb3",
+            "v4 = zext i1 v3 to i256\n    v5 = or v0, v4\n    v6 = ne v5, 0\n    jumpi v6, bb2, bb3",
+        )
+        before.write_text(source)
+        after.write_text(merged)
+        result = merge_aborts.check(
+            (before, after), SOLAR, self.replay, "cancun", 20, "f"
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(
+            result.program.import_evidence["kind"], "kernel-checked-mir-abort-merge"
+        )
+
+        after.write_text(merged.replace("or v0, v4", "and v0, v4"))
+        self.assertIsNone(
+            merge_aborts.check((before, after), SOLAR, self.replay, "cancun", 20, "f")
+        )
+        fixture.write_text('{"version":1,"calldata":"0x"}')
+        result = subprocess.run(
+            [
+                CLI,
+                "mir",
+                before,
+                after,
+                "--solar",
+                SOLAR,
+                "--function",
+                "f",
+                "--timeout",
+                "20",
+                "--world",
+                fixture,
+                "--report",
+                report,
+            ],
             capture_output=True,
             text=True,
             check=False,
