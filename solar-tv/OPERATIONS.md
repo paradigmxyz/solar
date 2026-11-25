@@ -108,8 +108,8 @@ EXTCODECOPY reads account bytes with padding and memory/access gas. From Prague,
 EIP-7702 designators resolve once for execution; their target access costs/warmth
 and call contexts are replayed independently. Authorization processing precedes
 the explicit-world entry model. A separate transaction checker handles decoded
-set-code envelopes and signed authorizations through Osaka. Amsterdam admits
-environment/scalar/memory execution and separate reservoir certificates for
+set-code envelopes, signed authorizations and fee settlement through Osaka.
+Amsterdam admits environment/scalar/memory execution and reservoir certificates for
 debits, refills, rollback and child ledger merging. An explicit bytecode entry
 also checks `SLOAD` and `SSTORE` with independent execution and reservoir
 balances. Account access, message and creation opcodes still need Amsterdam

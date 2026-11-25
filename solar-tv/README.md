@@ -1110,8 +1110,11 @@ target version and remaining gas.
 Run the kernel and independent `evm2` transaction handler on decoded EIP-7702
 fixtures through Osaka. The fixture supplies the outer sender and signed
 authorization tuples. The kernel checks each signature recovery and then
-compares admission, pre-refund gas and capped refund, output, and selected account
-nonces and code. The revert example checks that authorization changes survive
+compares admission, the message outcome, the gas breakdown, and selected
+account nonces and code. Receipt gas applies the calldata floor after the
+refund cap. The checker compares sender reimbursement and the beneficiary
+tip against the committed transaction state, including when both addresses
+are the same. The revert example checks that authorization changes survive
 failure of the execution message.
 
 ```sh
@@ -1130,7 +1133,8 @@ The nested trace supplies the forwarded gas, stipend, upfront state charge,
 and child exit. Lean checks the inherited checkpoint across every transition.
 The replay compares both pools, signed ledgers, refund counters, and depth
 through child success, revert, and halt. Opcode-derived forwarding and charges,
-interpreter integration for nested calls, and transaction settlement remain open.
+interpreter integration for nested calls, and Amsterdam transaction settlement
+remain open.
 
 The Amsterdam storage fixture executes raw bytecode with supplied execution gas
 and reservoir balances. Lean compares the settled meter, refund, output, and

@@ -49,6 +49,7 @@ class TransactionTests(unittest.TestCase):
         self.assertEqual(nonce, 1)
         self.assertEqual(code, [239, 1, 0, *int("0x10002", 16).to_bytes(20, "big")])
         self.assertEqual((report["spent"], report["refund"]), (46004, 9200))
+        self.assertEqual(report["gas_used"], 36_804)
 
     def test_clear_uses_updated_nonce_and_wildcard_chain(self):
         request = json.loads((EXAMPLES / "set-code-revert.json").read_text())
@@ -77,6 +78,43 @@ class TransactionTests(unittest.TestCase):
         request = json.loads((EXAMPLES / "set-code-revert.json").read_text())
         request["tx"]["gas"] = hex(45999)
         self.assertFalse(self.check(request)["admitted"])
+
+    def test_receipt_floor_settles_balances_after_execution(self):
+        request = json.loads((EXAMPLES / "set-code-revert.json").read_text())
+        request["base_fee"] = "0x3"
+        request["tx"].update(
+            {
+                "gas": hex(100_000),
+                "maxFeePerGas": "0x8",
+                "maxPriorityFeePerGas": "0x2",
+                "value": "0x11",
+                "input": "0x" + "01" * 600,
+            }
+        )
+        other = "0x0000000000000000000000000000000000010003"
+        for beneficiary, balance, reward in (
+            (other, 775_000, 90_000),
+            (request["sender"], 865_000, 865_000),
+        ):
+            with self.subTest(beneficiary=beneficiary):
+                request["beneficiary"] = beneficiary
+                report = self.check(request)
+                self.assertTrue(report["admitted"])
+                self.assertFalse(report["success"])
+                self.assertEqual((report["spent"], report["refund"]), (55_604, 11_120))
+                self.assertEqual(
+                    (report["floor_gas"], report["gas_used"]), (45_000, 45_000)
+                )
+                self.assertEqual(int(report["sender_balance"], 0), balance)
+                self.assertEqual(int(report["beneficiary_balance"], 0), reward)
+
+        request["beneficiary"] = other
+        request["accounts"][0]["code"] = "0x00"
+        report = self.check(request)
+        self.assertTrue(report["success"])
+        self.assertEqual(report["gas_used"], 45_000)
+        self.assertEqual(int(report["sender_balance"], 0), 774_983)
+        self.assertEqual(int(report["beneficiary_balance"], 0), 90_000)
 
     def test_self_authorization_sees_sender_nonce_increment(self):
         request = json.loads((EXAMPLES / "set-code-revert.json").read_text())

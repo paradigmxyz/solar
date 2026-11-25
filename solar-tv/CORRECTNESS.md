@@ -1858,6 +1858,23 @@ immediate. The enabled-IRM and later success paths remain open.
 | `MarketRejectChangedPush.lean` | `eda4742336ff058bb69ce83e4796fcea0764ed1ffc2a6402e2ca1c3a982be8c6` |
 | `market-reject-native.json` | `baf0cb269fca31909af722acf506f99686f48c7a3f620a7450cccfe069f30132` |
 
+### Decoded set-code fee settlement
+
+For decoded Prague and Osaka set-code envelopes, Lean executes the
+message against the prepared authorization state, then applies the
+refund cap and calldata floor. It reimburses the sender and credits the
+beneficiary using the effective price less the base fee. The signed
+authorization state survives message rollback. The outer signer and
+explicit initial world are supplied by the fixture.
+
+The pinned Rust transaction handler independently checks total spend,
+capped refund, floor, charged receipt gas, the gas breakdown and the two
+committed balances. The nonzero-fee revert case spends 55,604 gas and
+earns a capped refund of 11,120, with the calldata floor setting the
+receipt to 45,000. The tests also cover sender and beneficiary aliasing
+and a successful value transfer. Amsterdam transaction integration and
+block-level settlement remain open.
+
 ### Full corpus after MIR and backend coverage
 
 The serial audit at `01b6201301` used `evaluate --all --timeout 3 --seed 0`.
@@ -3125,7 +3142,7 @@ token revert and a false result.
 | EVM entry stacks and indirect transfers | Fixed or symbolic entry stacks, checked physical-entry bounds, stack-carried jump and conditional targets, and compiler-bound table proofs with entry coverage for resolved jumps | Entry coverage through unresolved computed jumps, independent certification of block placement, and broader physical stack, gas and state correspondence. |
 | Importer correctness | Certificates for acyclic EVM regions and acyclic typed scalar MIR | Extend independently checked imports to calls, memory, state, ABI entries and symbolic checked powers; audit the remaining Rust and opcode boundaries. |
 | Physical code and resource correspondence | Explicit layout assumptions and selected priced execution | Backend layout certificates, complete caller work pricing and gas-sensitive transfers; observable code locations and resource failures must agree. |
-| Fork and transaction completeness | Signed set-code authorization processing through Osaka, Amsterdam reservoir initialization, debits, refills, signed-ledger rollback, nested meter transitions for supplied frame charges, and explicit Amsterdam storage bytecode fixtures | Other transaction envelopes, fee and block settlement, Amsterdam account and message pricing, and nested-frame integration in the interpreter. |
+| Fork and transaction completeness | Signed set-code authorization and fee settlement through Osaka, Amsterdam reservoir initialization, debits, refills, signed-ledger rollback, nested meter transitions for supplied frame charges, and explicit Amsterdam storage bytecode fixtures | Other transaction envelopes, Amsterdam fee settlement, block settlement, Amsterdam account and message pricing, and nested-frame integration in the interpreter. |
 | Practical evaluation and review | Pinned three-contract sampling plus regression pairs | Wider published corpus, stronger pass coverage, independently reproduced results and external soundness review. |
 
 In the initial sample, the largest blockers were unknown EVM entry heights and

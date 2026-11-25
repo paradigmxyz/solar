@@ -52,6 +52,7 @@ def set_code_source(request, observed, solar, executable, timeout, directory):
                 "block": {
                     "gas_limit": request["block_gas_limit"],
                     "base_fee": natural(request["base_fee"]),
+                    "coinbase": natural(request.get("beneficiary", 0)),
                 },
             }
         )
@@ -104,7 +105,10 @@ def set_code_source(request, observed, solar, executable, timeout, directory):
         )
         expected = (
             f"(some ⟨{str(observed['success']).lower()},{observed['output']},"
-            f"{observed['spent']},{observed['refund']},{selected}⟩)"
+            f"{observed['spent']},{observed['refund']},{observed['floor_gas']},"
+            f"{observed['gas_used']},{observed['execution_gas']},"
+            f"{observed['state_gas']},{natural(observed['sender_balance'])},"
+            f"{natural(observed['beneficiary_balance'])},{selected}⟩)"
         )
     return f"""import {SET_CODE}
 open SolarTV EvmRules Execution EVM.Transaction.SetCode
@@ -128,6 +132,12 @@ structure Observation where
   data : List Byte
   spent : Nat
   refund : Nat
+  floor : Nat
+  gasUsed : Nat
+  executionGas : Nat
+  stateGas : Nat
+  senderBalance : Word
+  beneficiaryBalance : Word
   accounts : List (Option (Nat × List Byte))
   deriving DecidableEq
 def observation : Except String (Option Observation) :=
@@ -135,10 +145,11 @@ def observation : Except String (Option Observation) :=
     tvWorldConfig.block.beneficiary initial tx with
   | .error _ => .ok none
   | .ok ready => do
-    let result ← execute 512 tvWorldConfig tx ready
-    let spent := tx.gasLimit-result.gas
-    return some ⟨result.stop == .success,result.data,spent,
-      min (spent/5) result.world.refund.toNat, selected result.world⟩
+    let (result,gas) ← executeSettled 512 tvWorldConfig tx ready
+    return some ⟨result.stop == .success,result.data,gas.spent,gas.refund,gas.floor,gas.receipt,
+      gas.execution,gas.stateSpent,
+      (account result.world tx.signer).balance,
+      (account result.world tvWorldConfig.block.beneficiary).balance,selected result.world⟩
 theorem matches_replay : observation.toOption = some {expected} := by
   unfold observation prepare
   rw [recovery]
@@ -254,6 +265,16 @@ def check(request, solar, timeout):
             "transaction certificate",
         )
         entry_proof.check_axioms(output.splitlines(), source.count("#print axioms"))
+    assumptions = {
+        "set_code": [
+            "the fixture supplies a decoded Prague or Osaka envelope and its outer signer",
+            "checks signed authorizations, message outcome, gas settlement, and the selected account observations",
+        ],
+        "nested_reservoir": [
+            "the fixture supplies forwarded execution gas, stipend, upfront state charge and the child exit",
+            "compares all gas pools, signed ledgers, refund counters and frame depths against the pinned gas tracker",
+        ],
+    }.get(request["kind"])
     return {
         "version": 1,
         "status": "verified",
@@ -264,16 +285,7 @@ def check(request, solar, timeout):
         ).hexdigest(),
         "target": request.get("fork", "amsterdam"),
         "observation": observed,
-        **(
-            {
-                "assumptions": [
-                    "the fixture supplies forwarded execution gas, stipend, upfront state charge and the child exit",
-                    "compares all gas pools, signed ledgers, refund counters and frame depths against the pinned gas tracker",
-                ]
-            }
-            if request["kind"] == "nested_reservoir"
-            else {}
-        ),
+        **({"assumptions": assumptions} if assumptions else {}),
     }
 
 

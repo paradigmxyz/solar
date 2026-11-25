@@ -1,5 +1,6 @@
 import SolarTV.EVMIR.State.Interpreter
 import SolarTV.EVMIR.Precompiles.Signatures
+import SolarTV.EVMIR.State.Transactions.Settlement
 
 /-! Admitted EIP-7702 transactions through Osaka. The outer signer is supplied
 by transaction decoding. The model checks the envelope's decoded fields,
@@ -134,8 +135,7 @@ theorem nonce_max (fork : Fork) (chain : Word) (world : Journal) (auth : Authori
     (large : 2^64-1 ≤ auth.nonce) :
     apply fork chain world auth = world := by simp [apply,applyResolved,large]
 
-/-- Execute a prepared EVM message and roll back only its own changes on
-failure. Transaction-fee settlement and the block accumulator are external. -/
+/-- Execute a prepared EVM message and restore its checkpoint on failure. -/
 def execute (fuel : Nat) (cfg : Config) (tx : Envelope) (entry : Prepared) : Run := do
   let (code,_,world) := executionCode cfg.fork entry.world tx.destination
   if precompile cfg.fork tx.destination then .error "precompile transaction entry" else
@@ -148,5 +148,13 @@ def execute (fuel : Nat) (cfg : Config) (tx : Envelope) (entry : Prepared) : Run
   return if result.stop = .success then {result with world := finalize result.world} else
     {result with world, gas := if result.stop = .exception || result.stop = .outOfGas
       then 0 else result.gas}
+
+def executeSettled (fuel : Nat) (cfg : Config) (tx : Envelope) (entry : Prepared) :
+    Except String (Result × Settlement.Gas) := do
+  let result ← execute fuel cfg tx entry
+  let gas := Settlement.finish tx.gasLimit (floorGas tx) ⟨result.gas,0,0,0⟩ result.world.refund 0 0
+  let world := Settlement.fees result.world tx.signer cfg.block.beneficiary gas
+    tx.gasLimit (BitVec.ofNat 256 entry.gasPrice) cfg.block.baseFee
+  return ({result with world},gas)
 
 end SolarTV.EVM.Transaction.SetCode

@@ -22,6 +22,8 @@ enum Input {
         sender: Address,
         block_gas_limit: u64,
         base_fee: U256,
+        #[serde(default)]
+        beneficiary: Address,
         accounts: Vec<Account>,
         inspect: Vec<Address>,
         tx: Box<TxEip7702>,
@@ -63,7 +65,16 @@ pub(super) fn replay() -> Result<Value, String> {
         return Err("transaction replay request exceeds 128 KiB".into());
     }
     match serde_json::from_slice(&bytes).map_err(|e| e.to_string())? {
-        Input::SetCode { fork, sender, block_gas_limit, base_fee, accounts, inspect, tx } => {
+        Input::SetCode {
+            fork,
+            sender,
+            block_gas_limit,
+            base_fee,
+            beneficiary,
+            accounts,
+            inspect,
+            tx,
+        } => {
             if accounts.len() > 32
                 || inspect.len() > 32
                 || tx.authorization_list.len() > 16
@@ -92,6 +103,7 @@ pub(super) fn replay() -> Result<Value, String> {
             let block = BlockEnv::<BaseEvmTypes> {
                 gas_limit: U256::from(block_gas_limit),
                 basefee: base_fee,
+                beneficiary,
                 ..Default::default()
             };
             let registry = ethereum_tx_registry(spec);
@@ -127,9 +139,19 @@ pub(super) fn replay() -> Result<Value, String> {
                     })
                 })
                 .collect::<Vec<_>>();
+            let balance = |address: &Address| {
+                cache
+                    .accounts
+                    .get(address)
+                    .and_then(Option::as_ref)
+                    .map_or(U256::ZERO, |account| account.balance)
+            };
             Ok(json!({"admitted":true,"success":result.status,"output":result.output.to_vec(),
                 "authorities":recovered,
-                "spent":result.total_gas_spent,"refund":result.refunded,"accounts":accounts}))
+                "spent":result.total_gas_spent,"refund":result.refunded,"accounts":accounts,
+                "floor_gas":result.floor_gas,"gas_used":result.tx_gas_used(),
+                "execution_gas":result.execution_gas_spent(),"state_gas":result.state_gas_spent(),
+                "sender_balance":balance(&sender),"beneficiary_balance":balance(&beneficiary)}))
         }
         Input::NestedReservoir { limit, intrinsic, actions } => nested(limit, intrinsic, actions),
         Input::Reservoir { limit, intrinsic, charges } => {
