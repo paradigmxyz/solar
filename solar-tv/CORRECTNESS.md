@@ -2404,6 +2404,34 @@ in this run, with 68 unsupported captures and four timeouts. The next
 coverage work starts with the unsupported layout captures, followed by
 `compact-pushes` with 44 unsupported captures and three timeouts.
 
+### Physical entry proof for Morpho block layout
+
+The largest outstanding module pair in the audit above contains 41
+Morpho Blue `block-layout` checks. Running the same Cancun captures
+through `--entry-trace` serially with 120 seconds per Lean stage verifies
+all 41 regions through a shared module-entry certificate. Each region
+is matched to a covered label in the certificate. The captures retain
+the compiler and pinned Morpho input fingerprints from the full audit.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Before IR | `dae865fd353b0be4cf42183bae7f46f46509db76663fe4bcf820c4d3c906e497` |
+| After IR | `53cf91f5c40c5d9badb9a12703caadea1b2f324ab42bae4ac633bf09d50245ed` |
+| Lean checker on 4.34.1 | `b45fb5cfada28383dfdbda218e0bc7dead5f8c8fc2ce65a1d7cd298f2972a8b6` |
+| Entry report | `ad814900d8082514404d7babc81ee14c3f784634d59a566310aa69c7a2cca521` |
+
+On both sides the kernel checks physical entry with an empty stack,
+15,954 logical actions, 178 resolved stack-carried returns and the
+reachable stack bounds for 101 changed transfers. The 288 covered
+labels include the 41 previously unsupported regions. Both sides use
+shared position-independent interaction handlers and immutable slots.
+The certificate preserves logical actions and interaction requests
+under shared preceding replies. Physical gas, forwarded gas and child
+behavior remain environment obligations. The Rust export supplies the
+source graph for the kernel correspondence check. This run used no
+separate concrete EVM replay. The three-second audit totals above are
+unchanged.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
