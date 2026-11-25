@@ -39,6 +39,12 @@ struct Pass<'p, 'a> {
     storage: FxHashSet<String>,
     /// Memory references that may hold memory not freshly allocated for them.
     borrowed: FxHashSet<String>,
+    /// Memory references an assignment or initializer may have made share memory with another:
+    /// what it assigned into and every reference it assigned.
+    aliased: FxHashSet<String>,
+    /// Names the body declares, and the contract's functions and state: none of them is a
+    /// builtin when called.
+    user_names: FxHashSet<String>,
     /// Where a reference into a memory reference escaped: the reference, the position, and the
     /// loops around it.
     shares: Vec<(String, usize, Vec<usize>)>,
@@ -57,17 +63,25 @@ fn is_ref(t: &Ty) -> bool {
 /// Rejects in-place writes through memory references of `f`'s body and modifiers that may share
 /// their memory. `params_own`: `f` runs as an entry point, whose memory parameters are fresh
 /// copies of the call's arguments.
+///
+/// Returns the memory references an assignment may have made share memory with another: a
+/// callee that writes one of them through its parameter changes what the others read, which
+/// the caller must refuse (see `Vc::storage_arg_caps`).
 pub(crate) fn check<'p, 'a>(
     prog: &'p Program<'a>,
     c: &'p Contract<'a>,
     f: &'p Func<'a>,
     params_own: bool,
-) -> R<()> {
+) -> R<FxHashSet<String>> {
+    let mut user_names: FxHashSet<String> = c.funcs.iter().map(|f| f.name.clone()).collect();
+    user_names.extend(c.state.iter().map(|s| s.name.clone()));
     let mut p = Pass {
         prog,
         mem: FxHashMap::default(),
         storage: c.state.iter().map(|s| s.name.clone()).collect(),
         borrowed: FxHashSet::default(),
+        aliased: FxHashSet::default(),
+        user_names,
         shares: vec![],
         writes: vec![],
         pos: 1,
@@ -113,6 +127,13 @@ pub(crate) fn check<'p, 'a>(
             StmtKind::DeclSingle(v) => {
                 let fresh = v.initializer.as_deref().is_none_or(|i| p.fresh(i));
                 p.declare(v, !fresh);
+                if !fresh
+                    && let (Some(n), Some(i)) = (v.name, v.initializer.as_deref())
+                    && p.mem.contains_key(n.as_str())
+                {
+                    p.aliased.insert(n.as_str().to_string());
+                    p.note_alias(i);
+                }
             }
             StmtKind::DeclMulti(vs, _) => {
                 for v in vs.iter().filter_map(|v| v.as_ref().unspan()) {
@@ -141,7 +162,9 @@ pub(crate) fn check<'p, 'a>(
             ));
         }
     }
-    Ok(())
+    let mut out = p.aliased;
+    out.extend(p.borrowed);
+    Ok(out)
 }
 
 impl<'p, 'a> Pass<'p, 'a> {
@@ -173,6 +196,12 @@ impl<'p, 'a> Pass<'p, 'a> {
 
     fn declare(&mut self, v: &'a ast::VariableDefinition<'a>, borrowed: bool) {
         let Some(n) = v.name.map(|n| n.as_str().to_string()) else { return };
+        self.user_names.insert(n.clone());
+        // A local of a state variable's name is that local wherever it is in scope: the name
+        // no longer surely names storage (the analysis is over names, so it never does).
+        if v.data_location != Some(ast::DataLocation::Storage) {
+            self.storage.remove(&n);
+        }
         match v.data_location {
             Some(ast::DataLocation::Storage) => {
                 self.storage.insert(n);
@@ -214,6 +243,13 @@ impl<'p, 'a> Pass<'p, 'a> {
     /// A reference into a memory reference: the reference it is rooted at.
     fn ref_root(&self, e: &'a Expr<'a>) -> Option<String> {
         self.chain(e).filter(|(_, t)| is_ref(t)).map(|(r, _)| r)
+    }
+
+    /// Every memory reference `e` holds may now be shared with what it was assigned into.
+    fn note_alias(&mut self, e: &'a Expr<'a>) {
+        let mut roots = vec![];
+        crate::walk::sub_exprs(e, &mut |x| roots.extend(self.ref_root(x)));
+        self.aliased.extend(roots);
     }
 
     fn is_storage(&self, e: &'a Expr<'a>) -> bool {
@@ -305,6 +341,7 @@ impl<'p, 'a> Pass<'p, 'a> {
                     && !self.fresh(r)
                 {
                     self.borrowed.insert(i.as_str().to_string());
+                    self.note_alias(r);
                 }
                 let copy = self.is_storage(l);
                 // A container that receives a reference shares it.
@@ -313,6 +350,8 @@ impl<'p, 'a> Pass<'p, 'a> {
                     && let Some(w) = self.ref_root(l)
                     && !matches!(l.peel_parens().kind, ExprKind::Ident(_))
                 {
+                    self.aliased.insert(w.clone());
+                    self.note_alias(r);
                     self.share(w);
                 }
                 self.expr(r, copy);
@@ -385,10 +424,12 @@ impl<'p, 'a> Pass<'p, 'a> {
     fn copies(&self, callee: &'a Expr<'a>) -> bool {
         match &callee.peel_parens().kind {
             ExprKind::Member(b, _) => {
-                matches!(&b.kind, ExprKind::Ident(i) if i.as_str() == "abi")
+                matches!(&b.kind, ExprKind::Ident(i) if i.as_str() == "abi" && !self.user_names.contains("abi"))
             }
+            // A local, parameter, function or state variable of a builtin's name is not it.
             ExprKind::Ident(i) => {
                 matches!(i.as_str(), "keccak256" | "sha256" | "ripemd160" | "require" | "assert")
+                    && !self.user_names.contains(i.as_str())
             }
             _ => false,
         }

@@ -24,7 +24,8 @@ contract EncodeModifierAlias {
     }
 
     // The modifier writes `a[0]` before the compiled code encodes `a`.
-    // expect: solver returned unknown
+    // The modifier's parameter may share the caller's memory, and the callee writes it: refused.
+    // expect: may share its memory with another reference
     /// @custom:ensures r == keccak256(abi.encode(x, uint256(2)))
     function bad_modifier_alias(uint256 x, bool flag) external pure returns (bytes32 r) {
         uint256[1][1] memory a;
