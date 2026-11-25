@@ -19,33 +19,57 @@ class Instruction:
     stack: list
     immediate: int | None
     target: int | None
+    length_bound: int | None = None
 
 
 @dataclass
 class Dispatch:
     instructions: list[Instruction]
     pc: int
-    stack: list[int]
+    stack: list[int | str]
     gas: int
 
 
 def plan(runtime, site, pcs, catalog):
     """Propose a selector path and its stacks. Lean checks each transition."""
     end = pcs.index(site.abi_pc)
-    require(0 < end <= 128 and pcs[0] == 0, "missing emitted ABI dispatcher path")
+    route = plan_prefix(runtime, site.selector, pcs[: end + 1], catalog, "cancun", 4)
+    require(route.stack == [site.selector], "unexpected stack at ABI decoder")
+    return route
+
+
+def plan_prefix(runtime, selector, pcs, catalog, version, minimum):
+    """Propose a memory-free path from entry, ending before the selected cut."""
+    require(
+        1 < len(pcs) <= 129
+        and pcs[0] == 0
+        and all(0 <= pc < len(runtime) for pc in pcs),
+        "missing emitted ABI dispatcher path",
+    )
     stack = []
     path = []
     gas = 0
-    for pc, following in pairwise(pcs[: end + 1]):
+    for pc, following in pairwise(pcs):
         opcode = runtime[pc]
-        spec = catalog[opcode]
-        pricing = spec["forks"]["cancun"]
+        spec = catalog.get(opcode)
+        require(
+            spec is not None and spec["stack"] is not None,
+            f"unmodeled dispatcher opcode {opcode:#x}",
+        )
+        pricing = spec["forks"][version]
+        inputs, outputs = spec["stack"]
+        require(pricing["available"], f"unavailable dispatcher opcode {opcode:#x}")
+        require(
+            inputs <= len(stack) and len(stack) - inputs + outputs <= 1024,
+            "invalid dispatcher stack height",
+        )
         cost = pricing["base_gas"]
         schema = (
             pricing["available"],
             cost,
             pricing["dynamic_gas"],
-            *(spec["stack"] or (0, 0)),
+            inputs,
+            outputs,
         )
         step = Instruction(pc, opcode, gas, schema, stack.copy(), None, None)
         path.append(step)
@@ -54,6 +78,7 @@ def plan(runtime, site, pcs, catalog):
         if 0x60 <= opcode <= 0x7F:
             width = opcode - 0x5F
             next_pc += width
+            require(next_pc <= len(runtime), "truncated dispatcher PUSH")
             step.immediate = int.from_bytes(runtime[pc + 1 : next_pc], "big")
             stack.insert(0, step.immediate)
         elif opcode == 0x5F:
@@ -65,13 +90,24 @@ def plan(runtime, site, pcs, catalog):
         elif opcode == 0x35 and stack[0] == 0:
             stack[0] = HEAD
         elif opcode == 0x1C and stack[:2] == [224, HEAD]:
-            stack[:2] = [site.selector]
-        elif opcode == 0x10 and stack[:2] == [LENGTH, 4]:
+            stack[:2] = [selector]
+        elif opcode == 0x10 and stack[0] == LENGTH:
+            require(
+                isinstance(stack[1], int) and stack[1] <= minimum,
+                "dispatcher length guard exceeds the admitted minimum",
+            )
+            step.length_bound = stack[1]
             stack[:2] = [0]
-        elif opcode in {0x11, 0x14, 0x17}:
+        elif opcode in {0x10, 0x11, 0x14, 0x17}:
             a, b = stack[:2]
+            require(
+                isinstance(a, int) and isinstance(b, int),
+                "symbolic dispatcher comparison",
+            )
             result = (
-                int(a > b)
+                int(a < b)
+                if opcode == 0x10
+                else int(a > b)
                 if opcode == 0x11
                 else int(a == b)
                 if opcode == 0x14
@@ -80,9 +116,13 @@ def plan(runtime, site, pcs, catalog):
             stack[:2] = [result]
         elif 0x80 <= opcode <= 0x8F:
             stack.insert(0, stack[opcode - 0x80])
-        elif opcode == 0x57:
-            target, condition = stack[:2]
-            del stack[:2]
+        elif opcode in {0x56, 0x57}:
+            target = stack.pop(0)
+            condition = 1 if opcode == 0x56 else stack.pop(0)
+            require(
+                isinstance(target, int) and isinstance(condition, int),
+                "symbolic dispatcher transfer",
+            )
             if condition:
                 step.target = target
                 next_pc = target
@@ -91,8 +131,7 @@ def plan(runtime, site, pcs, catalog):
         require(
             following == next_pc, "symbolic selector path disagrees with raw replay"
         )
-    require(stack == [site.selector], "unexpected stack at ABI decoder")
-    return Dispatch(path, site.abi_pc, stack, gas)
+    return Dispatch(path, pcs[-1], stack, gas)
 
 
 def frame(pc, stack, remaining):
@@ -104,21 +143,69 @@ def stack_text(stack):
     return "[" + ", ".join(map(str, stack)) + "]"
 
 
+def frame_definition(runtime_size):
+    return f"""
+def dispatchFrame (env : World.Environment) (gas pc : Nat) (stack : List Word) : EVM.State.Frame :=
+  ⟨env,code.bytes,pc,stack,[],[],gas⟩
+
+theorem dispatch_size : code.size = {runtime_size} := by decide +kernel
+"""
+
+
+def debit_source(name, step, binders, before, after, selector, cost):
+    out = metered_prefix.debit(name, binders, before, after, step.opcode, cost)
+    schema = ", ".join(str(value).lower() for value in step.schema)
+    out += f"""
+  have schema : EVM.State.available tvWorldConfig {step.opcode} =
+    ⟨{schema}⟩ := by rfl
+"""
+    facts = ["schema", "unpaid"]
+    final = "rfl"
+    if step.immediate is not None:
+        out += f"  have immediate : code.immediate {step.pc} {step.opcode - 0x5F} = {step.immediate} := by decide +kernel\n"
+        facts.append("immediate")
+    if step.target is not None:
+        out += f"  have target : {step.target} ∈ code.jumps 0 := by decide +kernel\n"
+        facts.append("target")
+    if step.length_bound is not None:
+        bound = step.length_bound
+        out += f"""  have enough : (BitVec.ofNat 256 env.input.length).ult {bound} = false := by
+    have length : (BitVec.ofNat 256 env.input.length).toNat = env.input.length :=
+      by simp [Nat.mod_eq_of_lt small]
+    simp [BitVec.ult_eq_decide, length, Nat.not_lt_of_ge (by omega : {bound} ≤ env.input.length)]
+"""
+        final = "exact enough"
+    elif step.opcode == 0x34:
+        facts.append("noValue")
+    elif step.opcode == 0x1C:
+        out += f"""  have word : Evm.shr 224 (Execution.readWord env.input 0) = {selector} := by
+    change Execution.readWord env.input 0 >>> 224 = {selector}
+    rw [MIR.TransferFromDispatch.selector_word, selected]
+"""
+        final = "exact word"
+    return (
+        out
+        + f"""  by_cases unpaid : balance < {cost} <;> simp [
+    dispatchFrame, EVM.State.instructionWithImage, dispatch_size,
+    EVM.State.next, EVM.step, EVM.Context.ofEnvironment, EVM.State.pureOp,
+    Evm.lt, Evm.gt, Evm.eq, Evm.or, Fork.atLeast, Fork.ordinal, {", ".join(facts)}] <;> {final}
+"""
+    )
+
+
 def source(route, helper, selector, runtime_size, *, concrete=True):
     binders = f"""(env : World.Environment) (journal : Execution.Journal) (surplus : Nat)
     (large : 4 ≤ env.input.length) (small : env.input.length < 2^256)
     (noValue : env.value = 0)
     (selected : MIR.TransferFromDispatch.selector env.input = {selector})"""
-    out = f"""
-def dispatchFrame (env : World.Environment) (gas pc : Nat) (stack : List Word) : EVM.State.Frame :=
-  ⟨env,code.bytes,pc,stack,[],[],gas⟩
-
-theorem dispatch_size : code.size = {runtime_size} := by decide +kernel
-
+    out = (
+        frame_definition(runtime_size)
+        + f"""
 def dispatched (env : World.Environment) (journal : Execution.Journal) (surplus : Nat) : ByteCut :=
   ⟨{frame(route.pc, route.stack, 0)},
     journal,[],[],{[step.pc for step in reversed(route.instructions)]}⟩
 """
+    )
     debits = []
     args = "env journal surplus large small noValue selected"
     for index, step in enumerate(route.instructions):
@@ -141,41 +228,7 @@ def dispatched (env : World.Environment) (journal : Execution.Journal) (surplus 
         zero = f"dispatchFrame env 0 {step.pc} {stack_text(step.stack)}"
         next_zero = f"dispatchFrame env 0 {after_pc} {stack_text(after_stack)}"
         name = f"dispatch{index}"
-        out += metered_prefix.debit(name, binders, zero, next_zero, step.opcode, cost)
-        out += f"""
-  have schema : EVM.State.available tvWorldConfig {step.opcode} =
-    ⟨{", ".join(str(value).lower() for value in step.schema)}⟩ := by rfl
-"""
-        facts = ["schema", "unpaid"]
-        final = "rfl"
-        if step.immediate is not None:
-            out += f"  have immediate : code.immediate {step.pc} {step.opcode - 0x5F} = {step.immediate} := by decide +kernel\n"
-            facts.append("immediate")
-        if step.target is not None:
-            out += (
-                f"  have target : {step.target} ∈ code.jumps 0 := by decide +kernel\n"
-            )
-            facts.append("target")
-        if step.opcode == 0x10:
-            out += """  have enough : (BitVec.ofNat 256 env.input.length).ult 4 = false := by
-    have length : (BitVec.ofNat 256 env.input.length).toNat = env.input.length :=
-      by simp [Nat.mod_eq_of_lt small]
-    simp [BitVec.ult_eq_decide, length, Nat.not_lt_of_ge large]
-"""
-            final = "exact enough"
-        elif step.opcode == 0x34:
-            facts.append("noValue")
-        elif step.opcode == 0x1C:
-            out += f"""  have word : Evm.shr 224 (Execution.readWord env.input 0) = {selector} := by
-    change Execution.readWord env.input 0 >>> 224 = {selector}
-    rw [MIR.TransferFromDispatch.selector_word, selected]
-"""
-            final = "exact word"
-        out += f"""  by_cases unpaid : balance < {cost} <;> simp [
-    dispatchFrame, EVM.State.instructionWithImage, dispatch_size,
-    EVM.State.next, EVM.step, EVM.Context.ofEnvironment, EVM.State.pureOp,
-    Evm.lt, Evm.gt, Evm.eq, Evm.or, Fork.atLeast, Fork.ordinal, {", ".join(facts)}] <;> {final}
-"""
+        out += debit_source(name, step, binders, zero, next_zero, selector, cost)
         debit = metered_prefix.Debit(name, step.pc, step.opcode, cost, next_zero)
         out += metered_prefix.paid_step(
             debit,

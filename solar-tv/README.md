@@ -2054,6 +2054,20 @@ Independent execution checks the boundary at 17 and 18 gas. The proof ends
 at that entry's FMP write. A later call site still needs a proof that the
 cursor and placement binding reach it.
 
+For a runtime that initializes its heap after selector dispatch, supply the
+selector, minimum calldata length, and bytecode PC immediately after the
+store. For the pinned Morpho `createMarket` path, use:
+
+```sh
+solar-tv/solar-tv heap-entry morpho-runtime.hex --floor 288 --extent 192 \
+  --selector 0x8c1358a2 --min-calldata 164 --cut 1442
+```
+
+Lean checks the path from runtime entry for the selected ABI route with zero
+call value and every admitted calldata length and payload. The report records
+the runtime and proof hashes, exact gas cost, and independent Rust replay
+at the paid and unpaid boundary.
+
 ### Reproducible real-contract evaluation
 
 Capture changed pass pairs without running the prover, then check a deterministic

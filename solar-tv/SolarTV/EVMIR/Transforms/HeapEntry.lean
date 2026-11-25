@@ -1,5 +1,7 @@
 import SolarTV.EVMIR.State.MeteredPrefix
+import SolarTV.EVMIR.MemoryWrites
 import SolarTV.MIR.Transforms.FreshHeap
+import SolarTV.MIR.Transforms.HeapCursor
 
 /-! A final bytecode entry with an explicit FMP producer. The actual PUSH
 immediate, store address, continuation PC, and all three charges are
@@ -8,6 +10,7 @@ the ordinary bytecode interpreter. -/
 
 namespace SolarTV.EVM.HeapEntry
 open EvmRules SolarTV.Execution State
+open MIR.ContinuedCounter (padTo padLength expandAligned maxAligned)
 
 def image (floor : Byte) (suffix : List Byte) : List Byte :=
   [0x60,floor,0x60,0x40,0x52] ++ suffix
@@ -63,5 +66,39 @@ theorem floor_contract (frame : MIR.State.Frame) (env : World.Environment) (floo
   · simpa only [wide] using lower
   · simpa only [wide] using aligned
   · simpa only [wide] using range
+
+/-- A fetched FMP store establishes the MIR heap contract at any checked
+bytecode location. The metered prefix provides the incoming stack separately. -/
+theorem metered_store (cfg : Config) (journal : Journal) (frame : Frame)
+    (caller : MIR.State.Frame) (floor : Word) (stack : EVM.Stack)
+    (opcode : available cfg 0x52 = ⟨true,3,0,2,0⟩)
+    (fetched : frame.code[frame.pc]? = some (0x52 : Byte))
+    (words : frame.stack = 64 :: floor :: stack)
+    (fits : (64 :: floor :: stack).length ≤ 1024)
+    (aligned : frame.memory.length % 32 = 0) (bounded : frame.memory.length ≤ 65536)
+    (lower : 128 ≤ floor.toNat) (upper : floor.toNat ≤ 2^64 - 1) :
+    let grown := MIR.ContinuedCounter.padTo frame.memory 96
+    let after := {frame with
+      pc := frame.pc + 1
+      stack := stack
+      memory := writeBytes grown 64 (wordBytes floor)}
+    let price := 3 + memoryCharge frame.memory 64 32
+    MeteredPrefix cfg journal frame journal after 1 price ∧
+      MIR.HeapCursor.Entry {caller with memory := after.memory} floor := by
+  have expansion : expand frame.memory 64 32 = .ok (padTo frame.memory 96) :=
+    expandAligned frame.memory 64 32 (by decide) aligned (by decide) bounded (by decide)
+  refine ⟨.step (charge := 3 + memoryCharge frame.memory 64 32) (fun balance => ?_) (.done _ _), ?_⟩
+  · have step := SolarTV.Memory.Projection.store_instruction cfg journal {frame with gas := balance}
+      64 floor stack false 3 0 opcode fetched words fits
+    simp [withMemory, expansion, next] at step
+    exact step
+  · have length : (padTo frame.memory 96).length = max frame.memory.length 96 := padLength _ _
+    have covers : 64 + 32 ≤ (padTo frame.memory 96).length := by omega
+    have value := readWord_writeWord (padTo frame.memory 96) 64 floor covers
+    have aligned' := maxAligned frame.memory.length 96 aligned (by decide)
+    have bounded' : max frame.memory.length 96 ≤ 65536 := by omega
+    simp [MIR.HeapCursor.Entry, MIR.HeapCursor.At, MIR.Universal.MemoryValid, value,
+      aligned', bounded', lower, upper]
+    exact Nat.le_max_right _ _
 
 end SolarTV.EVM.HeapEntry

@@ -1683,7 +1683,7 @@ difference at a valid pointer of 128 and loses the certificate even with
 
 ### Metered Morpho heap entry cuts
 
-Separate local certificates use the exact pinned Morpho runtime image,
+The `heap-entry` command checks the exact pinned Morpho runtime image,
 SHA-256 `d2c1c3d7bb22df8c2e0e9853f10f2657af1c547028e7287b0452a9943a23cd2e`.
 Lean checks each emitted dispatch instruction from PC zero to the FMP
 store, including the selector read, calldata length checks, jump targets,
@@ -1700,12 +1700,28 @@ below `2^256`, zero call value, and arbitrary initial journal.
 
 Independent Rust replay reached the matching cut with zero gas remaining
 at each exact budget, and ran out of gas one unit below each budget.
-The generated `HeapPrefix*.lean` certificates and
-`heap-prefix-replay-boundaries.json` are retained in
-`target/tv-cse-heap-dev/`. Their entry-cut proofs establish the physical
-producer. The remaining obligations include the frame and argument
-correspondence at the logical MIR cut, the continuation to the internal
-`_accrueInterest` activation, and the emitted suffix.
+Lean also checks the rollback result for every smaller budget.
+Changing the shared store immediate from 288 to 256 rejects the original
+certificate at the same PC. Lean and Rust confirm the changed floor at
+the same 250-gas boundary when the check requests 256 explicitly.
+
+The command reports both the initialized cursor and the requested fresh
+heap extent. The kernel checks the byte-image binding and selector path
+through the terminal store. The independent replay proposes the path and
+checks both gas boundaries. Reports in `target/tv-routed-heap/` use checker
+fingerprint `b79a2d0e1111bcf0c4acd44820fc64689886f6e37db09dd3bd0659742bad7a81`.
+
+| Route report | SHA-256 |
+| --- | --- |
+| `createMarket.json` | `caea1fa51c591ff42fc9bd2f82c618de86e6127586efe16fccb1aa0170b6b745` |
+| `setAuthorizationWithSig.json` | `c4dd078660f3334926ac5e6e6f7d929c1417f0123319959f158653c9e0f00d6f` |
+| `accrueInterest.json` | `fd6ad8b98610f920055177d76f5773ab1083b98bb4e305314c40caed99ce5ca3` |
+| `changed-floor.json` | `978e7b1adce8cd7d22dfb11c608c72fdc736e5cb605890cbb5ceb71a41e250ef` |
+
+The entry-cut proofs establish the physical heap producer. The remaining
+obligations include frame and argument correspondence at the logical MIR
+cut, the continuation to the internal `_accrueInterest` activation, and the
+emitted suffix.
 
 ### Stack-carried continuations
 

@@ -1,4 +1,4 @@
-"""Certify the first heap-pointer write in emitted constructor bytecode."""
+"""Certify heap-pointer writes from constructor and ABI entry."""
 
 import json
 import subprocess
@@ -14,6 +14,70 @@ from validator import evaluate, heap_entry, native, world
 
 
 class HeapEntryTests(unittest.TestCase):
+    def test_abi_heap_route_checks_the_store_and_length_guard(self):
+        image = bytes.fromhex(
+            "60043610601557"  # Short calldata branches to the shared revert.
+            "5f3560e01c631234567814601957"  # Select the public handler.
+            "5b5f5ffd"
+            "5b60a43610601557"  # The handler requires a 164-byte head.
+            "61012060405200"  # Publish the FMP, then stop.
+        )
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder)
+            path = directory / "runtime.hex"
+            path.write_text(image.hex())
+            args = [
+                CLI,
+                "heap-entry",
+                path,
+                "--solar",
+                SOLAR,
+                "--floor",
+                "288",
+                "--extent",
+                "192",
+                "--selector",
+                "0x12345678",
+                "--cut",
+                "39",
+                "--min-calldata",
+            ]
+            result = subprocess.run(
+                [*args, "164"], check=True, capture_output=True, text=True, timeout=60
+            )
+            report = json.loads(result.stdout)
+            self.assertEqual(report["evidence"], "kernel-proof")
+            self.assertEqual((report["cut"], report["gas_cost"]), (39, 91))
+            self.assertEqual(report["replay"]["underfunded"], ["out-of-gas", [], 0])
+            self.assertEqual(report["replay"]["funded"]["memory"], [0] * 94 + [1, 32])
+
+            too_short = subprocess.run(
+                [*args, "163"], check=False, capture_output=True, text=True, timeout=60
+            )
+            self.assertEqual(
+                too_short.returncode, 2, too_short.stdout + too_short.stderr
+            )
+
+            changed = image[:35] + b"\x00" + image[36:]
+            path.write_text(changed.hex())
+            wrong_floor = subprocess.run(
+                [*args, "164"], check=False, capture_output=True, text=True, timeout=60
+            )
+            self.assertEqual(
+                wrong_floor.returncode, 2, wrong_floor.stdout + wrong_floor.stderr
+            )
+            fixture_path = directory / "world.json"
+            fixture_path.write_text(
+                json.dumps(
+                    {"version": 1, "gas": 91, "calldata": "0x12345678" + "00" * 160}
+                )
+            )
+            fixture = world.read(fixture_path, SOLAR, "exact")
+            reached = heap_entry.observe(
+                changed, fixture, "cancun", native.default(SOLAR), 10, pc=39
+            )
+            self.assertEqual(reached["memory"], [0] * 94 + [1, 0])
+
     def test_openzeppelin_creation_bytecode_heap_floor(self):
         manifest = json.loads((ROOT / "evaluation.json").read_text())
         (case,) = (
