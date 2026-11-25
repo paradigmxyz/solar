@@ -1363,3 +1363,18 @@ fn sound_calldata_modifier() {
 fn sound_loop_guard_write() {
     check("tests/cases/sound_loop_guard_write.sol")
 }
+
+#[test]
+fn sound_mem_field_holds_arg() {
+    check("tests/cases/sound_mem_field_holds_arg.sol")
+}
+
+#[test]
+fn sound_mem_shadow_state() {
+    check("tests/cases/sound_mem_shadow_state.sol")
+}
+
+#[test]
+fn sound_ptr_shadow_alias() {
+    check("tests/cases/sound_ptr_shadow_alias.sol")
+}

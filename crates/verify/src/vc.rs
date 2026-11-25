@@ -194,6 +194,9 @@ pub(crate) struct Vc<'p, 'a> {
     /// every name the running body declares (parameters, returns, locals), which may shadow a
     /// state variable of the same name
     frame_names: FxHashSet<String>,
+    /// Memory references of the running body that an assignment may have made share memory
+    /// (see `memalias::check`).
+    mem_shared: FxHashSet<String>,
     /// values of the callee's names a pointer returned by a function was built from
     alias_env: FxHashMap<String, Env>,
     /// the location a just-inlined function's storage return points at
@@ -341,6 +344,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             slocals: FxHashSet::default(),
             cd_params: FxHashSet::default(),
             frame_names: FxHashSet::default(),
+            mem_shared: FxHashSet::default(),
             alias_env: Default::default(),
             ret_alias: None,
             ret_alias_out: None,
@@ -2055,7 +2059,8 @@ impl<'p, 'a> Vc<'p, 'a> {
             .collect();
         if mi == 0 {
             // Memory structs and arrays are values here: refuse writes through shared ones.
-            crate::memalias::check(self.prog, self.c, f, self.depth == 0 && f.is_entry())?;
+            self.mem_shared =
+                crate::memalias::check(self.prog, self.c, f, self.depth == 0 && f.is_entry())?;
         }
         if mi < mods.len() {
             let m = mods[mi];
@@ -6589,6 +6594,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         let (cd, names) = Self::frame_of(f.item);
         let saved_cd = std::mem::replace(&mut self.cd_params, cd);
         let saved_names = std::mem::replace(&mut self.frame_names, names);
+        let saved_shared = std::mem::take(&mut self.mem_shared);
         let saved_alias_env = std::mem::take(&mut self.alias_env);
         let saved_raw_enums = std::mem::take(&mut self.raw_enums);
         let saved_old = self.old.take();
@@ -6831,6 +6837,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         self.slocals = saved_slocals;
         self.cd_params = saved_cd;
         self.frame_names = saved_names;
+        self.mem_shared = saved_shared;
         self.alias_env = saved_alias_env;
         self.old = saved_old;
         self.c = saved_c;
@@ -7049,6 +7056,17 @@ impl<'p, 'a> Vc<'p, 'a> {
             if i < args.len() && Self::mem_ref_param(p, &f.params[i].1) {
                 for r in walk::root(args[i]) {
                     let pn = f.params[i].0.clone();
+                    // The callee's write through its parameter reaches every reference that
+                    // shares the argument's memory, which the copy written back does not.
+                    if self.mem_shared.contains(&r) && self.mem_param_written(f, &pn) {
+                        return Err((
+                            span,
+                            format!(
+                                "memory argument `{r}` of `{}` may share its memory with another reference, and `{}` writes it",
+                                f.name, f.name
+                            ),
+                        ));
+                    }
                     if let Some((_, other)) = mem_roots.iter().find(|(x, _)| *x == r)
                         && (self.mem_param_written(f, &pn) || self.mem_param_written(f, other))
                     {

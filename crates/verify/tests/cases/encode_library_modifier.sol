@@ -22,7 +22,8 @@ contract EncodeLibraryModifier {
     }
 
     // `Steps.touch` writes `a[0]` before the compiled code encodes `a`.
-    // expect: solver returned unknown
+    // The modifier's parameter may share the caller's memory, and the callee writes it: refused.
+    // expect: may share its memory with another reference
     /// @custom:ensures r == keccak256(abi.encode(x, uint256(2)))
     function bad_library_modifier(uint256 x) external pure returns (bytes32 r) {
         uint256[1] memory a;
