@@ -1831,6 +1831,33 @@ remains open.
 | `MarketFirstReadAgreement.lean` | `827c2126831c037f67fd38f022d7d03a011a4cad485273b6ae79324de3ae90df` |
 | `market-first-read-native.json` | `4ffb062549c4cf028cb72dff2d58311553f7ae50eae9be44ba567d3842f75b52` |
 
+### Morpho disabled-IRM revert from ABI entry
+
+When the low byte of the IRM storage word is zero, Lean composes the
+first-read cut with the error branch. Both MIR wrappers call the error
+helper and revert after 54 transitions. The emitted runtime executes from
+PC zero to the revert after 158 instructions. The three runs have the same
+100-byte `Error("IRM not enabled")` payload and restore the initial journal.
+The theorem retains the decoder's canonical calldata, zero-value call,
+logical entry memory and scalar return-placement premises.
+
+The complete emitted path requires 785 gas for a warm IRM slot or 2,785
+for a cold slot. Lean checks the exact leftover gas for every funded
+call and out-of-gas with the original journal for every smaller budget,
+given sufficient model work. Independent Rust replay checked both MIR
+wrappers and the emitted bytes at each threshold, with surplus gas, and
+one unit below the threshold. Changing the final character of the error
+string changes the Rust replay and violates the original checked PUSH
+immediate. The enabled-IRM and later success paths remain open.
+
+| Artifact in `target/tv-routed-heap/` | SHA-256 |
+| --- | --- |
+| `MarketRejectEVM.lean` | `64ab84a12eb5dc297ece8232295f80aaa7b21665ea14602c2e2b42db994d0916` |
+| `MarketRejectMIR.lean` | `4ea2b77e40faf839976dfebea89fccd3285a1e4cf703206fd6b122eb218da620` |
+| `MarketRejectAgreement.lean` | `3244e3a6b6c812e907c008814d0cf1d7bfbe507596439484c5988715abd46f23` |
+| `MarketRejectChangedPush.lean` | `eda4742336ff058bb69ce83e4796fcea0764ed1ffc2a6402e2ca1c3a982be8c6` |
+| `market-reject-native.json` | `baf0cb269fca31909af722acf506f99686f48c7a3f620a7450cccfe069f30132` |
+
 ### Full corpus after MIR and backend coverage
 
 The serial audit at `01b6201301` used `evaluate --all --timeout 3 --seed 0`.
