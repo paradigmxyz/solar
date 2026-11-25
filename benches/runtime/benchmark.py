@@ -161,7 +161,7 @@ EVM_OPCODES = {
 
 
 def disassemble_evm(bytecode: bytes) -> str:
-    """Format EVM bytecode like Solar's disassembly dump."""
+    """Format EVM bytecode as basic blocks, like Solar's disassembly dump."""
     instructions: list[tuple[int, str, bytes]] = []
     offset = 0
     while offset < len(bytecode):
@@ -177,38 +177,54 @@ def disassemble_evm(bytecode: bytes) -> str:
         elif 0xA0 <= opcode <= 0xA4:
             name = f"LOG{opcode - 0xA0}"
         else:
-            name = EVM_OPCODES.get(opcode, f"UNKNOWN 0x{opcode:02x}")
+            name = EVM_OPCODES.get(opcode, f"UNKNOWN(0x{opcode:02x})")
         instructions.append((offset, name, data))
-        offset += 1 + width
+        offset += 1 + len(data)
 
-    jumpdests = {offset for offset, name, _ in instructions if name == "JUMPDEST"}
-    targets = set()
+    # A block ends after a jump or a halt and starts at every `JUMPDEST`.
+    halts = {"STOP", "RETURN", "REVERT", "INVALID", "SELFDESTRUCT"}
+    blocks: list[list[int]] = []
+    current: list[int] = []
     for index, (_, name, _) in enumerate(instructions):
-        if name in {"JUMP", "JUMPI"} and index:
-            _, previous, data = instructions[index - 1]
-            if previous.startswith("PUSH") and data:
-                target = int.from_bytes(data, "big")
-                if target in jumpdests:
-                    targets.add(target)
-    labels = {offset: index for index, offset in enumerate(sorted(targets))}
+        if name == "JUMPDEST" and current:
+            blocks.append(current)
+            current = []
+        current.append(index)
+        if name in halts or name in {"JUMP", "JUMPI"} or name.startswith("UNKNOWN"):
+            blocks.append(current)
+            current = []
+    if current:
+        blocks.append(current)
+    block_at = {instructions[block[0]][0]: i for i, block in enumerate(blocks)}
 
+    end = instructions[-1][0] + 1 + len(instructions[-1][2]) if instructions else 0
+    width = max(4, (end.bit_length() + 3) // 4)
     output = []
-    for index, (offset, name, data) in enumerate(instructions):
-        if name == "JUMPDEST" and offset in labels:
-            output.append(f"; bb{labels[offset]}")
-        line = name
-        if data:
-            line += f" 0x{data.hex()}"
-        if name.startswith("PUSH") and index + 1 < len(instructions):
-            if instructions[index + 1][1] in {"JUMP", "JUMPI"}:
-                target = int.from_bytes(data, "big") if data else 0
-                line += f" ; bb{labels[target]}" if target in labels else " ; unknown"
-        elif name in {"JUMP", "JUMPI"} and (
-            not index or not instructions[index - 1][1].startswith("PUSH")
-        ):
-            line += " ; unknown"
-        output.append(line)
-    return "\n".join(output) + "\n"
+    for number, block in enumerate(blocks):
+        output.append(f"bb{number}:")
+        lines = []
+        for index in block:
+            offset, name, data = instructions[index]
+            lines.append(
+                f"  {offset:0{width}x}  {name}" + (f" 0x{data.hex()}" if data else "")
+            )
+        _, last, _ = instructions[block[-1]]
+        if last in {"JUMP", "JUMPI"}:
+            target = "?"
+            if len(block) > 1:
+                _, previous, data = instructions[block[-2]]
+                if previous == "PUSH0" or (previous.startswith("PUSH") and data):
+                    pc = int.from_bytes(data, "big")
+                    first = block_at.get(pc)
+                    is_dest = first is not None and (
+                        instructions[blocks[first][0]][1] == "JUMPDEST"
+                    )
+                    target = f"bb{first}" if is_dest else "invalid"
+            lines[-1] += f"  ; -> {target}"
+            if last == "JUMPI" and number + 1 < len(blocks):
+                lines[-1] += f", else bb{number + 1}"
+        output.extend(lines)
+    return "\n".join(output) + "\n" if output else ""
 
 
 RESET = "\033[0m"
