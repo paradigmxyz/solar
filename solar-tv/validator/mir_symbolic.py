@@ -319,6 +319,9 @@ def prove_direct(a, b, timeout, *, preserve_memory_terms=False):
         + declaration("after", b)
     )
     simplify = "simp"
+    normalize_after_splits = ""
+    observations = "MIR.State.equivalent, MIR.State.observe, BitVec.add_comm"
+    finish = f"first | rfl | omega | (solve | simp [{observations}])"
     if preserve_memory_terms:
         # A representation change can preserve a long chain of memory
         # effects exactly. Compare those expressions before opening them.
@@ -330,13 +333,24 @@ def prove_direct(a, b, timeout, *, preserve_memory_terms=False):
             "Execution.expand, Execution.requiredWords, Execution.memoryWords, ",
             "",
         ) + (
-            ", MIR.PhaseShaping.expand_after_write, MIR.ContinuedCounter.expandAligned"
+            ", MIR.PhaseShaping.expand_after_write, MIR.Schedule.expand_aligned_end"
+            ", Nat.max_le, Execution.writeBytes_length, MIR.ContinuedCounter.padLength"
             ", MIR.PhaseShaping.read_padded_write, MIR.RoutedDispatch.expand_zero"
             ", ↓MIR.State.reduceOpcode"
         )
         unfold = unfold.replace("↓MIR.State.reduceRun,", "↓MIR.State.reduceShapedRun,")
         unfold = unfold.replace("MIR.State.Value.flatten,", "↓MIR.State.reduceFlatten,")
         simplify = "simp (disch := omega)"
+        observations += (
+            ", EVM.State.finalize, MIR.Schedule.warm_account, "
+            "MIR.Schedule.warm_accounts, MIR.Schedule.warm_logs"
+        )
+        finish = f"first | (solve | simp [{observations}]) | rfl | omega"
+        # Straight-line bodies may have no guard to trigger the second pass.
+        normalize_after_splits = (
+            f"  all_goals try simp_all [{unfold}, Nat.add_comm]\n"
+            f"  all_goals try simp (disch := omega) [*, {unfold}]\n"
+        )
     # Normalize bounds in the reached path before another split. Observation
     # stays behind a completed-run guard, so pending continuations do not expand
     # into a product of duplicated result projections.
@@ -355,7 +369,7 @@ theorem pair_correct (environment : World.Environment) (context : Execution.Bloc
     (try simp_all [{unfold}, Nat.add_comm]) <;>
     (try simp (disch := omega) [*, {unfold}, Decidable.imp_iff_not_or,
       Decidable.not_and_iff_not_or_not, or_comm, Nat.add_comm]) <;> try omega)
-  all_goals first | rfl | omega | (solve | simp [MIR.State.equivalent, MIR.State.observe, BitVec.add_comm])
+{normalize_after_splits}  all_goals {finish}
 #print axioms pair_correct
 """
     with tempfile.TemporaryDirectory(prefix="solar-tv-symbolic-mir-") as folder:

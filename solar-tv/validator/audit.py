@@ -866,6 +866,15 @@ def record(
                 assumptions.append(
                     "closed retained MIR callees have kernel-checked equal typed bodies; calls at the cut use the same arbitrary handler with the recorded function ID and arguments"
                 )
+        elif program and program.scope == "mir-schedule":
+            assumptions.extend(
+                [
+                    "selected typed function and supplied reachable direct and tail callees with unchanged interfaces; equal block transfers and all logical block bounds",
+                    "only independent total scalar or immutable frame reads may cross an action; shared handlers preserve ordered stateful requests, operands and failures",
+                    "trusted compiler parser, resolved typed schema export, injective local alignment and descriptor interning, and scalar action classification; calldataload, calldatasize and address have checked immutable frame semantics",
+                    "shared GAS, code observations and child replies remain premises; physical gas and backend placement require separate proofs",
+                ]
+            )
         elif program and program.scope == "effect-tree":
             assumptions.extend(
                 [
@@ -959,6 +968,7 @@ def record(
                 "storage-induction",
                 "dead-ssa",
                 "builtin-lowering",
+                "mir-schedule",
             }
         ):
             assumptions.append(
@@ -1016,6 +1026,7 @@ def record(
                 "abi-encode",
                 "integer-width",
                 "mir-interaction-tree",
+                "mir-schedule",
             }
             and program.symbolic_mir is None
         ):
@@ -1058,7 +1069,8 @@ def record(
             else "unpriced-shared-interactions"
             if program
             and (
-                program.scope in {"interaction-flow", "mir-interaction-tree"}
+                program.scope
+                in {"interaction-flow", "mir-interaction-tree", "mir-schedule"}
                 or program.scope == "layout-flow"
                 and program.import_evidence["interactions"]
             )
@@ -1124,7 +1136,7 @@ def record(
                     "proof": program.import_evidence["kind"],
                 },
             }
-            if program and program.scope == "mir-interaction-tree"
+            if program and program.scope in {"mir-interaction-tree", "mir-schedule"}
             else {}
         ),
         **(
@@ -1420,6 +1432,8 @@ def record(
                     if program.scope == "fresh-heap-function"
                     else program.import_evidence["kind"]
                     if program.scope == "abi-entry"
+                    else "kernel-checked-mir-storage-schedule"
+                    if (program.import_evidence or {}).get("storage_read_schedule")
                     else "universal-caller-state",
                     "work_bounds": [side.symbolic_mir["fuel"] for side in result.pair],
                     "supplied_functions": len(

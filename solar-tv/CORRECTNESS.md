@@ -2812,6 +2812,51 @@ stateful operations after treating immutable frame reads as total actions.
 One schedule also permutes `SLOAD` requests and needs a storage-read and
 slot-warmth proof. These shape checks guide the next certificate.
 
+### Strict MIR instruction-scheduling audit
+
+The serial `evaluate --all --require-verified --pass evm-inst-schedule
+--timeout 15 --seed 0` gate verifies all 32 captures. It uses the same IDs,
+raw IR, compiler executable, pinned inputs and ABI and bytecode fingerprints
+as the full audit. Each of the three contracts also has identical ABI,
+creation bytecode and runtime bytecode between plain and capture compilation.
+
+| Contract | Captured | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Solady WETH | 2 | 2 | 0 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 8 | 8 | 0 | 0 | 0 |
+| Morpho Blue | 22 | 22 | 0 | 0 | 0 |
+| Total | 32 | 32 | 0 | 0 | 0 |
+
+For 31 captures the kernel moves each matched SSA action only over actions
+with disjoint writes and no read-after-write or write-after-read dependency.
+At least one side of each swap must be total and state-independent. The
+calldata-size, calldata-load and address cases use checked equations for
+immutable frame reads. The block simulation covers all logical work bounds
+and retains ordered requests, operands, branches and failing shared handlers.
+It checks rescheduled reachable bodies and equality of unchanged supplied
+function tables. Parser/schema export, local SSA alignment, descriptor
+interning and scalar classification remain trusted. Actual gas samples,
+child outcomes, physical gas and backend placement remain separate premises
+or proof obligations.
+
+Morpho `idToMarketParams` changes the order of five `SLOAD`s. The direct
+typed-interpreter proof keeps byte memory symbolic while proving bounds for
+each aligned constant access. Slot warmth preserves the account snapshot
+and logs. The kernel compares the complete outcomes over arbitrary initial
+account state, calldata and aligned memory up to 64 KiB. Its terminal
+observation includes returned bytes and persistent state, with transaction
+warmth discarded. Physical gas remains unpriced at this MIR boundary.
+
+The regression reorders immutable reads and then swaps two writes to the
+same slot. Lean and independent Rust replay agree on the changed slot for
+the invalid permutation. A separate regression checks the storage-read case
+over symbolic caller memory.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Lean checker on 4.34.1 | `efdb46315e26f88af88f22bca42c19e2dd3e61b71da2ba8294b3b567f7456a02` |
+| Strict schedule results | `3b5d26042e2241d1ecf74c3312b6c7bbe9baf267ddd74d852ef9ac429720d52e` |
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through

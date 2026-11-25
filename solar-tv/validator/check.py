@@ -657,10 +657,12 @@ def check_mir_lowering(paths, solar, replay, version, timeout, function, verbose
         lower_memory_objects,
         lower_memory_zero,
         lower_slices,
+        mir_schedule,
         width_guards,
     )
 
     for validate in (
+        mir_schedule.check,
         lower_integers.check,
         lower_mapping_slots.check,
         lower_arithmetic.check,

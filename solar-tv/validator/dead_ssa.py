@@ -173,24 +173,26 @@ def erasable(inst, definitions):
         return False
 
 
-def render(body, definitions):
+def action_key(value):
+    return json.dumps(stable(value))
+
+
+def render(body, definitions, *, total=erasable, key=action_key):
     result = []
     for block in body["blocks"]:
         actions = []
         if block["phis"]:
             phi = block["phis"]
             actions.append(
-                f"⟨{json.dumps(stable(phi))},{reads(phi)},{[p['result'] for p in phi]},false⟩"
+                f"⟨{key(phi)},{reads(phi)},{[p['result'] for p in phi]},false⟩"
             )
         for inst in block["instructions"]:
             writes = [] if inst["result"] is None else [inst["result"]]
             actions.append(
-                f"⟨{json.dumps(stable(inst))},{reads(inst)},{writes},{str(erasable(inst, definitions)).lower()}⟩"
+                f"⟨{key(inst)},{reads(inst)},{writes},{str(total(inst, definitions)).lower()}⟩"
             )
         term = block["terminator"]
-        result.append(
-            f"⟨[{','.join(actions)}],{json.dumps(stable(term))},{reads(term)}⟩"
-        )
+        result.append(f"⟨[{','.join(actions)}],{key(term)},{reads(term)}⟩")
     code = "[" + ",".join(result) + "]"
     if len(code.encode()) > 262144:
         raise Unsupported("dead SSA action program exceeds 256 KiB")

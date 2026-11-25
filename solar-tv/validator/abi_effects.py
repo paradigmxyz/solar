@@ -20,7 +20,7 @@ from . import (
 from .common import Program, Unsupported
 
 
-def selected_body(module, name):
+def selected_body(module, name, *, tail_calls=False):
     functions = {body["id"]: body for body in module["functions"]}
     entries = [body for body in functions.values() if body["return_buffer"] == name]
     if len(entries) != 1:
@@ -37,6 +37,9 @@ def selected_body(module, name):
             raise Unsupported("ABI effect proof has an unknown callee")
         reachable[id_] = body
         for block in body["blocks"]:
+            term = block["terminator"]
+            if tail_calls and term["kind"] == "tail_call":
+                pending.append(term["function"])
             pending.extend(
                 inst["operation"]["function"]
                 for inst in block["instructions"]

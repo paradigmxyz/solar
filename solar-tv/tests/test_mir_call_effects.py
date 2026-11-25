@@ -261,6 +261,103 @@ bb2:
         with self.assertRaisesRegex(Unsupported, "expansion exceeds nesting 128"):
             mir_effects.render(model.symbolic_mir["model"], definitions)
 
+    def test_schedule_reorders_immutable_reads_and_preserves_stores(self):
+        before, after, report, fixture = (
+            self.directory / name
+            for name in ("before.mir", "after.mir", "report.json", "world.json")
+        )
+        reads = "v0 = calldataload 0\nv1 = calldataload 32\n"
+        stores = "sstore 0, v0\nsstore 0, v1\n"
+        before.write_text(program(reads + stores + "ret v1"))
+        after.write_text(
+            program("v1 = calldataload 32\nv0 = calldataload 0\n" + stores + "ret v1")
+        )
+        args = [
+            CLI,
+            "mir",
+            before,
+            after,
+            "--solar",
+            SOLAR,
+            "--function",
+            "f",
+            "--timeout",
+            "20",
+            "--report",
+            report,
+        ]
+        result = subprocess.run(
+            args, capture_output=True, text=True, check=False, timeout=90
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        record = json.loads(report.read_text())
+        self.assertEqual(record["region"]["proof"], "kernel-checked-mir-schedule")
+        self.assertEqual(record["gas_policy"], "unpriced-shared-interactions")
+
+        after.write_text(program(reads + "sstore 0, v1\nsstore 0, v0\nret v1"))
+        fixture.write_text(
+            json.dumps({"version": 1, "calldata": f"0x{3:064x}{7:064x}"})
+        )
+        result = subprocess.run(
+            [*args, "--world", fixture],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=90,
+        )
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        record = json.loads(report.read_text())
+        self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+        self.assertEqual(
+            record["witness"]["observations"], record["witness"]["native_observations"]
+        )
+
+    def test_schedule_checks_permuted_storage_reads_with_symbolic_memory(self):
+        before, after, report = (
+            self.directory / name for name in ("before.mir", "after.mir", "report.json")
+        )
+        source = """@module ReadSlots
+fn @slots() {
+  bb0:
+    v0 = sload 1
+    v1 = sload 2
+    mstore 0, v0
+    mstore 32, v1
+    returndata 0, 64
+}
+"""
+        before.write_text(source)
+        after.write_text(
+            source.replace(
+                "v0 = sload 1\n    v1 = sload 2", "v1 = sload 2\n    v0 = sload 1"
+            )
+        )
+        result = subprocess.run(
+            [
+                CLI,
+                "mir",
+                before,
+                after,
+                "--solar",
+                SOLAR,
+                "--function",
+                "slots",
+                "--timeout",
+                "20",
+                "--report",
+                report,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=90,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        record = json.loads(report.read_text())
+        self.assertEqual(
+            record["region"]["proof"], "kernel-checked-mir-storage-schedule"
+        )
+
     def test_interaction_trace_uses_width_facts_after_effects(self):
         before, after = (self.directory / name for name in ("before.mir", "after.mir"))
         before.write_text(

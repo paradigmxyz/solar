@@ -1693,6 +1693,20 @@ All six previously cycle-rejected DCE pairs in the broader capture set now
 verify. They cover OpenZeppelin's storage-byte helper, `name` and `symbol`, and
 three Morpho `extSloads` captures.
 
+### Checking MIR instruction scheduling
+
+Function checks recognize instruction permutations emitted by
+`evm-inst-schedule`. Each swap preserves SSA dependencies and the order of
+stateful requests. Lean also checks that calldata size, calldata loads and
+the current address read immutable frame data. The result is valid for all
+logical block bounds under shared handlers, including gas and child replies.
+
+When a function permutes storage reads, the direct MIR interpreter can check
+the complete observations with symbolic account state and caller memory.
+The 32 pinned schedules verify in the strict serial audit. Physical gas
+and emitted stack placement have separate obligations.
+[Audit results](CORRECTNESS.md#strict-mir-instruction-scheduling-audit)
+
 ### Checking a calldata pointer recurrence
 
 Capture the real `indvar-simplify` rewrite of `CalldataPointerExit.stopAt` and
