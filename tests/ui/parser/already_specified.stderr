@@ -82,7 +82,7 @@ error[7792]: Function has override specified but does not override anything
 LL │ ┏     function f()
 LL │ ┃     public
 LL │ ┃     private
-   ‡ ┃
+   ┆ ┇
 LL │ ┃     override
 LL │ ┃     {}
    ╰╴┗━━━━━━┛
@@ -93,7 +93,7 @@ error[7792]: public state variable has override specified but does not override 
 LL │ ┏     uint
 LL │ ┃     public
 LL │ ┃     private
-   ‡ ┃
+   ┆ ┇
 LL │ ┃     override
 LL │ ┃     x = 0;
    ╰╴┗━━━━━━━━━┛

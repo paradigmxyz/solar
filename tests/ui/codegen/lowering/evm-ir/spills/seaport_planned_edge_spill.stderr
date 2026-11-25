@@ -48,7 +48,7 @@ LL │ ┏     function _getReadAdvancedOrderByOffset()
 LL │ ┃         internal
 LL │ ┃         returns (
 LL │ ┃             function(AdvancedOrder[] memory, uint256)
-   ‡ ┃
+   ┆ ┇
 LL │ ┃         fn2 = _readAO;
 LL │ ┃     }
    ╰╴┗━━━━━┛
@@ -60,7 +60,7 @@ LL │ ┏     function _deriveTypehashes()
 LL │ ┃         internal
 LL │ ┃         returns (
 LL │ ┃             bytes32 nameHash,
-   ‡ ┃
+   ┆ ┇
 LL │ ┃         );
 LL │ ┃     }
    ╰╴┗━━━━━┛
@@ -71,7 +71,7 @@ warning[2018]: function state mutability can be restricted to pure
 LL │ ┏     function _validateOrder(
 LL │ ┃         AdvancedOrder memory advancedOrder,
 LL │ ┃         bool revertOnInvalid
-   ‡ ┃
+   ┆ ┇
 LL │ ┃         denominator = 2;
 LL │ ┃     }
    ╰╴┗━━━━━┛

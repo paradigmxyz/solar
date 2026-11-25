@@ -165,14 +165,14 @@ impl HumanEmitter {
 
     /// Sets whether to emit diagnostics in a way that is suitable for UI testing.
     pub fn ui_testing(mut self, yes: bool) -> Self {
-        self.renderer = self.renderer.anonymized_line_numbers(yes);
+        self.renderer = self.renderer.anonymized_snippet_line_numbers(yes);
         self
     }
 
     /// Sets whether to emit diagnostics in a way that is suitable for UI testing.
     pub fn set_ui_testing(&mut self, yes: bool) {
-        self.renderer =
-            std::mem::replace(&mut self.renderer, DEFAULT_RENDERER).anonymized_line_numbers(yes);
+        self.renderer = std::mem::replace(&mut self.renderer, DEFAULT_RENDERER)
+            .anonymized_snippet_line_numbers(yes);
     }
 
     /// Sets the human emitter kind (unicode vs short).

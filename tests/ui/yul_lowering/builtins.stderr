@@ -11,7 +11,7 @@ LL │ ┏             pop(sdiv(6, 2))
 LL │ ┃             pop(smod(7, 3))
 LL │ ┃             pop(lt(1, 2))
 LL │ ┃             pop(gt(2, 1))
-   ‡ ┃
+   ┆ ┇
 LL │ ┃             pop(staticcall(gas(), 0, 0, 0, 0, 0))
 LL │ ┃             return(0, 0)
    ╰╴┗━━━━━━━━━━━━━━━━━━━━━━━━┛
@@ -35,7 +35,7 @@ LL │ ┏             pop(chainid())
 LL │ ┃             pop(basefee())
 LL │ ┃             pop(blobbasefee())
 LL │ ┃             pop(blobhash(0))
-   ‡ ┃
+   ┆ ┇
 LL │ ┃             mcopy(0, 0, 0)
 LL │ ┃             x := 1
    ╰╴┗━━━━━━━━━━━━━━━━━━┛

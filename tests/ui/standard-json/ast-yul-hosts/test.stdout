@@ -12,7 +12,7 @@
       "severity": "warning",
       "errorCode": "2018",
       "message": "function state mutability can be restricted to view",
-      "formattedMessage": "warning[2018]: function state mutability can be restricted to view\n   ╭▸ Hosts.sol:LL:CC\n   │\nLL │ ┏     function hosted(uint256 x) external guard returns (uint256 r) {\nLL │ ┃         unchecked {\nLL │ ┃             assembly {\nLL │ ┃                 function one() -> o { o := LIMIT }\n   ‡ ┃\nLL │ ┃     }\n   ╰╴┗━━━━━┛\n\n"
+      "formattedMessage": "warning[2018]: function state mutability can be restricted to view\n   ╭▸ Hosts.sol:LL:CC\n   │\nLL │ ┏     function hosted(uint256 x) external guard returns (uint256 r) {\nLL │ ┃         unchecked {\nLL │ ┃             assembly {\nLL │ ┃                 function one() -> o { o := LIMIT }\n   ┆ ┇\nLL │ ┃     }\n   ╰╴┗━━━━━┛\n\n"
     }
   ],
   "sources": {

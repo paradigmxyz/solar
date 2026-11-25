@@ -3,7 +3,7 @@ error[5462]: failed to evaluate constant: unsupported binary operation
    │
 LL │ uint256 constant X = A << -1;
    │                      ─────── evaluation of constant value failed here
-   ‡
+   ┆
 LL │     uint256[X] x;
    ╰╴            ━
 
@@ -12,7 +12,7 @@ error[5462]: failed to evaluate constant: unsupported binary operation
    │
 LL │ uint256 constant Y = A << N;
    │                      ────── evaluation of constant value failed here
-   ‡
+   ┆
 LL │     uint256[Y] y;
    ╰╴            ━
 

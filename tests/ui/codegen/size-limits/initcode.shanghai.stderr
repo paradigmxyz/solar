@@ -5,7 +5,7 @@ LL │ ┏ contract test {
 LL │ ┃     constructor() {
 LL │ ┃         new A();
 LL │ ┃         new B();
-   ‡ ┃
+   ┆ ┇
 LL │ ┃ }
    │ ┗━┛
    │

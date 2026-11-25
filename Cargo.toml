@@ -165,7 +165,7 @@ comfy-table = { version = "8.0", default-features = false }
 # diagnostics
 anstream = "1.0.0"
 anstyle = "1.0"
-annotate-snippets = { version = "0.12", features = ["simd"] }
+annotate-snippets = { version = "0.12.17", features = ["simd"] }
 colorchoice = "1.0"
 
 # serde

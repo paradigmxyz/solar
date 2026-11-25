@@ -26,7 +26,7 @@
       "severity": "warning",
       "errorCode": "2018",
       "message": "function state mutability can be restricted to view",
-      "formattedMessage": "warning[2018]: function state mutability can be restricted to view\n   ╭▸ Yul.sol:LL:CC\n   │\nLL │ ┏     function suffixes(bytes calldata cd, function() external callback) public returns (uint256 total) {\nLL │ ┃         uint256[] storage list = items;\nLL │ ┃         uint256 local;\nLL │ ┃         assembly (\"memory-safe\") {\n   ‡ ┃\nLL │ ┃     }\n   ╰╴┗━━━━━┛\n\n"
+      "formattedMessage": "warning[2018]: function state mutability can be restricted to view\n   ╭▸ Yul.sol:LL:CC\n   │\nLL │ ┏     function suffixes(bytes calldata cd, function() external callback) public returns (uint256 total) {\nLL │ ┃         uint256[] storage list = items;\nLL │ ┃         uint256 local;\nLL │ ┃         assembly (\"memory-safe\") {\n   ┆ ┇\nLL │ ┃     }\n   ╰╴┗━━━━━┛\n\n"
     },
     {
       "sourceLocation": {
@@ -40,7 +40,7 @@
       "severity": "warning",
       "errorCode": "2018",
       "message": "function state mutability can be restricted to view",
-      "formattedMessage": "warning[2018]: function state mutability can be restricted to view\n   ╭▸ Yul.sol:LL:CC\n   │\nLL │ ┏     function functions() public returns (uint256 total) {\nLL │ ┃         assembly {\nLL │ ┃             // A function that uses declarations of the Solidity function and contract.\nLL │ ┃             function scale(x, y) -> z, w {\n   ‡ ┃\nLL │ ┃     }\n   ╰╴┗━━━━━┛\n\n"
+      "formattedMessage": "warning[2018]: function state mutability can be restricted to view\n   ╭▸ Yul.sol:LL:CC\n   │\nLL │ ┏     function functions() public returns (uint256 total) {\nLL │ ┃         assembly {\nLL │ ┃             // A function that uses declarations of the Solidity function and contract.\nLL │ ┃             function scale(x, y) -> z, w {\n   ┆ ┇\nLL │ ┃     }\n   ╰╴┗━━━━━┛\n\n"
     }
   ],
   "sources": {
