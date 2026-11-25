@@ -2404,33 +2404,54 @@ in this run, with 68 unsupported captures and four timeouts. The next
 coverage work starts with the unsupported layout captures, followed by
 `compact-pushes` with 44 unsupported captures and three timeouts.
 
-### Physical entry proof for Morpho block layout
+### Physical entry audit for block layout
 
-The largest outstanding module pair in the audit above contains 41
-Morpho Blue `block-layout` checks. Running the same Cancun captures
-through `--entry-trace` serially with 120 seconds per Lean stage verifies
-all 41 regions through a shared module-entry certificate. Each region
-is matched to a covered label in the certificate. The captures retain
-the compiler and pinned Morpho input fingerprints from the full audit.
+The three-second census verified 296 of the 368 pinned `block-layout`
+captures. Serial `--entry-trace` retries with 120 seconds per Lean stage
+verify all 72 remaining regions using eight shared Cancun entry
+certificates. The join checks each capture ID, both unchanged raw IR
+hashes, and presence of the region's label in both checked source graphs.
+The retries use the full audit's compiler and input fingerprints. The
+three-second audit totals above are unchanged.
+
+| Contract | Audit verified | Entry retries verified | Total verified |
+| --- | ---: | ---: | ---: |
+| Solady WETH | 38 | 7 | 45 |
+| OpenZeppelin ERC20Mock | 54 | 13 | 67 |
+| Morpho Blue | 204 | 52 | 256 |
+| Total | 296 | 72 | 368 |
+
+| Entry report | Regions covered by retry | Report SHA-256 |
+| --- | ---: | --- |
+| Morpho Blue `evmirfxoh4h` | 41 | `ad814900d8082514404d7babc81ee14c3f784634d59a566310aa69c7a2cca521` |
+| Morpho Blue `evmirh5tcbX` | 7 | `ed65bd83de16d5435da3a79eeaf3ce908a82fb49fbc25876c2f6b5cda44b0105` |
+| Morpho Blue `evmiro1cvnk` | 3 | `d65ba759ac03fd39b0cc0a55285590884ac56a66a73fc7695c10fb44173b28d6` |
+| Morpho Blue `evmirvXF9vc` | 1 | `1207215ae9af5649cc8a4f14a7d2568d76cbb4f2134ca650dd40f468bd3313d6` |
+| OpenZeppelin ERC20Mock `evmirabCHCf` | 10 | `857e8d84e3188c72f0816d06074ed0990a39b2a53ff2422d8b4e6f84ba7bfd98` |
+| OpenZeppelin ERC20Mock `evmireFTNzQ` | 3 | `7828cf52b9d8edfeb3de228e5bc99454a743e65c9f8359527218408283eee6da` |
+| Solady WETH `evmirb379iv` | 6 | `f8d6b2c5c338a17b6284d60e5d443c99ccd435ba7256cff92005a767c2367c7e` |
+| Solady WETH `evmirYYabnt` | 1 | `9af8ada4b7f2a44b306e878b82ae23d59fd6f64150e76b8e5a1b32daacd7ef69` |
+
+The largest Morpho pair contains 41 of the 72 retries. Its raw IR hashes
+and the Lean checker fingerprint shared by every retry are recorded below.
 
 | Artifact | SHA-256 |
 | --- | --- |
 | Before IR | `dae865fd353b0be4cf42183bae7f46f46509db76663fe4bcf820c4d3c906e497` |
 | After IR | `53cf91f5c40c5d9badb9a12703caadea1b2f324ab42bae4ac633bf09d50245ed` |
 | Lean checker on 4.34.1 | `b45fb5cfada28383dfdbda218e0bc7dead5f8c8fc2ce65a1d7cd298f2972a8b6` |
-| Entry report | `ad814900d8082514404d7babc81ee14c3f784634d59a566310aa69c7a2cca521` |
 
-On both sides the kernel checks physical entry with an empty stack,
-15,954 logical actions, 178 resolved stack-carried returns and the
-reachable stack bounds for 101 changed transfers. The 288 covered
-labels include the 41 previously unsupported regions. Both sides use
-shared position-independent interaction handlers and immutable slots.
-The certificate preserves logical actions and interaction requests
-under shared preceding replies. Physical gas, forwarded gas and child
-behavior remain environment obligations. The Rust export supplies the
-source graph for the kernel correspondence check. This run used no
-separate concrete EVM replay. The three-second audit totals above are
-unchanged.
+The kernel checks physical EVM IR entry with an empty stack. For the
+largest pair it checks 15,954 logical actions, 178 resolved stack-carried
+returns and reachable stack bounds for 101 changed transfers on each
+side. ERC20Mock uses the unpriced structural policy. Morpho and WETH
+use shared position-independent interaction handlers and preserve
+interaction requests under shared preceding replies. Immutable slots
+are shared. Physical gas, forwarded gas and child behavior remain
+environment obligations. The Rust export supplies the source graph for
+the kernel correspondence check. These certificates use IR semantics
+and the compiler's opcode schema. The emitted bytes and concrete EVM
+replay are outside the retry proofs.
 
 ### Stack-carried continuations
 
