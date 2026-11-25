@@ -157,7 +157,16 @@ impl<'p, 'a> Vc<'p, 'a> {
         }
         let (entry_guard, entry_env) = (self.guard.clone(), self.env.clone());
         self.mem_call_writes.borrow_mut().clear();
-        let targets = self.loop_targets(body, next);
+        // A modifier's `_` in the loop would run the function's body, whose writes to its own
+        // locals and returns the head cannot reach from here.
+        let mut placeholder = false;
+        crate::walk::all_stmts(body, &mut |x| {
+            placeholder |= matches!(x.kind, StmtKind::Placeholder);
+        });
+        if placeholder {
+            return Err((s.span, "modifier placeholder `_` inside a loop is not supported".into()));
+        }
+        let targets = self.loop_targets(cond, body, next);
         // NOTE: a call in the body that writes a memory array passed to it havocs that array at
         // the head, but the frame of what the call leaves unchanged is then quantified, and the
         // solver answers unknown where a concrete counterexample exists. Refuse such loops until
@@ -186,9 +195,15 @@ impl<'p, 'a> Vc<'p, 'a> {
         }
         let ncands = cands.len();
         for t in &targets {
-            let ty = self.env[t].ty.clone();
-            let v = self.fresh_var(t, &ty);
-            self.env.insert(t.clone(), v);
+            // A target may name a local and the state variable it shadows (`st_key`), when the
+            // body writes state through a call: both change.
+            let held = Self::st_key(t);
+            for k in [t.clone(), held] {
+                if let Some(ty) = self.env.get(&k).map(|v| v.ty.clone()) {
+                    let v = self.fresh_var(t, &ty);
+                    self.env.insert(k, v);
+                }
+            }
         }
         let (head_guard, head_env) = (self.guard.clone(), self.env.clone());
         if self.trial == 0 {
@@ -261,7 +276,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             self.reverts_if("true");
         }
         let rec_at = self.loop_recs.len();
-        self.loops.push(LoopCtx { breaks: vec![], conts: vec![] });
+        self.loops.push(LoopCtx { breaks: vec![], conts: vec![], depth: self.decl_scopes.len() });
         self.exec_stmt(body)?;
         let ctx = self.loops.pop().unwrap();
         let mut st = ctx.conts;
@@ -399,7 +414,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         };
         self.assume(&c);
         let m0: Vec<Option<String>> = measures.iter().map(|m| self.measure_term(m)).collect();
-        self.loops.push(LoopCtx { breaks: vec![], conts: vec![] });
+        self.loops.push(LoopCtx { breaks: vec![], conts: vec![], depth: self.decl_scopes.len() });
         self.exec_stmt(body)?;
         let ctx = self.loops.pop().unwrap();
         let mut st = ctx.conts;

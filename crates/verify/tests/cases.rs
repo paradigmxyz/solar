@@ -1318,3 +1318,48 @@ fn encode_library_scope() {
 fn encode_struct_field() {
     check("tests/cases/encode_struct_field.sol")
 }
+
+#[test]
+fn sound_scopes() {
+    check("tests/cases/sound_scopes.sol")
+}
+
+#[test]
+fn sound_mod_param_shadow() {
+    check("tests/cases/sound_mod_param_shadow.sol")
+}
+
+#[test]
+fn sound_mod_loop_placeholder() {
+    check("tests/cases/sound_mod_loop_placeholder.sol")
+}
+
+#[test]
+fn sound_ctor_param_shadow() {
+    check("tests/cases/sound_ctor_param_shadow.sol")
+}
+
+#[test]
+fn sound_ctor_base_modifiers() {
+    check("tests/cases/sound_ctor_base_modifiers.sol")
+}
+
+#[test]
+fn sound_ensures_param() {
+    check("tests/cases/sound_ensures_param.sol")
+}
+
+#[test]
+fn sound_calldata_local() {
+    check("tests/cases/sound_calldata_local.sol")
+}
+
+#[test]
+fn sound_calldata_modifier() {
+    check("tests/cases/sound_calldata_modifier.sol")
+}
+
+#[test]
+fn sound_loop_guard_write() {
+    check("tests/cases/sound_loop_guard_write.sol")
+}
