@@ -1108,6 +1108,7 @@ failure of the execution message.
 ```sh
 solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/set-code-revert.json
 solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/amsterdam-reservoir.json
+solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/amsterdam-nested-reservoir.json
 ```
 
 The Amsterdam checks cover reservoir initialization, execution-only debits,
@@ -1115,8 +1116,11 @@ insufficient gas, and state charges that spill into execution gas. Refills repay
 the spill before crediting the reservoir. The refill trace rolls back a negative
 frame ledger and preserves the execution-only charges. Lean checks each
 snapshot against the pinned `evm2` gas tracker for the supplied charge trace.
-Metering stateful opcodes, merging nested frame ledgers and settling the
-transaction remain separate obligations.
+The nested trace supplies the forwarded gas, stipend, upfront state charge,
+and child exit. Lean checks the inherited checkpoint across every transition.
+The replay compares both pools, signed ledgers, refund counters, and depth
+through child success, revert, and halt. Opcode-derived forwarding and charges,
+interpreter integration for nested calls, and transaction settlement remain open.
 
 ## Check passes during compilation
 

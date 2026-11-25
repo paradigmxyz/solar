@@ -1,0 +1,19 @@
+{
+  "kind": "nested_reservoir",
+  "limit": 16777366,
+  "intrinsic": 21000,
+  "actions": [
+    {"state": 154},
+    {"refund": 19},
+    {"enter": {"forward": 100, "stipend": 0, "reserved": 0}},
+    {"refill": 6},
+    {"refund": -3},
+    {"enter": {"forward": 30, "stipend": 0, "reserved": 10}},
+    {"execution": 3},
+    {"state": 9},
+    {"refund": 7},
+    {"finish": "revert"},
+    {"finish": "success"},
+    {"rollback": null}
+  ]
+}

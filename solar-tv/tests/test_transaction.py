@@ -126,3 +126,47 @@ class TransactionTests(unittest.TestCase):
                 [16756213, 150, 0, 0],
             ],
         )
+
+    def test_amsterdam_child_success_merges_negative_ledger_after_grandchild_revert(
+        self,
+    ):
+        request = json.loads((EXAMPLES / "amsterdam-nested-reservoir.json").read_text())
+        self.assertEqual(
+            self.check(request),
+            [
+                [16756216, 150, 0, 0, 0, 0],
+                [16756212, 0, 154, 4, 0, 0],
+                [16756212, 0, 154, 4, 19, 0],
+                [100, 0, 0, 0, 0, 1],
+                [100, 6, -6, 0, 0, 1],
+                [100, 6, -6, 0, -3, 1],
+                [30, 0, 0, 0, 0, 2],
+                [27, 0, 0, 0, 0, 2],
+                [18, 0, 9, 9, 0, 2],
+                [18, 0, 9, 9, 7, 2],
+                [97, 6, -6, 0, -3, 1],
+                [16756209, 6, 148, 4, 16, 0],
+                [16756213, 150, 0, 0, 16, 0],
+            ],
+        )
+
+    def test_amsterdam_child_halt_consumes_forwarded_gas_and_releases_reservation(self):
+        request = json.loads((EXAMPLES / "amsterdam-nested-reservoir.json").read_text())
+        request["actions"] = [
+            {"enter": {"forward": 30, "stipend": 0, "reserved": 154}},
+            {"refill": 10},
+            {"refund": 5},
+            {"finish": "halt"},
+            {"finish": "revert"},
+        ]
+        self.assertEqual(
+            self.check(request),
+            [
+                [16756216, 150, 0, 0, 0, 0],
+                [30, 0, 0, 0, 0, 1],
+                [30, 10, -10, 0, 0, 1],
+                [30, 10, -10, 0, 5, 1],
+                [16756186, 150, 0, 0, 0, 0],
+                None,
+            ],
+        )

@@ -8,7 +8,7 @@ use evm2::{
     env::BlockEnv,
     ethereum::{LazyTxEip7702, TxEnvelope, ethereum_tx_registry, initial_gas_and_reservoir},
     evm::{AccountInfo, InMemoryDB},
-    interpreter::GasTracker,
+    interpreter::{GasTracker, InstrStop},
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -30,6 +30,11 @@ enum Input {
         limit: u32,
         intrinsic: u32,
         charges: Vec<Debit>,
+    },
+    NestedReservoir {
+        limit: u32,
+        intrinsic: u32,
+        actions: Vec<FrameAction>,
     },
 }
 
@@ -126,17 +131,14 @@ pub(super) fn replay() -> Result<Value, String> {
                 "authorities":recovered,
                 "spent":result.total_gas_spent,"refund":result.refunded,"accounts":accounts}))
         }
+        Input::NestedReservoir { limit, intrinsic, actions } => nested(limit, intrinsic, actions),
         Input::Reservoir { limit, intrinsic, charges } => {
             if charges.len() > 64 {
                 return Err("gas replay permits at most 64 charges".into());
             }
-            let version = Version::base(SpecId::AMSTERDAM);
-            let (limit, intrinsic) = (u64::from(limit), u64::from(intrinsic));
-            if intrinsic > limit.min(version.tx_gas_limit_cap) {
+            let Some(mut gas) = begin(limit, intrinsic) else {
                 return Ok(Value::Null);
-            }
-            let (execution, reservoir) = initial_gas_and_reservoir(version, limit, intrinsic, 0);
-            let mut gas = GasTracker::new_with_execution_gas_and_reservoir(execution, reservoir);
+            };
             let snapshot = |meter: &GasTracker| {
                 json!([
                     meter.remaining(),
@@ -147,19 +149,7 @@ pub(super) fn replay() -> Result<Value, String> {
             };
             let mut trace = vec![snapshot(&gas)];
             for charge in charges {
-                let result = match charge {
-                    Debit::Execution(cost) => gas.spend(cost.into()),
-                    Debit::State(cost) => gas.spend_state(cost.into()),
-                    Debit::Refill(amount) => {
-                        gas.refill_reservoir(amount.into());
-                        Ok(())
-                    }
-                    Debit::Rollback(()) => {
-                        gas.rollback_state_gas();
-                        Ok(())
-                    }
-                };
-                if result.is_err() {
+                if charge.apply(&mut gas).is_err() {
                     trace.push(Value::Null);
                     break;
                 }
@@ -168,4 +158,125 @@ pub(super) fn replay() -> Result<Value, String> {
             Ok(json!(trace))
         }
     }
+}
+
+impl Debit {
+    fn apply(self, gas: &mut GasTracker) -> Result<(), InstrStop> {
+        match self {
+            Self::Execution(cost) => gas.spend(cost.into()),
+            Self::State(cost) => gas.spend_state(cost.into()),
+            Self::Refill(amount) => {
+                gas.refill_reservoir(amount.into());
+                Ok(())
+            }
+            Self::Rollback(()) => {
+                gas.rollback_state_gas();
+                Ok(())
+            }
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum FrameAction {
+    Debit(Debit),
+    Frame(FrameChange),
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum FrameChange {
+    Refund(i32),
+    Enter(ChildGas),
+    Finish(Exit),
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ChildGas {
+    forward: u32,
+    stipend: u32,
+    reserved: u32,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum Exit {
+    Success,
+    Revert,
+    Halt,
+}
+
+fn begin(limit: u32, intrinsic: u32) -> Option<GasTracker> {
+    let version = Version::base(SpecId::AMSTERDAM);
+    let (limit, intrinsic) = (u64::from(limit), u64::from(intrinsic));
+    if intrinsic > limit.min(version.tx_gas_limit_cap) {
+        return None;
+    }
+    let (execution, reservoir) = initial_gas_and_reservoir(version, limit, intrinsic, 0);
+    Some(GasTracker::new_with_execution_gas_and_reservoir(execution, reservoir))
+}
+
+fn nested(limit: u32, intrinsic: u32, actions: Vec<FrameAction>) -> Result<Value, String> {
+    if actions.len() > 64 {
+        return Err("nested gas replay permits at most 64 actions".into());
+    }
+    let Some(mut gas) = begin(limit, intrinsic) else {
+        return Ok(Value::Null);
+    };
+
+    let snapshot = |meter: &GasTracker, depth| {
+        json!([
+            meter.remaining(),
+            meter.reservoir(),
+            meter.state_gas_spent(),
+            meter.state_gas_spilled(),
+            meter.refunded(),
+            depth,
+        ])
+    };
+    let mut trace = vec![snapshot(&gas, 0)];
+    let mut callers = Vec::new();
+    for action in actions {
+        match action {
+            FrameAction::Debit(debit) => {
+                if debit.apply(&mut gas).is_err() {
+                    trace.push(Value::Null);
+                    break;
+                }
+            }
+            FrameAction::Frame(FrameChange::Refund(amount)) => gas.record_refund(amount.into()),
+            FrameAction::Frame(FrameChange::Enter(ChildGas { forward, stipend, reserved })) => {
+                if gas.spend_state(reserved.into()).is_err() || gas.spend(forward.into()).is_err() {
+                    trace.push(Value::Null);
+                    break;
+                }
+                callers.push((gas, reserved));
+                gas = GasTracker::new_with_execution_gas_and_reservoir(
+                    u64::from(forward) + u64::from(stipend),
+                    gas.reservoir(),
+                );
+            }
+            FrameAction::Frame(FrameChange::Finish(exit)) => {
+                let Some((mut parent, reserved)) = callers.pop() else {
+                    trace.push(Value::Null);
+                    break;
+                };
+                let stop = match exit {
+                    Exit::Success => InstrStop::Stop,
+                    Exit::Revert => InstrStop::Revert,
+                    Exit::Halt => InstrStop::OutOfGas,
+                };
+                gas.settle_gas(stop);
+                parent.merge_child_gas(gas, stop);
+                if !stop.is_success() {
+                    parent.refill_reservoir(reserved.into());
+                }
+                gas = parent;
+            }
+        }
+        trace.push(snapshot(&gas, callers.len()));
+    }
+    Ok(json!(trace))
 }

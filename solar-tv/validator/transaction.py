@@ -13,6 +13,7 @@ from .common import Unsupported
 
 SET_CODE = "SolarTV.EVMIR.State.Transactions.SetCode"
 RESERVOIR = "SolarTV.EVMIR.State.Transactions.Reservoir"
+NESTED_RESERVOIR = "SolarTV.EVMIR.State.Transactions.NestedReservoir"
 
 
 def natural(value):
@@ -146,13 +147,18 @@ theorem matches_replay : observation.toOption = some {expected} := by
 """
 
 
+def charge_source(kind, cost):
+    if kind == "rollback":
+        return ".rollback"
+    if kind not in {"execution", "state", "refill"}:
+        raise Unsupported("unknown reservoir charge")
+    return f".{kind} {natural(cost)}"
+
+
 def reservoir_source(request, observed):
-    charges = []
-    for debit in request["charges"]:
-        ((kind, cost),) = debit.items()
-        charges.append(
-            ".rollback" if kind == "rollback" else f".{kind} {natural(cost)}"
-        )
+    charges = [
+        charge_source(*row) for debit in request["charges"] for row in debit.items()
+    ]
     meters = (
         []
         if observed is None
@@ -168,6 +174,43 @@ def charges : List Charge := [{",".join(charges)}]
 theorem matches_replay :
     (begin {natural(request["limit"])} {natural(request["intrinsic"])}).map
       (fun meter => trace meter charges) = {expected} := by decide
+#print axioms matches_replay
+"""
+
+
+def frame_action(kind, value):
+    if kind == "enter":
+        return ".enter " + " ".join(
+            str(natural(value[key])) for key in ("forward", "stipend", "reserved")
+        )
+    if kind == "finish" and value in {"success", "revert", "halt"}:
+        return f".finish .{value}"
+    if kind == "refund" and type(value) is int:
+        return f".refund ({value})"
+    return f".charge ({charge_source(kind, value)})"
+
+
+def nested_reservoir_source(request, observed):
+    actions = [
+        frame_action(*row) for action in request["actions"] for row in action.items()
+    ]
+    meters = (
+        []
+        if observed is None
+        else [
+            "none"
+            if row is None
+            else f"some (⟨{','.join(map(str, row[:4]))}⟩,{row[4]},{row[5]})"
+            for row in observed
+        ]
+    )
+    expected = "none" if observed is None else f"some [{','.join(meters)}]"
+    return f"""import {NESTED_RESERVOIR}
+open SolarTV.EVM.Transaction.Reservoir
+def actions : List FrameAction := [{",".join(actions)}]
+theorem matches_replay :
+    (begin {natural(request["limit"])} {natural(request["intrinsic"])}).map
+      (fun meter => frameTrace ⟨⟨meter,0⟩,[]⟩ actions) = {expected} := by decide
 #print axioms matches_replay
 """
 
@@ -195,6 +238,9 @@ def check(request, solar, timeout):
             source = set_code_source(
                 request, observed, solar, helper, timeout, directory
             )
+        elif request["kind"] == "nested_reservoir":
+            module = NESTED_RESERVOIR
+            source = nested_reservoir_source(request, observed)
         else:
             module = RESERVOIR
             source = reservoir_source(request, observed)
@@ -214,6 +260,16 @@ def check(request, solar, timeout):
         ).hexdigest(),
         "target": request.get("fork", "amsterdam"),
         "observation": observed,
+        **(
+            {
+                "assumptions": [
+                    "the fixture supplies forwarded execution gas, stipend, upfront state charge and the child exit",
+                    "compares all gas pools, signed ledgers, refund counters and frame depths against the pinned gas tracker",
+                ]
+            }
+            if request["kind"] == "nested_reservoir"
+            else {}
+        ),
     }
 
 
