@@ -2589,6 +2589,56 @@ results on identical inputs and bytecode.
 | Morpho `flashLoan` entry report | `238618b47b2dd373bc91d40dd955ae14cff9243b4a676e92f46774d431c56840` |
 | Default results.json | `566c342bdde37566336b1ccb34cd9e4ec5bedc8471068cac328bf2578ebc6eb1` |
 
+#### Physical gas witnesses for integer cleanup
+
+Replay the canonical MIR suffix after `integer-cleanup` on both snapshots
+at `-Ogas` for Cancun, then emit creation and runtime bytecode. Both after
+images match the pinned Solidity compilation byte for byte. The before
+images use the same suffix starting from the capture before the pass.
+The runtime sizes are 1,778 to 1,710 bytes for WETH and 8,618 to 8,463 bytes
+for Morpho.
+
+Lean checks the path from runtime PC 0 to each first call at 500,000
+gas. It binds the opcode, recipient, gas remaining at the cut and the
+stack operand requesting gas. The pinned Rust EVM independently replayed
+both images and reported the same observations.
+
+| Function | Before call PC | After call PC | Before requested gas | After requested gas |
+| --- | ---: | ---: | ---: | ---: |
+| WETH `permit` | 1543 | 1474 | 496,893 | 496,925 |
+| Morpho `flashLoan` | 3662 | 3599 | 495,074 | 495,088 |
+
+Lean also checks complete runtime execution of both images at the gas
+budgets below. The pinned Rust replay independently agrees on the
+outcome, return bytes, remaining gas and log count. The proof fixtures
+use concrete calldata and accounts, a WETH signature that fails
+verification, and a Morpho token stub that returns true with an empty
+borrower callback. Fuel is bounded at 512 root steps for the Lean traces.
+
+| Function | Root gas | Before | After |
+| --- | ---: | --- | --- |
+| WETH `permit` | 6,226 | Out of gas | Revert with `0xddafbaef` |
+| Morpho `flashLoan` | 6,279 | Out of gas | Success with one log |
+
+Both fixtures fail the `.exact` observation predicate and satisfy
+`.refine`, whose policy allows improvement over an original out-of-gas
+result. The two joined theorems use `propext` and `Quot.sound`. General
+gas refinement and the connection from MIR proofs to emitted behavior
+for arbitrary inputs remain open.
+
+`target/tv-integer-cleanup-bytecode-probe/sha256.txt` fingerprints the
+203 saved inputs, compiler and replay executables, emitted outputs,
+Rust observations and Lean proof sources. Run `shasum -a 256 -c
+tv-integer-cleanup-bytecode-probe/sha256.txt` from `target` to check them.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| WETH before runtime | `d3e6b1c2ca553bfacf5e459da28f82dc32d7f3a6047b6b5c8e7e1a12d298234a` |
+| WETH after runtime | `1ee74796a6dd3aedbd6dcaeed93349b3ef0f0719d70a6a0d558519d7594fb438` |
+| Morpho before runtime | `8c8fe4d87b1ea40bbc163b814a2e1886ebd4fb4b8575aed1979ea33a40240356` |
+| Morpho after runtime | `d2c1c3d7bb22df8c2e0e9853f10f2657af1c547028e7287b0452a9943a23cd2e` |
+| Evidence manifest | `e174d1a66b8866b77ce39d004588109886b446b349944b1c6bed2be7caf4688a` |
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
