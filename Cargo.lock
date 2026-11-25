@@ -1323,7 +1323,7 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf9468729b8cbcea668e36183cb69d317348c2e08e994829fb56ebfdfbaac34"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1971,13 +1971,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
 name = "evm2"
 version = "0.1.0"
-source = "git+https://github.com/alloy-rs/evm2?rev=175884c15398e817b2043c34ef427ec5f0465f33#175884c15398e817b2043c34ef427ec5f0465f33"
+source = "git+https://github.com/alloy-rs/evm2?rev=a978dd67e47e8fc90aaf9bad711933901bc0b243#a978dd67e47e8fc90aaf9bad711933901bc0b243"
 dependencies = [
  "alloy-consensus",
  "alloy-eip7928",
@@ -1994,11 +1994,11 @@ dependencies = [
  "bitflags 2.13.2",
  "c-kzg",
  "derive-where",
+ "evm2-bytecode",
  "evm2-macros",
  "k256 0.14.0",
  "once_cell",
  "p256",
- "phf 0.14.0",
  "ripemd",
  "ruint",
  "secp256k1 0.33.1",
@@ -2011,9 +2011,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "evm2-bytecode"
+version = "0.1.0"
+source = "git+https://github.com/alloy-rs/evm2?rev=a978dd67e47e8fc90aaf9bad711933901bc0b243#a978dd67e47e8fc90aaf9bad711933901bc0b243"
+dependencies = [
+ "alloy-primitives",
+]
+
+[[package]]
 name = "evm2-macros"
 version = "0.1.0"
-source = "git+https://github.com/alloy-rs/evm2?rev=175884c15398e817b2043c34ef427ec5f0465f33#175884c15398e817b2043c34ef427ec5f0465f33"
+source = "git+https://github.com/alloy-rs/evm2?rev=a978dd67e47e8fc90aaf9bad711933901bc0b243#a978dd67e47e8fc90aaf9bad711933901bc0b243"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2566,7 +2574,7 @@ checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
 dependencies = [
  "hermit-abi",
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3016,7 +3024,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3287,19 +3295,8 @@ version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fd6780a80ae0c52cc120a26a1a42c1ae51b247a253e4e06113d23d2c2edd078"
 dependencies = [
- "phf_macros 0.11.3",
- "phf_shared 0.11.3",
-]
-
-[[package]]
-name = "phf"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "010378780309880b08997fae13be7834dba947d36393bd372f2b1556deb2a2f6"
-dependencies = [
- "phf_macros 0.14.0",
- "phf_shared 0.14.0",
- "serde",
+ "phf_macros",
+ "phf_shared",
 ]
 
 [[package]]
@@ -3308,18 +3305,8 @@ version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c80231409c20246a13fddb31776fb942c38553c51e871f8cbd687a4cfb5843d"
 dependencies = [
- "phf_shared 0.11.3",
+ "phf_shared",
  "rand 0.8.8",
-]
-
-[[package]]
-name = "phf_generator"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aeb62e0959d5a1bebc965f4d15d9e2b7cea002b6b0f5ba8cde6cc26738467100"
-dependencies = [
- "fastrand",
- "phf_shared 0.14.0",
 ]
 
 [[package]]
@@ -3328,21 +3315,8 @@ version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f84ac04429c13a7ff43785d75ad27569f2951ce0ffd30a3321230db2fc727216"
 dependencies = [
- "phf_generator 0.11.3",
- "phf_shared 0.11.3",
- "proc-macro2",
- "quote",
- "syn 2.0.119",
-]
-
-[[package]]
-name = "phf_macros"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5fa8d0ca26d424d27630da600c6624696e7dec8bf7b3b492b383c5dc49e5e085"
-dependencies = [
- "phf_generator 0.14.0",
- "phf_shared 0.14.0",
+ "phf_generator",
+ "phf_shared",
  "proc-macro2",
  "quote",
  "syn 2.0.119",
@@ -3353,15 +3327,6 @@ name = "phf_shared"
 version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67eabc2ef2a60eb7faa00097bd1ffdb5bd28e62bf39990626a582201b7a754e5"
-dependencies = [
- "siphasher",
-]
-
-[[package]]
-name = "phf_shared"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6fd9027e2d9319be6349febd1db4e8d02aa544921200c9b777720ac34a3aa89"
 dependencies = [
  "siphasher",
 ]
@@ -3884,7 +3849,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4344,7 +4309,7 @@ dependencies = [
  "itertools 0.12.1",
  "lalrpop",
  "lalrpop-util",
- "phf 0.11.3",
+ "phf",
  "thiserror 1.0.69",
  "unicode-xid",
 ]
@@ -4430,7 +4395,7 @@ dependencies = [
  "cranelift-isle",
  "derive_more",
  "either",
- "evm2",
+ "evm2-bytecode",
  "memchr",
  "serde_json",
  "smallvec",
@@ -4799,7 +4764,7 @@ checksum = "bf776ba3fa74f83bf4b63c3dcbbf82173db2632ed8452cb2d891d33f459de70f"
 dependencies = [
  "new_debug_unreachable",
  "parking_lot",
- "phf_shared 0.11.3",
+ "phf_shared",
  "precomputed-hash",
 ]
 
@@ -4916,7 +4881,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5582,7 +5547,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

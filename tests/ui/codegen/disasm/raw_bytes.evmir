@@ -6,10 +6,10 @@
 
 // The jump lands on raw bytes appended after the code, so the disassembler
 // decodes them under each fork's rules. Amsterdam decodes the EIP-8024 stack
-// immediates and flags bad ones; the last `EXCHANGE` has no immediate byte, so
-// it reads zero. Older forks print these opcodes as unknown. Before Shanghai,
-// `PUSH0` is unknown, so the walk stops there and leaves the second `JUMPDEST`
-// without a label. Before Paris, 0x44 is `DIFFICULTY`.
+// immediates; a `SWAPN` or `EXCHANGE` without a valid immediate keeps none and
+// ends its block. Older forks print these opcodes with no immediate, and each
+// one ends its block. Before Shanghai, `PUSH0` is not enabled and ends its
+// block too. Opcode 0x44 is `PREVRANDAO` from Paris on and `DIFFICULTY` before.
 @module raw_bytes
 @data
   literal_0: hex"5b5f5b44e680e7dbe89de75be8524be8"

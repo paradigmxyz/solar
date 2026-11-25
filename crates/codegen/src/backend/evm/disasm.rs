@@ -1,7 +1,7 @@
 //! EVM bytecode disassembly.
 
 use super::op;
-use evm2::{SpecId, bytecode::BasicBlocks};
+use evm2_bytecode::{BasicBlocks, SpecId};
 use solar_config::EvmVersion;
 use std::fmt::Write;
 

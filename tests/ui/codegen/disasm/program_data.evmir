@@ -21,7 +21,7 @@
 // CHECK-NEXT: UNKNOWN(0x22)
 // CHECK-NEXT: bb2:
 // CHECK-NEXT: CALLER
-// CHECK-NEXT: DIFFICULTY
+// CHECK-NEXT: PREVRANDAO
 bb0:
   push 4
   push_data literal_0
