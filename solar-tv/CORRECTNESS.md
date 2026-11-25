@@ -1967,6 +1967,39 @@ and `Quot.sound`.
 | `market-success-native.json` | `624d08fdda4ebd9726021e6c7b2a6f1dc29f75cb304c7214f12786b0796480e9` |
 | `market-success-sha256.txt` | `22c8debe9cdcb947e86fd7cc0277ccc68ae644e8f8cdf0ffe67e67891386f5b4` |
 
+### Morpho market creation with an IRM call
+
+Lean checks the emitted mask, immediate, and taken jump from PC 2156
+to the child-call branch at PC 2239. The branch costs 16 gas and preserves
+the journal at that cut. At the later call boundary, the kernel checks
+that `GAS` at PC 2457 spends two gas and places the remaining budget on
+the stack for `CALL` at PC 2458. An EIP-150 lemma equates the forwarded
+budgets whenever the other request covers all available gas after the
+call charges. This check starts at the respective emitted cuts.
+
+Both imported typed wrappers read `GAS` earlier, before preparing the
+child calldata. A structural check covers the whole entry body, including
+phi and terminator operands, and finds exactly one use of the sampled
+SSA value in each wrapper. It is the gas operand of the same raw `CALL`.
+The composition still needs to relate the two caller gas checkpoints,
+the calldata and output area, and the effects of the child continuation.
+Direct Rust MIR replay rejects both wrappers at the isolated-GAS guard.
+
+Independent Rust replay of the emitted image checks the 356-byte call
+input and zero value at the physical cut. A stateful IRM fixture commits
+its storage write together with the market creation and event when the
+child returns a word. A second fixture writes and reverts, restoring the
+parent and child storage and discarding the event. The first fixture
+succeeds at 153,384 gas and rolls back at 153,383.
+
+| Artifact in `target/tv-routed-heap/` | SHA-256 |
+| --- | --- |
+| `MarketIrmBranch.lean` | `7bb236b5d6fc5614a9e2c95e6267cdcbf3bd15bfaf98c74f65a6372dfddee79f` |
+| `MarketIrmGas.lean` | `8409e04af84ef1970d512c31579c31725921240b1491dea664d9fd3b40a7004a` |
+| `MarketIrmMirShape.lean` | `f1af77ebfd5f8f809c4df31ff61178224ab6654739eba3f4231ec3ccb0f957ea` |
+| `market-child-native.json` | `4345ec79b9e5a919c0315b33ee1f6baec691e22447dfca364e0fd5bd2fa03ab6` |
+| `replay-market-child.py` | `b4044ea5d7f22f139eca71df03d4e32ec710be9fc293900cbef38ace9e9e2cff` |
+
 ### Decoded set-code fee settlement
 
 For decoded Prague and Osaka set-code envelopes, Lean executes the
