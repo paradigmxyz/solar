@@ -12,7 +12,7 @@ contract Hashing {
     function ok_packed_same_widths(uint8 a, uint16 b, uint8 c, uint16 d) external pure returns (bool) {
         return keccak256(abi.encodePacked(a, b)) != keccak256(abi.encodePacked(c, d));
     }
-    // expect: solver returned unknown
+    // expect: postcondition not satisfied
     /// @custom:ensures (keccak256(a) != keccak256(c)) ==> result
     function bad_packed_dynamic(bytes calldata a, bytes calldata b, bytes calldata c, bytes calldata d) external pure returns (bool) {
         return keccak256(abi.encodePacked(a, b)) != keccak256(abi.encodePacked(c, d));
@@ -100,7 +100,7 @@ contract ImplicitBytes {
 /// An `abi.encode` argument that writes memory changes the words of an earlier one, which the
 /// compiled code reads only after every argument ran.
 contract EncodeWrites {
-    // expect: solver returned unknown
+    // expect: postcondition not satisfied
     /// @custom:ensures r == keccak256(abi.encode(x, uint256(1)))
     function bad_stale_array(uint256 x) external pure returns (bytes32 r) {
         uint256[1] memory a;
@@ -125,7 +125,7 @@ contract EncodeWrites {
 
     // A function pointer local named like the no-op `_touch` calls `_write`, which changes
     // `a` before the compiled code encodes it.
-    // expect: solver returned unknown
+    // expect: postcondition not satisfied
     /// @custom:ensures r == keccak256(abi.encode(x, uint256(2)))
     function bad_fnptr_write(uint256 x) external pure returns (bytes32 r) {
         uint256[1] memory a;
@@ -140,7 +140,7 @@ contract EncodeWrites {
     }
 
     // The same pointer call inside a callee.
-    // expect: solver returned unknown
+    // expect: postcondition not satisfied
     /// @custom:ensures r == keccak256(abi.encode(x, uint256(2)))
     function bad_fnptr_write_callee(uint256 x) external pure returns (bytes32 r) {
         uint256[1] memory a;

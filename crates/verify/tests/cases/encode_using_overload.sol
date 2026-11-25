@@ -17,7 +17,7 @@ contract EncodeUsingOverload {
     using Steps for uint256;
 
     // The `uint256` overload writes `a[0]` before the compiled code encodes `a`.
-    // expect: solver returned unknown
+    // expect: postcondition not satisfied
     /// @custom:ensures r == keccak256(abi.encode(x, uint256(2)))
     function bad_using_overload(uint256 x, uint256 v) external pure returns (bytes32 r) {
         uint256[1] memory a;

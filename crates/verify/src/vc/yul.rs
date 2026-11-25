@@ -885,6 +885,16 @@ impl<'p, 'a> Vc<'p, 'a> {
                 return Ok(Var { ty, t, len: None });
             }
         }
+        // A reference argument (bytes, string, an array or struct) is hashed by the value it had
+        // when evaluated, but encoded from memory after every argument ran: when a later one may
+        // write, the hash is of nothing known.
+        if argv.len() == 1
+            && vals.iter().any(|v| matches!(v.ty, Ty::Opaque | Ty::Arr(..) | Ty::Struct(_)))
+            && self.encode_writes(argv[0])
+        {
+            let t = self.decl("keccak", &ty);
+            return Ok(Var { ty, t, len: None });
+        }
         let t = self.hash_flat("keccak256", &kind, &vals);
         if self.bound.is_empty() {
             self.smt.send(&format!("(assert {})\n", ty.range(&t).unwrap()));

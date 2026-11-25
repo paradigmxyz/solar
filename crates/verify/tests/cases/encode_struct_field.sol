@@ -7,7 +7,7 @@ contract EncodeStructField {
         uint256 b;
     }
 
-    // expect: solver returned unknown
+    // expect: postcondition not satisfied
     /// @custom:ensures r == keccak256(abi.encode(x, uint256(1)))
     function bad_struct_field_write(uint256 x) external pure returns (bytes32 r) {
         uint256[1] memory a;
