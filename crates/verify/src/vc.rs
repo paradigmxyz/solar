@@ -4030,10 +4030,84 @@ impl<'p, 'a> Vc<'p, 'a> {
                 Ok(Self::val(Ty::Bool, t))
             }
             _ => {
+                // Solidity folds an expression of literals exactly, as a rational: `(7 / 2) * 2`
+                // is 7 and `-1 << 3` is -8.
+                if !self.spec
+                    && let Some((n, d)) = Self::lit_fold(e)
+                {
+                    if d != BigInt::from(1) {
+                        return Err((
+                            e.span,
+                            "constant expression with a fractional value is not supported".into(),
+                        ));
+                    }
+                    return Ok(Self::val(Ty::Lit, num(&n)));
+                }
                 let a = self.eval(l)?;
                 let b = self.eval(r)?;
                 self.arith(op, a, b, e.span)
             }
+        }
+    }
+
+    /// The exact value of an expression made of number literals only, as solc computes it:
+    /// rational arithmetic (a numerator and a positive denominator in lowest terms), with `%`,
+    /// shifts and bit operations on integers (bit operations in two's complement, `>>`
+    /// rounding down). None for anything else, or values too large.
+    fn lit_fold(e: &Expr<'_>) -> Option<(BigInt, BigInt)> {
+        use num_traits::{Signed, ToPrimitive, Zero};
+        fn norm(n: BigInt, d: BigInt) -> (BigInt, BigInt) {
+            let (mut a, mut b) = (n.abs(), d.abs());
+            while !b.is_zero() {
+                let r = &a % &b;
+                a = b;
+                b = r;
+            }
+            let g = if a.is_zero() { BigInt::from(1) } else { a };
+            let s = if d.is_negative() { BigInt::from(-1) } else { BigInt::from(1) };
+            (s.clone() * n / &g, s * d / g)
+        }
+        let one = || BigInt::from(1);
+        let int = |q: &(BigInt, BigInt)| (q.1 == BigInt::from(1)).then(|| q.0.clone());
+        match &e.peel_parens().kind {
+            ExprKind::Lit(lit, _) => match &lit.kind {
+                LitKind::Number(n) => Some((n.to_string().parse().ok()?, one())),
+                _ => None,
+            },
+            ExprKind::Unary(op, x) if op.kind == UnOpKind::Neg => {
+                let (n, d) = Self::lit_fold(x)?;
+                Some((-n, d))
+            }
+            ExprKind::Binary(l, op, r) => {
+                use BinOpKind::*;
+                let x = Self::lit_fold(l)?;
+                let y = Self::lit_fold(r)?;
+                let small = |v: BigInt| v.to_u32().filter(|k| *k <= 4096);
+                let i = |v: BigInt| (v, BigInt::from(1));
+                Some(match op.kind {
+                    Add => norm(&x.0 * &y.1 + &y.0 * &x.1, &x.1 * &y.1),
+                    Sub => norm(&x.0 * &y.1 - &y.0 * &x.1, &x.1 * &y.1),
+                    Mul => norm(&x.0 * &y.0, &x.1 * &y.1),
+                    Div if !y.0.is_zero() => norm(&x.0 * &y.1, &x.1 * &y.0),
+                    // truncated, the sign of the dividend, as Rust's `%` on BigInt
+                    Rem if !y.0.is_zero() => i(int(&x)? % int(&y)?),
+                    Pow => {
+                        let k = small(int(&y)?)?;
+                        if x.0.abs() > x.1 && k > 1024 {
+                            return None;
+                        }
+                        norm(num_traits::pow(x.0, k as usize), num_traits::pow(x.1, k as usize))
+                    }
+                    Shl => i(int(&x)? << small(int(&y)?)?),
+                    // BigInt's >> rounds toward negative infinity, as solc's literal >> does
+                    Shr => i(int(&x)? >> small(int(&y)?)?),
+                    BitAnd => i(int(&x)? & int(&y)?),
+                    BitOr => i(int(&x)? | int(&y)?),
+                    BitXor => i(int(&x)? ^ int(&y)?),
+                    _ => return None,
+                })
+            }
+            _ => None,
         }
     }
 
@@ -4087,7 +4161,24 @@ impl<'p, 'a> Vc<'p, 'a> {
         } else {
             a.ty.clone()
         };
+        // A signed (or negative) left operand: spec math is unbounded, so its bit operations
+        // and left shifts must keep the sign rather than read it as a 256-bit word.
+        let neg_ok = matches!(a.ty, Ty::Int(_))
+            || matches!(b.ty, Ty::Int(_)) && matches!(op, BitAnd | BitOr | BitXor)
+            || a.ty == Ty::Lit && a.t.starts_with("(-")
+            || b.ty == Ty::Lit && b.t.starts_with("(-") && matches!(op, BitAnd | BitOr | BitXor);
+        // The two's complement width that holds both operands: their own when typed.
+        let width = |t: &Ty| match t {
+            Ty::Int(n) => Some(*n),
+            Ty::Uint(n) => Some(n + 1),
+            _ => None,
+        };
+        let signed_bits = match (width(&a.ty), width(&b.ty)) {
+            (Some(x), Some(y)) => x.max(y).min(256),
+            _ => 256,
+        };
         let ty = if self.spec { Ty::Lit } else { ty };
+        let signed_lit = ty == Ty::Lit && neg_ok;
         // exponent / shift amount small enough for the pow2 table even in (unbounded) spec math
         let small = |scale: u64| {
             b.ty.bounds()
@@ -4095,6 +4186,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         };
         let signed = matches!(ty, Ty::Int(_));
         let (x, y) = (a.t, b.t.clone());
+        let n = if signed_lit { signed_bits } else { 256 };
         let t = match op {
             Add => format!("(+ {x} {y})"),
             Sub => format!("(- {x} {y})"),
@@ -4169,6 +4261,9 @@ impl<'p, 'a> Vc<'p, 'a> {
                 match k {
                     Some(k) => {
                         let p = num(&pow2(k));
+                        if op == Shl && signed_lit {
+                            return Ok(Self::val(ty, format!("(* {x} {p})")));
+                        }
                         if op == Shl {
                             let (lo, hi) = ty.bounds().unwrap_or((BigInt::from(0), pow2(256) - 1));
                             return Ok(Self::val(
@@ -4186,6 +4281,11 @@ impl<'p, 'a> Vc<'p, 'a> {
                         // does
                         self.ensure_pow2();
                         let p = format!("(|pow2| {y})");
+                        if op == Shl && signed_lit {
+                            let f = "sv_shl_signed";
+                            self.declare_fun(f, 2, "Int");
+                            return Ok(Self::val(ty, format!("({f} {x} {y})")));
+                        }
                         if op == Shl {
                             let (lo, hi) = ty.bounds().unwrap_or((BigInt::from(0), pow2(256) - 1));
                             return Ok(Self::val(
@@ -4210,7 +4310,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             BitAnd | BitOr | BitXor => {
                 let n = match ty {
                     Ty::Uint(n) | Ty::Bytes(n) => n,
-                    Ty::Lit => 256,
+                    Ty::Lit => n,
                     _ => {
                         let f = format!("sv_bit{op:?}").to_lowercase();
                         self.declare_fun(&f, 2, "Int");
@@ -4223,7 +4323,15 @@ impl<'p, 'a> Vc<'p, 'a> {
                     _ => "bvxor",
                 };
                 let (bx, by) = (self.bv_term(&x, n as u32), self.bv_term(&y, n as u32));
-                return Ok(Self::val(ty, format!("(bv2nat ({bv} {bx} {by}))")));
+                let r = format!("(bv2nat ({bv} {bx} {by}))");
+                if signed_lit {
+                    // two's complement in n bits, read back as a signed value
+                    let r = self.def("bit", "Int", &r);
+                    let h = num(&pow2(n as u32 - 1));
+                    let w = num(&pow2(n as u32));
+                    return Ok(Self::val(ty, format!("(ite (>= {r} {h}) (- {r} {w}) {r})")));
+                }
+                return Ok(Self::val(ty, r));
             }
             _ => return Err((span, format!("unsupported operator {op:?}"))),
         };

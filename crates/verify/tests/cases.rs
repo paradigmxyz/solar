@@ -1453,3 +1453,13 @@ fn sound_using_udvt_overload() {
 fn sound_using_unattached() {
     check("tests/cases/sound_using_unattached.sol")
 }
+
+#[test]
+fn sound_lit_negative() {
+    check("tests/cases/sound_lit_negative.sol")
+}
+
+#[test]
+fn sound_lit_rational() {
+    check("tests/cases/sound_lit_rational.sol")
+}
