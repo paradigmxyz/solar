@@ -1,4 +1,4 @@
-"""Check that MIR jump threading preserves storage and simultaneous phi inputs."""
+"""Check typed MIR control flow, scalar reuse and retained effects."""
 
 import json
 import re
@@ -364,6 +364,66 @@ fn @choose(arg0: i256, arg1: i1) -> i256 {
             *programs, args, executable=native.default(SOLAR), timeout=10
         )
         return [json.loads(row)["values"] for row in replay["observations"]]
+
+    def test_egraph_reuses_caller_and_keeps_the_gas_request(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{name}.mir" for name in ("before", "after"))
+            source = """@module ScalarReuse
+fn @choose(arg0: i256) -> i256 {
+  bb0:
+    jump bb4
+  bb4:
+    v0 = caller
+    v1 = zext i160 v0 to i256
+    v2 = gt arg0, 0
+    v3 = gas
+    jumpi v2, bb1, bb2
+  bb1:
+    v4 = caller
+    v5 = zext i160 v4 to i256
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
+    sstore 1, v6
+    jump bb3
+  bb2:
+    sstore 2, v1
+    jump bb3
+  bb3:
+    v7 = phi [bb1: v5], [bb2: v1]
+    v8 = add v3, v7
+    ret v8
+}
+"""
+            before.write_text(source)
+            lowered = subprocess.check_output(
+                [SOLAR, before, "-j1", "-Zmir-pipeline=egraph", "-Zvalidate-ir=true"],
+                text=True,
+                timeout=20,
+            )
+            self.assertEqual(lowered.count(" = caller"), 1)
+            self.assertEqual(lowered.count(" = gas"), 1)
+            after.write_text(lowered)
+            record = self.check_loop(root, 0)
+            evidence = record["import_correspondence"][0]["correspondence"]["choose"]
+            self.assertEqual(evidence["scalar_reuse"][0]["nonzero_tests"], 1)
+            self.assertEqual(evidence["scalar_reuse"][0]["uniform_phis"], 1)
+            self.assertGreaterEqual(evidence["scalar_reuse"][0]["reused_values"], 2)
+
+            without_sample = lowered.replace(" = gas", " = add 5, 0")
+            after.write_text(without_sample)
+            self.assertEqual(self.check_loop(root, 2)["status"], "unsupported")
+
+            # Fix the shared reply to run the storage mutation in both MIR executors.
+            before.write_text(source.replace(" = gas", " = add 5, 0"))
+            after.write_text(without_sample.replace("sstore 1,", "sstore 17,"))
+            fixture = root / "world.json"
+            fixture.write_text('{"version":1,"caller":131072}')
+            record = self.check_loop(root, 1, fixture=fixture)
+            self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+            self.assertEqual(
+                record["witness"]["observations"],
+                record["witness"]["native_observations"],
+            )
 
     def test_egraph_loop_with_wrapping_words_and_pointer_callee(self):
         with tempfile.TemporaryDirectory() as folder:

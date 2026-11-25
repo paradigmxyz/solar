@@ -11,9 +11,11 @@ from . import (
     audit,
     dead_ssa,
     entry_proof,
+    native,
     phase_carriers,
     prune,
     scalar_checks,
+    scalar_reuse,
     type_prune,
 )
 from .common import Program, Unsupported
@@ -800,6 +802,7 @@ set_option maxHeartbeats 2000000
 #print axioms MIR.LowerAlloc.Stage.helper_return
 """
     bodies = []
+    scalar_definitions = None
     while work:
         name = work.pop()
         if name in checked:
@@ -892,6 +895,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 f"(fun graph => run graph {limit} handle work 0 locals state) identical{i}"
             )
         else:
+            scalar_stats = []
             try:
                 points, edges, live, limit, word_rewrites, increment_rewrites = pairing(
                     old, new
@@ -900,16 +904,40 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 try:
                     proof, copies, offsets = phase_carriers.paired_proof(i, source, b)
                 except Unsupported:
+                    if lowering is not None:
+                        raise error from None
+                else:
+                    bodies.append(body_code + proof)
+                    checked[name] = {
+                        "proof": "carrier-copies" if copies else "word-offsets",
+                        "copies": copies,
+                        **({"offsets": offsets} if offsets else {}),
+                        "product_initialization": product_initialization,
+                        **expansions,
+                    }
+                    continue
+                if scalar_definitions is None:
+                    scalar_definitions = {
+                        row["name"]: row
+                        for row in native.catalog(executable, timeout)["evmir"]
+                    }
+                    setup += scalar_reuse.AXIOMS
+                normalized = []
+                for side, body in enumerate((first, second)):
+                    reduced, stats, sites = scalar_reuse.normalize(
+                        body, scalar_definitions, version
+                    )
+                    normalized.append(import_graph(reduced))
+                    scalar_stats.append(stats)
+                    body_code += scalar_reuse.certificate(
+                        f"scalar{i}_{side}", body, sites
+                    )
+                if not any(scalar_stats):
                     raise error from None
-                bodies.append(body_code + proof)
-                checked[name] = {
-                    "proof": "carrier-copies" if copies else "word-offsets",
-                    "copies": copies,
-                    **({"offsets": offsets} if offsets else {}),
-                    "product_initialization": product_initialization,
-                    **expansions,
-                }
-                continue
+                old, new = normalized
+                points, edges, live, limit, word_rewrites, increment_rewrites = pairing(
+                    old, new
+                )
             witnesses = [
                 render_point(point, targets, locals_)
                 for point, targets, locals_ in zip(points, edges, live, strict=True)
@@ -927,6 +955,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 "word_rewrites": word_rewrites,
                 "increment_guard_rewrites": increment_rewrites,
                 "literal_branches": literal_branches,
+                **({"scalar_reuse": scalar_stats} if any(scalar_stats) else {}),
             }
         checked[name]["product_initialization"] = product_initialization
         checked[name].update(expansions)

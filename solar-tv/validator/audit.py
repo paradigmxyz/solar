@@ -517,6 +517,16 @@ def record(
                     "trusted compiler structural exporter and action-constructor binding; no physical gas pricing, ABI frame initialization or runtime callback binding",
                 ]
             )
+            if any(
+                check.get("scalar_reuse")
+                for check in program.import_evidence["correspondence"].values()
+            ):
+                assumptions.extend(
+                    [
+                        "defined SSA values and typed total scalar definitions; the kernel checks dominance witnesses for cross-block reuse",
+                        "CALLER is fixed within each activation; GAS and external calls retain their exact requests and shared replies in the unpriced action model",
+                    ]
+                )
             if program.import_evidence["kind"] == "kernel-checked-fixed-storage-slots":
                 assumptions.append(
                     "fixed storage keys preserve scratch bytes and hash input in aligned memory up to 64 KiB at each expanded logical action"
