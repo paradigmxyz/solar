@@ -1439,6 +1439,62 @@ returndata extent checks and additional scalar range and predicate
 obligations. Pricing the GAS sample and binding those effects to the
 emitted instructions remain open.
 
+### Complete pinned egraph audit
+
+The serial gate `evaluate --all --require-verified --pass egraph --timeout 15
+--seed 0` verifies all 116 MIR captures. The capture IDs, both MIR hashes,
+and compiler input and output fingerprints match the preceding egraph audit
+and the full audit. Normal and capture runs again produce identical ABI,
+creation bytecode, and runtime bytecode.
+
+| Contract | Selected | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Solady WETH | 16 | 16 | 0 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 15 | 15 | 0 | 0 | 0 |
+| Morpho Blue | 85 | 85 | 0 | 0 | 0 |
+| Total | 116 | 116 | 0 | 0 | 0 |
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Compiler executable | `7d123ab7483266256ead8e4b3d86cbce427376f186b5714969110d19139335e8` |
+| Serial compiler launcher | `4e5a4f6faa73f5d017a534afaa4d3f9a8c052abe1c2435f192108577b79239e9` |
+| Independent replay | `649ae6a1ae51d75ca501093d1a0f0a1181ff098d4f386e09b6e5754c01374365` |
+| Corpus manifest | `b08af7eb00ac67a5ef1200d50273beedc48d5517838ed67504bd1a76ba96b7b7` |
+| Solady WETH input | `b751f0da2642fba80d176248ff576b06d45601fda253d9de32f9a78e3b70a4c0` |
+| OpenZeppelin ERC20Mock input | `c85c24c264a2ae9a97b32050f93426376c8cb20e15f6e5ad5dc1414ee46ce2c4` |
+| Morpho Blue input | `01f4aaf9db4940ea9a62aba808ba1655ef399c671b6ed29875f8a91c3efeba53` |
+| Checker on Lean 4.34.1 | `a2a4c7597f7b1dea8c6481dc9b29e0c24ab8fdfb6bd7f2892f8b80684d98974e` |
+| `target/tv-egraph-final/results.json` | `ebb6ffee0d7978a8a7d108b8559971d667ecba4d63d15304cda4cac91391796e` |
+
+The kernel checked 105 typed control-flow certificates, five ABI-context
+effect proofs, three compositional effect trees, and three universal
+caller-state proofs. The control-flow certificates compose normalized
+predicate, slice, offset and packed-word identities with the retained
+actions. Six larger Morpho procedure tables are checked in serial Lean
+modules.
+
+The raw message proof preserves `CALL`, `CALLCODE`, `DELEGATECALL` and
+`STATICCALL` behavior when a destination is replaced by its low 160 bits
+or an offset is erased from an empty memory range. Ten captures use the
+target-width projection, and WETH `withdraw` uses both empty range
+projections. The `CODESIZE` value can be discarded when the code image is
+defined and the value is dead. Nine captures check removed returndata
+extent guards under a live return-buffer length below `2^255`.
+
+The compiler parse, SSA export and source-to-action projection remain
+trusted. The logical MIR certificates retain the order of GAS and child
+effects under shared replies. The local message lemma compares the
+modeled budget and child execution for the same supplied GAS sample.
+Physical GAS correspondence before the sample, ABI entry and backend
+mapping remain separate obligations.
+
+A live `egraph` regression confirms the typed operand and return-extent
+rewrite. Giving the output range a nonzero size or changing the rounding
+constant loses the certificate. With a fixed GAS reply, the independent
+Rust interpreter confirms equal observations on the compiler pair for a
+target word with dirty high bits. The nonempty output mutation changes
+the observed memory.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
