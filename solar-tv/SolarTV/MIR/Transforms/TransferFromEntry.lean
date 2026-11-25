@@ -167,14 +167,14 @@ structure MirCursor where
   exitGas : Option Nat
 
 private def mirTransition (fuel : Nat) (cfg : MIR.State.Config) (functions : Functions)
-    (state : MirCursor) (site : Option Instruction) (hash : List Byte → Word) :
+    (machine : Machine) (samples : List Nat) (site : Option Instruction) (hash : List Byte → Word) :
     Except String (Transition × List Nat) := do
   let (stepCfg,samples) ← match site with
     | some ⟨_,_,_,.context .gasSample,_⟩ => do
-      let sample ← required state.samples.head? "missing physical GAS sample"
-      pure ({cfg with layout := {cfg.layout with gasBefore := some sample}},state.samples.drop 1)
-    | _ => pure (cfg,state.samples)
-  return (← transition fuel stepCfg functions state.machine hash,samples)
+      let sample ← required samples.head? "missing physical GAS sample"
+      pure ({cfg with layout := {cfg.layout with gasBefore := some sample}},samples.drop 1)
+    | _ => pure (cfg,samples)
+  return (← transition fuel stepCfg functions machine hash,samples)
 
 /-- Gas samples and per-message pricing come from the physical prefix. MIR
 prices child messages, and its intervening SSA instructions remain unpriced. -/
@@ -188,7 +188,7 @@ def mirStep (helper : Nat) (returned : List Operand) (fuel : Nat) (cfg : MIR.Sta
       if !machine.stack.isEmpty then .error "unexpected nested caller at helper cut" else
       return .inl ⟨← callOperands.mapM (read machine.frame), ← returned.mapM (read machine.frame),
         machine.frame,machine.cursor,samples⟩
-  let (result,samples) ← mirTransition fuel cfg functions state site hash
+  let (result,samples) ← mirTransition fuel cfg functions machine samples site hash
   match result with
   | .finished _ => .error "MIR terminated before the helper"
   | .next _ next => return .inr ⟨next,samples,false,none⟩
@@ -202,8 +202,7 @@ def byteHashInput (code : EVM.State.CodeChunks) (state : ByteCut) : Option (List
   let count ← frame.stack[1]?
   some (readBytes frame.memory offset.toNat count.toNat)
 
-def mirHashInput (functions : Functions) (state : Except String MirCursor) : Option (List Byte) := do
-  let machine := (← state.toOption).machine
+private def mirMachineHashInput (functions : Functions) (machine : Machine) : Option (List Byte) := do
   let inst ← instAt functions machine.cursor
   let frame := machine.frame
   let args ← (inst.operands.mapM (read frame)).toOption
@@ -212,6 +211,9 @@ def mirHashInput (functions : Functions) (state : Except String MirCursor) : Opt
   | .slot .mapping,[key,slot] => some (wordBytes key ++ wordBytes slot)
   | .slot .arrayData,[slot] | .slot (.arrayElement _),slot :: _ => some (wordBytes slot)
   | _,_ => none
+
+def mirHashInput (functions : Functions) (state : Except String MirCursor) : Option (List Byte) := do
+  mirMachineHashInput functions (← state.toOption).machine
 
 def scalar (width : Nat) (word : Word) : Value := .scalar (Scalar.ofWord width word)
 
@@ -313,6 +315,42 @@ def mirPrefix (cfg : MIR.State.Config) (functions : Functions) (entry helper : N
 
 def finishByte (checkpoint : Journal) (result : EVM.State.Result) : EVM.State.Result :=
   {result with world := if result.stop = .success then EVM.State.finalize result.world else checkpoint}
+
+structure PricedMirCursor where
+  machine : Machine
+  samples : List Nat
+
+def pricedMirHashInput (functions : Functions) (state : Except String PricedMirCursor) : Option (List Byte) := do
+  mirMachineHashInput functions (← state.toOption).machine
+
+def pricedMirStart (functions : Functions) (entry : Nat) (frame : Frame) (physical : ByteExit) :
+    Except String PricedMirCursor := do
+  let initial ← start functions entry frame.arguments frame
+  return ⟨⟨{function := entry},[],initial⟩,physical.samples⟩
+
+/-- Execute typed MIR with the input gas samples and CALL budgets from a bytecode
+trace. Every sample and paid message budget must be consumed. A final unpaid
+CALL budget must be rejected by the corresponding MIR message operation. -/
+def pricedMirStep (cfg : MIR.State.Config) (functions : Functions) (physical : ByteExit)
+    (hash : List Byte → Word) : Trace.Step (Except String PricedMirCursor) Result :=
+  Trace.checkedStart fun fuel state => do
+    let site := instAt functions state.machine.cursor
+    let budgets := physical.budgets ++ physical.unpaidCall.toList.map Prod.snd
+    let (result,samples) ← mirTransition fuel {cfg with messageGas := some budgets}
+      functions state.machine state.samples site hash
+    match result with
+    | .next _ next =>
+      if next.frame.messageGas.length > physical.budgets.length then
+        .error "MIR paid the underfunded physical CALL"
+      else return .inr ⟨next,samples⟩
+    | .finished result =>
+      let rejected := match result.completion,site with
+        | .outOfGas,some ⟨_,_,some 0xf1,.external _,_⟩ => true
+        | _,_ => false
+      if !samples.isEmpty || result.messageGas.length != physical.budgets.length ||
+          (physical.unpaidCall.isSome && !rejected) then
+        .error "emitted gas schedule does not match MIR execution"
+      else return .inl result
 
 def runByteExit (cfg : EVM.State.Config) (fuel : Nat) (cut : ByteCut) : Except String ByteExit :=
   Trace.run (byteExitStep cfg cut.frame.code) fuel (byteExitStart cut)
@@ -424,7 +462,8 @@ def mirExitStep (cfg : MIR.State.Config) (functions : Functions) (caller : Calle
     let ledger := match activePrice with
       | none => budgets
       | some price => budgets.take state.machine.frame.messageGas.length ++ [price.gas]
-    let (result,samples) ← mirTransition fuel {cfg with messageGas := some ledger} functions state site hash
+    let (result,samples) ← mirTransition fuel {cfg with messageGas := some ledger}
+      functions state.machine state.samples site hash
     match result with
     | .next _ next =>
       let exitGas ← match activePrice with

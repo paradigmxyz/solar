@@ -40,6 +40,8 @@ pub(super) struct Input {
     #[serde(default)]
     message_gas: Option<Vec<u64>>,
     #[serde(default)]
+    mir_gas_samples: Vec<mir::GasSample>,
+    #[serde(default)]
     builtin_gas: Vec<u64>,
     #[serde(default)]
     debug_reverts: bool,
@@ -260,6 +262,9 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
     }
     if input.mir_layout.is_some() {
         return Err("MIR layout is not an EVM world input".into());
+    }
+    if !input.mir_gas_samples.is_empty() {
+        return Err("MIR gas samples require direct MIR execution".into());
     }
     if input.probe_sloads.is_some() {
         return Err("storage read probe requires MIR execution".into());

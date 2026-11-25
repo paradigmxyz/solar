@@ -192,8 +192,13 @@ typed reads keep their low carrier bits, and raw reads retain the full word.
 Fixed-byte padding is retained. Invalid context representations are unsupported.
 These are declared boundary inputs, not a proof that the backend chose them. A
 missing binding, conflicting relocation or changed declaration table is unsupported.
-GAS admits only a single-opcode sampling window with an explicit pre-op budget and
-its own fork-specific charge; general MIR caller gas remains unsupported.
+Standalone GAS windows take an explicit pre-op budget and pay the opcode's
+fork-specific charge. Priced ABI traces take ordered GAS samples and CALL
+budgets from the checked emitted path. Independent direct MIR replay consumes
+each sample in order at the supplied function name and zero-based block and
+instruction indices. Direct MIR validation without a priced trace retains the
+isolated window requirement. The surrounding MIR transitions use an interpreter
+work bound.
 Recursive ABI tuples, dynamic/fixed arrays, bytes and function words preserve
 allocation, header and selector store order in object, slice and scratch modes.
 Decoders preserve signed length checks, canonicality, enum rejection and

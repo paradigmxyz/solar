@@ -202,6 +202,12 @@ pub trait Host {
         None
     }
 
+    /// A supplied pre-GAS balance at an exact semantic MIR instruction site.
+    fn gas_before(&mut self, function: &str, block: usize, instruction: usize) -> Option<U256> {
+        let _ = (function, block, instruction);
+        None
+    }
+
     /// The fixed code image containing this window, when supplied explicitly.
     /// This does not authorize executing unknown MIR root code through a child call.
     fn code_image(&mut self) -> Option<Vec<u8>> {
@@ -1055,12 +1061,21 @@ impl<'a> Run<'_, 'a, '_> {
                     return ControlFlow::Continue(());
                 }
                 Semantics::Opcode("gas", _) => {
-                    if !self.gas_window(body, inst) {
-                        return ControlFlow::Break(Outcome::Unsupported(
-                            "GAS requires an isolated opcode window",
-                        ));
-                    }
-                    let budget = self.placement(PlacementRead::GasBefore)?;
+                    let budget =
+                        if self.gas_window(body, inst) {
+                            self.placement(PlacementRead::GasBefore)?
+                        } else {
+                            let function = body.name.to_string();
+                            let (block, instruction) = (frame.block.index(), frame.next - 1);
+                            let Some(budget) = self.world.as_mut().and_then(|world| {
+                                world.host.gas_before(&function, block, instruction)
+                            }) else {
+                                return ControlFlow::Break(Outcome::Unsupported(
+                                    "GAS requires an isolated opcode window",
+                                ));
+                            };
+                            budget
+                        };
                     let price = U256::from(
                         op::definition(op::GAS)
                             .expect("GAS opcode")

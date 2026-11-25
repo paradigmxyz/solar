@@ -34,10 +34,13 @@ deriving instance ToExpr for MIR.State.Cursor
 deriving instance ToExpr for MIR.State.Frame
 deriving instance ToExpr for MIR.State.Continuation
 deriving instance ToExpr for MIR.State.Machine
+deriving instance ToExpr for MIR.State.Completion
+deriving instance ToExpr for MIR.State.Result
 deriving instance ToExpr for ByteCut
 deriving instance ToExpr for ByteExit
 deriving instance ToExpr for MirCursor
 deriving instance ToExpr for MirCut
+deriving instance ToExpr for PricedMirCursor
 
 private instance [ToExpr α] : ToExpr (Except String α) where
   toExpr

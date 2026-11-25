@@ -10,13 +10,16 @@ use std::{
 };
 
 fn replay(kind: &str, before: &str, after: &str, inputs: Value, memory: bool, gas: bool) -> Value {
+    invoke(json!({"version":1,"kind":kind,"before":before,"after":after,"inputs":inputs,
+        "memory":memory,"gas":gas,"evm_version":"cancun"}))
+}
+
+fn invoke(request: Value) -> Value {
     let mut child = Command::new(env!("CARGO_BIN_EXE_solar-tv-replay"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    let request = json!({"version":1,"kind":kind,"before":before,"after":after,"inputs":inputs,
-        "memory":memory,"gas":gas,"evm_version":"cancun"});
     child.stdin.take().unwrap().write_all(request.to_string().as_bytes()).unwrap();
     let output = child.wait_with_output().unwrap();
     assert!(output.status.success());
@@ -98,4 +101,52 @@ fn mir_replay_respects_target_opcodes() {
     let text = "@module Target\nfn @f(arg0: i256) -> i256 {\nbb0:\nv0 = clz arg0\nret v0\n}\n";
     let actual = replay("mir", text, text, json!({"arg0":"1"}), false, false);
     assert_data_eq!(actual["observations"].to_string(), str![r#"["invalid","invalid"]"#]);
+}
+
+#[test]
+fn mir_replay_consumes_gas_samples_at_their_sites() {
+    let body = "@module Target\nfn @f() -> i256 {\nbb0:\nv0 = gas\nv1 = add v0, 1\nret v1\n}\n";
+    let mut request = json!({
+        "version": 1, "kind": "mir", "before": body, "after": body, "selector": "f",
+        "inputs": {}, "memory": false, "gas": false, "evm_version": "cancun",
+        "world": {
+            "compiler": "", "address": "65536", "caller": "65537", "origin": "65537",
+            "gas_price": "0", "chain_id": "1", "blob_hashes": [], "warm_addresses": [],
+            "block": {
+                "number": "0", "coinbase": "0", "timestamp": "1", "gas_limit": "1000000",
+                "difficulty": "0", "prevrandao": "0", "base_fee": "0", "blob_base_fee": "1",
+                "slot": "0", "hashes": []
+            },
+            "memory": {"data": [], "size": 0}, "calldata": [], "static": false,
+            "accounts": [{"address": "65536", "nonce": 1, "balance": "0", "code": [], "storage": []}],
+            "warm_slots": []
+        }
+    });
+    let unsupported = invoke(request.clone());
+    assert_data_eq!(
+        unsupported["reason"].as_str().unwrap(),
+        str!["GAS requires an isolated opcode window"]
+    );
+
+    let sample = json!({"function": "f", "block": 0, "instruction": 0, "gas": 100});
+    request["world"]["mir_gas_samples"] = json!([sample]);
+    let replayed = invoke(request.clone());
+    for observation in replayed["observations"].as_array().unwrap() {
+        let value: Value = serde_json::from_str(observation.as_str().unwrap()).unwrap();
+        assert_data_eq!(value["values"].to_string(), str![r#"["99"]"#]);
+    }
+
+    request["world"]["mir_gas_samples"] = json!([sample, sample]);
+    let unused = invoke(request.clone());
+    assert_data_eq!(
+        unused["reason"].as_str().unwrap(),
+        str!["MIR replay ended with unused gas samples"]
+    );
+
+    request["world"]["mir_gas_samples"][0]["instruction"] = json!(1);
+    let misplaced = invoke(request);
+    assert_data_eq!(
+        misplaced["reason"].as_str().unwrap(),
+        str!["GAS requires an isolated opcode window"]
+    );
 }

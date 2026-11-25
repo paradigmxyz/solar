@@ -3,6 +3,7 @@
 
 use super::{Input, Request, word};
 use alloy_primitives::U256;
+use serde::Deserialize;
 use serde_json::json;
 use solar_config::EvmVersion;
 use solar_evmir::op;
@@ -17,6 +18,15 @@ mod messages;
 
 const TRACE_LIMIT: usize = 4096;
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct GasSample {
+    function: String,
+    block: usize,
+    instruction: usize,
+    gas: u64,
+}
+
 struct Context<'a> {
     layout: layout::Layout,
     native: messages::Native<'a>,
@@ -28,11 +38,21 @@ struct Context<'a> {
     storage_trace: Option<Vec<(u8, U256, U256)>>,
     probe_sloads: Option<usize>,
     store_trace: Option<Vec<(U256, U256)>>,
+    gas_samples: &'a [GasSample],
 }
 
 impl Host for Context<'_> {
     fn placement(&mut self, query: PlacementRead<'_>) -> Option<U256> {
         self.layout.read(query)
+    }
+    fn gas_before(&mut self, function: &str, block: usize, instruction: usize) -> Option<U256> {
+        let (sample, rest) = self.gas_samples.split_first()?;
+        if sample.function != function || sample.block != block || sample.instruction != instruction
+        {
+            return None;
+        }
+        self.gas_samples = rest;
+        Some(U256::from(sample.gas))
     }
     fn code_image(&mut self) -> Option<Vec<u8>> {
         self.layout.code.clone()
@@ -128,6 +148,14 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
     if input.probe_sloads.is_some_and(|count| !(1..=TRACE_LIMIT).contains(&count)) {
         return Err("MIR storage probe count exceeds the replay limit".into());
     }
+    if input.mir_gas_samples.len() > 128
+        || input
+            .mir_gas_samples
+            .iter()
+            .any(|sample| sample.function.len() > 256 || sample.gas > 30_000_000)
+    {
+        return Err("MIR gas samples exceed the replay limit".into());
+    }
     if input.memory.size > 65536
         || !input.memory.size.is_multiple_of(32)
         || input.memory.data.len() as u64 > input.memory.size
@@ -207,6 +235,7 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
             storage_trace: (input.trace_storage || input.probe_sloads.is_some()).then(Vec::new),
             probe_sloads: input.probe_sloads,
             store_trace: input.trace_stores.then(Vec::new),
+            gas_samples: &input.mir_gas_samples,
         };
         let execution = run_state(
             text,
@@ -278,6 +307,9 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
                     .map(|(address, word)| (address.to_string(), word.to_string()))
                     .collect::<Vec<_>>()
             );
+        }
+        if !host.gas_samples.is_empty() {
+            return Err("MIR replay ended with unused gas samples".into());
         }
         Ok(observation.to_string())
     };
