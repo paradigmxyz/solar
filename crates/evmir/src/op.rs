@@ -569,11 +569,8 @@ pub fn isle_prelude() -> String {
          ;; `SNAPSHOTS=overwrite` refreshes it.\n\n\
          ;; Opcode bytes, named as the constants in `backend::evm::op`.\n",
     );
-    for opcode in u8::MIN..=u8::MAX {
-        if let Some(definition) = definition(opcode) {
-            writeln!(out, "(extern const ${} u8)", definition.mnemonic.to_ascii_uppercase())
-                .unwrap();
-        }
+    for definition in OPCODE_DEFS.iter().flatten() {
+        writeln!(out, "(extern const ${} u8)", definition.mnemonic.to_ascii_uppercase()).unwrap();
     }
     out
 }
