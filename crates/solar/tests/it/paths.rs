@@ -53,8 +53,8 @@ fn imported_source_unit_name_collision() {
         String::from_utf8(output.stderr).unwrap(),
         snapbox::str![[r#"
 error: source unit name `Main.sol` matches multiple files
-  │
-  [..] note: `[..]/lib/Main.sol` and `[..]/src/Main.sol`
+ │
+ ├ note: `[..]/lib/Main.sol` and `[..]/src/Main.sol`
 ...
 error: aborting due to 1 previous error
 
@@ -73,8 +73,8 @@ fn source_unit_name_collision() {
         String::from_utf8(output.stderr).unwrap(),
         snapbox::str![[r#"
 error: source unit name `X.sol` matches multiple files
-  │
-  [..] note: `[..]/lib/X.sol` and `[..]/src/X.sol`
+ │
+ ├ note: `[..]/lib/X.sol` and `[..]/src/X.sol`
 ...
 error: aborting due to 1 previous error
 
