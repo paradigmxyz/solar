@@ -964,17 +964,31 @@ def check_interactions(paths, solar, replay, version, timeout, function):
     widths = [scalar_width(ty) for ty in before["params"]]
     returns = [scalar_width(ty) for ty in before["returns"]]
     args = [f"arg{i}" for i in range(len(widths))]
-    trees = [
-        render(
-            model,
-            definitions,
-            abi_fork=version,
-            abi_arguments=args,
-            return_widths=returns,
-            keep_context_requests=True,
-        )
-        for model in (old, new)
-    ]
+
+    def render_pair(cuts=()):
+        return [
+            render(
+                model,
+                definitions,
+                abi_fork=version,
+                abi_arguments=args,
+                return_widths=returns,
+                keep_context_requests=True,
+                call_cuts=cuts,
+            )
+            for model in (old, new)
+        ]
+
+    cuts = []
+    prelude = PRELUDE
+    try:
+        trees = render_pair()
+    except Unsupported:
+        cuts, tables = abi_effects.unchanged_callees(old, new)
+        if not cuts:
+            raise
+        trees = render_pair(cuts)
+        prelude += abi_effects.retained_callee_code(tables, definitions)
     binders = [
         "(heapFloor : Word)",
         *(f"({arg} : BitVec {bits})" for arg, bits in zip(args, widths, strict=True)),
@@ -984,7 +998,7 @@ def check_interactions(paths, solar, replay, version, timeout, function):
         new,
         trees,
         definitions,
-        PRELUDE,
+        prelude,
         " ".join(binders),
         " ".join(["heapFloor", *args]),
     )
@@ -994,7 +1008,11 @@ def check_interactions(paths, solar, replay, version, timeout, function):
         function,
         version,
         timeout,
-        {"kind": "kernel-checked-mir-interaction-effects", "function": function},
+        {
+            "kind": "kernel-checked-mir-interaction-effects",
+            "function": function,
+            "retained_closed_callees": cuts,
+        },
         scope="mir-interaction-tree",
     )
 

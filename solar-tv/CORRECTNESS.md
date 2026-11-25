@@ -2589,6 +2589,20 @@ results on identical inputs and bytecode.
 | Morpho `flashLoan` entry report | `238618b47b2dd373bc91d40dd955ae14cff9243b4a676e92f46774d431c56840` |
 | Default results.json | `566c342bdde37566336b1ccb34cd9e4ec5bedc8471068cac328bf2578ebc6eb1` |
 
+When inlining for this certificate fails, the checker retries with the
+same typed bodies for closed sets of internal callees. Lean proves their
+resolved function tables equal. The caller proof retains their function IDs,
+arguments and result bindings as requests to the shared handler. This allows
+a cyclic helper to be retained without granting an equivalence assumption
+for a changed helper. A regression checks a loop with storage writes and
+rejects a changed store value in its callee body.
+
+The 15-second retained-callee retry reaches Lean for five Morpho entries
+that previously exceeded the nesting bound. Their equality goals still
+exceed the simplifier's budget. The retry preserves the status of all 12
+checks. Its report at `target/tv-integer-cleanup-interactions-cuts/results.json`
+has SHA-256 `1fd5b0f707606890c51977fe3ecc6da6eaa771bbebfe5644be4a1e6826eb567e`.
+
 #### Physical gas witnesses for integer cleanup
 
 Replay the canonical MIR suffix after `integer-cleanup` on both snapshots

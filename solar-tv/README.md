@@ -195,7 +195,11 @@ solar-tv/solar-tv mir before.mir after.mir --function permit \
 Lean compares the ordered requests, including `GAS`, supported code
 observations and calls with their gas operands. It also compares terminal
 outcomes. The theorem quantifies over a shared heap floor, arbitrary typed
-arguments and shared stateful handlers. Actual `GAS` values, code observations,
+arguments and shared stateful handlers. When expansion reaches an unsupported
+callee, the checker can retain a closed set of unchanged typed callees. Lean
+checks their function tables for equality, and the caller proof preserves
+the requests to the shared handler for those calls. The report lists the
+retained function IDs. Actual `GAS` values, code observations,
 child outcomes and physical gas costs require a separate binding to the emitted
 bytecode. The report records `unpriced-shared-interactions`.
 

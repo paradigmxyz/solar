@@ -856,12 +856,16 @@ def record(
         elif program and program.scope == "mir-interaction-tree":
             assumptions.extend(
                 [
-                    "unchanged typed interface and entry bindings; supplied acyclic MIR callees",
+                    "unchanged typed interface and entry bindings; expanded MIR callees are acyclic",
                     "shared heap floor and identical ordered requests and exits for arbitrary initial state and shared replies, including failing handlers",
                     "shared GAS, code observations and child replies remain premises; physical gas, forwarded gas and backend placement require separate proofs",
                     "trusted compiler parser, independent schema export and effect-tree renderer",
                 ]
             )
+            if program.import_evidence["retained_closed_callees"]:
+                assumptions.append(
+                    "closed retained MIR callees have kernel-checked equal typed bodies; calls at the cut use the same arbitrary handler with the recorded function ID and arguments"
+                )
         elif program and program.scope == "effect-tree":
             assumptions.extend(
                 [

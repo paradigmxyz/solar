@@ -260,6 +260,67 @@ bb2:
         with self.assertRaisesRegex(Unsupported, "expansion exceeds nesting 128"):
             mir_effects.render(model.symbolic_mir["model"], definitions)
 
+    def test_interaction_trace_checks_retained_callee_bodies(self):
+        before, after, report = (
+            self.directory / name for name in ("before.mir", "after.mir", "check.json")
+        )
+        helper = """fn @write(arg0: i256) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v1]
+    v2 = ne v0, 0
+    jumpi v2, bb2, bb3
+  bb2:
+    sstore v0, 1
+    v1 = sub v0, 1
+    jump bb1
+  bb3:
+    ret
+}
+"""
+        caller = "icall @write, 2\nv0 = gas\n"
+        before.write_text(program(caller + "v1 = add v0, 0\nret v1", helper))
+        equivalent = program(caller + "ret v0", helper)
+        command = [
+            CLI,
+            "mir",
+            before,
+            after,
+            "--solar",
+            SOLAR,
+            "--function",
+            "f",
+            "--interaction-trace",
+            "--timeout",
+            "20",
+            "--report",
+            report,
+        ]
+        for source, status in (
+            (equivalent, 0),
+            (equivalent.replace("sstore v0, 1", "sstore v0, 2"), 2),
+        ):
+            after.write_text(source)
+            result = subprocess.run(
+                command, capture_output=True, text=True, check=False, timeout=90
+            )
+            self.assertEqual(result.returncode, status, result.stdout + result.stderr)
+            record = json.loads(report.read_text())
+            if status == 0:
+                self.assertEqual(record["gas_policy"], "unpriced-shared-interactions")
+                self.assertEqual(
+                    [
+                        side["retained_closed_callees"]
+                        for side in record["import_correspondence"]
+                    ],
+                    [[1], [1]],
+                )
+            else:
+                self.assertIn(
+                    "effect-tree cycles require an invariant", record["diagnostic"]
+                )
+
     def test_live_pass_keeps_output(self):
         audit = self.directory / "audit"
         command = [SOLAR, self.folder / "before.mir", "-Ogas", "-Zmir-pipeline=sccp"]
