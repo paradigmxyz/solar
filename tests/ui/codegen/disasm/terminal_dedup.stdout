@@ -1,8 +1,7 @@
 ; === terminal_dedup (runtime) ===
-bb0:
-  0000  PUSH2 0x1234
-  0003  PUSH0
-  0004  MSTORE
-  0005  PUSH0
-  0006  PUSH0
-  0007  REVERT
+PUSH2 0x1234
+PUSH0
+MSTORE
+PUSH0
+PUSH0
+REVERT

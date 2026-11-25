@@ -12,8 +12,8 @@ contract RequireModuloCases {
     // Each argument is read once, in either order, and stays on the stack for both checks.
     // STACK-LABEL: RequireModuloCases (runtime)
     // STACK: CALLDATALOAD
-    // STACK-DAG: PUSH1 0x04{{[[:space:]]+[0-9a-f]+[[:space:]]+}}CALLDATALOAD
-    // STACK-DAG: PUSH1 0x24{{[[:space:]]+[0-9a-f]+[[:space:]]+}}CALLDATALOAD
+    // STACK-DAG: PUSH1 0x04{{[[:space:]]+}}CALLDATALOAD
+    // STACK-DAG: PUSH1 0x24{{[[:space:]]+}}CALLDATALOAD
     // STACK-DAG: CALLDATASIZE
     // STACK: MOD
     // STACK: MOD

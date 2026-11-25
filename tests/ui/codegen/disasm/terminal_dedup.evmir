@@ -4,7 +4,6 @@
 @module terminal_dedup
 
 // CHECK-LABEL: ; === terminal_dedup (runtime) ===
-// CHECK-NEXT: bb0:
 // CHECK-NEXT: PUSH2 0x1234
 // CHECK-NEXT: PUSH0
 // CHECK-NEXT: MSTORE

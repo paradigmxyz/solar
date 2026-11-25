@@ -11,7 +11,7 @@
 // edge reaches the join directly, and no `PUSH0 PUSH1 join JUMP` edge block follows.
 // RUNTIME-LABEL: ; === {{.*}}:C (runtime) ===
 // RUNTIME: REVERT
-// RUNTIME-NEXT: bb{{[0-9]+}}:
+// RUNTIME-NEXT: ; bb{{[0-9]+}}
 // RUNTIME-NEXT: JUMPDEST
 // RUNTIME-NEXT: PUSH0
 // RUNTIME-NEXT: PUSH1 0x04
@@ -19,14 +19,14 @@
 // RUNTIME-NEXT: EQ
 // RUNTIME-NEXT: PUSH1 {{0x[0-9a-f]+}}
 // RUNTIME: BYTE
-// RUNTIME-NEXT: [[JOIN:bb[0-9]+]]:
+// RUNTIME-NEXT: ; bb[[JOIN:[0-9]+]]
 // RUNTIME-NEXT: JUMPDEST
 // RUNTIME-NEXT: PUSH0
 // RUNTIME-NEXT: MSTORE
 // RUNTIME-NEXT: PUSH1 0x20
 // RUNTIME-NEXT: PUSH0
 // RUNTIME-NEXT: RETURN
-// RUNTIME-NOT: {{; -> .*}}[[JOIN]]{{[^0-9]|$}}
+// RUNTIME-NOT: PUSH1 {{0x[0-9a-f]+}} ; bb[[JOIN]]
 contract C {
     function f() external pure returns (uint256) {
         bytes calldata data;

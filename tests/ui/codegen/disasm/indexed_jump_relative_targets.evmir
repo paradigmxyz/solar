@@ -12,7 +12,7 @@
 // CHECK-NEXT: BYTE
 // CHECK-NEXT: PUSH2
 // CHECK-NEXT: ADD
-// CHECK-NEXT: JUMP ; -> ?
+// CHECK-NEXT: JUMP ; unknown
 bb0:
   push 1
   indexed_jump bb2, bb3, bb4, bb5, bb6, bb7, bb8, bb9, bb10, bb11

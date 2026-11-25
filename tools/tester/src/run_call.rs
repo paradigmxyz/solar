@@ -9,6 +9,7 @@ use evm2::{
     evm::{AccountInfo, InMemoryDB},
 };
 use serde_json::Value;
+use solar_evmir::op;
 use std::{borrow::Cow, path::Path};
 use ui_test::{
     CommentParser, Errored, Revisioned,
@@ -924,23 +925,8 @@ fn evm_version(config: &TestConfig) -> Result<&str, String> {
 }
 
 fn spec_id(config: &TestConfig) -> Result<SpecId, String> {
-    match evm_version(config)? {
-        "homestead" => Ok(SpecId::HOMESTEAD),
-        "tangerineWhistle" => Ok(SpecId::TANGERINE),
-        "spuriousDragon" => Ok(SpecId::SPURIOUS_DRAGON),
-        "byzantium" => Ok(SpecId::BYZANTIUM),
-        "constantinople" | "petersburg" => Ok(SpecId::PETERSBURG),
-        "istanbul" => Ok(SpecId::ISTANBUL),
-        "berlin" => Ok(SpecId::BERLIN),
-        "london" => Ok(SpecId::LONDON),
-        "paris" => Ok(SpecId::MERGE),
-        "shanghai" => Ok(SpecId::SHANGHAI),
-        "cancun" => Ok(SpecId::CANCUN),
-        "prague" => Ok(SpecId::PRAGUE),
-        "osaka" => Ok(SpecId::OSAKA),
-        "amsterdam" => Ok(SpecId::AMSTERDAM),
-        version => Err(format!("unsupported EVM version `{version}`")),
-    }
+    let version = evm_version(config)?;
+    version.parse().map(op::spec_id).map_err(|_| format!("unsupported EVM version `{version}`"))
 }
 
 #[cfg(test)]

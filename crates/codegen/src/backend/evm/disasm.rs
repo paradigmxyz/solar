@@ -1,169 +1,149 @@
 //! EVM bytecode disassembly.
 
 use super::op;
-use evm2_bytecode::{BasicBlocks, SpecId};
+use evm2_bytecode::{Instruction, Instructions, SpecId};
 use solar_config::EvmVersion;
-use std::fmt::Write;
+use solar_data_structures::bit_set::DenseBitSet;
+use std::{
+    collections::{BTreeMap, VecDeque},
+    fmt::Write,
+};
 
-/// Disassembles EVM bytecode into labelled basic blocks.
+/// Disassembles EVM bytecode into one opcode per line and labels reachable jump destinations.
 pub fn disassemble(bytecode: &[u8], evm_version: EvmVersion) -> String {
-    let mut output = BasicBlocks::new(bytecode, spec_id(evm_version)).to_string();
-    if !output.is_empty() {
+    let spec_id = op::spec_id(evm_version);
+    let mut output = String::with_capacity(bytecode.len().saturating_mul(8));
+    let instructions = Instructions::new(bytecode, spec_id).collect::<Vec<_>>();
+    let labels = reachable_jumpdest_labels(&instructions, spec_id);
+
+    for (index, instruction) in instructions.iter().enumerate() {
+        if instruction.opcode.is_jumpdest()
+            && let Some(label) = labels.get(&instruction.pc)
+        {
+            writeln!(output, "; bb{label}").unwrap();
+        }
+
+        write!(output, "{}", instruction.display(spec_id)).unwrap();
+        let follows_push = index
+            .checked_sub(1)
+            .is_some_and(|previous| instructions[previous].push_value().is_some());
+        if instruction.push_value().is_some() && instructions.get(index + 1).is_some_and(is_jump) {
+            if let Some(label) = pushed_pc(instruction).and_then(|pc| labels.get(&pc)) {
+                write!(output, " ; bb{label}").unwrap();
+            } else {
+                output.push_str(" ; unknown");
+            }
+        } else if is_jump(instruction) && !follows_push {
+            output.push_str(" ; unknown");
+        }
         output.push('\n');
     }
+
     output
 }
 
-fn spec_id(evm_version: EvmVersion) -> SpecId {
-    match evm_version {
-        EvmVersion::Homestead => SpecId::HOMESTEAD,
-        EvmVersion::TangerineWhistle => SpecId::TANGERINE,
-        EvmVersion::SpuriousDragon => SpecId::SPURIOUS_DRAGON,
-        EvmVersion::Byzantium => SpecId::BYZANTIUM,
-        EvmVersion::Constantinople | EvmVersion::Petersburg => SpecId::PETERSBURG,
-        EvmVersion::Istanbul => SpecId::ISTANBUL,
-        EvmVersion::Berlin => SpecId::BERLIN,
-        EvmVersion::London => SpecId::LONDON,
-        EvmVersion::Paris => SpecId::MERGE,
-        EvmVersion::Shanghai => SpecId::SHANGHAI,
-        EvmVersion::Cancun => SpecId::CANCUN,
-        EvmVersion::Prague => SpecId::PRAGUE,
-        EvmVersion::Osaka => SpecId::OSAKA,
-        // `EvmVersion` is `#[non_exhaustive]`: treat versions without a spec as the latest.
-        EvmVersion::Amsterdam | _ => SpecId::AMSTERDAM,
+fn reachable_jumpdest_labels(
+    instructions: &[Instruction<'_>],
+    spec_id: SpecId,
+) -> BTreeMap<usize, usize> {
+    let jumpdests = instructions
+        .iter()
+        .enumerate()
+        .filter_map(|(index, inst)| inst.opcode.is_jumpdest().then_some(index))
+        .collect::<Vec<_>>();
+    let mut reachable = DenseBitSet::<usize>::new_empty(instructions.len());
+    let mut pending = VecDeque::from([0]);
+    let mut all_jumpdests_pending = false;
+
+    while let Some(index) = pending.pop_front() {
+        let Some(instruction) = instructions.get(index) else { continue };
+        if !reachable.insert(index) {
+            continue;
+        }
+
+        if is_jump(instruction) {
+            if instruction.opcode.get() == op::JUMPI {
+                pending.push_back(index + 1);
+            }
+            add_jump_successors(
+                instructions,
+                jumpdests.as_slice(),
+                index,
+                &mut pending,
+                &mut all_jumpdests_pending,
+            );
+        } else if !op::is_terminal(instruction.opcode.get())
+            && instruction.opcode.is_enabled(spec_id)
+            && instruction.stack_io().is_some()
+        {
+            pending.push_back(index + 1);
+        }
     }
+
+    instructions
+        .iter()
+        .enumerate()
+        .filter(|&(index, inst)| reachable.contains(index) && inst.opcode.is_jumpdest())
+        .enumerate()
+        .map(|(label, (_, inst))| (inst.pc, label))
+        .collect()
+}
+
+fn add_jump_successors(
+    instructions: &[Instruction<'_>],
+    jumpdests: &[usize],
+    index: usize,
+    pending: &mut VecDeque<usize>,
+    all_jumpdests_pending: &mut bool,
+) {
+    if let Some(previous) = index.checked_sub(1)
+        && instructions[previous].push_value().is_some()
+    {
+        if let Some(target) = pushed_pc(&instructions[previous])
+            .and_then(|pc| instructions.binary_search_by_key(&pc, |inst| inst.pc).ok())
+            .filter(|&target| instructions[target].opcode.is_jumpdest())
+        {
+            pending.push_back(target);
+        }
+    } else {
+        // An unresolved dynamic jump may target any JUMPDEST.
+        if !*all_jumpdests_pending {
+            pending.extend(jumpdests.iter().copied());
+            *all_jumpdests_pending = true;
+        }
+    }
+}
+
+fn is_jump(instruction: &Instruction<'_>) -> bool {
+    matches!(instruction.opcode.get(), op::JUMP | op::JUMPI)
+}
+
+fn pushed_pc(instruction: &Instruction<'_>) -> Option<usize> {
+    usize::try_from(instruction.push_value()?).ok()
 }
 
 /// Disassembles EVM bytecode in the format used by solc's Standard JSON output.
 pub fn disassemble_standard_json(bytecode: &[u8], evm_version: EvmVersion) -> String {
+    let spec_id = op::spec_id(evm_version);
     let mut output = String::with_capacity(bytecode.len().saturating_mul(8));
 
-    for instruction in instructions(bytecode, evm_version) {
-        if instruction.push_width != 0 {
-            let width = instruction.push_width;
-            write!(output, "PUSH{width} 0x").unwrap();
-            if let Some(first) = instruction.data.iter().position(|byte| *byte != 0) {
-                write!(output, "{:X}", instruction.data[first]).unwrap();
-                for byte in &instruction.data[first + 1..] {
-                    write!(output, "{byte:02X}").unwrap();
-                }
-                for _ in instruction.data.len()..usize::from(width) {
-                    output.push_str("00");
-                }
-            } else {
-                output.push('0');
-            }
+    for instruction in Instructions::new(bytecode, spec_id) {
+        let opcode = instruction.opcode;
+        if opcode.is_push() {
+            write!(output, "{} 0x{:X}", opcode.as_str(), instruction.push_value().unwrap())
+                .unwrap();
+        } else if !opcode.is_valid()
+            || (matches!(opcode.get(), op::DUPN | op::SWAPN | op::EXCHANGE | op::SLOTNUM)
+                && !opcode.is_enabled(spec_id))
+        {
+            write!(output, "0x{:X}", opcode.get()).unwrap();
+        } else if instruction.stack_io().is_none() {
+            write!(output, "INVALID_{}", opcode.as_str()).unwrap();
         } else {
-            match instruction.kind {
-                DecodedOpcode::StackImmediate(immediate) => {
-                    write_stack_immediate(&mut output, instruction.opcode, immediate)
-                }
-                DecodedOpcode::InvalidStackImmediate => {
-                    output.push_str("INVALID_");
-                    write_opcode_name(&mut output, instruction.opcode);
-                }
-                DecodedOpcode::Opcode => {
-                    if let Some(mnemonic) = versioned_mnemonic(instruction.opcode, evm_version) {
-                        write_mnemonic(&mut output, mnemonic);
-                    } else {
-                        write!(output, "0x{:X}", instruction.opcode).unwrap();
-                    }
-                }
-                DecodedOpcode::Unavailable => {
-                    write!(output, "0x{:X}", instruction.opcode).unwrap();
-                }
-            }
+            write!(output, "{}", instruction.display(spec_id)).unwrap();
         }
         output.push(' ');
     }
 
     output
-}
-
-fn write_stack_immediate(output: &mut String, opcode: u8, immediate: u8) {
-    match opcode {
-        op::DUPN | op::SWAPN => {
-            write_opcode_name(output, opcode);
-            write!(output, " {}", op::decode_stack_depth(immediate).unwrap()).unwrap();
-        }
-        op::EXCHANGE => {
-            let (n, m) = op::decode_exchange(immediate).unwrap();
-            write_opcode_name(output, opcode);
-            write!(output, " {n}, {m}").unwrap();
-        }
-        _ => unreachable!(),
-    }
-}
-
-fn write_opcode_name(output: &mut String, opcode: u8) {
-    write_mnemonic(output, op::mnemonic(opcode).expect("known opcode"));
-}
-
-fn write_mnemonic(output: &mut String, mnemonic: &str) {
-    output.extend(mnemonic.bytes().map(|byte| char::from(byte.to_ascii_uppercase())));
-}
-
-struct DecodedInstruction<'a> {
-    opcode: u8,
-    push_width: u8,
-    data: &'a [u8],
-    kind: DecodedOpcode,
-}
-
-#[derive(Clone, Copy)]
-enum DecodedOpcode {
-    Opcode,
-    StackImmediate(u8),
-    InvalidStackImmediate,
-    Unavailable,
-}
-
-fn instructions(
-    bytecode: &[u8],
-    evm_version: EvmVersion,
-) -> impl Iterator<Item = DecodedInstruction<'_>> {
-    let mut offset = 0;
-    std::iter::from_fn(move || {
-        let &opcode = bytecode.get(offset)?;
-        offset += 1;
-
-        let push_width =
-            if (op::PUSH1..=op::PUSH32).contains(&opcode) { opcode - op::PUSH1 + 1 } else { 0 };
-        let kind = if (opcode == op::SLOTNUM && !evm_version.has_slot_num())
-            || (matches!(opcode, op::DUPN | op::SWAPN | op::EXCHANGE)
-                && !evm_version.has_extended_stack_ops())
-        {
-            DecodedOpcode::Unavailable
-        } else if matches!(opcode, op::DUPN | op::SWAPN | op::EXCHANGE) {
-            let immediate = bytecode.get(offset).copied().unwrap_or(0);
-            let valid = match opcode {
-                op::DUPN | op::SWAPN => op::decode_stack_depth(immediate).is_some(),
-                op::EXCHANGE => op::decode_exchange(immediate).is_some(),
-                _ => unreachable!(),
-            };
-            if valid {
-                DecodedOpcode::StackImmediate(immediate)
-            } else {
-                DecodedOpcode::InvalidStackImmediate
-            }
-        } else {
-            DecodedOpcode::Opcode
-        };
-        let immediate_is_in_code =
-            matches!(kind, DecodedOpcode::StackImmediate(_)) && offset < bytecode.len();
-        let end = offset
-            .saturating_add(usize::from(push_width) + usize::from(immediate_is_in_code))
-            .min(bytecode.len());
-        let data = &bytecode[offset..end];
-        offset = end;
-        Some(DecodedInstruction { opcode, push_width, data, kind })
-    })
-}
-
-fn versioned_mnemonic(opcode: u8, evm_version: EvmVersion) -> Option<&'static str> {
-    if opcode == op::PREVRANDAO && evm_version < EvmVersion::Paris {
-        Some("difficulty")
-    } else {
-        op::mnemonic(opcode)
-    }
 }

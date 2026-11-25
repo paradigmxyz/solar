@@ -1,5 +1,4 @@
 ; === simple (runtime) ===
-bb0:
-  0000  PUSH1 0x2a
-  0002  PUSH1 0x0a
-  0004  ADD
+PUSH1 0x2a
+PUSH1 0x0a
+ADD

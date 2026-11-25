@@ -1397,7 +1397,7 @@ class ArtifactTests(unittest.TestCase):
     def test_disassemble_evm_matches_solar_dump_style(self) -> None:
         self.assertEqual(
             benchmark.disassemble_evm(bytes.fromhex("6003565b00")),
-            "bb0:\n  0000  PUSH1 0x03\n  0002  JUMP  ; -> bb1\nbb1:\n  0003  JUMPDEST\n  0004  STOP\n",
+            "PUSH1 0x03 ; bb0\nJUMP\n; bb0\nJUMPDEST\nSTOP\n",
         )
 
     def test_solar_dump_covers_every_contract_with_the_target_first(self) -> None:

@@ -1,6 +1,5 @@
 ; === sparse_label (runtime) ===
-bb0:
-  0000  PUSH1 0x03
-  0002  POP
-bb1:
-  0003  JUMPDEST
+PUSH1 0x03
+POP
+; bb0
+JUMPDEST

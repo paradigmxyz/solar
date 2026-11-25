@@ -32,6 +32,7 @@ solar-ir.workspace = true
 solar-parse.workspace = true
 
 alloy-primitives.workspace = true
+evm2-bytecode.workspace = true
 smallvec.workspace = true
 
 [dev-dependencies]

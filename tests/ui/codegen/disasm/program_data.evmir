@@ -6,7 +6,6 @@
   literal_0: hex"11223344"
 
 // CHECK-LABEL: ; === program_data (runtime) ===
-// CHECK-NEXT: bb0:
 // CHECK-NEXT: PUSH1 0x04
 // CHECK-NEXT: PUSH1 0x0a
 // CHECK-NEXT: PUSH0
@@ -16,10 +15,8 @@
 // CHECK-NEXT: RETURN
 // The disassembler treats the opaque bytes as instructions, which also proves
 // that the exact data was appended after the executable program.
-// CHECK-NEXT: bb1:
 // CHECK-NEXT: GT
 // CHECK-NEXT: UNKNOWN(0x22)
-// CHECK-NEXT: bb2:
 // CHECK-NEXT: CALLER
 // CHECK-NEXT: PREVRANDAO
 bb0:

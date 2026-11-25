@@ -4,7 +4,7 @@
 // `-O none` keeps the empty blocks that fall through to their target, so each leaves a label and a
 // `JUMPDEST` right before the target's own: two adjacent `JUMPDEST`s.
 contract NoneAdjacentLabels {
-    // CHECK: {{JUMPDEST[[:space:]]+bb[0-9]+:[[:space:]]+[0-9a-f]+[[:space:]]+JUMPDEST}}
+    // CHECK: {{JUMPDEST[[:space:]]+; bb[0-9]+[[:space:]]+JUMPDEST}}
     function pick(bool c) external pure returns (bytes memory) {
         return bytes(c ? hex"abab" : hex"cdcd");
     }

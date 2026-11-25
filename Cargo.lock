@@ -1977,7 +1977,7 @@ dependencies = [
 [[package]]
 name = "evm2"
 version = "0.1.0"
-source = "git+https://github.com/alloy-rs/evm2?rev=0ddaea06244cc5db62b537ebe8df7e64c4093259#0ddaea06244cc5db62b537ebe8df7e64c4093259"
+source = "git+https://github.com/alloy-rs/evm2?rev=3278768132102d243b2549cbb1fb9e9fa16bd0a5#3278768132102d243b2549cbb1fb9e9fa16bd0a5"
 dependencies = [
  "alloy-consensus",
  "alloy-eip7928",
@@ -2013,7 +2013,7 @@ dependencies = [
 [[package]]
 name = "evm2-bytecode"
 version = "0.1.0"
-source = "git+https://github.com/alloy-rs/evm2?rev=0ddaea06244cc5db62b537ebe8df7e64c4093259#0ddaea06244cc5db62b537ebe8df7e64c4093259"
+source = "git+https://github.com/alloy-rs/evm2?rev=3278768132102d243b2549cbb1fb9e9fa16bd0a5#3278768132102d243b2549cbb1fb9e9fa16bd0a5"
 dependencies = [
  "alloy-primitives",
  "phf 0.14.0",
@@ -2022,7 +2022,7 @@ dependencies = [
 [[package]]
 name = "evm2-macros"
 version = "0.1.0"
-source = "git+https://github.com/alloy-rs/evm2?rev=0ddaea06244cc5db62b537ebe8df7e64c4093259#0ddaea06244cc5db62b537ebe8df7e64c4093259"
+source = "git+https://github.com/alloy-rs/evm2?rev=3278768132102d243b2549cbb1fb9e9fa16bd0a5#3278768132102d243b2549cbb1fb9e9fa16bd0a5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4407,6 +4407,7 @@ dependencies = [
  "bitflags 2.13.2",
  "bs58",
  "clap",
+ "evm2-bytecode",
  "indexmap 2.14.2",
  "libc",
  "mimalloc",
@@ -4511,6 +4512,7 @@ name = "solar-evmir"
 version = "0.3.1"
 dependencies = [
  "alloy-primitives",
+ "evm2-bytecode",
  "smallvec",
  "snapbox",
  "solar-ast",

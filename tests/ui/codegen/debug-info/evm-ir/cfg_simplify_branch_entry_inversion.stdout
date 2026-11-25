@@ -22,18 +22,16 @@
     stop
   
 ; === BranchEntryInversion (runtime) ===
-bb0:
-  0000  CALLDATASIZE
-  0001  ISZERO
-  0002  PUSH1 0x0a
-  0004  JUMPI  ; -> bb2, else bb1
-bb1:
-  0005  PUSH1 0x02
-  0007  PUSH0
-  0008  MSTORE
-  0009  STOP
-bb2:
-  000a  JUMPDEST
-  000b  PUSH1 0x01
-  000d  PUSH0
-  000e  MSTORE
+CALLDATASIZE
+ISZERO
+PUSH1 0x0a ; bb0
+JUMPI
+PUSH1 0x02
+PUSH0
+MSTORE
+STOP
+; bb0
+JUMPDEST
+PUSH1 0x01
+PUSH0
+MSTORE

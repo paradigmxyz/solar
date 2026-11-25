@@ -9,8 +9,7 @@
     stop
   
 ; === exchange_lowering (deployment) ===
-bb0:
-  0000  PUSH0
-  0001  PUSH1 0x01
-  0003  PUSH1 0x02
-  0005  EXCHANGE 1, 2
+PUSH0
+PUSH1 0x01
+PUSH1 0x02
+EXCHANGE 1, 2

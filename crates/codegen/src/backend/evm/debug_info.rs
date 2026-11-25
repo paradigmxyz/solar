@@ -17,7 +17,7 @@
 //! inline; span sets of any other size are ranges of a shared span table, and
 //! function identities are indices into a function table.
 
-use super::op;
+use evm2_bytecode::opcode::OpCode;
 use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxIndexSet},
@@ -405,9 +405,5 @@ fn offset_by(base: u32, delta: i64) -> u32 {
 /// An instruction whose real length differs ends its run, so this never has
 /// to classify every opcode for the selected EVM version.
 const fn encoded_len(opcode: u8) -> u32 {
-    match opcode {
-        op::PUSH1..=op::PUSH32 => 1 + (opcode - op::PUSH0) as u32,
-        op::DUPN | op::SWAPN | op::EXCHANGE => 2,
-        _ => 1,
-    }
+    1 + OpCode::new_or_unknown(opcode).immediate_size() as u32
 }

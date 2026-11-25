@@ -14,6 +14,7 @@ use crate::{
     debugify::Origins,
     link::{EmbeddedBytecodes, LibraryTable},
 };
+use evm2_bytecode::{decode_pair, decode_single};
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 
 impl Assembler<'_> {
@@ -142,8 +143,8 @@ fn validate_program_evm_version(assembler: &Assembler<'_>, program: &Program) {
         }
         let Some(immediate) = immediate else { continue };
         let valid = match opcode {
-            op::DUPN | op::SWAPN => op::decode_stack_depth(immediate).is_some(),
-            op::EXCHANGE => op::decode_exchange(immediate).is_some(),
+            op::DUPN | op::SWAPN => decode_single(immediate).is_some(),
+            op::EXCHANGE => decode_pair(immediate).is_some(),
             _ => false,
         };
         if !valid {

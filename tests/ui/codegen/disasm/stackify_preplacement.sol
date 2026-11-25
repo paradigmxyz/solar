@@ -8,9 +8,8 @@
 // copying the word first. Each `mulmod` takes `n` deepest, so the snapshot shows it pushed
 // once and consumed in place, with fewer swaps than copying it first and shuffling it under.
 // CHECK: ISZERO
-// CHECK-NEXT: PUSH1
-// CHECK-NEXT: JUMPI ; -> bb{{[0-9]+}}, else [[BODY:bb[0-9]+]]
-// CHECK-NEXT: [[BODY]]:
+// CHECK-NEXT: PUSH1 {{.*}}; bb1
+// CHECK-NEXT: JUMPI
 // CHECK-NEXT: DUP5
 // CHECK-NEXT: DUP2
 // CHECK-NEXT: DUP5

@@ -4,18 +4,17 @@
 @module indexed_jump
 
 // CHECK-LABEL: ; === indexed_jump (runtime) ===
-// CHECK-NEXT: bb0:
 // CHECK-NEXT: PUSH1 0x01
 // CHECK-NEXT: PUSH1 0x1e
 // CHECK-NEXT: ADD
 // CHECK-NEXT: PUSH2 {{.*}}
 // CHECK-NEXT: SWAP1
 // CHECK-NEXT: BYTE
-// CHECK-NEXT: JUMP ; -> ?
-// CHECK-NEXT: bb1:
+// CHECK-NEXT: JUMP ; unknown
+// CHECK-NEXT: ; bb0
 // CHECK-NEXT: JUMPDEST
 // CHECK-NEXT: STOP
-// CHECK-NEXT: bb2:
+// CHECK-NEXT: ; bb1
 // CHECK-NEXT: JUMPDEST
 // CHECK-NEXT: INVALID
 bb0:

@@ -1,10 +1,8 @@
 ; === jumpi_layout (runtime) ===
-bb0:
-  0000  PUSH1 0x01
-  0002  PUSH1 0x06
-  0004  JUMPI  ; -> bb2, else bb1
-bb1:
-  0005  STOP
-bb2:
-  0006  JUMPDEST
-  0007  INVALID
+PUSH1 0x01
+PUSH1 0x06 ; bb0
+JUMPI
+STOP
+; bb0
+JUMPDEST
+INVALID

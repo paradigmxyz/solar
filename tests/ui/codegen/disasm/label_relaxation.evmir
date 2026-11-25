@@ -4,16 +4,15 @@
 @module label_relaxation
 
 // CHECK-LABEL: ; === label_relaxation (runtime) ===
-// CHECK-NEXT: bb0:
 // CHECK-NEXT: PUSH1 0x02
-// CHECK-NEXT: bb1:
+// CHECK-NEXT: ; bb0
 // CHECK-NEXT: JUMPDEST
 // CHECK-NEXT: PUSH2 0x0101
 // CHECK: PUSH19 0x010203040506070809000a0b0c0d0e0f101112
-// CHECK-NEXT: bb2:
+// CHECK-NEXT: ; bb1
 // CHECK-NEXT: JUMPDEST
-// CHECK-NEXT: PUSH1 0x2a
-// CHECK-NEXT: JUMP ; -> invalid
+// CHECK-NEXT: PUSH1 0x2a ; unknown
+// CHECK-NEXT: JUMP
 bb0:
   push bb1
   jump bb1
