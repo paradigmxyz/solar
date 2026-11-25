@@ -434,6 +434,25 @@ impl Target {
         (u64::from(copy.bytes.saturating_sub(removed.bytes)), saved)
     }
 
+    /// Whether a pointer that takes over the word of a counter it replaces pays when it saves
+    /// `saved` on each iteration and adds `setup` once per entry to the loop: its end and the
+    /// counter's rebuild after the loop. The [`Self::UNCOUNTED_LOOP_ITERATIONS`] iterations of an
+    /// execution must save more gas than the setup costs. From [`Self::LOOP_COPY_MIN_RUNS`] on,
+    /// the deposit of the bytes the setup adds beyond those the loop sheds must not repay that
+    /// saving; below them, as at the default 200, a build still values its code size and takes
+    /// the pointer only when it adds no bytes, as size builds do.
+    pub(crate) fn carries_counter_word(&self, saved: Cost, setup: Cost) -> bool {
+        let saved_gas = u64::from(self.runtime_gas(saved)) * Self::UNCOUNTED_LOOP_ITERATIONS;
+        let Some(gas) = saved_gas.checked_sub(u64::from(self.runtime_gas(setup))) else {
+            return false;
+        };
+        let bytes = u64::from(setup.bytes.saturating_sub(saved.bytes));
+        if self.optimization.is_size() || !self.copies_loops() {
+            return gas > 0 && bytes == 0;
+        }
+        gas > 0 && !self.deposit_repays_gas(bytes, gas)
+    }
+
     /// The most bytes the copies of loop blocks may add to a module of `code_bytes` bytes. From
     /// [`Self::LOOP_COPY_MIN_RUNS`] on, and in a module of at least [`Self::SMALL_CODE_BYTES`],
     /// every copy that pays goes. Below those runs, as at the default 200, a build still values
@@ -2649,6 +2668,31 @@ mod tests {
         assert!(!once.duplicates_loop_block(Cost::new(0, 5), 1));
         let size = Target::with(EvmVersion::Cancun, OptimizationMode::Size, 200);
         assert!(!size.duplicates_loop_block(Cost::new(30, 12), 1));
+    }
+
+    #[test]
+    fn counter_words_are_carried_by_lifetime_gas() {
+        let op = Cost::new(3, 1);
+        // Two operations saved on each of ten iterations, 60 gas, against a two-operation setup
+        // that adds no byte: it pays at any runs and in size builds.
+        for target in [
+            Target::with(EvmVersion::Cancun, OptimizationMode::Gas, 200),
+            Target::with(EvmVersion::Cancun, OptimizationMode::Gas, 10_000),
+            Target::with(EvmVersion::Cancun, OptimizationMode::Size, 200),
+        ] {
+            assert!(target.carries_counter_word(op.times(2), op.times(2)));
+            // A setup that costs more gas than the iterations save never pays.
+            assert!(!target.carries_counter_word(op.times(2), op.times(20)));
+            assert!(!target.carries_counter_word(Cost::ZERO, op));
+        }
+        // A six-operation setup adds four bytes. At 200 runs the build keeps its size.
+        let gas = Target::with(EvmVersion::Cancun, OptimizationMode::Gas, 200);
+        assert!(!gas.carries_counter_word(op.times(2), op.times(6)));
+        // At 10,000 runs the 42 gas saved on each execution outweigh 800 gas of deposit.
+        let hot = Target::with(EvmVersion::Cancun, OptimizationMode::Gas, 10_000);
+        assert!(hot.carries_counter_word(op.times(2), op.times(6)));
+        // Unless the setup adds more bytes than that saving repays.
+        assert!(!hot.carries_counter_word(Cost::new(3, 0), Cost::new(3, 20_000)));
     }
 
     #[test]

@@ -1,0 +1,55 @@
+- ; === ROOT/tests/ui/codegen/mir/indvar-simplify/critical_exit_read.mir (before indvar-simplify) ===
++ ; === ROOT/tests/ui/codegen/mir/indvar-simplify/critical_exit_read.mir (after indvar-simplify) ===
+  @module CriticalExitRead
+  fn @scan(arg0: i256, arg1: i256) -> i256 {
+    bb0:
++     v29 = add arg0, arg1
+      jump bb1
+    bb1:                                            ; preds = bb0, bb3
+-     v0 = phi [bb0: 0], [bb3: v19]
+      v1 = phi [bb0: 0], [bb3: v13]
+      v2 = phi [bb0: 0], [bb3: v14]
+      v3 = phi [bb0: 0], [bb3: v15]
+      v4 = phi [bb0: 0], [bb3: v16]
+      v5 = phi [bb0: 0], [bb3: v17]
+      v6 = phi [bb0: 0], [bb3: v18]
+-     v7 = lt v0, arg1
++     v27 = phi [bb0: arg0], [bb3: v28]
++     v7 = ne v29, v27
+      jumpi v7, bb2, bb4
+    bb2:                                            ; preds = bb1
+-     v8 = add arg0, v0
+-     v9 = mload v8
+-     v10 = add arg0, v0
+-     v11 = mload v10
++     v9 = mload v27
++     v11 = mload v27
+      v12 = eq v9, 0
+-     jumpi v12, bb4, bb3
++     jumpi v12, bb5, bb3
+    bb3:                                            ; preds = bb2
+      v13 = mul v9, v1
+      v14 = mul v11, v2
+      v15 = mul v9, v3
+      v16 = mul v11, v4
+      v17 = mul v9, v5
+      v18 = mul v11, v6
+-     v19 = add v0, 1
++     v28 = add v27, 1
+      jump bb1
+-   bb4:                                            ; preds = bb1, bb2
+-     v20 = phi [bb1: arg1], [bb2: v0]
++   bb5:                                            ; preds = bb2
++     v30 = sub v27, arg0
++     jump bb4
++   bb4:                                            ; preds = bb1, bb5
++     v20 = phi [bb1: arg1], [bb5: v30]
+      v21 = add v1, v2
+      v22 = add v21, v3
+      v23 = add v22, v4
+      v24 = add v23, v5
+      v25 = add v24, v6
+      v26 = add v25, v20
+      ret v26
+  }
+  

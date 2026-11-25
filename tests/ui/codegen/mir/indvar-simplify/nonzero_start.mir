@@ -1,0 +1,52 @@
+//@ revisions: gas size
+//@ compile-flags: -Zmir-pipeline=indvar-simplify
+//@[gas] compile-flags: --optimize-runs 10000
+//@[gas] filecheck: --check-prefix=GAS
+//@[size] compile-flags: -O size
+//@[size] filecheck: --check-prefix=SIZE
+@module NonzeroStart
+
+// A byte scan from 1 in a loop that carries more than four words, where only the counter's word
+// pays for the pointer. Its equality exit adds the pointer's start and raises the bound to the
+// start in the preheader, which a build for 10,000 runs repays in gas and a size build does not.
+// GAS-LABEL: {{^[ +].*}}fn @scan{{[( ]}}
+// GAS: + {{v[0-9]+}} = select
+// GAS: + {{v[0-9]+}} = ne
+// SIZE-LABEL: {{^[ +].*}}fn @scan{{[( ]}}
+// SIZE-NOT: + {{v[0-9]+}} = phi
+// SIZE: = lt {{v[0-9]+}}, arg1
+
+fn @scan(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 1], [bb2: v15]
+    v1 = phi [bb0: 0], [bb2: v9]
+    v2 = phi [bb0: 0], [bb2: v10]
+    v3 = phi [bb0: 0], [bb2: v11]
+    v4 = phi [bb0: 0], [bb2: v12]
+    v5 = phi [bb0: 0], [bb2: v13]
+    v6 = phi [bb0: 0], [bb2: v14]
+    v7 = lt v0, arg1
+    jumpi v7, bb2, bb3
+  bb2:
+    v16 = add arg0, v0
+    v17 = mload v16
+    v18 = add arg0, v0
+    v19 = mload v18
+    v9 = mul v1, v17
+    v10 = mul v2, v19
+    v11 = mul v3, v17
+    v12 = mul v4, v19
+    v13 = mul v5, v17
+    v14 = mul v6, v19
+    v15 = add v0, 1
+    jump bb1
+  bb3:
+    v20 = add v1, v2
+    v21 = add v20, v3
+    v22 = add v21, v4
+    v23 = add v22, v5
+    v24 = add v23, v6
+    ret v24
+}

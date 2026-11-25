@@ -35,7 +35,16 @@
 //! bound, computed once in the preheader, and the counter's phi and update
 //! die. Then every address family is reduced at once, since removing the
 //! counter pays for a pointer that alone would only break even. The pointer
-//! must not wrap between the start and the bound: its base is a heap address,
+//! that takes over the test carries the counter's word, so when the count
+//! above rejects it, it is priced again without the charges for deepening a
+//! loop that already carries many words and for a byte pointer beside its
+//! index, but with the `ISZERO` an equality exit adds. The target then weighs
+//! the operations it saves on each iteration against its setup: its end and
+//! the counter's rebuild after the loop. A counter from a literal start to a
+//! literal bound keeps its test, so complete unrolling can count it, and so
+//! does one bounded by a parameter in the run before the general inliner and
+//! specialization, which may replace the parameter with a caller's literal. The
+//! pointer must not wrap between the start and the bound: its base is a heap address,
 //! bounded by the memory a call can afford, and a loop cannot run
 //! `2^MAX_TRIP_COUNT_BITS` iterations, the trip-count assumption the loop split
 //! also makes, so a scaled bound below that stays far from the word size. Its
@@ -109,6 +118,7 @@
 
 use super::{egraph::max_bits_with_args, loop_opt::LoopOptimizer, utils::terminator_debug_context};
 use crate::{
+    backend::evm::op,
     mir::{
         ArithmeticKind, BlockId, CheckedOp, Function, FunctionBuilder, Immediate, InstId, InstKind,
         Instruction, MemoryRegion, MirType, Module, Terminator, Value, ValueId,
@@ -130,16 +140,25 @@ use solar_evmir::debug::DebugLocKind;
 use std::rc::Rc;
 
 /// Function pass for induction-variable simplification and strength reduction.
-pub(crate) struct IndVarSimplify;
+pub(crate) enum IndVarSimplify {
+    /// The run before the general inliner and specialization, which counts a parameter bound
+    /// as a literal.
+    Early,
+    /// The run after memory lowering and inlining.
+    Late,
+}
 
 impl MirPass for IndVarSimplify {
     fn name(&self) -> &'static str {
-        "indvar-simplify"
+        match self {
+            Self::Early => "indvar-simplify-early",
+            Self::Late => "indvar-simplify",
+        }
     }
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
@@ -155,8 +174,12 @@ impl MirPass for IndVarSimplify {
             &selected,
             |func, analyses| {
                 let insts = func.num_insts();
-                let changed = IndVarSimplifier::new(Rc::clone(analyses.alias()))
-                    .run(func, Rc::clone(analyses.cfg()));
+                let changed = IndVarSimplifier::new(
+                    Rc::clone(analyses.alias()),
+                    analyses.loop_aware_target(gcx),
+                    matches!(self, Self::Early),
+                )
+                .run(func, Rc::clone(analyses.cfg()));
                 // NOTE: A pointer phi that fails to materialize leaves the instructions it
                 // already inserted in place without reporting a change.
                 if !changed && func.num_insts() != insts {
@@ -187,6 +210,10 @@ struct IndVarSimplifier {
     read_by_non_address: DenseBitSet<ValueId>,
     /// Values already counted or visited by one scan.
     seen: DenseBitSet<ValueId>,
+    /// The cost model of the function's loops.
+    target: Target,
+    /// Whether inlining or specialization may still replace a parameter bound with a literal.
+    before_inlining: bool,
 }
 
 /// Reads of a counter phi after its loop, which the counter's pointer rebuilds once the
@@ -268,7 +295,7 @@ impl AddressKey {
 impl IndVarSimplifier {
     /// Creates a new induction-variable simplifier.
     #[must_use]
-    fn new(alias: Rc<AliasAnalysis>) -> Self {
+    fn new(alias: Rc<AliasAnalysis>, target: Target, before_inlining: bool) -> Self {
         Self {
             changed: false,
             alias,
@@ -277,6 +304,8 @@ impl IndVarSimplifier {
             in_loop: DenseBitSet::new_empty(0),
             read_by_non_address: DenseBitSet::new_empty(0),
             seen: DenseBitSet::new_empty(0),
+            target,
+            before_inlining,
         }
     }
 
@@ -556,6 +585,14 @@ impl IndVarSimplifier {
         } else {
             None
         };
+        // loop-unroll counts the trips of a counter from a literal start to a literal bound, and
+        // only then unrolls the loop completely. Before inlining, a parameter bound counts too,
+        // since a caller that passes a literal may still inline or specialize the function.
+        let countable = func.value_u256(iv.init).is_some()
+            && exit_test.is_some_and(|test| {
+                func.value_u256(test.bound).is_some()
+                    || self.before_inlining && matches!(func.value(test.bound), Value::Arg(_))
+            });
         let reduce_all = test_family.is_some() && {
             let before = families
                 .iter()
@@ -566,6 +603,17 @@ impl IndVarSimplifier {
                 .map(|members| Self::family_cost_after(members, carried))
                 .sum::<usize>();
             before + Self::COUNTER_COST > after
+                || !countable
+                    && Self::counter_dies(func, loop_data, &iv, &addresses)
+                    && test_family.is_some_and(|(test, exit)| {
+                        let setup = Self::pointer_setup_cost(
+                            &families[test][0].0,
+                            exit,
+                            func.value_u256(iv.init).is_some_and(|init| init.is_zero()),
+                            exit_reads.as_ref(),
+                        );
+                        self.counter_word_pays(&families, test, exit, before, carried, setup)
+                    })
         };
 
         // The counter's reads on critical exit edges need blocks of their own first.
@@ -1159,6 +1207,28 @@ impl IndVarSimplifier {
         Some(reads)
     }
 
+    /// Whether the counter dies once a pointer takes over its exit test: nothing but its phi
+    /// reads its update, and no address the pointers replace is read after the loop, where
+    /// they do not replace it.
+    fn counter_dies(
+        func: &Function,
+        loop_data: &Loop,
+        iv: &InductionVariable,
+        addresses: &FxHashSet<ValueId>,
+    ) -> bool {
+        let Some(next) = func.inst_result_value(iv.update_inst) else { return false };
+        func.blocks.iter_enumerated().all(|(block_id, block)| {
+            let outside = !loop_data.blocks.contains(block_id);
+            let kept =
+                |operand: ValueId| operand == next || outside && addresses.contains(&operand);
+            !block.terminator.as_ref().is_some_and(|term| term.any_operand(kept))
+                && block.instructions.iter().all(|&inst_id| {
+                    func.inst_result_value(inst_id) == Some(iv.value)
+                        || !func.inst(inst_id).kind.any_operand(kept)
+                })
+        })
+    }
+
     /// Rebuilds the counter's reads after the loop from the pointer that took over its exit
     /// test: `init + (ptr - start) / scale`, with `start` the pointer's value on entry. The
     /// pointer moves `scale` bytes for every step of the counter, and the counter travels
@@ -1399,14 +1469,85 @@ impl IndVarSimplifier {
     fn family_cost_after(members: &[(AddressKey, Vec<ValueId>)], carried: usize) -> usize {
         let carry = 2 + carried.saturating_sub(Target::SHALLOW_CARRIED_WORDS);
         let byte_pointer = if members[0].0.scale.abs() == 1 { 2 } else { 0 };
+        Self::pointer_uses_cost(members) + 2 + carry + byte_pointer
+    }
+
+    /// Whether the pointer that takes over the counter's exit test pays once priced as carrying
+    /// the counter's word, which the operation count charges as a new word, with the depth it
+    /// adds to the loop's other words and the surcharge of a byte pointer beside its index. The
+    /// target weighs the operations it saves on each iteration against the `setup` operations it
+    /// adds once per entry.
+    fn counter_word_pays(
+        &self,
+        families: &[Vec<(AddressKey, Vec<ValueId>)>],
+        test: usize,
+        exit: PointerExit,
+        before: usize,
+        carried: usize,
+        setup: usize,
+    ) -> bool {
+        // The test family's pointer: its uses, the latch update, and the counter's word. The EVM
+        // has no `NE`, so an equality exit tests with `EQ` and `ISZERO`, one operation more than
+        // the counter's comparison.
+        let exit_cost = usize::from(matches!(exit, PointerExit::Reaches(_)));
+        let after = exit_cost
+            + families
+                .iter()
+                .enumerate()
+                .map(|(index, members)| {
+                    if index == test {
+                        Self::pointer_uses_cost(members) + 2 + 2
+                    } else {
+                        Self::family_cost_after(members, carried)
+                    }
+                })
+                .sum::<usize>();
+        let saved = (before + Self::COUNTER_COST).saturating_sub(after);
+        let op = self.target.opcode(op::ADD);
+        let ops = |count: usize| op.times(u32::try_from(count).unwrap_or(u32::MAX));
+        saved > 0 && self.target.carries_counter_word(ops(saved), ops(setup))
+    }
+
+    /// Operations a pointer that takes over the exit test adds once per entry to the loop: its
+    /// start and end in the preheader, with the clamps an equality exit may need, and the
+    /// counter's rebuild in each block or edge after the loop that reads it.
+    fn pointer_setup_cost(
+        key: &AddressKey,
+        exit: PointerExit,
+        init_is_zero: bool,
+        reads: Option<&ExitReads>,
+    ) -> usize {
+        let scaling = if key.scale == 1 { 0 } else { 2 };
+        let offset = if key.constant != 0 { 2 } else { 0 };
+        // A start other than the base adds its offset to the base.
+        let start = if key.constant != 0 || !init_is_zero { 2 } else { 0 };
+        // An equality exit lowers the bound to `2^65` for an even scale and raises it to a
+        // nonzero start.
+        let clamp = match exit {
+            PointerExit::Below => 0,
+            PointerExit::Reaches(from) => {
+                let upper = if key.scale % 2 == 0 { 6 } else { 0 };
+                let lower = if from.is_zero() { 0 } else { 6 };
+                upper + lower
+            }
+        };
+        let end = 2 + scaling + offset + clamp;
+        let rebuild = 2 + scaling + if init_is_zero { 0 } else { 2 };
+        // A read on a critical edge costs what it will as a phi read once the edge is split, so
+        // the visit after the split makes the same choice.
+        let read_count =
+            reads.map_or(0, |reads| reads.blocks.len() + reads.phis.len() + reads.edges.len());
+        start + end + read_count * rebuild
+    }
+
+    /// Operations a family's pointer uses cost: one duplication per primary use and three per
+    /// sibling use, which adds its offset to a duplicate of the pointer.
+    fn pointer_uses_cost(members: &[(AddressKey, Vec<ValueId>)]) -> usize {
         members
             .iter()
             .enumerate()
             .map(|(index, (_, values))| values.len() * if index == 0 { 1 } else { 3 })
             .sum::<usize>()
-            + 2
-            + carry
-            + byte_pointer
     }
 
     /// Whether carrying one pointer for a family of addresses saves more per

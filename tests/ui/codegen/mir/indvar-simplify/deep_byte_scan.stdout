@@ -1,0 +1,41 @@
+- ; === ROOT/tests/ui/codegen/mir/indvar-simplify/deep_byte_scan.mir (before indvar-simplify) ===
++ ; === ROOT/tests/ui/codegen/mir/indvar-simplify/deep_byte_scan.mir (after indvar-simplify) ===
+  @module DeepByteScan
+  fn @scan(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 560
++     v14 = add v0, arg1
+      jump bb1
+    bb1:                                            ; preds = bb0, bb6
+      v1 = phi [bb0: 0], [bb6: v10]
+-     v2 = phi [bb0: 0], [bb6: v11]
+-     v3 = lt v2, arg1
++     v12 = phi [bb0: v0], [bb6: v13]
++     v3 = ne v14, v12
+      jumpi v3, bb3, bb2
+    bb2:                                            ; preds = bb1
+      ret 0
+    bb3:                                            ; preds = bb1
+-     v4 = add v0, v2
+-     v5 = mload v4
++     v5 = mload v12
+      v6 = shr v5, 248
+      v7 = eq v6, arg2
+      jumpi v7, bb4, bb6
+    bb4:                                            ; preds = bb3
+      v8 = eq arg3, v1
+      jumpi v8, bb7, bb5
+    bb5:                                            ; preds = bb4
+      v9 = add v1, 1
+      jump bb6
+    bb6:                                            ; preds = bb3, bb5
+      v10 = phi [bb5: v9], [bb3: v1]
+-     v11 = add v2, 1
++     v13 = add v12, 1
+      jump bb1
+    bb7:                                            ; preds = bb4
+-     ret v2
++     v15 = sub v12, v0
++     ret v15
+  }
+  
