@@ -1483,3 +1483,8 @@ fn sound_hash_bytes_flip() {
 fn sound_hash_first_arg() {
     check("tests/cases/sound_hash_first_arg.sol")
 }
+
+#[test]
+fn sound_asm_memory() {
+    check("tests/cases/sound_asm_memory.sol")
+}

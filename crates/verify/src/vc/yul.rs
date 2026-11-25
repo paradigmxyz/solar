@@ -171,7 +171,7 @@ struct Yc<'a> {
     canon: FxHashMap<String, (usize, u8)>,
     words: Vec<String>,
     /// Solidity memory structs used as pointers: name, base, byte length
-    regions: Vec<(String, u64, u64)>,
+    regions: Vec<(String, u64, u64, String)>,
     funcs: Vec<FxHashMap<String, &'a yul::Function<'a>>>,
     scopes: Vec<Vec<String>>,
     leaves: Vec<Vec<(String, Env)>>,
@@ -930,7 +930,7 @@ impl<'p, 'a> Vc<'p, 'a> {
     ) -> R<()> {
         let n = 32 - from as u64;
         if !internal && !Self::y_scratch(off, n) {
-            if cx.regions.iter().any(|(_, b, l)| off < b + l && off + n > *b) {
+            if cx.regions.iter().any(|(_, b, l, _)| off < b + l && off + n > *b) {
                 return unsupported(span, "assembly writes into a Solidity memory variable");
             }
             return unsupported(
@@ -939,6 +939,11 @@ impl<'p, 'a> Vc<'p, 'a> {
                     "assembly writes memory at 0x{off:x} outside the scratch space (0x00-0x7f); only memory-safe scratch use is modelled"
                 ),
             );
+        }
+        // Free memory at the free memory pointer may be what a constant offset past the scratch
+        // space reads (the pointer is 0x80 while nothing is allocated): those reads are stale.
+        if off >= FREE_BASE {
+            self.mem_forget(SCRATCH_END, REGION_BASE);
         }
         cx.words.push(val);
         let id = cx.words.len() - 1;
@@ -1045,6 +1050,9 @@ impl<'p, 'a> Vc<'p, 'a> {
             return (!k.is_negative() && k < BigInt::from(1u64 << 40))
                 .then(|| u64::try_from(k).unwrap());
         }
+        if let Some(a) = Self::y_region_addr(cx, &l) {
+            return Some(a);
+        }
         let p = cx.fmp.as_ref()?;
         if l.ts.len() == 1
             && l.ts.get(p).is_some_and(|k| k.is_one())
@@ -1054,6 +1062,17 @@ impl<'p, 'a> Vc<'p, 'a> {
             return Some(FREE_BASE + u64::try_from(&l.c).unwrap());
         }
         None
+    }
+
+    /// A memory struct's pointer plus a constant within it: the model address of that field.
+    fn y_region_addr(cx: &Yc<'a>, l: &Lin) -> Option<u64> {
+        let [(t, k)] = &l.ts.iter().collect::<Vec<_>>()[..] else { return None };
+        if !k.is_one() || l.c.is_negative() {
+            return None;
+        }
+        let (_, b, len, _) = cx.regions.iter().find(|r| &r.3 == *t)?;
+        let c = u64::try_from(&l.c).ok()?;
+        (c < (*len).max(32)).then_some(b + c)
     }
 
     /// Memory the block may overwrite without touching Solidity data: the scratch space and
@@ -1079,9 +1098,13 @@ impl<'p, 'a> Vc<'p, 'a> {
                     );
                 }
                 self.mem_forget(o, o + n);
+                if o >= FREE_BASE {
+                    self.mem_forget(SCRATCH_END, REGION_BASE);
+                }
                 Ok(())
             }
             (Some(o), _) if (FREE_BASE..FREE_BASE + FREE_LEN).contains(&o) => {
+                self.mem_forget(SCRATCH_END, REGION_BASE);
                 // into free memory, of unknown length: all of free memory from o is unknown
                 self.mem_forget(o, FREE_BASE + FREE_LEN);
                 Ok(())
@@ -1404,8 +1427,8 @@ impl<'p, 'a> Vc<'p, 'a> {
                 Ok(if pos { v.t.clone() } else { format!("(mod {} {})", v.t, num(&w256())) })
             }
             Ty::Struct(sn) => {
-                if let Some((_, b, _)) = cx.regions.iter().find(|(r, _, _)| r == n) {
-                    return Ok(b.to_string());
+                if let Some((_, _, _, p)) = cx.regions.iter().find(|r| r.0 == n) {
+                    return Ok(p.clone());
                 }
                 let fields = self.prog.struct_fields(sn).cloned().unwrap_or_default();
                 let base = REGION_BASE + (cx.regions.len() as u64) * 0x10000;
@@ -1425,8 +1448,22 @@ impl<'p, 'a> Vc<'p, 'a> {
                     }
                     self.mem_write(cx, span, base + 32 * i as u64, ws.pop().unwrap(), 0, true)?;
                 }
-                cx.regions.push((n.to_string(), base, 32 * fields.len() as u64));
-                Ok(base.to_string())
+                // Its value is where Solidity allocated it: some address past the scratch space,
+                // unknown here (and unrelated across blocks). Fields read through it resolve to
+                // the region modelled above (see `y_region_addr`).
+                let len = 32 * fields.len() as u64;
+                let p = self.y_fresh(span, "sptr")?;
+                self.smt.send(&format!(
+                    "(assert (and (>= {p} {SCRATCH_END}) (< (+ {p} {len}) {})))
+",
+                    1u64 << 32
+                ));
+                self.ranges.insert(
+                    p.clone(),
+                    (BigInt::from(SCRATCH_END), BigInt::from((1u64 << 32) - len - 1)),
+                );
+                cx.regions.push((n.to_string(), base, len, p.clone()));
+                Ok(p)
             }
             Ty::Opaque | Ty::Arr(..) => {
                 // a memory pointer: an arbitrary word, the same within the block; memory behind
