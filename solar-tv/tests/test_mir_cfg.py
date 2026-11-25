@@ -314,7 +314,7 @@ fn @choose(arg0: i256, arg1: i1) -> i256 {
         (root / "after.mir").write_text(after)
         return after
 
-    def check_loop(self, root, status, *, fixture=None):
+    def check_loop(self, root, status, *, fixture=None, valid_heap=False):
         report = root / "report.json"
         result = subprocess.run(
             [
@@ -329,6 +329,7 @@ fn @choose(arg0: i256, arg1: i1) -> i256 {
                 "--report",
                 report,
                 *(("--world", fixture) if fixture else ()),
+                *(("--valid-heap",) if valid_heap else ()),
             ],
             text=True,
             capture_output=True,
@@ -339,7 +340,10 @@ fn @choose(arg0: i256, arg1: i1) -> i256 {
         record = json.loads(report.read_text())
         if status == 0:
             self.assertEqual(
-                record["region"]["proof"], "kernel-checked-typed-jump-chain"
+                record["region"]["proof"],
+                "kernel-checked-valid-heap-read-reuse"
+                if valid_heap
+                else "kernel-checked-typed-jump-chain",
             )
         return record
 
@@ -505,6 +509,86 @@ fn @choose(arg0: i256) -> i256 {
                 )
                 left, right = map(json.loads, result["observations"])
                 self.assertEqual(left == right, target is programs[1])
+
+    def test_cse_requires_a_live_heap_producer(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{name}.mir" for name in ("before", "after"))
+            source = """@module HeapReuse
+fn @choose(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc checked 128
+    mstore v0, arg0
+    v1 = ptradd v0, 64
+    mstore v1, 0
+    v2 = fmp
+    mstore v2, 17
+    v3 = mload v0
+    ret v3
+}
+"""
+            reduced = source.replace(
+                "    v3 = mload v0\n    ret v3\n", "    ret arg0\n"
+            )
+            before.write_text(source)
+            after.write_text(reduced)
+            self.check_loop(root, 2)
+            record = self.check_loop(root, 0, valid_heap=True)
+            self.assertTrue(
+                any(
+                    "initialized logical MIR entry" in item
+                    for item in record["assumptions"]
+                )
+            )
+
+            overlapping = [
+                text.replace("mstore v2, 17", "mstore v0, 17")
+                for text in (source, reduced)
+            ]
+            before.write_text(overlapping[0])
+            after.write_text(overlapping[1])
+            self.check_loop(root, 2, valid_heap=True)
+
+            fixture = root / "heap.json"
+            for floor, texts, values in (
+                (128, (source, reduced), [["7"], ["7"]]),
+                (0, (source, reduced), [["17"], ["7"]]),
+                (128, overlapping, [["17"], ["7"]]),
+            ):
+                fixture.write_text(
+                    json.dumps(
+                        {
+                            "version": 1,
+                            "memory": {
+                                "size": 96,
+                                "data": "0x"
+                                + (bytes(64) + floor.to_bytes(32, "big")).hex(),
+                            },
+                        }
+                    )
+                )
+                config = world.read(fixture, SOLAR, None, kind="mir")
+                programs = [
+                    Program(
+                        ("world-entry", "mir"),
+                        ["arg0"],
+                        "",
+                        "",
+                        replay_ir=text,
+                        selector="choose",
+                        evm_version="cancun",
+                        world=config,
+                    )
+                    for text in texts
+                ]
+                replay = native.replay(
+                    *programs, [7], executable=native.default(SOLAR), timeout=10
+                )
+                observations = [json.loads(item) for item in replay["observations"]]
+                self.assertEqual([item["values"] for item in observations], values)
+                self.assertEqual(
+                    observations[0] == observations[1], values[0] == values[1]
+                )
 
     def test_cse_reuses_a_warm_slot_across_a_disjoint_write(self):
         with tempfile.TemporaryDirectory() as folder:

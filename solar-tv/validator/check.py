@@ -752,6 +752,11 @@ def main() -> int:
         action="store_true",
         help="derive a region's stack bound from both physical entries",
     )
+    parser.add_argument(
+        "--valid-heap",
+        action="store_true",
+        help="admit an initialized free-memory pointer at a logical MIR function entry",
+    )
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument(
         "--function", help="check one function in the full MIR module"
@@ -832,6 +837,7 @@ def main() -> int:
         interaction_trace=args.interaction_trace,
         entry_trace=args.entry_trace,
         entry_stack=args.entry_stack,
+        valid_heap=args.valid_heap,
     )
     programs: list[Program] = []
     model = audit.semantics()
@@ -839,6 +845,10 @@ def main() -> int:
         gas.validate(args.gas, version or "cancun")
         if args.debug_reverts and not args.prune:
             raise Unsupported("--debug-reverts requires --prune")
+        if args.valid_heap and (
+            args.ir != "mir" or not args.function or args.world or args.gas
+        ):
+            raise Unsupported("--valid-heap requires an unpriced MIR function proof")
         solar = shutil.which(args.solar)
         if not solar or args.timeout <= 0:
             raise Unsupported(
@@ -869,6 +879,7 @@ def main() -> int:
             interaction_trace=args.interaction_trace,
             entry_trace=args.entry_trace,
             entry_stack=args.entry_stack,
+            valid_heap=args.valid_heap,
         )
         if args.entry_stack:
             if (
@@ -1351,7 +1362,7 @@ def main() -> int:
             and args.function
             and args.world is None
             and args.gas is None
-            and len(programs) == 2
+            and (args.valid_heap or len(programs) == 2)
         ):
             # A failed direct proof can still admit an action-by-action
             # certificate without duplicating the unfolding of shared tails.
@@ -1359,6 +1370,7 @@ def main() -> int:
 
             if (
                 isinstance(error, Unsupported)
+                and len(programs) == 2
                 and programs[0].interface != programs[1].interface
             ):
                 try:
@@ -1396,8 +1408,9 @@ def main() -> int:
                     verbose=args.verbose,
                 )
 
-            if fallback is None and all(
-                program.symbolic_mir is not None for program in programs
+            if fallback is None and (
+                args.valid_heap
+                or all(program.symbolic_mir is not None for program in programs)
             ):
                 try:
                     fallback = mir_cfg.check(
@@ -1407,9 +1420,11 @@ def main() -> int:
                         version,
                         args.timeout,
                         args.function,
+                        valid_heap=args.valid_heap,
                     )
-                except Unsupported, OSError, subprocess.TimeoutExpired:
-                    pass
+                except (Unsupported, OSError, subprocess.TimeoutExpired) as retry:
+                    if args.verbose:
+                        print(f"MIR CFG proof: {retry}", file=sys.stderr)
         status = (
             "timeout"
             if isinstance(error, subprocess.TimeoutExpired)

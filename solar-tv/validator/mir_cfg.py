@@ -11,6 +11,7 @@ from . import (
     audit,
     dead_ssa,
     entry_proof,
+    heap_cursor,
     native,
     phase_carriers,
     prune,
@@ -639,7 +640,63 @@ def proof_sources(prefix, setup, bodies, composition):
     return [*sources, ("Cfg", imports + setup + composition)]
 
 
-def check(paths, solar, executable, version, timeout, function, *, lowering=None):
+def project_reads(
+    i, bodies, definitions, fork, empty_targets, read_only, tables, *, use_heap
+):
+    projected, state_stats, scalar_stats, heap_stats = [], [], [], []
+    code = ""
+    for side, body in enumerate(bodies):
+        heap = None
+        heap_flows = {}
+        if use_heap:
+            functions = {entry["id"]: entry for entry in tables[side].values()}
+            heap_flows = heap_cursor.with_callees(
+                body, functions, definitions, fork, read_only[side]
+            )
+            if heap_flows:
+                heap = heap_flows[body["id"]].addresses
+        reduced, edges, reuses = state_read_reuse.normalize(
+            body, definitions, fork, read_only=read_only[side], heap=heap
+        )
+        scalar = {}
+        if reuses:
+            code += state_read_reuse.certificate(f"reads{i}_{side}", edges, reuses)
+            untrimmed = reduced
+            reduced, scalar, sites = scalar_reuse.normalize(
+                untrimmed, definitions, fork, empty_targets=empty_targets
+            )
+            code += scalar_reuse.certificate(f"readScalars{i}_{side}", untrimmed, sites)
+        for identity, flow in heap_flows.items():
+            code += heap_cursor.certificate(f"heap{i}_{side}_{identity}", flow)
+        projected.append(import_graph(reduced))
+        state_stats.append(dict(Counter(space for space, _ in reuses)))
+        scalar_stats.append(scalar)
+        heap_stats.append(
+            {
+                str(identity): {
+                    "known_addresses": len(flow.addresses),
+                    "cursor_edges": len(flow.transfers),
+                    "normal_return": flow.summary,
+                }
+                for identity, flow in heap_flows.items()
+            }
+        )
+    if not any(state_stats) or use_heap and not any(heap_stats):
+        raise Unsupported("MIR CFG proof found no applicable state read reuse")
+    return projected, code, state_stats, scalar_stats, heap_stats
+
+
+def check(
+    paths,
+    solar,
+    executable,
+    version,
+    timeout,
+    function,
+    *,
+    lowering=None,
+    valid_heap=False,
+):
     from .check import PRELUDE, ROOT, build_model, run
 
     helper_adapter = None
@@ -819,6 +876,7 @@ set_option maxHeartbeats 2000000
     bodies = []
     scalar_definitions = None
     read_only = None
+    heap_used = False
     while work:
         name = work.pop()
         if name in checked:
@@ -911,7 +969,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 f"(fun graph => run graph {limit} handle work 0 locals state) identical{i}"
             )
         else:
-            scalar_stats, state_stats = [], []
+            scalar_stats, state_stats, heap_stats = [], [], []
             try:
                 points, edges, live, limit, word_rewrites, increment_rewrites = pairing(
                     old, new
@@ -961,34 +1019,45 @@ theorem identical{i} : before{i} = after{i} := by rfl
                             for table in tables
                         ]
                         setup += state_read_reuse.AXIOMS
-                    projected = []
-                    for side, body in enumerate(normalized):
-                        reduced, flow, reuses = state_read_reuse.normalize(
-                            body, scalar_definitions, version, read_only=read_only[side]
-                        )
-                        if reuses:
-                            body_code += state_read_reuse.certificate(
-                                f"reads{i}_{side}", flow, reuses
-                            )
-                            untrimmed = reduced
-                            reduced, stats, sites = scalar_reuse.normalize(
-                                untrimmed,
+                    alternatives = (
+                        (False, True) if valid_heap and name == function else (False,)
+                    )
+                    for use_heap in alternatives:
+                        try:
+                            candidate = project_reads(
+                                i,
+                                normalized,
                                 scalar_definitions,
                                 version,
-                                empty_targets=empty_targets,
+                                empty_targets,
+                                read_only,
+                                tables,
+                                use_heap=use_heap,
                             )
-                            scalar_stats[side] = dict(
-                                Counter(scalar_stats[side]) + Counter(stats)
-                            )
-                            body_code += scalar_reuse.certificate(
-                                f"readScalars{i}_{side}", untrimmed, sites
-                            )
-                        projected.append(import_graph(reduced))
-                        state_stats.append(dict(Counter(space for space, _ in reuses)))
-                    if not any(state_stats):
-                        raise error from None
+                            (
+                                projected,
+                                projected_code,
+                                state_stats,
+                                more_scalars,
+                                heap_stats,
+                            ) = candidate
+                            pairs = pairing(*projected)
+                        except Unsupported:
+                            if use_heap == alternatives[-1]:
+                                raise
+                        else:
+                            break
                     old, new = projected
-                    pairs = pairing(old, new)
+                    body_code += projected_code
+                    scalar_stats = [
+                        dict(Counter(initial) + Counter(extra))
+                        for initial, extra in zip(
+                            scalar_stats, more_scalars, strict=True
+                        )
+                    ]
+                    if any(heap_stats) and not heap_used:
+                        setup += heap_cursor.AXIOMS
+                        heap_used = True
                 points, edges, live, limit, word_rewrites, increment_rewrites = pairs
             witnesses = [
                 render_point(point, targets, locals_)
@@ -1009,6 +1078,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 "literal_branches": literal_branches,
                 **({"scalar_reuse": scalar_stats} if any(scalar_stats) else {}),
                 **({"state_read_reuse": state_stats} if any(state_stats) else {}),
+                **({"heap_cursor": heap_stats} if any(heap_stats) else {}),
             }
         checked[name]["product_initialization"] = product_initialization
         checked[name].update(expansions)
@@ -1063,7 +1133,12 @@ theorem identical{i} : before{i} = after{i} := by rfl
             "lower-memory-zero": "kernel-checked-memory-zero",
             "lower-checks": "kernel-checked-conditional-checks",
             "lower-alloc": "kernel-checked-allocation-lowering",
-        }.get(lowering, "kernel-checked-typed-jump-chain"),
+        }.get(
+            lowering,
+            "kernel-checked-valid-heap-read-reuse"
+            if heap_used
+            else "kernel-checked-typed-jump-chain",
+        ),
         "functions": sorted(checked),
         "correspondence": checked,
         "proof_sha256": hashlib.sha256(

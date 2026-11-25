@@ -251,7 +251,9 @@ def covers_region(record, region):
     )
 
 
-def evaluate_case(case, solar, folder, limit, seed, timeout, *, passes=()):
+def evaluate_case(
+    case, solar, folder, limit, seed, timeout, *, passes=(), valid_heap=False
+):
     folder.mkdir()
     source = inputs(case)
     (folder / "input.json").write_text(json.dumps(source))
@@ -336,6 +338,12 @@ def evaluate_case(case, solar, folder, limit, seed, timeout, *, passes=()):
                     "--prefix" if prefix else f"--{region['kind']}",
                     region["name"],
                 ]
+                if (
+                    valid_heap
+                    and row["layer"] == "mir"
+                    and region["kind"] == "function"
+                ):
+                    command.append("--valid-heap")
                 if region["stack_height"] is not None:
                     command += ["--stack-height", str(region["stack_height"])]
             exact_call = final_call_case(case, row)
@@ -477,6 +485,11 @@ def main():
     )
     parser.add_argument("--case", action="append", default=[])
     parser.add_argument(
+        "--valid-heap",
+        action="store_true",
+        help="also admit initialized-heap MIR function certificates",
+    )
+    parser.add_argument(
         "--pass",
         dest="passes",
         action="append",
@@ -526,6 +539,7 @@ def main():
         "seed": args.seed,
         "limit": args.limit,
         "timeout": args.timeout,
+        "valid_heap": args.valid_heap,
         "selected_passes": sorted(set(args.passes)),
         "cases": [],
         "expected_cases": len(cases),
@@ -547,6 +561,7 @@ def main():
                     args.seed,
                     args.timeout,
                     passes=args.passes,
+                    valid_heap=args.valid_heap,
                 )
             )
         except (OSError, ValueError, subprocess.TimeoutExpired) as error:

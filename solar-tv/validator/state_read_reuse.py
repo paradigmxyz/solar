@@ -8,6 +8,7 @@ from .scalar_checks import WORD, local, substitute
 
 WORD_MODULUS = 2**256
 MEMORY_LIMIT = 65536
+HEAP_BASE = "entry_heap"
 STORAGE_READS = {"sload", "tload"}
 STORAGE_WRITES = {"sstore", "tstore"}
 MEMORY_READS = {"mload", "msize", "keccak256", "returndatasize", "fmp"}
@@ -72,12 +73,17 @@ def constant(operand):
     return None
 
 
-def address(operand, bindings):
+def address(operand, bindings, heap=None):
     """Resolve value-preserving word casts and constant modular offsets."""
     delta = 0
     for _ in range(64):
         if (literal := constant(operand)) is not None:
             return None, (literal + delta) % WORD_MODULUS
+        if heap is not None and operand["kind"] == "local" and operand["index"] in heap:
+            offset = heap[operand["index"]] + delta
+            if 0 <= offset <= MEMORY_LIMIT:
+                return HEAP_BASE, offset
+            break
         inst = bindings.get(operand["index"]) if operand["kind"] == "local" else None
         if inst is None or inst["type"].get("bits") != 256:
             break
@@ -85,7 +91,7 @@ def address(operand, bindings):
         name = op.get("name")
         args = op["args"]
         if (
-            op["kind"] == "word"
+            (op["kind"] == "word" or op["kind"] == "low_bits" and op["bits"] == 256)
             and len(args) == 1
             and args[0]["type"].get("bits") == 256
         ):
@@ -112,19 +118,23 @@ def disjoint_words(read, written, count, span):
     write_base, destination = written
     if count == 0:
         return True
-    if read_base is None and write_base is None:
+    if read_base == write_base and read_base in {None, HEAP_BASE}:
         return (
             start + span <= destination
             or count is not None
             and destination + count <= start
         )
+    if read_base is None and write_base == HEAP_BASE:
+        return start + span <= 128 + destination
+    if read_base == HEAP_BASE and write_base is None:
+        return count is not None and destination + count <= 128 + start
     if read_base == write_base:
         delta = (destination - start) % WORD_MODULUS
         return span <= delta <= MEMORY_LIMIT
     return False
 
 
-def identify(inst, bindings, definitions, fork):
+def identify(inst, bindings, definitions, fork, heap):
     op = inst["operation"]
     name, args = op.get("name"), op["args"]
     if (
@@ -158,7 +168,11 @@ def identify(inst, bindings, definitions, fork):
     if args[0]["type"].get("bits") != 256:
         return None
     space = "memory" if name[0] == "m" else name[0] + "load"
-    return (space, address(args[0], bindings)), stored, write
+    return (
+        (space, address(args[0], bindings, None if space in STORAGE_READS else heap)),
+        stored,
+        write,
+    )
 
 
 def preserves_all(inst, definitions, fork, read_only):
@@ -182,13 +196,25 @@ def preserves_all(inst, definitions, fork, read_only):
         return True
     if kind == "call":
         return op["function"] in read_only
+    if kind == "layout":
+        return op["query"] in {"immutable_read", "heap_floor", "frame_address"}
     return (
         kind == "opcode"
         and op["name"] in STORAGE_READS | MEMORY_READS | CONTEXT_READS | LOGS
     )
 
 
-def preserves(inst, fact, bindings, definitions, fork, read_only):
+def message_output(op):
+    if op["kind"] == "opcode":
+        length = {"call": 7, "callcode": 7, "delegatecall": 6, "staticcall": 6}.get(
+            op["name"]
+        )
+        if length == len(op["args"]):
+            return op["args"][-2:]
+    return None
+
+
+def preserves(inst, fact, bindings, definitions, fork, read_only, heap):
     if preserves_all(inst, definitions, fork, read_only):
         return True
     op = inst["operation"]
@@ -220,7 +246,13 @@ def preserves(inst, fact, bindings, definitions, fork, read_only):
             return True
         count = constant(args[2]) if name in COPIES else 32 if name == "mstore" else 1
         read, width = ((None, 0), 64) if space == "mapping" else (fact[1], 32)
-        return disjoint_words(read, address(args[0], bindings), count, width)
+        return disjoint_words(read, address(args[0], bindings, heap), count, width)
+    if heap is not None and not storage and (output := message_output(op)):
+        destination, size = output
+        read, width = ((None, 0), 64) if space == "mapping" else (fact[1], 32)
+        return disjoint_words(
+            read, address(destination, bindings, heap), constant(size), width
+        )
     return False
 
 
@@ -297,7 +329,7 @@ def checked_slice(producer, consumer, incoming, preserves_fact):
     return Site(producer, consumer, sum(1 << point for point in seen))
 
 
-def normalize(body, definitions, fork, *, read_only=()):
+def normalize(body, definitions, fork, *, read_only=(), heap=None):
     blocks = body["blocks"]
     successors = [phi_edges.targets(block["terminator"]) for block in blocks]
     dom, _ = scalar_reuse.dominance(successors)
@@ -330,7 +362,7 @@ def normalize(body, definitions, fork, *, read_only=()):
             reduced[point] = inst
             if inst["result"] is not None:
                 bindings[inst["result"]] = inst
-            identified = identify(inst, bindings, definitions, fork)
+            identified = identify(inst, bindings, definitions, fork, heap)
             if identified is None:
                 continue
             key, value, write = identified
@@ -349,6 +381,7 @@ def normalize(body, definitions, fork, *, read_only=()):
                             definitions,
                             fork,
                             read_only,
+                            heap,
                         ),
                     )
                     if site is not None:

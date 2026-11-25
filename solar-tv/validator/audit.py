@@ -573,6 +573,17 @@ def record(
                         "normal-return summaries for direct callees are checked from their exported bodies. Storage offsets share a modular base or are exact constants. Mapping hashes use the same bytes and hash function",
                     ]
                 )
+            if any(
+                check.get("heap_cursor")
+                for check in program.import_evidence["correspondence"].values()
+            ):
+                assumptions.extend(
+                    [
+                        "initialized logical MIR entry. Aligned memory covers bytes 64 through 95 and holds an initial free-memory pointer between 128 and the uint64 maximum",
+                        "known cursor offsets and reads follow the exported CFG and normal-return callee summaries. Raw calls retain their behavior and may write only within their output range in caller memory",
+                        "the typed source binds the cursor transitions and address operands. Actual ABI callers and physical gas remain separate obligations",
+                    ]
+                )
             if program.import_evidence["kind"] == "kernel-checked-fixed-storage-slots":
                 assumptions.append(
                     "fixed storage keys preserve scratch bytes and hash input in aligned memory up to 64 KiB at each expanded logical action"
