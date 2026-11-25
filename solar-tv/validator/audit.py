@@ -524,9 +524,29 @@ def record(
                 assumptions.extend(
                     [
                         "defined SSA values and typed total scalar definitions; the kernel checks dominance witnesses for cross-block reuse",
-                        "CALLER is fixed within each activation; GAS and external calls retain their exact requests and shared replies in the unpriced action model",
+                        "CALLER and TIMESTAMP are fixed within each activation; GAS samples and message effects retain their order and shared replies in the unpriced action model",
                     ]
                 )
+                stats = [
+                    side
+                    for check in program.import_evidence["correspondence"].values()
+                    for side in check.get("scalar_reuse", [])
+                ]
+                if any(
+                    side.get("effective_call_targets") or side.get("empty_call_ranges")
+                    for side in stats
+                ):
+                    assumptions.append(
+                        "the MIR message model uses the low 160 target bits and ignores offsets for zero-size ranges; the GAS request, value, nonempty ranges and child result are retained"
+                    )
+                if any(side.get("discarded_code_sizes") for side in stats):
+                    assumptions.append(
+                        "CODESIZE requires a defined code image; each discarded result feeds only empty memory ranges or dead scalar definitions"
+                    )
+                if any(side.get("returndata_extent_guards") for side in stats):
+                    assumptions.append(
+                        "each RETURNDATASIZE used in a removed rounding guard observes a live byte buffer with length below 2^255"
+                    )
             if program.import_evidence["kind"] == "kernel-checked-fixed-storage-slots":
                 assumptions.append(
                     "fixed storage keys preserve scratch bytes and hash input in aligned memory up to 64 KiB at each expanded logical action"

@@ -416,6 +416,27 @@ def render_block(block):
     return f"⟨{phis},{code},{render_action(block.exit)},{block.targets}⟩"
 
 
+def erased_graph(blocks, aliases):
+    """Reject an incompatible proposal before generating a Lean obligation."""
+
+    def rewrite(action):
+        reads = tuple(
+            aliases.get(index, (kind, index)) if kind == "reg" else (kind, index)
+            for kind, index in action.reads
+        )
+        return Action(action.key, reads, action.writes)
+
+    return [
+        (
+            [(pred, rewrite(phi)) for pred, phi in block.phis.items()],
+            [rewrite(step) for step in block.code if isinstance(step, Action)],
+            rewrite(block.exit),
+            block.targets,
+        )
+        for block in blocks
+    ]
+
+
 def paired_proof(index, old, new):
     renaming = align(old, new, {}, erase_both=True)
     symbols = {}
@@ -425,10 +446,12 @@ def paired_proof(index, old, new):
         project(new, symbols, renaming, {}, affine=affine),
     )
     names = ("before", "after")
+    erased = []
     count = 0
     code = f"\nnamespace CarrierPair{index}\nopen MIR.CarrierCopies\n"
     for name, graph in zip(names, graphs, strict=True):
         aliases, live = aliases_and_live(graph)
+        erased.append(erased_graph(graph, aliases))
         count += len(aliases)
         mapping = ",".join(
             f"({reg},{render_input(source)})" for reg, source in aliases.items()
@@ -440,6 +463,8 @@ def {name} : List Block := [{",".join(map(render_block, graph))}]
 """
     if not count and not affine:
         raise Unsupported("no full-word carrier or offset chain to normalize")
+    if erased[0] != erased[1]:
+        raise Unsupported("carrier proof changed an action after erasing copies")
     if affine:
         cases = [
             "(["

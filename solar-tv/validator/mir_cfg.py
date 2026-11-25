@@ -619,11 +619,11 @@ theorem matchedCalls {{Value World Observation : Type}}
 """
 
 
-def proof_sources(prefix, setup, bodies, composition, *, module):
+def proof_sources(prefix, setup, bodies, composition):
     """Check large procedure tables without keeping all reductions live at once."""
     module_limit = 100_000
     single = setup + "".join(bodies) + composition
-    if not module or len(single) <= module_limit:
+    if len(single) <= module_limit:
         return [("Cfg", single)]
 
     sources, batch = [], ""
@@ -990,7 +990,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
     if nested or function is None:
         entry = tables[0][function]["id"] if function is not None else None
         composition = call_proof(procedure_pairs, entry)
-    sources = proof_sources(prefix, setup, bodies, composition, module=function is None)
+    sources = proof_sources(prefix, setup, bodies, composition)
     entry_proof.success(build_model(timeout), "MIR CFG proof model")
     with tempfile.TemporaryDirectory(prefix="solar-tv-mir-cfg-") as folder:
         for name, code in sources:

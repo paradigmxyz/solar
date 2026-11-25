@@ -425,6 +425,87 @@ fn @choose(arg0: i256) -> i256 {
                 record["witness"]["native_observations"],
             )
 
+    def test_egraph_preserves_effective_call_operands_and_returndata(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{name}.mir" for name in ("before", "after"))
+            source = """@module EffectiveCall
+fn @choose(arg0: i256) -> i256 {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    v2 = codesize
+    v3 = gas
+    v4 = call v3, v1, 0, v2, 0, v2, 0
+    v5 = returndatasize
+    v6 = add v5, 31
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v8 = add v7, 32
+    v9 = lt v8, v5
+    jumpi v9, bb1, bb2
+  bb1:
+    mstore 32, 65
+    mstore 0, 0x4e487b71
+    revert 28, 36
+  bb2:
+    ret v8
+}
+"""
+            before.write_text(source)
+            lowered = subprocess.check_output(
+                [SOLAR, before, "-j1", "-Zmir-pipeline=egraph", "-Zvalidate-ir=true"],
+                text=True,
+                timeout=20,
+            )
+            after.write_text(lowered)
+            record = self.check_loop(root, 0)
+            evidence = record["import_correspondence"][0]["correspondence"]["choose"]
+            scalar = evidence["scalar_reuse"][0]
+            self.assertEqual(scalar["effective_call_targets"], 1)
+            self.assertEqual(scalar["empty_call_ranges"], 2)
+            self.assertEqual(scalar["returndata_extent_guards"], 1)
+            nonempty = re.sub(
+                r"( = call [^\n]+), 0$", r"\1, 32", lowered, flags=re.MULTILINE
+            )
+            self.assertNotEqual(lowered, nonempty)
+            after.write_text(nonempty)
+            self.check_loop(root, 2)
+            changed_guard = lowered.replace("add v5, 31", "add v5, 63")
+            self.assertNotEqual(lowered, changed_guard)
+            after.write_text(changed_guard)
+            self.check_loop(root, 2)
+
+            # Supply a fixed sample and a concrete child to the native interpreter.
+            fixture = root / "world.json"
+            fixture.write_text(
+                '{"version":1,"mir_layout":{"code":"0x000000"},'
+                '"accounts":[{"address":65537,"nonce":1,"code":"0x602a60005260206000f3"}]}'
+            )
+            initial = world.read(fixture, SOLAR, None, kind="mir")
+            programs = [
+                Program(
+                    ("world-entry", "mir"),
+                    ["arg0"],
+                    "",
+                    "",
+                    replay_ir=text.replace(" = gas", " = add 100000, 0"),
+                    selector="choose",
+                    evm_version="cancun",
+                    world=initial,
+                )
+                for text in (source, lowered, nonempty)
+            ]
+            for target in programs[1:]:
+                result = native.replay(
+                    programs[0],
+                    target,
+                    [65537 + 2**200],
+                    executable=native.default(SOLAR),
+                    timeout=20,
+                )
+                left, right = map(json.loads, result["observations"])
+                self.assertEqual(left == right, target is programs[1])
+
     def test_egraph_loop_with_wrapping_words_and_pointer_callee(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
