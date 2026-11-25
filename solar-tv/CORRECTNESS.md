@@ -1389,6 +1389,56 @@ stride's returned word and memory counterexample. The Morpho checks cover
 the two local builtin rewrites and the priced emitted CALL continuation,
 at its reported boundary.
 
+### Pinned egraph scalar reuse audit
+
+Two serial runs of `evaluate --all --pass egraph --timeout 10 --seed 0`
+checked the same 116 MIR captures. The capture IDs and both source hashes
+match the full audit above. The compiler and all three input fingerprints
+match between runs. Normal and capture compilations produce identical ABI
+and creation and runtime bytecode for each contract.
+
+| Contract | Selected | Baseline verified | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Solady WETH | 16 | 5 | 11 | 4 | 1 | 0 |
+| OpenZeppelin ERC20Mock | 15 | 7 | 15 | 0 | 0 | 0 |
+| Morpho Blue | 85 | 25 | 49 | 33 | 3 | 0 |
+| Total | 116 | 37 | 75 | 37 | 4 | 0 |
+
+The baseline had 72 unsupported and seven timed-out checks. Each of its
+37 verified checks still verifies. The 38 new checks all use the scalar
+reuse certificate.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Compiler executable | `7d123ab7483266256ead8e4b3d86cbce427376f186b5714969110d19139335e8` |
+| Serial compiler launcher | `4e5a4f6faa73f5d017a534afaa4d3f9a8c052abe1c2435f192108577b79239e9` |
+| Independent replay | `649ae6a1ae51d75ca501093d1a0f0a1181ff098d4f386e09b6e5754c01374365` |
+| Corpus manifest | `b08af7eb00ac67a5ef1200d50273beedc48d5517838ed67504bd1a76ba96b7b7` |
+| Checker on Lean 4.34.1 | `56498749949e5d9ecb65329db5ddfc0a3e720c85fffe21c522ed209131d58556` |
+| `target/tv-egraph-baseline/results.json` | `25169a148dce391a0e37a04e60e3240a6bd7736627b73ef011e0e75242d37cdf` |
+| `target/tv-egraph-scalar-reuse/results.json` | `232ef90e9b0962722019b2c06409ba4eb755e70e6e1bf90c060fa36bccb7dbf7` |
+
+The kernel checks the cast, mask, shift and predicate identities, plus
+edge-closure witnesses showing that a reused definition dominates its
+cross-block use. The graph certificate checks ordered actions and live
+operands after normalizing total scalar definitions and uniform phis.
+CALLER is fixed per activation. GAS, message calls and mutable state
+operations retain their requests and their shared responses. The checker
+trusts the validated SSA export and the bindings from the original
+instructions to the scalar and action projections. It makes a logical
+MIR claim under defined typed values and shared handlers.
+
+The regression compiles a real `egraph` rewrite with cross-block CALLER
+reuse and a live GAS sample. Replacing that sample with a constant loses
+the certificate. Using the same fixed reply on both sides lets Lean and
+the independent Rust interpreter replay a changed storage slot. The 32
+focused tests also cover CFG, dead SSA and builtin lowering.
+
+The remaining captures include rewritten call operands, removed
+returndata extent checks and additional scalar range and predicate
+obligations. Pricing the GAS sample and binding those effects to the
+emitted instructions remain open.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
