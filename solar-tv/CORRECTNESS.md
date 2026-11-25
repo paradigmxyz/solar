@@ -1723,6 +1723,41 @@ obligations include frame and argument correspondence at the logical MIR
 cut, the continuation to the internal `_accrueInterest` activation, and the
 emitted suffix.
 
+### Emitted Morpho decoder cuts
+
+Standalone certificates extend the three heap-entry paths through their
+five fixed calldata words on the same pinned runtime. In each case the
+terminal memory is nine words `[0, 0, 288, 0, w0, w1, w2, w3, w4]`. The
+proofs assume the matching selector, zero call value, and the preceding
+route's calldata length bounds. The two market routes assume that the
+first four words fit in 160 bits. The authorization route assumes that
+the first two words fit in 160 bits and that the third word is 0 or 1.
+The initial journal is arbitrary. Lean checks that the journal and
+returndata are unchanged at the cut.
+
+| Public route | Instructions | Gas | Cut PC |
+| --- | ---: | ---: | ---: |
+| `createMarket` | 110 | 448 | 1872 |
+| `setAuthorizationWithSig` | 92 | 365 | 6698 |
+| `accrueInterest` | 96 | 383 | 7111 |
+
+Lean checks the exact debit and rollback for every smaller budget. Rust
+independently reached each cut with nonzero calldata words and zero gas
+remaining at the exact budget, and ran out of gas one unit below it. The
+market paths also check the stack-carried return to the two distinct
+continuations and the live object pointer of 128. Changing the store
+address immediate at PC 1466 from 160 to 192 made its original Lean byte
+binding false. Rust reached the same cut with bytes 160 through 191 zero
+instead of the second calldata word. Lean also independently rejected the
+original heap-pointer certificate against the changed immediate at PC 1436.
+
+| Artifact in `target/tv-routed-heap/` | SHA-256 |
+| --- | --- |
+| `DecodercreateMarket.lean` | `20875ae98668ff817e7eee920540ff1854a576fce2eeb74cdd8f86945eaf4bc3` |
+| `DecodersetAuthorizationWithSig.lean` | `07f1683475281512052411761b1341a8444ba7a5451cb6a75f3c47d46cad7c44` |
+| `DecoderaccrueInterest.lean` | `f8281aa740623d9dc71c429ba266f4b1872a592aedccf8de2c7b9b8ea280e17f` |
+| `decoded-market-replay.json` | `33403861aa989d54defcef6bd412714333f8a0e0c5bbb955d17e200ac8532dae` |
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
