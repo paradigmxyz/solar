@@ -253,12 +253,12 @@ impl AddressKey {
     /// the add, and often not even that when the loop shares the sum with a
     /// bounds check.
     fn use_cost(&self, offset_shared: bool) -> usize {
-        let scaling = if self.scale.abs() == 1 { 0 } else { 2 };
+        let scaling = if self.scale.unsigned_abs() == 1 { 0 } else { 2 };
         let base = if self.base.is_some() { 2 } else { 0 };
         let invariants = self
             .invariants
             .iter()
-            .map(|term| if term.scale.abs() == 1 { 2 } else { 4 })
+            .map(|term| if term.scale.unsigned_abs() == 1 { 2 } else { 4 })
             .sum::<usize>();
         let offset = if self.constant != 0 && !offset_shared { 2 } else { 0 };
         1 + scaling + base + invariants + offset
@@ -455,7 +455,11 @@ impl IndVarSimplifier {
         for members in &mut families {
             // The most used offset carries the pointer; ties go to the smallest offset.
             members.sort_by_key(|(key, values)| {
-                (std::cmp::Reverse(values.len()), key.constant.abs(), values.iter().min().copied())
+                (
+                    std::cmp::Reverse(values.len()),
+                    key.constant.unsigned_abs(),
+                    values.iter().min().copied(),
+                )
             });
         }
         // Hash iteration order follows value numbering; order families by their first value so
@@ -1398,7 +1402,7 @@ impl IndVarSimplifier {
     /// primary use, an add per sibling use, the latch update, and the carried word.
     fn family_cost_after(members: &[(AddressKey, Vec<ValueId>)], carried: usize) -> usize {
         let carry = 2 + carried.saturating_sub(Target::SHALLOW_CARRIED_WORDS);
-        let byte_pointer = if members[0].0.scale.abs() == 1 { 2 } else { 0 };
+        let byte_pointer = if members[0].0.scale.unsigned_abs() == 1 { 2 } else { 0 };
         members
             .iter()
             .enumerate()
