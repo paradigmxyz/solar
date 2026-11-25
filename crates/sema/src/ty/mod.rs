@@ -339,7 +339,6 @@ pub enum CallDispatch {
 
 /// Reference to the [global context](GlobalCtxt).
 #[derive(Clone, Copy)]
-#[cfg_attr(feature = "nightly", rustc_pass_by_value)]
 pub struct Gcx<'gcx>(&'gcx GlobalCtxt<'gcx>);
 
 impl<'gcx> std::ops::Deref for Gcx<'gcx> {
