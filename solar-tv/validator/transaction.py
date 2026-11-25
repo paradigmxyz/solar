@@ -216,6 +216,10 @@ theorem matches_replay :
 
 
 def check(request, solar, timeout):
+    if request["kind"] == "amsterdam_storage":
+        from . import amsterdam_storage
+
+        return amsterdam_storage.check(request, solar, timeout)
     from .check import build_model
 
     helper = native.default(solar)

@@ -110,9 +110,10 @@ and call contexts are replayed independently. Authorization processing precedes
 the explicit-world entry model. A separate transaction checker handles decoded
 set-code envelopes and signed authorizations through Osaka. Amsterdam admits
 environment/scalar/memory execution and separate reservoir certificates for
-debits, refills and rollback.
-State/account/call gas is still outside the Amsterdam interpreter. A zero `Missing` count does not make
-every EVM operation valid in arbitrary windows, forks or worlds.
+debits, refills, rollback and child ledger merging. An explicit bytecode entry
+also checks `SLOAD` and `SSTORE` with independent execution and reservoir
+balances. Account access, message and creation opcodes still need Amsterdam
+metering.
 
 [MIR/State/](SolarTV/MIR/State/) executes typed SSA directly, with scalar memory
 pointers, persistent/transient cells, context, logs, terminal outcomes and cyclic

@@ -18,7 +18,14 @@ use evm2::{
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::{cell::RefCell, collections::BTreeMap, fs, process::Command, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::BTreeMap,
+    fs,
+    process::Command,
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
 
 mod context;
 mod mir;
@@ -60,6 +67,9 @@ pub(super) struct Input {
     /// Execute the fixture's captured root bytecode directly.
     #[serde(default)]
     raw_runtime: bool,
+    /// Supply and observe a separate state-gas pool in Amsterdam raw replay.
+    #[serde(default)]
+    amsterdam_reservoir: Option<u64>,
     /// Include the ordered completed persistent-storage opcodes in MIR replay.
     #[serde(default)]
     trace_storage: bool,
@@ -155,6 +165,7 @@ struct Snapshot {
 struct Observer {
     stack: Vec<U256>,
     gas: u64,
+    reservoir: u64,
     is_static: bool,
     probe_pc: Option<usize>,
     snapshot: Rc<RefCell<Snapshot>>,
@@ -163,7 +174,7 @@ struct Observer {
 impl Inspector<BaseEvmTypes> for Observer {
     fn initialize_interp(&mut self, interp: &mut Interpreter<'_, '_, BaseEvmTypes>) {
         if interp.message().depth == 0 {
-            interp.set_gas(Gas::new(self.gas));
+            interp.set_gas(Gas::new_with_execution_gas_and_reservoir(self.gas, self.reservoir));
             interp.set_static(self.is_static);
             for value in self.stack.iter().rev() {
                 interp.stack_mut().push(*value).expect("checked root stack height");
@@ -229,6 +240,15 @@ pub(super) fn spec(text: &str) -> Result<SpecId, String> {
 }
 
 pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], String> {
+    if input.amsterdam_reservoir.is_some()
+        && (request.evm_version != "amsterdam"
+            || request.kind != "evmir"
+            || !input.raw_runtime
+            || input.probe_pc.is_some()
+            || input.gas_policy.as_deref() != Some("exact"))
+    {
+        return Err("a separate state-gas pool needs exact Amsterdam raw-bytecode replay".into());
+    }
     if request.kind == "mir" {
         if input.raw_runtime || input.probe_pc.is_some() {
             return Err("bytecode probe requires EVM execution".into());
@@ -239,8 +259,10 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
         return Err("MIR layout is not an EVM world input".into());
     }
     let budget = input.gas.ok_or("missing EVM entry gas budget")?;
+    let reservoir = input.amsterdam_reservoir.unwrap_or_default();
+    let total = budget.saturating_add(reservoir);
     if !matches!(request.kind.as_str(), "mir" | "evmir")
-        || budget > 30_000_000
+        || total > 30_000_000
         || input.calldata.len() > 65536
         || input.accounts.len() > 33
         || input.warm_slots.len() > 64
@@ -287,6 +309,8 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
         let spec = spec(&request.evm_version)?;
         let mut registry = TxRegistry::<BaseEvmTypes, TxResult>::new();
         let data = Bytes::copy_from_slice(&input.calldata);
+        let settlement = input.amsterdam_reservoir.map(|_| Arc::new(Mutex::new(None)));
+        let settled = settlement.clone();
         registry.register(
             0,
             |tx| match tx {
@@ -295,7 +319,7 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
             },
             move |request: TxRequest<'_, '_, BaseEvmTypes, TxLegacy>| {
                 warm_base_accounts(request.host, caller, TxKind::Call(root));
-                let mut gas = GasTracker::new(budget);
+                let mut gas = GasTracker::new_with_execution_gas_and_reservoir(budget, reservoir);
                 let frame = prepare_initial_frame(
                     request.host,
                     caller,
@@ -305,8 +329,18 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
                     U256::ZERO,
                     &mut gas,
                 )?;
-                let result =
-                    execute_initial_frame(request.host, &environment, frame, &mut gas, budget, 0);
+                let result = execute_initial_frame(
+                    request.host,
+                    &environment,
+                    frame,
+                    &mut gas,
+                    budget,
+                    reservoir,
+                );
+                if let Some(settled) = &settled {
+                    *settled.lock().expect("the replay owns the settlement meter") =
+                        Some(result.gas);
+                }
                 Ok(TxResult::<BaseEvmTypes> {
                     status: result.stop.is_success(),
                     stop: result.stop,
@@ -328,6 +362,7 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
         evm.set_inspector(Observer {
             stack: stack.clone(),
             gas: budget,
+            reservoir,
             is_static: input.is_static,
             probe_pc: input.probe_pc,
             snapshot: snapshot.clone(),
@@ -335,7 +370,7 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
         let tx = Recovered::new_unchecked(
             TxEnvelope::Legacy(TxLegacy {
                 to: TxKind::Call(root),
-                gas_limit: budget,
+                gas_limit: total,
                 ..Default::default()
             }),
             caller,
@@ -419,19 +454,33 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
             })
             .collect::<Vec<_>>();
         let paid = input.gas_policy.is_some();
-        Ok(json!([
-            stop,
-            outcome.output.to_vec(),
-            if paid {
-                if matches!(stop, "exception" | "out-of-gas") { 0 } else { snapshot.gas }
-            } else {
+        let mut observation = vec![
+            json!(stop),
+            json!(outcome.output.to_vec()),
+            json!(if !paid || matches!(stop, "exception" | "out-of-gas") {
                 0
-            },
-            if paid && stop == "success" { snapshot.refund } else { 0 },
-            accounts.into_values().collect::<Vec<_>>(),
-            logs
-        ])
-        .to_string())
+            } else {
+                snapshot.gas
+            }),
+            json!(if paid && stop == "success" { snapshot.refund } else { 0 }),
+            json!(accounts.into_values().collect::<Vec<_>>()),
+            json!(logs),
+        ];
+        if let Some(settlement) = settlement {
+            let meter = settlement
+                .lock()
+                .expect("the replay owns the settlement meter")
+                .ok_or("missing settled Amsterdam gas")?;
+            observation[2] = json!(meter.remaining());
+            observation[3] = json!(meter.refunded());
+            observation.push(json!([
+                meter.remaining(),
+                meter.reservoir(),
+                meter.state_gas_spent(),
+                meter.state_gas_spilled(),
+            ]));
+        }
+        Ok(json!(observation).to_string())
     };
     Ok([execute(&request.before)?, execute(&request.after)?])
 }

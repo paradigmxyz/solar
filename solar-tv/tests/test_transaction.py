@@ -170,3 +170,50 @@ class TransactionTests(unittest.TestCase):
                 None,
             ],
         )
+
+    def test_amsterdam_storage_refills_reservoir_and_spill(self):
+        request = json.loads((EXAMPLES / "amsterdam-storage-refill.json").read_text())
+        for gas, reservoir in ((20000, 100000), (120000, 0)):
+            with self.subTest(gas=gas, reservoir=reservoir):
+                request["world"]["gas"] = gas
+                request["reservoir"] = reservoir
+                report = self.check(request)
+                self.assertEqual(report[:4], ["success", [0] * 32, gas - 12324, 10000])
+                self.assertEqual(report[-1], [gas - 12324, reservoir, 0, 0])
+                contract = next(
+                    account for account in report[4] if account[0] == "65536"
+                )
+                self.assertEqual(contract[4], [])
+
+    def test_amsterdam_revert_returns_spill_and_restores_storage(self):
+        request = json.loads((EXAMPLES / "amsterdam-storage-refill.json").read_text())
+        request.update(runtime="0x60015f555f5ffd", reservoir=0)
+        request["world"]["gas"] = 120000
+        report = self.check(request)
+        self.assertEqual(report[:4], ["revert", [], 107891, 0])
+        self.assertEqual(report[-1], [107891, 0, 0, 0])
+        contract = next(account for account in report[4] if account[0] == "65536")
+        self.assertEqual(contract[4], [])
+
+    def test_amsterdam_storage_sentry_uses_execution_gas(self):
+        request = json.loads((EXAMPLES / "amsterdam-storage-refill.json").read_text())
+        request["runtime"] = "0x5f5f5500"
+        request["world"]["gas"] = 2304
+        report = self.check(request)
+        self.assertEqual(report[:4], ["out-of-gas", [], 0, 0])
+        self.assertEqual(report[-1], [0, 100000, 0, 0])
+
+    def test_amsterdam_clearing_uses_warm_and_cold_execution_prices(self):
+        request = json.loads((EXAMPLES / "amsterdam-storage-refill.json").read_text())
+        request["runtime"] = "0x5f5f5500"
+        request["world"]["gas"] = 15000
+        request["world"]["accounts"] = [
+            {"address": 65536, "nonce": 1, "storage": {"0": "7"}}
+        ]
+        for warm, cost in ((False, 12100), (True, 10100)):
+            with self.subTest(warm=warm):
+                request["world"]["warm_slots"] = [[65536, 0]] if warm else []
+                report = self.check(request)
+                self.assertEqual(report[:4], ["success", [], 15000 - 4 - cost, 11616])
+                self.assertEqual(report[-1], [15000 - 4 - cost, 100000, 0, 0])
+                self.assertEqual(report[4][0][4], [])

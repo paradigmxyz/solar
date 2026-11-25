@@ -21,6 +21,7 @@ def replay(
     raw_runtime: bool = False,
     trace_storage: bool = False,
     trace_stores: bool = False,
+    amsterdam_reservoir: int | None = None,
 ) -> dict:
     binary = shutil.which(executable)
     if binary is None:
@@ -57,6 +58,8 @@ def replay(
             request["world"]["trace_storage"] = True
         if trace_stores:
             request["world"]["trace_stores"] = True
+        if amsterdam_reservoir is not None:
+            request["world"]["amsterdam_reservoir"] = amsterdam_reservoir
     try:
         result = subprocess.run(
             [binary],

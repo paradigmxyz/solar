@@ -1109,6 +1109,7 @@ failure of the execution message.
 solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/set-code-revert.json
 solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/amsterdam-reservoir.json
 solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/amsterdam-nested-reservoir.json
+solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/amsterdam-storage-refill.json
 ```
 
 The Amsterdam checks cover reservoir initialization, execution-only debits,
@@ -1121,6 +1122,12 @@ and child exit. Lean checks the inherited checkpoint across every transition.
 The replay compares both pools, signed ledgers, refund counters, and depth
 through child success, revert, and halt. Opcode-derived forwarding and charges,
 interpreter integration for nested calls, and transaction settlement remain open.
+
+The Amsterdam storage fixture executes raw bytecode with supplied execution gas
+and reservoir balances. Lean compares the settled meter, refund, output, and
+persistent state with `evm2`. The regressions exercise cold and warm storage
+pricing, creation and restoration of a zero slot, the execution-gas sentry, and
+spill repayment and journal rollback on revert.
 
 ## Check passes during compilation
 
