@@ -100,6 +100,30 @@ impl SourceMapEncoder {
     }
 }
 
+/// Returns the statically encoded destination of a jump preceded by `PUSH`.
+pub(crate) fn static_jump_target(
+    bytecode: &[u8],
+    previous: Option<&DebugInstruction<'_>>,
+    instruction: &DebugInstruction<'_>,
+) -> Option<usize> {
+    if !matches!(instruction.opcode, op::JUMP | op::JUMPI) {
+        return None;
+    }
+    let previous = previous?;
+    let width = previous.opcode.checked_sub(op::PUSH0)? as usize;
+    if !(1..=32).contains(&width)
+        || previous.offset as usize + width + 1 != instruction.offset as usize
+    {
+        return None;
+    }
+    let start = previous.offset as usize + 1;
+    let mut target = 0usize;
+    for &byte in bytecode.get(start..instruction.offset as usize)? {
+        target = target.checked_mul(256)?.checked_add(usize::from(byte))?;
+    }
+    (bytecode.get(target).copied() == Some(op::JUMPDEST)).then_some(target)
+}
+
 /// Returns the entry offsets of the functions that calls enter, with the function each one starts.
 pub(crate) fn function_entries(
     debug_info: &DebugInfo,
@@ -124,30 +148,6 @@ pub(crate) fn function_callee(
 ) -> Option<(u32, DebugFunction)> {
     let target = u32::try_from(static_jump_target(bytecode, previous, instruction)?).ok()?;
     function_entries.get(&target).map(|&function| (target, function))
-}
-
-/// Returns the statically encoded destination of a jump preceded by `PUSH`.
-pub(crate) fn static_jump_target(
-    bytecode: &[u8],
-    previous: Option<&DebugInstruction<'_>>,
-    instruction: &DebugInstruction<'_>,
-) -> Option<usize> {
-    if !matches!(instruction.opcode, op::JUMP | op::JUMPI) {
-        return None;
-    }
-    let previous = previous?;
-    let width = previous.opcode.checked_sub(op::PUSH0)? as usize;
-    if !(1..=32).contains(&width)
-        || previous.offset as usize + width + 1 != instruction.offset as usize
-    {
-        return None;
-    }
-    let start = previous.offset as usize + 1;
-    let mut target = 0usize;
-    for &byte in bytecode.get(start..instruction.offset as usize)? {
-        target = target.checked_mul(256)?.checked_add(usize::from(byte))?;
-    }
-    (bytecode.get(target).copied() == Some(op::JUMPDEST)).then_some(target)
 }
 
 fn encode(entries: impl IntoIterator<Item = SourceMapEntry>) -> String {
