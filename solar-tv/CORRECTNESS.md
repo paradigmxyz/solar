@@ -2258,6 +2258,113 @@ preserves its compiler output. Increasing one shift from 160 to 161
 loses the CFG proof. Lean and the independent Rust interpreter agree on
 the counterexample with calldata bit 160 set.
 
+### Full corpus after the Morpho IRM proofs
+
+The serial audit at `3389c53fcd` used `evaluate --all --timeout 3 --seed 0`.
+Every capture ID binds the same capture record and before and after IR
+hashes as the preceding full audit. The three pinned input hashes match,
+and baseline and capture compilation produce identical ABI, creation
+bytecode and runtime bytecode. The checker fingerprint stays constant
+throughout the run. The proof budget is three seconds per checker call.
+This run serializes Solar TV checks. Separate Foundry builds overlapped
+part of the audit, so timeout counts reflect the observed wall-clock load.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Compiler executable | `f996616dcf2ebacf05fc5cc439f4814dc38fe953fad90b698754281c59ef139c` |
+| Serial compiler launcher | `4e5a4f6faa73f5d017a534afaa4d3f9a8c052abe1c2435f192108577b79239e9` |
+| Pinned Rust replay | `afd4d44b1a2d91c975b6bca3dc1fb6531bf48d8d3750bf4c114ec6071afa1c7a` |
+| Lean checker on 4.34.1 | `16898edceb41719ca93d1f8db65e95abeb2ddf96a519a429d0ae67e2be79d2a6` |
+| Corpus manifest | `b08af7eb00ac67a5ef1200d50273beedc48d5517838ed67504bd1a76ba96b7b7` |
+| Complete results.json | `8c777978fff2fb2f69c82e8fb26389ea9640eac01c5a728d4eb7cb011c32bd5a` |
+
+| Contract | Captured | Verified | Unsupported | Timed out | Failed |
+| --- | :---: | :---: | :---: | :---: | :---: |
+| Solady WETH | 330 | 250 | 38 | 42 | 0 |
+| OpenZeppelin ERC20Mock | 372 | 282 | 36 | 54 | 0 |
+| Morpho Blue | 1526 | 866 | 436 | 224 | 0 |
+| Total | 2228 | 1398 | 510 | 320 | 0 |
+
+| Contract | Input SHA-256 | ABI and bytecode output SHA-256 |
+| --- | --- | --- |
+| Solady WETH | `b751f0da2642fba80d176248ff576b06d45601fda253d9de32f9a78e3b70a4c0` | `671d642b2c47309ccd86125a4b1e35b281d4d2c367df2b88acacfcffb1c3c978` |
+| OpenZeppelin ERC20Mock | `c85c24c264a2ae9a97b32050f93426376c8cb20e15f6e5ad5dc1414ee46ce2c4` | `5e5fb3a0613c6ec21d8b61be398fc1ee325fcce75b144d13107356276d288213` |
+| Morpho Blue | `01f4aaf9db4940ea9a62aba808ba1655ef399c671b6ed29875f8a91c3efeba53` | `8ef2219d25d2b256dad76949a880ba655074bee6eb7f53bdf38e14381f43d8a0` |
+
+| Layer and pass | Captured | Verified | Unsupported | Timed out | Failed |
+| --- | :---: | :---: | :---: | :---: | :---: |
+| evmir `block-cse` | 10 | 3 | 5 | 2 | 0 |
+| evmir `block-layout` | 368 | 296 | 68 | 4 | 0 |
+| evmir `cfg-simplify` | 7 | 4 | 2 | 1 | 0 |
+| evmir `cfg-simplify-early` | 291 | 123 | 151 | 17 | 0 |
+| evmir `compact-pushes` | 118 | 71 | 44 | 3 | 0 |
+| evmir `copy-loop-blocks` | 2 | 2 | 0 | 0 | 0 |
+| evmir `dce` | 2 | 0 | 0 | 2 | 0 |
+| evmir `inline-returns` | 14 | 7 | 6 | 1 | 0 |
+| evmir `late-word` | 19 | 0 | 18 | 1 | 0 |
+| evmir `loop-layout` | 29 | 27 | 2 | 0 | 0 |
+| evmir `outline` | 7 | 1 | 6 | 0 | 0 |
+| evmir `peephole-early` | 35 | 11 | 24 | 0 | 0 |
+| evmir `reorder-expressions` | 1 | 1 | 0 | 0 | 0 |
+| evmir `reorder-pushes` | 5 | 0 | 5 | 0 | 0 |
+| evmir `stack-normalize` | 5 | 0 | 5 | 0 | 0 |
+| evmir `stack-reschedule` | 17 | 0 | 17 | 0 | 0 |
+| evmir `tail-merge` | 49 | 44 | 3 | 2 | 0 |
+| evmir `terminal-dedup` | 124 | 106 | 17 | 1 | 0 |
+| mir `byte-run-loads` | 14 | 12 | 0 | 2 | 0 |
+| mir `call-cleanup` | 1 | 0 | 0 | 1 | 0 |
+| mir `cfg-simplify` | 144 | 116 | 0 | 28 | 0 |
+| mir `check-elim` | 7 | 2 | 3 | 2 | 0 |
+| mir `coalesce-allocs` | 1 | 1 | 0 | 0 | 0 |
+| mir `cse` | 48 | 35 | 2 | 11 | 0 |
+| mir `dce` | 86 | 62 | 0 | 24 | 0 |
+| mir `dead-arg-elim` | 11 | 0 | 11 | 0 | 0 |
+| mir `egraph` | 116 | 83 | 0 | 33 | 0 |
+| mir `evm-inst-schedule` | 32 | 0 | 14 | 18 | 0 |
+| mir `function-dce` | 3 | 0 | 0 | 3 | 0 |
+| mir `indvar-simplify` | 2 | 0 | 2 | 0 | 0 |
+| mir `inline` | 58 | 29 | 11 | 18 | 0 |
+| mir `integer-cleanup` | 35 | 0 | 18 | 17 | 0 |
+| mir `jump-threading` | 52 | 41 | 6 | 5 | 0 |
+| mir `licm` | 1 | 0 | 1 | 0 | 0 |
+| mir `lower-abi` | 65 | 54 | 2 | 9 | 0 |
+| mir `lower-abi-encode` | 16 | 14 | 0 | 2 | 0 |
+| mir `lower-alloc` | 19 | 9 | 9 | 1 | 0 |
+| mir `lower-arithmetic` | 16 | 9 | 7 | 0 | 0 |
+| mir `lower-builtins` | 6 | 4 | 1 | 1 | 0 |
+| mir `lower-checks` | 31 | 31 | 0 | 0 | 0 |
+| mir `lower-dispatch` | 73 | 0 | 0 | 73 | 0 |
+| mir `lower-evm-shaped` | 3 | 2 | 0 | 1 | 0 |
+| mir `lower-immutables` | 1 | 0 | 1 | 0 | 0 |
+| mir `lower-integers` | 55 | 50 | 5 | 0 | 0 |
+| mir `lower-mapping-slots` | 32 | 22 | 10 | 0 | 0 |
+| mir `lower-memory-objects` | 27 | 24 | 3 | 0 | 0 |
+| mir `lower-memory-zero` | 1 | 1 | 0 | 0 | 0 |
+| mir `lower-slices` | 1 | 1 | 0 | 0 | 0 |
+| mir `lower-structs` | 1 | 0 | 0 | 1 | 0 |
+| mir `memory-dse` | 10 | 3 | 6 | 1 | 0 |
+| mir `memory-dse-unread` | 1 | 1 | 0 | 0 | 0 |
+| mir `merge-aborts` | 42 | 7 | 17 | 18 | 0 |
+| mir `place-reads` | 33 | 29 | 0 | 4 | 0 |
+| mir `sccp` | 12 | 9 | 2 | 1 | 0 |
+| mir `simplify-phis` | 1 | 0 | 1 | 0 | 0 |
+| mir `specialize` | 1 | 0 | 0 | 1 | 0 |
+| mir `spell-width-tests` | 38 | 30 | 0 | 8 | 0 |
+| mir `storage-dse` | 10 | 9 | 0 | 1 | 0 |
+| mir `storage-promotion` | 12 | 11 | 0 | 1 | 0 |
+| mir `word-sequence` | 6 | 1 | 4 | 1 | 0 |
+| mir `word-sequence-early` | 1 | 0 | 1 | 0 | 0 |
+
+The report records zero tool errors, inconclusive checks and confirmed
+counterexamples. The three-second count increased from 1,392 to 1,398.
+The separate strict gates for early CFG simplification, ABI lowering,
+ABI encoding, dispatch lowering, inlining and width tests have larger
+budgets and retain their own completion counts. Among passes without a
+complete strict gate, EVM IR `block-layout` accounts for the largest gap
+in this run, with 68 unsupported captures and four timeouts. The next
+coverage work starts with the unsupported layout captures, followed by
+`compact-pushes` with 44 unsupported captures and three timeouts.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through

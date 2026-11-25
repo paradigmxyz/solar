@@ -33,10 +33,10 @@ simultaneous phi group and transfer stays exact, with
 arbitrary shared state and failing handlers. The theorem covers every logical
 block-transfer bound. Physical gas, termination, the parser and the action
 renderer are outside the claim. Six real DCE captures verify under this
-certificate. The latest full audit verifies 1,392 of 2,228 captures at
-three seconds per prover invocation. It records 569 unsupported checks,
-267 timeouts and 0 failed checks. Per-pass counts and fingerprints are
-recorded in [CORRECTNESS.md](CORRECTNESS.md#full-corpus-after-mir-and-backend-coverage).
+certificate. The latest full audit verifies 1,398 of 2,228 captures at
+three seconds per prover invocation. It records 510 unsupported checks,
+320 timeouts and 0 failed checks. Per-pass counts and fingerprints are
+recorded in [CORRECTNESS.md](CORRECTNESS.md#full-corpus-after-the-morpho-irm-proofs).
 
 ## Implemented fragment
 
