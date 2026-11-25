@@ -1758,6 +1758,21 @@ original heap-pointer certificate against the changed immediate at PC 1436.
 | `DecoderaccrueInterest.lean` | `f8281aa740623d9dc71c429ba266f4b1872a592aedccf8de2c7b9b8ea280e17f` |
 | `decoded-market-replay.json` | `33403861aa989d54defcef6bd412714333f8a0e0c5bbb955d17e200ac8532dae` |
 
+The independently exported `decode_calldata_type` helper in both sides of
+the `createMarket` CSE capture has SHA-256
+`6cb35e8703c38b45648ce47e815bdfd27a9eacabe82f853f70d5aee43c3c907e`.
+The direct MIR interpreter starts this helper with `[0, 0, 128]` in
+memory. Lean checks its 160-byte allocation, canonicality checks and
+stores. The result returns pointer 128 and preserves the journal.
+`MarketDecoderAgreement.lean` in the same directory has SHA-256
+`7547de8627e9a20c54821a2d96464d0bdba8cc7bccec0c102da510371f4cba4e`.
+It checks that the actual `createMarket` bytecode reaches PC 1872 with
+the same byte memory and with the MIR result pointer at the top of its
+stack. The independent Rust replay exercises the physical side of this
+agreement. The theorem uses the typed MIR export and a separate logical
+heap initialization premise. Binding the resumed MIR wrapper and the
+rest of execution remains open.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
