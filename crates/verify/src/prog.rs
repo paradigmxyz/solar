@@ -172,6 +172,10 @@ pub(crate) struct Program<'a> {
     /// Loop invariant candidates the abstract interpreter found, keyed by the loop statement's
     /// span; inference checks them like any other candidate (`vc::infer`).
     pub absint: FxHashMap<Span, Vec<Spec<'a>>>,
+    /// What `using` directives attach in each contract: a library's name (`using L for T`),
+    /// or `L.f` for one of its functions (`using {L.f} for T`). Its own directives, its file's
+    /// and every `global` one.
+    pub using: FxHashMap<String, FxHashSet<String>>,
 }
 
 impl<'a> Program<'a> {
@@ -204,6 +208,23 @@ impl<'a> Program<'a> {
             })
             .collect()
     }
+    /// The library functions `x.f(args)` may call in contract `scope`: those a `using`
+    /// directive in force there attaches. Without one, `x.f` is a builtin member or an error.
+    pub(crate) fn attached_fns(
+        &self,
+        scope: &str,
+        f: &str,
+        nargs: usize,
+    ) -> Vec<(&Contract<'a>, &Func<'a>)> {
+        let Some(att) = self.using.get(scope) else { return vec![] };
+        self.using_fns(f, nargs)
+            .into_iter()
+            .filter(|(c, g)| {
+                att.contains(&c.name) || att.contains(&format!("{}.{}", c.name, g.name))
+            })
+            .collect()
+    }
+
     pub(crate) fn contract(&self, name: &str) -> Option<&Contract<'a>> {
         self.contracts.iter().find(|c| c.name == name)
     }
@@ -230,6 +251,8 @@ struct Builder<'s, 'a> {
     /// `INew.Item`): structs are keyed by bare name, so such a name stands for no one datatype
     /// and values of it stay opaque.
     ambiguous_structs: FxHashSet<String>,
+    /// Every declaration of an enum, user-defined value type or contract, by bare name.
+    type_spans: FxHashMap<String, FxHashSet<Span>>,
     /// Constant names that several declarations give different sizes, and constants sized
     /// through another constant: sizes are keyed by bare name, so neither sizes an array.
     const_conflicts: FxHashSet<String>,
@@ -643,6 +666,7 @@ pub(crate) fn build<'a>(
         struct_names: FxHashSet::default(),
         struct_docs: vec![],
         ambiguous_structs: FxHashSet::default(),
+        type_spans: FxHashMap::default(),
         const_conflicts: FxHashSet::default(),
         const_derived: FxHashSet::default(),
         unknown_sizes: vec![],
@@ -666,12 +690,14 @@ pub(crate) fn build<'a>(
     let mut free_fns: Vec<(&'a ast::Item<'a>, &'a ItemFunction<'a>, bool)> = vec![];
     let collect_names = |b: &mut Builder<'_, 'a>, it: &'a ast::Item<'a>| match &it.kind {
         ItemKind::Enum(e) => {
+            b.type_spans.entry(e.name.as_str().to_string()).or_default().insert(e.name.span);
             b.enums.insert(e.name.as_str().to_string(), e.variants.len());
             for (i, v) in e.variants.iter().enumerate() {
                 b.enum_variants.insert(format!("{}.{}", e.name.as_str(), v.name.as_str()), i);
             }
         }
         ItemKind::Udvt(u) => {
+            b.type_spans.entry(u.name.as_str().to_string()).or_default().insert(u.name.span);
             b.udvts.insert(u.name.as_str().to_string(), &u.ty);
         }
         ItemKind::Struct(st) => {
@@ -734,6 +760,7 @@ pub(crate) fn build<'a>(
         }
         if let ItemKind::Contract(c) = &it.kind {
             let n = c.name.as_str().to_string();
+            b.type_spans.entry(n.clone()).or_default().insert(c.name.span);
             b.contract_names.push(n.clone());
             items.insert(n.clone(), (it, c));
             if from_import {
@@ -765,9 +792,16 @@ pub(crate) fn build<'a>(
         .filter(|(n, s)| s.len() > 1 || other_kind(n))
         .map(|(n, _)| n.to_string())
         .collect();
-    // An ambiguous struct's values are opaque, so overloads, hashes and length writes on them
+    let only_structs = b.ambiguous_structs.iter().all(|n| !other_kind(n));
+    // Enums, user-defined value types and contracts are keyed by bare name too: two of them
+    // (or one of each) sharing a name would give one the other's range, size or kind.
+    let other_ambiguous: Vec<String> =
+        b.type_spans.iter().filter(|(_, s)| s.len() > 1).map(|(n, _)| n.clone()).collect();
+    let only_structs = only_structs && other_ambiguous.is_empty();
+    b.ambiguous_structs.extend(other_ambiguous);
+    // An ambiguous type's values are opaque, so overloads, hashes and length writes on them
     // could prove false facts: nothing that reaches one is verified (see `refuse_ambiguous`).
-    let (refused, refused_fns) = refuse_ambiguous(sess, units, &b.ambiguous_structs);
+    let (refused, refused_fns) = refuse_ambiguous(sess, units, &b.ambiguous_structs, only_structs);
     // A size another constant gave may be the conflicting name's other value.
     if !b.const_conflicts.is_empty() {
         for n in b.const_conflicts.iter().chain(&b.const_derived) {
@@ -826,8 +860,46 @@ pub(crate) fn build<'a>(
     }
     let mut contracts = vec![];
     for name in &order {
-        // linearize bases (simple DFS, bases first)
+        // Solidity's C3 linearization, most base first; a depth-first order where it fails
+        // (solc rejects such a hierarchy).
         let mut lin: Vec<String> = vec![];
+        fn c3<'a>(
+            n: &str,
+            items: &FxHashMap<String, (&'a ast::Item<'a>, &'a ast::ItemContract<'a>)>,
+            depth: usize,
+        ) -> Option<Vec<String>> {
+            let (_, c) = items.get(n)?;
+            if depth > 64 {
+                return None;
+            }
+            // Bases are listed from the most base-like to the most derived.
+            let bases: Vec<String> =
+                c.bases.iter().rev().map(|b| b.name.last().as_str().to_string()).collect();
+            let mut seqs: Vec<Vec<String>> = vec![];
+            for b in &bases {
+                if items.contains_key(b) {
+                    seqs.push(c3(b, items, depth + 1)?);
+                }
+            }
+            seqs.push(bases.iter().filter(|b| items.contains_key(*b)).cloned().collect());
+            let mut out = vec![n.to_string()];
+            loop {
+                seqs.retain(|s| !s.is_empty());
+                if seqs.is_empty() {
+                    return Some(out);
+                }
+                let head = seqs
+                    .iter()
+                    .map(|s| s[0].clone())
+                    .find(|h| !seqs.iter().any(|s| s[1..].contains(h)))?;
+                for s in &mut seqs {
+                    if s[0] == head {
+                        s.remove(0);
+                    }
+                }
+                out.push(head);
+            }
+        }
         fn dfs<'a>(
             n: &str,
             items: &FxHashMap<String, (&'a ast::Item<'a>, &'a ast::ItemContract<'a>)>,
@@ -843,7 +915,13 @@ pub(crate) fn build<'a>(
                 lin.push(n.to_string());
             }
         }
-        dfs(name, &items, &mut lin);
+        match c3(name, &items, 0) {
+            Some(mut l) => {
+                l.reverse();
+                lin = l;
+            }
+            None => dfs(name, &items, &mut lin),
+        }
         let (_, own) = items[name];
         let mut con = Contract {
             name: name.clone(),
@@ -971,18 +1049,54 @@ pub(crate) fn build<'a>(
                     }
                     ItemKind::Function(f) => {
                         let func = b.func(cn, sub, f);
-                        if let Some(i) = con.funcs.iter().position(|g| {
+                        let sm = b.sess.source_map();
+                        let texts = |it: &ItemFunction<'_>| -> Vec<String> {
+                            it.header
+                                .parameters
+                                .iter()
+                                .map(|p| {
+                                    sm.span_to_snippet(p.ty.span)
+                                        .unwrap_or_default()
+                                        .split_whitespace()
+                                        .collect::<String>()
+                                })
+                                .collect()
+                        };
+                        let mine = texts(f);
+                        let overrides = |g: &Func<'a>| {
                             // an override comes from a base contract; one contract's own
                             // overloads (TransientSlot's tload per slot type) all stay, even
                             // when their parameter types erase to the same Ty
+                            // A function of a base's name and erased parameter types overrides
+                            // it only when it says `override` or implements a declaration
+                            // without a body: otherwise it is an overload whose parameter
+                            // types differ before erasure (`W` and `uint256`, `string` and
+                            // `bytes`).
                             g.name == func.name
                                 && g.contract != func.contract
                                 && g.params
                                     .iter()
                                     .map(|p| &p.1)
                                     .eq(func.params.iter().map(|p| &p.1))
+                                && (f.header.override_.is_some()
+                                    || g.item.body.is_none()
+                                    || texts(g.item) == mine)
                                 && func.name != "constructor"
-                        }) {
+                        };
+                        if let Some(i) = con.funcs.iter().position(overrides) {
+                            // An override of several bases (`override(A, B)`) replaces them all.
+                            let rest: Vec<usize> = con
+                                .funcs
+                                .iter()
+                                .enumerate()
+                                .skip(i + 1)
+                                .filter(|(_, g)| overrides(g))
+                                .map(|(j, _)| j)
+                                .collect();
+                            for j in rest.into_iter().rev() {
+                                let old = con.funcs.remove(j);
+                                con.overridden.push(old);
+                            }
                             let old = std::mem::replace(&mut con.funcs[i], func);
                             con.overridden.push(old);
                         } else if func.name == "constructor" && cn != name {
@@ -1232,6 +1346,62 @@ pub(crate) fn build<'a>(
         }
         contracts.push(con);
     }
+    // What `using` directives attach in each contract: its own, its file's and every global one.
+    let mut using: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let mut global_using: FxHashSet<String> = FxHashSet::default();
+    // Free functions are gathered from every file into one pseudo-library: each file's
+    // directives count for all of them.
+    let mut free_using: FxHashSet<String> = FxHashSet::default();
+    let attach = |out: &mut FxHashSet<String>, d: &ast::UsingDirective<'_>| match &d.list {
+        ast::UsingList::Single(p) => {
+            out.insert(p.last().as_str().to_string());
+        }
+        ast::UsingList::Multiple(list) => {
+            for (p, _) in list.iter() {
+                let segs = p.segments();
+                let n = segs.len();
+                out.insert(if n >= 2 {
+                    format!("{}.{}", segs[n - 2].as_str(), segs[n - 1].as_str())
+                } else {
+                    segs[0].as_str().to_string()
+                });
+            }
+        }
+    };
+    for u in units {
+        let mut file = FxHashSet::default();
+        let mut own: Vec<(String, FxHashSet<String>)> = vec![];
+        for it in u.items.iter() {
+            match &it.kind {
+                ItemKind::Using(d) => {
+                    attach(&mut file, d);
+                    if d.global {
+                        attach(&mut global_using, d);
+                    }
+                }
+                ItemKind::Contract(c) => {
+                    let mut set = FxHashSet::default();
+                    for sub in c.body.iter() {
+                        if let ItemKind::Using(d) = &sub.kind {
+                            attach(&mut set, d);
+                        }
+                    }
+                    own.push((c.name.as_str().to_string(), set));
+                }
+                _ => {}
+            }
+        }
+        free_using.extend(file.iter().cloned());
+        for (n, set) in own {
+            let e = using.entry(n).or_default();
+            e.extend(set);
+            e.extend(file.iter().cloned());
+        }
+    }
+    using.entry(FREE.to_string()).or_default().extend(free_using);
+    for c in &contracts {
+        using.entry(c.name.clone()).or_default().extend(global_using.iter().cloned());
+    }
     let mut unknown_seen = FxHashSet::default();
     let mut program = Program {
         contracts,
@@ -1260,6 +1430,7 @@ pub(crate) fn build<'a>(
             .collect(),
         refused_fns,
         absint: b.absint,
+        using,
     };
     let (ghost_errors, lemmas) = crate::ghost::check(&program);
     for c in &mut program.contracts {
@@ -1340,6 +1511,7 @@ fn refuse_ambiguous(
     sess: &Session,
     units: &[&SourceUnit<'_>],
     ambiguous: &FxHashSet<String>,
+    only_structs: bool,
 ) -> (Vec<(Span, String)>, FxHashMap<usize, String>) {
     enum Kind {
         Func(usize),
@@ -1428,7 +1600,8 @@ fn refuse_ambiguous(
     let mut names: Vec<&str> = ambiguous.iter().map(String::as_str).collect();
     names.sort_unstable();
     let names = names.iter().map(|n| format!("`{n}`")).collect::<Vec<_>>().join(", ");
-    let why = format!("several structs share the name {names}: structs are keyed by name");
+    let what = if only_structs { "structs" } else { "types" };
+    let why = format!("several {what} share the name {names}: {what} are keyed by name");
     for e in entries.iter().filter(|e| e.hit) {
         match e.kind {
             Kind::Func(a) => {
