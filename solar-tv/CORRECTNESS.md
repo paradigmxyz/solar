@@ -1804,6 +1804,33 @@ remains open.
 | `MarketWrapperBytecode.lean` | `38887dc699d7a960f9172cc6f1e89d6617ce4790cace228a31d08b48e2b4b350` |
 | `mir-decoder-native.json` | `3fa71a237ba72898db874748ad5b826f4e51ce4d6a2c34ba7ec52197cd61f502` |
 
+### First Morpho storage read from ABI entry
+
+Lean composes the selected `createMarket` route with both typed MIR wrappers
+from the CSE capture and the emitted bytecode from PC zero. The MIR cut is
+after 43 transitions. The emitted cut is PC 1901 after 132 instructions.
+The cuts agree on active memory, the journal with the slot warmed, and the
+storage word in MIR local 14 and on top of the EVM stack.
+
+The emitted prefix costs 603 gas before the storage charge, so the cut
+requires 703 gas when warm or 2,703 when cold. For every smaller budget,
+Lean checks out-of-gas with the initial journal restored, given sufficient
+model work to execute the prefix. The MIR proof retains the decoder's
+entry memory and scalar return-placement premises. Both sides use the
+canonical calldata and zero-value conditions of the decoder certificate.
+
+Independent Rust execution confirms the same slot and value on both MIR
+sides, the emitted stack and memory at each exact gas threshold, and
+out-of-gas one unit below each threshold. Correspondence past this cut
+remains open.
+
+| Artifact in `target/tv-routed-heap/` | SHA-256 |
+| --- | --- |
+| `MarketFirstReadEVM.lean` | `ff909fac33d51e4337ba04ce1c2b03c60085b97c6ef8a53830c0f60a0bd32f38` |
+| `MarketFirstReadMIR.lean` | `46cbb98e08348f8be463ff1493e902c3e6602f9adc53cf92e1509a55b9366e95` |
+| `MarketFirstReadAgreement.lean` | `827c2126831c037f67fd38f022d7d03a011a4cad485273b6ae79324de3ae90df` |
+| `market-first-read-native.json` | `4ffb062549c4cf028cb72dff2d58311553f7ae50eae9be44ba567d3842f75b52` |
+
 ### Full corpus after MIR and backend coverage
 
 The serial audit at `01b6201301` used `evaluate --all --timeout 3 --seed 0`.
