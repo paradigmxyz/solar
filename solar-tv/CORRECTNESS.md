@@ -2534,9 +2534,34 @@ The compiler parser, independent source export and effect-tree renderer
 remain trusted. A regression widens an eight-bit guard by one and checks
 that the mask removal loses its proof. The pinned Rust replay agrees
 with Lean on the different returned words when calldata is 256.
-The two `transferFrom` proofs still fail to close. The other 12 captures
-contain `GAS` in a body or supplied callee and need a gas-observation
-proof.
+This run leaves two `transferFrom` proofs and 12 captures containing
+`GAS` in a body or supplied callee.
+
+A second serial run at the same budget verifies **23 of 35**. The
+compiler, replay, pinned inputs, capture IDs, raw IR hashes and output
+hashes match the 21-capture run. All 12 remaining captures require a
+gas-observation proof. There are zero timeouts, failures or confirmed
+counterexamples.
+
+| Contract | Verified | Unsupported |
+| --- | ---: | ---: |
+| Solady WETH | 6 | 1 |
+| OpenZeppelin ERC20Mock | 7 | 0 |
+| Morpho Blue | 10 | 11 |
+| Total | 23 | 12 |
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Lean checker on 4.34.1 | `9193d40ac15f7649936537beae01d0bf43302e7b45ce1bcf7ee351bbd527c397` |
+| Complete results.json | `9d84d48e156de5305a985ca87ddc95af9bda6d70f4d6184da8c3893df82fb693` |
+
+The two `transferFrom` trees exceeded the simplifier step budget. The
+checker now proposes a prefix through the calldata reads and rejecting
+branches. Lean checks request equality and both branches, then turns the
+reached width conditions into unconditional mask equalities for the
+remaining tree. The pinned WETH and ERC20Mock checks finish in 4.11 and
+1.29 seconds, respectively. This is a compositional effect proof using
+the same source-export and renderer boundary as the preceding run.
 
 ### Stack-carried continuations
 

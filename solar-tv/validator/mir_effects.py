@@ -35,6 +35,17 @@ def scalar_width(ty):
     return int(mir_state.width(ty["bits"]))
 
 
+def low_mask(operand):
+    if operand["kind"] != "constant" or operand["type"]["kind"] != "word":
+        return None
+    mask = int(operand["value"])
+    bits = mask.bit_length()
+    width = int(mir_state.width(operand["type"]["bits"]))
+    if 0 < bits < width and mask == (1 << bits) - 1:
+        return width, bits
+    return None
+
+
 def low_masks(model):
     counts = Counter()
     for function in model["functions"]:
@@ -44,13 +55,8 @@ def low_masks(model):
                 if op["kind"] != "opcode" or op["name"] != "and":
                     continue
                 for value in op["args"]:
-                    if value["kind"] != "constant" or value["type"]["kind"] != "word":
-                        continue
-                    mask = int(value["value"])
-                    bits = mask.bit_length()
-                    width = int(mir_state.width(value["type"]["bits"]))
-                    if 0 < bits < width and mask == (1 << bits) - 1:
-                        counts[width, bits] += 1
+                    if mask := low_mask(value):
+                        counts[mask] += 1
     return counts
 
 
@@ -820,6 +826,83 @@ def render(
     return result
 
 
+def guarded_mask_prefix(model, masks, definitions):
+    """Propose congruence steps through a calldata validation prefix."""
+    entry = next(f for f in model["functions"] if f["id"] == model["entry_id"])
+    blocks = entry["blocks"]
+    steps, facts = ["      unfold before after"], []
+    replies, unsigned_checks, seen = {}, {}, set()
+    indent = "      "
+    index = 0
+    while index not in seen:
+        seen.add(index)
+        block = blocks[index]
+        if block["phis"]:
+            break
+        for inst in block["instructions"]:
+            op, result = inst["operation"], inst["result"]
+            if op["kind"] == "ne":
+                continue
+            if op["kind"] != "opcode":
+                break
+            if op["name"] in {"callvalue", "calldatasize", "calldataload"}:
+                reply = f"prefixWord{len(replies)}"
+                replies[result] = reply
+                steps.append(
+                    f"{indent}refine congrArg (MIR.Effects.Tree.request _) "
+                    f"(funext fun {reply} => ?_)"
+                )
+            elif not definitions[op["name"]]["pure"]:
+                break
+            elif op["name"] == "gt":
+                word, bound = op["args"]
+                if (
+                    word["kind"] == "local"
+                    and (reply := replies.get(word["index"]))
+                    and (key := low_mask(bound)) in masks
+                ):
+                    unsigned_checks[result] = reply, key
+        else:
+            term = block["terminator"]
+            if term["kind"] == "jump":
+                index = term["target"]
+                continue
+            if (
+                term["kind"] == "branch"
+                and blocks[term["then"]]["terminator"]["kind"] == "revert"
+            ):
+                steps.extend((f"{indent}apply ite_congr", f"{indent}· rfl"))
+                steps.extend((f"{indent}· intro _", f"{indent}  rfl"))
+                name = f"prefixGuard{len(seen)}"
+                steps.append(f"{indent}· intro {name}")
+                indent += "  "
+                if guard := unsigned_checks.get(term["args"][0].get("index")):
+                    reply, (width, bits) = guard
+                    lemma = f"lowMask{width}_{bits}"
+                    steps.append(
+                        f"{indent}simp only [BitVec.setWidth_eq, {lemma}Guard] at {name}"
+                    )
+                    mask = f"{(1 << bits) - 1}#{width}"
+                    for operands, side in (
+                        (f"{reply} {mask}", ""),
+                        (f"{mask} {reply}", "Left"),
+                    ):
+                        fact = f"prefixMask{len(facts)}"
+                        facts.append(fact)
+                        steps.append(
+                            f"{indent}have {fact} : MIR.eval .and {operands} = {reply} :=\n"
+                            f"{indent}  {lemma}{side} {reply} (by omega)"
+                        )
+                index = term["else"]
+                continue
+        break
+    if not facts:
+        return ""
+    steps.append(f"{indent}simp only [BitVec.setWidth_eq, {', '.join(facts)}]")
+    first, *rest = steps
+    return "  | (solve\n    | " + first.strip() + "\n" + "\n".join(rest) + ")\n"
+
+
 def check(a, b, timeout, executable, *, void_abi=False):
     from .check import PRELUDE, ROOT, build_model, run
 
@@ -866,10 +949,14 @@ private theorem {right} {binder} : word &&& {mask} = word :=
 private theorem {left} {binder} : {mask} &&& word = word := by
   rw [BitVec.and_comm]
   exact {right} word small
+private theorem {right}Guard (word : BitVec {width}) :
+    MIR.compare .gt word {mask} = 1 ↔ {(1 << bits) - 1} < word.toNat := by
+  simp [MIR.compare, BitVec.ult]
 """
             lemmas.extend((right, left))
+        prefix = guarded_mask_prefix(a.symbolic_mir["model"], masks, definitions)
         tactic = f"""first
-  | (solve | {tactic})
+{prefix}  | (solve | {tactic})
   | simp (config := {{contextual := true}}) (disch := omega) [{rules}, {", ".join(lemmas)}]"""
     code += f"""
 theorem pair_correct {binders} : before {args} = after {args} := by
