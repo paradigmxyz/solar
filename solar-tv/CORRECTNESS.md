@@ -1672,8 +1672,8 @@ The trusted typed exporter binds transfers, summaries and operands to
 the source effects. The heap analysis covers acyclic bodies and forgets
 a cursor when its incoming paths cannot establish a common offset.
 The initialized-heap contract applies to the selected logical MIR entry.
-Connecting the physical ABI cuts below to those MIR activations and
-pricing the rest of the emitted execution remain open.
+The `createMarket` cut below binds the resumed ABI wrapper. The other
+activations and pricing the rest of the emitted execution remain open.
 
 The independent regression returns 7 on both sides with an initial pointer
 of 128. With a pointer of zero it returns 17 before reuse and 7 after
@@ -1718,10 +1718,9 @@ fingerprint `b79a2d0e1111bcf0c4acd44820fc64689886f6e37db09dd3bd0659742bad7a81`.
 | `accrueInterest.json` | `fd6ad8b98610f920055177d76f5773ab1083b98bb4e305314c40caed99ce5ca3` |
 | `changed-floor.json` | `978e7b1adce8cd7d22dfb11c608c72fdc736e5cb605890cbb5ceb71a41e250ef` |
 
-The entry-cut proofs establish the physical heap producer. The remaining
-obligations include frame and argument correspondence at the logical MIR
-cut, the continuation to the internal `_accrueInterest` activation, and the
-emitted suffix.
+The entry-cut proofs establish the physical heap producer. The decoder
+and `createMarket` wrapper checks below extend that boundary. The internal
+`_accrueInterest` activation and the emitted suffix remain open.
 
 ### Emitted Morpho decoder cuts
 
@@ -1768,10 +1767,42 @@ stores. The result returns pointer 128 and preserves the journal.
 `7547de8627e9a20c54821a2d96464d0bdba8cc7bccec0c102da510371f4cba4e`.
 It checks that the actual `createMarket` bytecode reaches PC 1872 with
 the same byte memory and with the MIR result pointer at the top of its
-stack. The independent Rust replay exercises the physical side of this
-agreement. The theorem uses the typed MIR export and a separate logical
-heap initialization premise. Binding the resumed MIR wrapper and the
-rest of execution remains open.
+stack. The theorem uses the typed MIR export and a separate logical heap
+initialization premise.
+
+### Resuming the Morpho `createMarket` wrapper
+
+Lean checks the `createMarket` selector in the exported routing table and
+both complete 46-function MIR tables from the actual CSE capture. The
+direct interpreter reaches block 1, instruction 1 after 35 transitions
+on both sides. The certificate checks the saved caller and the ordinary
+internal return, which puts pointer 128 in SSA local 3. The new
+`MIR.State.Prefix` theorem composes those transitions with ordinary MIR
+execution for every remaining work budget. Finalization still uses the
+original frame as the rollback checkpoint.
+
+The emitted runtime reaches PC 1872 with the same private memory and
+returndata, the same journal, and the returned pointer on top of the
+operand stack. The bytecode certificate charges 448 gas. The proof uses
+the canonical market calldata premises above and initializes the logical
+wrapper's memory with `[0, 0, 128]`. The MIR configuration must expose the
+five prefix opcodes, admit an internal call, and leave the helper's scalar
+return unplaced. The remaining configuration and execution work are left
+open for the continuation.
+
+Rust independently executed the captured MIR decoder on both sides. The
+returned pointer and all 288 active memory bytes match the emitted EVM
+probe for the same input. Changing the decoder allocation from 160 to
+192 bytes changes the MIR heap pointer from 288 to 320. The original
+binding rejects the independently exported changed helper. Correspondence
+after the resumed wrapper and the other public and internal entries
+remains open.
+
+| Artifact in `target/tv-routed-heap/` | SHA-256 |
+| --- | --- |
+| `MarketWrapperFull.lean` | `683e2024c8cf9a145a99ff23ed3fb7ae2efa434d817eaccdd1840c537c0c3ae9` |
+| `MarketWrapperBytecode.lean` | `38887dc699d7a960f9172cc6f1e89d6617ce4790cace228a31d08b48e2b4b350` |
+| `mir-decoder-native.json` | `3fa71a237ba72898db874748ad5b826f4e51ce4d6a2c34ba7ec52197cd61f502` |
 
 ### Stack-carried continuations
 

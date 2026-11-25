@@ -53,6 +53,7 @@ import SolarTV.EVMIR.Precompiles.Safety
 import SolarTV.MIR.State.Observe
 import SolarTV.MIR.State.Safety
 import SolarTV.MIR.State.Normalize
+import SolarTV.MIR.State.Prefix
 import SolarTV.MIR.Effects
 import SolarTV.EVMIR.Effects
 import SolarTV.EVMIR.SourceGraph
