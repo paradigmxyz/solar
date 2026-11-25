@@ -19,6 +19,7 @@ from . import (
     scalar_reuse,
     state_read_reuse,
     type_prune,
+    width_guards,
 )
 from .common import Program, Unsupported
 
@@ -686,6 +687,17 @@ def project_reads(
     return projected, code, state_stats, scalar_stats, heap_stats
 
 
+def project_width_guards(i, bodies, definitions, fork):
+    normalized = [
+        width_guards.normalize(body, definitions, fork, f"width{i}_{side}")
+        for side, body in enumerate(bodies)
+    ]
+    projected, stats, certificates = zip(*normalized, strict=True)
+    if not any(stats):
+        raise Unsupported("MIR CFG proof found no applicable width guards")
+    return tuple(map(import_graph, projected)), list(stats), "".join(certificates)
+
+
 def check(
     paths,
     solar,
@@ -696,6 +708,7 @@ def check(
     *,
     lowering=None,
     valid_heap=False,
+    width_checks=False,
 ):
     from .check import PRELUDE, ROOT, build_model, run
 
@@ -969,7 +982,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 f"(fun graph => run graph {limit} handle work 0 locals state) identical{i}"
             )
         else:
-            scalar_stats, state_stats, heap_stats = [], [], []
+            scalar_stats, state_stats, heap_stats, width_stats = [], [], [], []
             try:
                 points, edges, live, limit, word_rewrites, increment_rewrites = pairing(
                     old, new
@@ -1010,6 +1023,17 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 try:
                     pairs = pairing(old, new)
                 except Unsupported:
+                    if width_checks:
+                        projected, width_stats, width_code = project_width_guards(
+                            i, normalized, scalar_definitions, version
+                        )
+                        pairs = pairing(*projected)
+                    else:
+                        pairs = None
+                if width_stats:
+                    old, new = projected
+                    body_code += width_code
+                if pairs is None:
                     first_state_use = read_only is None
                     if first_state_use:
                         read_only = [
@@ -1079,6 +1103,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 **({"scalar_reuse": scalar_stats} if any(scalar_stats) else {}),
                 **({"state_read_reuse": state_stats} if any(state_stats) else {}),
                 **({"heap_cursor": heap_stats} if any(heap_stats) else {}),
+                **({"width_guards": width_stats} if width_stats else {}),
             }
         checked[name]["product_initialization"] = product_initialization
         checked[name].update(expansions)

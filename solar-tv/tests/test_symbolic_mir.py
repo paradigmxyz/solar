@@ -48,9 +48,9 @@ class SymbolicMirTests(unittest.TestCase):
         return result, json.loads(self.report.read_text())
 
     def test_width_guards_with_stateful_internal_calls(self):
-        for example, function, timeout in (
-            ("width-guard", "f", 20),
-            ("erc20-width-guard", "burn", 45),
+        for example, function, timeout, proof in (
+            ("width-guard", "f", 20, "universal-caller-state"),
+            ("erc20-width-guard", "burn", 45, "kernel-checked-typed-jump-chain"),
         ):
             with self.subTest(example=example):
                 folder = ROOT / "examples/mir" / example
@@ -95,7 +95,11 @@ class SymbolicMirTests(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(record["status"], "verified")
-                self.assertEqual(record["region"]["proof"], "universal-caller-state")
+                self.assertEqual(record["region"]["proof"], proof)
+                if example == "erc20-width-guard":
+                    evidence = record["import_correspondence"][0]
+                    self.assertIn("_update", evidence["functions"])
+                    self.assertIn("width_guards", evidence["correspondence"]["burn"])
                 self.assertNotIn("world", record)
 
     def test_broken_width_guard_has_an_independent_witness(self):

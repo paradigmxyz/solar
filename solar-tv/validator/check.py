@@ -657,6 +657,7 @@ def check_mir_lowering(paths, solar, replay, version, timeout, function, verbose
         lower_memory_objects,
         lower_memory_zero,
         lower_slices,
+        width_guards,
     )
 
     for validate in (
@@ -673,6 +674,16 @@ def check_mir_lowering(paths, solar, replay, version, timeout, function, verbose
         )
         if result is not None:
             return result
+    if width_guards.matches(paths, function):
+        from . import mir_cfg
+
+        try:
+            return mir_cfg.check(
+                paths, solar, replay, version, timeout, function, width_checks=True
+            )
+        except Unsupported as error:
+            if verbose:
+                print(f"MIR width guards: {error}", file=sys.stderr)
     return None
 
 

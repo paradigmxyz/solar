@@ -11,7 +11,7 @@ from pathlib import Path
 from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
-from validator import mir_effects, mir_symbolic, native
+from validator import mir_cfg, mir_effects, mir_symbolic, native
 from validator.common import Unsupported
 
 
@@ -84,16 +84,26 @@ class MirEffectTests(unittest.TestCase):
         result, record = self.cli(folder / "before.mir", folder / "after.mir")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(record["status"], "verified")
-        self.assertEqual(record["region"]["proof"], "compositional-effect-tree")
+        self.assertEqual(record["region"]["proof"], "kernel-checked-typed-jump-chain")
         self.assertFalse(record["whole_pass"])
-        self.assertEqual(record["gas_policy"], "semantic-effects")
+        self.assertEqual(record["gas_policy"], "unpriced-structural")
         for side in record["import_correspondence"]:
-            self.assertEqual(side["kind"], "independent-scalar-effect-tree")
-            self.assertEqual(len(side["effect_tree_sha256"]), 64)
+            guards = side["correspondence"]["transferFrom"]["width_guards"]
+            self.assertTrue(all(part["width_branches"] > 0 for part in guards))
         self.assertNotIn("world", record)
 
     def test_broken_width_is_independently_replayed(self):
         folder = ROOT / "examples/mir/weth-width-guard"
+        with self.assertRaises(Unsupported):
+            mir_cfg.check(
+                (folder / "before.mir", folder / "broken.mir"),
+                SOLAR,
+                self.replay,
+                "cancun",
+                30,
+                "transferFrom",
+                width_checks=True,
+            )
         result, record = self.cli(
             folder / "before.mir",
             folder / "broken.mir",
@@ -127,7 +137,9 @@ class MirEffectTests(unittest.TestCase):
         ]
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0]["status"], "verified")
-        self.assertEqual(records[0]["region"]["proof"], "compositional-effect-tree")
+        self.assertEqual(
+            records[0]["region"]["proof"], "kernel-checked-typed-jump-chain"
+        )
         self.assertEqual([path.name for path in output.iterdir()], ["audits"])
 
     def test_symbolic_addresses_and_effect_operands(self):

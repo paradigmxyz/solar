@@ -141,14 +141,7 @@ and require matching native replay. A concrete scenario that verifies never
 replaces the arbitrary-state proof. Erased pointer/layout preconditions and
 unproved pointer witnesses remain unsupported.
 
-### Compositional MIR effects
-
-Large scalar functions can instead prove equality of their effect trees. Every
-memory, storage, environment and log operation remains an ordered request with
-its opcode and operands. Results are universally quantified. The contextual
-theorem in [MIR/Effects.lean](SolarTV/MIR/Effects.lean) preserves every stateful
-interpretation, including aliasing and early failure; it assumes neither empty
-memory nor successful storage writes.
+### MIR width guards
 
 ```sh
 solar-tv/solar-tv mir \
@@ -161,9 +154,25 @@ solar-tv/solar-tv mir \
 ```
 
 This real `spell-width-tests` pair retains the complete WETH `transferFrom`
-body. Its audit says `compositional-effect-tree`, distinct from
-`universal-caller-state`. The Rust parser/schema export and effect-tree renderer
-remain trusted; this route has no full-state interpreter correspondence proof.
+body. Lean checks the exact typed branch equations, including comparisons at
+power-of-two bounds, shifts tested against zero, and guards combined with OR.
+The typed control-flow proof relates the live state and effects on the
+corresponding edges, including internal callees where present. The audit
+records `width_guards` in the `kernel-checked-typed-jump-chain` proof.
+The compiler structural export and attachment of the guard equations to
+their producer operands remain trusted. This proof uses the unpriced MIR
+effect model. The modified shift in the second command loses the proof and
+produces a counterexample that the independent Rust interpreter confirms.
+
+### Compositional MIR effects
+
+Large scalar functions can instead prove equality of their effect trees. Every
+memory, storage, environment and log operation remains an ordered request with
+its opcode and operands. Results are universally quantified. The contextual
+theorem in [MIR/Effects.lean](SolarTV/MIR/Effects.lean) preserves every stateful
+interpretation, including aliasing and early failure, for arbitrary initial
+memory and storage. The Rust parser/schema export and effect-tree renderer
+remain trusted. The audit labels this route `compositional-effect-tree`.
 Supplied acyclic internal callees also expand into the tree, with private
 arguments/locals and shared effect state. A normal return resumes its caller;
 STOP, raw RETURN, revert and exception end the frame. Allocations retain their

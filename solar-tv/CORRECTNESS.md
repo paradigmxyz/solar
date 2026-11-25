@@ -1981,6 +1981,45 @@ inlined flag gives zero and loses the module certificate. The replay
 under `target/tv-routed-heap/inline-weth-native.json` has SHA-256
 `2e037a498ad0103ab99a6eae3ceebefd01c6d6a2ceb3483ccf06af603203589d`.
 
+### Strict MIR width-test audit
+
+The serial `evaluate --all --require-verified --pass spell-width-tests
+--timeout 120 --seed 0` run verifies all 38 pinned captures. Each capture ID
+and raw before and after hash matches the complete audit above. All three
+standard JSON inputs and contract outputs have the same hashes. Normal and
+capture compilations agree byte for byte on ABI, creation bytecode and
+runtime bytecode.
+
+| Contract | Selected | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Solady WETH | 7 | 7 | 0 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 8 | 8 | 0 | 0 | 0 |
+| Morpho Blue | 23 | 23 | 0 | 0 | 0 |
+| Total | 38 | 38 | 0 | 0 | 0 |
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Compiler executable | `f996616dcf2ebacf05fc5cc439f4814dc38fe953fad90b698754281c59ef139c` |
+| Serial compiler launcher | `4e5a4f6faa73f5d017a534afaa4d3f9a8c052abe1c2435f192108577b79239e9` |
+| Pinned Rust replay | `6f076080b27434487fc9ef6a1bc8275fbfee1c608198e949b4dd83b42e42d6b8` |
+| Lean checker on 4.34.1 | `6ab540a83282f9745e7c65d2144e91ed9572359acb96a8732c54ac86f98e8a2d` |
+| Corpus manifest | `b08af7eb00ac67a5ef1200d50273beedc48d5517838ed67504bd1a76ba96b7b7` |
+| `target/tv-width-final/results.json` | `b9fd5af3bb608d7b6f26190e76470d73457ff1ef15d4f034020dd0da657ab809` |
+
+The selector proposes same-block guard expressions over defined typed
+operands. Lean proves the branch equations for arbitrary leaf values and
+arbitrary successor outcomes, including exchanged branch destinations.
+The kernel also checks correspondence of the projected CFGs, live
+locals, phi writes and the direct callee closure. The compiler structural
+export and attachment of pure expressions to their imported operands are
+trusted. Effects use the unpriced MIR model with shared handlers. ABI
+initialization, backend placement and physical gas are separate obligations.
+
+The live hook validates the captured WETH `transferFrom` function and
+preserves its compiler output. Increasing one shift from 160 to 161
+loses the CFG proof. Lean and the independent Rust interpreter agree on
+the counterexample with calldata bit 160 set.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
