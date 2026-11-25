@@ -2603,6 +2603,29 @@ exceed the simplifier's budget. The retry preserves the status of all 12
 checks. Its report at `target/tv-integer-cleanup-interactions-cuts/results.json`
 has SHA-256 `1fd5b0f707606890c51977fe3ecc6da6eaa771bbebfe5644be4a1e6826eb567e`.
 
+The path-local checker proves effect requests and guards one at a time.
+Lean checks equal request operands before opening continuations with the
+same reply. Branch congruence gives each continuation its own guard fact.
+This lets the checker remove a low mask or boolean normalization even when
+memory operations occur between validation and consumption. A regression
+widens the admissible boolean word to include `2` and loses the proof.
+
+At 15 seconds, the same 12 interaction checks now have three verified,
+three unsupported and six timed out. The added proof is Morpho Blue
+`setAuthorizationWithSig` for arbitrary typed inputs and shared replies.
+The serial default audit still verifies 23 of 35, with 12 unsupported and
+zero timeouts or failures. All 35 check IDs and raw capture hashes and the
+three pinned input and output hashes match the preceding default run.
+ABI, creation bytecode and runtime bytecode match between capture and plain
+compilation on all three contracts.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Lean checker on 4.34.1 | `f0296ae9ec37500fe0fdf02ace855911e4c494b65964229923f13cf5a5c9f944` |
+| Path-local interaction results | `62cb51993379bf9c7f00a47a1ef7097ac84f6726ee8db79fee8f52969b924d8f` |
+| Morpho `setAuthorizationWithSig` report | `c9bacba9789368c93ee4ec459c1f4b7062fcff9216675f4071a7507ea63e7802` |
+| Default results | `81667b68181d2505f248229c4ca2127e692a6f3f3d61ebd4c08b233c6cc97444` |
+
 #### Physical gas witnesses for integer cleanup
 
 Replay the canonical MIR suffix after `integer-cleanup` on both snapshots

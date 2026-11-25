@@ -237,6 +237,7 @@ bb2:
             if status == 0:
                 record = json.loads(report.read_text())
                 self.assertEqual(record["gas_policy"], "unpriced-shared-interactions")
+                self.assertNotIn("sufficient gas", record["assumptions"])
                 self.assertEqual(
                     record["region"],
                     {
@@ -259,6 +260,34 @@ bb2:
         model = self.model(program("icall @empty\n" * 100 + "ret 0", helper))
         with self.assertRaisesRegex(Unsupported, "expansion exceeds nesting 128"):
             mir_effects.render(model.symbolic_mir["model"], definitions)
+
+    def test_interaction_trace_uses_width_facts_after_effects(self):
+        before, after = (self.directory / name for name in ("before.mir", "after.mir"))
+        before.write_text(
+            program("""v0 = calldataload 4
+mstore 0, v0
+v1 = gt v0, 1
+jumpi v1, bb1, bb2
+bb1:
+revert 0, 0
+bb2:
+v2 = ne v0, 0
+v3 = zext i1 v2 to i256
+sstore 0, v3
+v4 = gas
+ret v4""")
+        )
+        lowered = before.read_text().replace(
+            "v2 = ne v0, 0\nv3 = zext i1 v2 to i256\nsstore 0, v3", "sstore 0, v0"
+        )
+        after.write_text(lowered)
+        args = ([before, after], SOLAR, self.replay, "cancun", 20, "f")
+        self.assertEqual(mir_effects.check_interactions(*args).status, "verified")
+
+        before.write_text(before.read_text().replace("gt v0, 1", "gt v0, 2"))
+        after.write_text(lowered.replace("gt v0, 1", "gt v0, 2"))
+        with self.assertRaises(Unsupported):
+            mir_effects.check_interactions(*args)
 
     def test_interaction_trace_checks_retained_callee_bodies(self):
         before, after, report = (

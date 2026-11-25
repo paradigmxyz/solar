@@ -969,6 +969,8 @@ def record(
                 else "selected entry and reachable direct callees in shared logical frames"
                 if program.scope == "mir-cfg-flow"
                 and program.import_evidence.get("nested_calls")
+                else "function-local interaction proof with expanded or retained callees"
+                if program.scope == "mir-interaction-tree"
                 else "region-local proof; no whole-pass or interprocedural claim"
             )
         if (program and program.memory) or (
@@ -1013,6 +1015,7 @@ def record(
                 "abi-effect-tree",
                 "abi-encode",
                 "integer-width",
+                "mir-interaction-tree",
             }
             and program.symbolic_mir is None
         ):

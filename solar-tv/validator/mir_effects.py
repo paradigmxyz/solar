@@ -904,24 +904,25 @@ def guarded_mask_prefix(model, masks, definitions):
     return "  | (solve\n    | " + first.strip() + "\n" + "\n".join(rest) + ")\n"
 
 
-def equality_code(old, new, trees, definitions, prelude, binders, args):
+def equality_code(
+    old, new, trees, definitions, prelude, binders, args, *, walk_interactions=False
+):
     code = prelude + "set_option maxHeartbeats 1000000\n"
     for name, tree in zip(("before", "after"), trees, strict=True):
         code += f"def {name} {binders} : MIR.Effects.Tree :=\n{tree}\n"
-    rules = """before, after, MIR.compare, MIR.eval, MIR.cast, MIR.shift, Word.shift,
+    rules = """MIR.compare, MIR.eval, MIR.cast, MIR.shift, Word.shift,
     Word.binary, MIR.unary, Word.unary, MIR.select, MIR.wordBinary, MIR.ternary,
     MIR.LowerAlloc.freePointerRequest, MIR.LowerAlloc.constructorRequest,
     BitVec.ofNatLT_eq_ofNat, BitVec.ult, MIR.Effects.abiReturn"""
     masks = low_masks(old) - low_masks(new)
-    tactic = f"simp [{rules}]"
-    if masks:
-        lemmas = []
-        for width, bits in sorted(masks):
-            right = f"lowMask{width}_{bits}"
-            left = f"{right}Left"
-            mask = f"{(1 << bits) - 1}#{width}"
-            binder = f"(word : BitVec {width}) (small : word.toNat < {1 << bits})"
-            code += f"""
+    tactic = f"simp [before, after, {rules}]"
+    lemmas, guard_lemmas = [], []
+    for width, bits in sorted(masks):
+        right = f"lowMask{width}_{bits}"
+        left = f"{right}Left"
+        mask = f"{(1 << bits) - 1}#{width}"
+        binder = f"(word : BitVec {width}) (small : word.toNat < {1 << bits})"
+        code += f"""
 private theorem {right} {binder} : word &&& {mask} = word :=
   MIR.Effects.mask_of_bound {width} {bits} word (by decide) small
 private theorem {left} {binder} : {mask} &&& word = word := by
@@ -931,11 +932,45 @@ private theorem {right}Guard (word : BitVec {width}) :
     MIR.compare .gt word {mask} = 1 ↔ {(1 << bits) - 1} < word.toNat := by
   simp [MIR.compare, BitVec.ult]
 """
-            lemmas.extend((right, left))
+        lemmas.extend((right, left))
+        if walk_interactions:
+            for lemma, operands in ((right, f"word {mask}"), (left, f"{mask} word")):
+                code += f"""
+private theorem {lemma}Gt (word : BitVec {width})
+    (fits : ¬{(1 << bits) - 1} < word.toNat) : MIR.eval .and {operands} = word :=
+  {lemma} word (by omega)
+private theorem {lemma}Lt {binder} : MIR.eval .and {operands} = word :=
+  {lemma} word small
+"""
+                guard_lemmas.extend((f"{lemma}Gt", f"{lemma}Lt"))
+
+    walk = ""
+    mask_rules = "".join(f", {lemma}" for lemma in lemmas)
+    if walk_interactions:
+        guard_rules = "".join(f", {lemma}" for lemma in guard_lemmas)
+        code += f"""
+local macro "normalizeOperands" : tactic =>
+  `(tactic| first
+    | rfl
+    | (simp (config := {{failIfUnchanged := false}}) (disch := assumption) only
+         [BitVec.setWidth_eq{guard_rules}]
+       first
+       | rfl
+       | simp (disch := omega) [{rules}{mask_rules}] <;>
+           exact MIR.Effects.bool_of_bound _ (by assumption)))
+"""
+        walk = """  | (solve
+    | unfold before after
+      match_mir_effects normalizeOperands)
+"""
+    if masks:
         prefix = guarded_mask_prefix(old, masks, definitions)
         tactic = f"""first
-{prefix}  | (solve | {tactic})
-  | simp (config := {{contextual := true}}) (disch := omega) [{rules}, {", ".join(lemmas)}]"""
+{prefix}{walk}  | (solve | {tactic})
+  | simp (config := {{contextual := true}}) (disch := omega)
+      [before, after, {rules}{mask_rules}]"""
+    elif walk:
+        tactic = f"first\n{walk}  | {tactic}"
     return (
         code
         + f"""
@@ -1001,6 +1036,7 @@ def check_interactions(paths, solar, replay, version, timeout, function):
         prelude,
         " ".join(binders),
         " ".join(["heapFloor", *args]),
+        walk_interactions=True,
     )
     return abi_effects.certificate(
         code,

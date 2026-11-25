@@ -1,5 +1,6 @@
 import SolarTV.MIR.Ops
 import SolarTV.State.ByteMemory
+import Lean
 
 /-! Compositional certificates for acyclic scalar MIR with explicit effects.
 
@@ -198,5 +199,66 @@ theorem mask_of_bound (width bits : Nat) (word : BitVec width) (fits : bits ≤ 
   apply BitVec.eq_of_toNat_eq
   rw [BitVec.toNat_and, BitVec.toNat_ofNat, Nat.mod_eq_of_lt maskFits,
     Nat.and_two_pow_sub_one_eq_mod, Nat.mod_eq_of_lt small]
+
+/-- A validated ABI boolean already agrees with the widened nonzero test. -/
+theorem bool_of_bound (word : Word) (fits : ¬1 < word.toNat) :
+    (if word = 0 then 0 else 1 : Word) = word := by
+  by_cases zero : word = 0
+  · simp [zero]
+  · have nonzero : word.toNat ≠ 0 := by
+      intro h
+      exact zero (BitVec.eq_of_toNat_eq h)
+    have one : word = 1 := BitVec.eq_of_toNat_eq (by change word.toNat = 1; omega)
+    simp [one]
+
+private theorem unsigned_lt {width : Nat} (a b : BitVec width) :
+    MIR.compare .lt a b = 1 ↔ a.toNat < b.toNat := by
+  simp [MIR.compare, BitVec.ult]
+
+private theorem unsigned_gt {width : Nat} (a b : BitVec width) :
+    MIR.compare .gt a b = 1 ↔ b.toNat < a.toNat := by
+  simp [MIR.compare, BitVec.ult]
+
+private theorem request_congr {a b : Request} {f g : Word → Tree}
+    (request : a = b) (next : f = g) : Tree.request a f = Tree.request b g := by
+  cases request
+  cases next
+  rfl
+
+/-- Compare one request or path decision at a time. The operand tactic sees the
+    assumptions from the path already taken, without unfolding both subtrees. -/
+syntax "match_mir_effects " tactic : tactic
+
+open Lean Elab Tactic Meta in
+elab_rules : tactic
+  | `(tactic| match_mir_effects $normalize:tactic) => withMainContext do
+    let goal ← getMainGoal
+    let some (_, left, right) := (← goal.getType).eq?
+      | throwError "expected effect-tree equality"
+    let left ← whnfCore left
+    let right ← whnfCore right
+    if ← isDefEq left right then
+      goal.refl
+      replaceMainGoal []
+    else if left.isAppOf ``Tree.request && right.isAppOf ``Tree.request then
+      evalTactic (← `(tacticSeq|
+        apply request_congr
+        · ($normalize:tactic)
+        · funext reply
+          match_mir_effects $normalize))
+    else if left.isAppOf ``ite && right.isAppOf ``ite then
+      evalTactic (← `(tacticSeq|
+        apply ite_congr
+        · ($normalize:tactic)
+        · intro branchFact
+          try simp only [BitVec.setWidth_eq, unsigned_lt, unsigned_gt,
+            BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at branchFact
+          match_mir_effects $normalize
+        · intro branchFact
+          try simp only [BitVec.setWidth_eq, unsigned_lt, unsigned_gt,
+            BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at branchFact
+          match_mir_effects $normalize))
+    else
+      evalTactic normalize
 
 end SolarTV.MIR.Effects
