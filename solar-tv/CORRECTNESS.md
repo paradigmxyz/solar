@@ -1572,6 +1572,70 @@ The retry report `target/tv-dce-final/morpho-stop-retry.json` has SHA-256
 It uses the checker fingerprint
 `64a3310b4680b56db7ca88296dc726e6f076ea708d12339287e07d7b1954e734`.
 
+### Pinned MIR CSE audit
+
+The serial gate `evaluate --all --pass cse --timeout 15 --seed 0` checked
+all 48 pinned MIR captures before and after the state-read extension.
+Both runs matched the full audit's capture IDs, raw before and after hashes,
+and input and output fingerprints. Normal and capture runs agreed on
+ABI, creation bytecode and runtime bytecode.
+
+| Contract | Selected | Baseline verified | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Solady WETH | 4 | 4 | 4 | 0 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 6 | 5 | 6 | 0 | 0 | 0 |
+| Morpho Blue | 38 | 17 | 35 | 3 | 0 | 0 |
+| Total | 48 | 26 | 45 | 3 | 0 | 0 |
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Compiler executable | `7d123ab7483266256ead8e4b3d86cbce427376f186b5714969110d19139335e8` |
+| Serial compiler launcher | `4e5a4f6faa73f5d017a534afaa4d3f9a8c052abe1c2435f192108577b79239e9` |
+| Independent replay | `649ae6a1ae51d75ca501093d1a0f0a1181ff098d4f386e09b6e5754c01374365` |
+| Corpus manifest | `b08af7eb00ac67a5ef1200d50273beedc48d5517838ed67504bd1a76ba96b7b7` |
+| Solady WETH input | `b751f0da2642fba80d176248ff576b06d45601fda253d9de32f9a78e3b70a4c0` |
+| OpenZeppelin ERC20Mock input | `c85c24c264a2ae9a97b32050f93426376c8cb20e15f6e5ad5dc1414ee46ce2c4` |
+| Morpho Blue input | `01f4aaf9db4940ea9a62aba808ba1655ef399c671b6ed29875f8a91c3efeba53` |
+| Checker on Lean 4.34.1 | `f538017c18693711f3bb143a6777dd716450ba829f207c9361c341139f0022b2` |
+| `target/tv-cse-baseline/results.json` | `cae63a664f47630c018c00d577881979b22968c6368de67c30a620312fc429ce` |
+| `target/tv-cse-verified/results.json` | `0c0bd7726a0e9af4cddde241daf2450cf3406f981393f691de3b51d5a2d7e34f` |
+
+For each reused read, the kernel checks that every incoming path in the
+instruction graph passes the producer and then preserves the fact. The
+certificate checks backward closure through diamonds and backedges.
+Semantic lemmas establish active memory words after successful MLOAD or
+MSTORE, preserve their value across expansion and disjoint byte writes,
+and prove that rereading a warm storage slot keeps the world unchanged.
+Words at distinct offsets from the same modular storage base are distinct.
+Repeated mapping computation uses identical hash input and the same
+scratch bytes at offset zero.
+
+Of the 19 newly verified captures, 14 use storage read reuse, 13 use mapping
+scratch reuse, and 11 use memory word reuse. These categories can overlap.
+The checker derives direct-callee summaries by scanning paths that can
+return to the caller. The proof of scalar return publication preserves
+memory in that summary. The typed Rust exporter and the binding from raw
+actions to their abstract footprints remain trusted. Memory is aligned and
+bounded by 64 KiB. The certificates use unpriced MIR and shared action
+replies.
+
+The independent Rust regression retains the same result when one branch
+writes the adjacent slot. Changing that branch to overwrite the cached
+slot loses the certificate and returns 19 in the original and 0 in the
+rewritten function. The three remaining captures are Morpho Blue's
+`createMarket`, `setAuthorizationWithSig`, and `_accrueInterest`. They
+need a live heap invariant connecting the free-memory pointer and
+allocated objects before the checker can establish disjoint writes.
+
+A separate heap probe replays a store through the current free-memory
+pointer followed by a load from an older allocation. Both versions return
+7 with an initial pointer of 128. With a pointer of zero, the older object
+overwrites the reserved pointer word and the original returns 17 while the
+forwarded version returns 7. Local Lean lemmas check that a continuing
+allocation publishes its nonwrapping end and that a disjoint byte store
+preserves the published word. Binding that invariant through the three
+compiler captures remains open.
+
 ### Stack-carried continuations
 
 The physical indexed-entry certificate also tracks literal words through
