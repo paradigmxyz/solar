@@ -67,7 +67,7 @@ fn reachable_jumpdest_labels(
             }
             add_jump_successors(
                 instructions,
-                jumpdests.as_slice(),
+                &jumpdests,
                 index,
                 &mut pending,
                 &mut all_jumpdests_pending,
