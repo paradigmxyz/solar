@@ -1022,6 +1022,13 @@ after capture hashes, and compiler input and output fingerprints match the
 full audit above. Normal and validating compilations match on ABI and
 creation and runtime bytecode for all three contracts.
 
+The same strict command after the DCE update again verified 16 of 16 with
+the same capture IDs, raw hashes and compiler inputs and outputs.
+`target/tv-lower-abi-encode-current/results.json` has SHA-256
+`f9f513d0b8b7f79d1b88bdcd11de32ab7674f4145bfb5955ec5c4eca82ae2ad4`.
+The checker fingerprint is
+`dd1a9d4018c2f81eaa651d974e91d04f7149b95921bac94cc29e32fbfd346b90`.
+
 | Contract | Selected | Verified | Unsupported | Timed out | Failed |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Solady WETH | 0 | 0 | 0 | 0 | 0 |
@@ -1494,6 +1501,76 @@ constant loses the certificate. With a fixed GAS reply, the independent
 Rust interpreter confirms equal observations on the compiler pair for a
 target word with dirty high bits. The nonempty output mutation changes
 the observed memory.
+
+### Complete pinned MIR DCE audit
+
+The serial gate `evaluate --all --pass dce --pass egraph --timeout 15
+--seed 0` verifies every MIR DCE capture and rechecks all 116 MIR egraph
+captures. Both groups match the full audit's capture IDs, raw before and after
+hashes, and compiler input and output fingerprints. Normal and capture runs
+agree on ABI, creation bytecode, and runtime bytecode.
+
+| Contract | MIR DCE | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Solady WETH | 25 | 25 | 0 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 5 | 5 | 0 | 0 | 0 |
+| Morpho Blue | 56 | 56 | 0 | 0 | 0 |
+| Total | 86 | 86 | 0 | 0 | 0 |
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Compiler executable | `7d123ab7483266256ead8e4b3d86cbce427376f186b5714969110d19139335e8` |
+| Serial compiler launcher | `4e5a4f6faa73f5d017a534afaa4d3f9a8c052abe1c2435f192108577b79239e9` |
+| Independent replay | `649ae6a1ae51d75ca501093d1a0f0a1181ff098d4f386e09b6e5754c01374365` |
+| Corpus manifest | `b08af7eb00ac67a5ef1200d50273beedc48d5517838ed67504bd1a76ba96b7b7` |
+| Solady WETH input | `b751f0da2642fba80d176248ff576b06d45601fda253d9de32f9a78e3b70a4c0` |
+| OpenZeppelin ERC20Mock input | `c85c24c264a2ae9a97b32050f93426376c8cb20e15f6e5ad5dc1414ee46ce2c4` |
+| Morpho Blue input | `01f4aaf9db4940ea9a62aba808ba1655ef399c671b6ed29875f8a91c3efeba53` |
+| Checker at corpus run on Lean 4.34.1 | `6024c1ca8ae810802d75cd4b9f5e6c10731b4213b5d9b689637adc237f6ee4e1` |
+| `target/tv-dce-final/results.json` | `74974dffb0c36828faeac8f15d76f9cbd4608ff8717cffb8101817fc0942aa9d` |
+
+The kernel checked 68 typed control-flow certificates, five slice projection
+proofs, four compositional effect trees, four universal caller-state proofs,
+four cyclic dead SSA simulations, and one ABI-context effect proof. Typed
+calldata word reads and size use the immutable input of the activation.
+Product insertion only updates its typed result, including construction
+starting from an undefined product. The two WETH hook pairs use identical
+void bodies that return at entry. With defined typed arguments and sufficient
+depth and logical work, the checked callee steps restore the exact caller
+frame. The structural importer binds the operands and the callee bodies.
+
+For Morpho Blue's `createMarket`, the unique predecessor ends in a raw CALL
+with a 32-byte output at offset zero. Lean checks that any continuing CALL
+activates the output word, including when the child supplies fewer bytes.
+The retained returndata size check can still revert. In aligned memory up
+to 64 KiB the dead load cannot expand memory. The Rust replay regression
+observes `MSIZE = 32` with or without the load when a child returns no bytes.
+Setting the call's output size to zero removes the certificate and produces
+different replay results, 32 before DCE and 0 after it.
+
+These action proofs use defined SSA inputs and a trusted typed projection.
+Physical gas and the connection to executable ABI and backend state remain
+separate obligations. After the corpus run, the checker added the calldata,
+empty-call and active-memory premises to its audit records and formatted
+the Python sources. Serial rechecks of `permit`, `withdraw`, and
+`createMarket` produced the same proof correspondence with these premises
+recorded. Those rechecks used the checker fingerprint
+`dd1a9d4018c2f81eaa651d974e91d04f7149b95921bac94cc29e32fbfd346b90`.
+
+### Pinned EVM IR DCE audit
+
+The same serial run selected two EVM IR DCE captures. Lean checked WETH's
+terminal deletion of two POPs at a proved minimum incoming height of three.
+Morpho Blue's corresponding three-POP deletion timed out at 15 seconds.
+A serial retry at 120 seconds per Lean invocation checked the exact same
+capture hashes. Lean proved that at least four words reach the cut and that
+both suffixes reach STOP with equal modeled observations in the unpriced
+scope. Across the two checks and the retry, both captures verified.
+
+The retry report `target/tv-dce-final/morpho-stop-retry.json` has SHA-256
+`c33cdd542ea4e028abaa9248d8915379fe6868b6a1935a661633c2a7437efd46`.
+It uses the checker fingerprint
+`64a3310b4680b56db7ca88296dc726e6f076ea708d12339287e07d7b1954e734`.
 
 ### Stack-carried continuations
 
