@@ -283,7 +283,8 @@ impl ScalarEvolution {
                                 return None;
                             }
                             let shift = u32::try_from(shift.constant).ok()?;
-                            let scale = 1i128.checked_shl(shift)?;
+                            // `checked_shl` accepts a shift by 127 and yields `i128::MIN`.
+                            let scale = 2i128.checked_pow(shift)?;
                             self.affine_expr(cx, value)?.mul_const(scale)?
                         }
                         _ => return None,
