@@ -1917,8 +1917,8 @@ below the full prefix charge.
 
 Independent Rust replay confirms the slot and value before the store,
 the emitted cut at 27,162 or 10,062 gas for the two initially cold
-fixtures, and rollback one unit below either threshold. The subsequent
-writes, event, and any IRM child call remain beyond the kernel cut.
+fixtures, and rollback one unit below either threshold. This prefix ends
+immediately after the timestamp store.
 
 | Artifact in `target/tv-routed-heap/` | SHA-256 |
 | --- | --- |
@@ -1928,6 +1928,44 @@ writes, event, and any IRM child call remain beyond the kernel cut.
 | `MarketFirstStoreMIR.lean` | `f2b4d80e88f040a6c95550651c7c8a3ea77cd7e1189ab82a0bbfc0ab9c24422d` |
 | `MarketFirstStoreAgreement.lean` | `b284d0d0e882a91ecfe3522850422c8d0ea7a1b21e401b245a495185e44ab7cf` |
 | `market-first-write-native.json` | `e5404db26eb75b5f42da80497f6d2c76c7f4bc676a5ab0fb87991b3f6ee72187` |
+
+### Morpho market creation with zero IRM
+
+The kernel follows the same captured `createMarket` wrappers through the
+remaining five stores, `CreateMarket` event, and successful halt when
+the IRM address is zero. The complete path takes 120 and 118 typed MIR
+transitions and 312 emitted instructions, from ABI entry at PC 0 through
+`STOP` at PC 2162. The proof carries the existing canonical calldata,
+placement, writable fresh journal, enabled IRM and LLTV, uncreated market,
+and timestamp 1 premises.
+
+The MIR wrappers produce the same terminal result. On success they agree
+with the emitted execution on empty return data and the finalized journal
+after projecting away the EVM refund field. The emitted result retains
+the exact gas remainder and refund, using the current and original slot
+values and warmth at each store. The kernel checks every incoming gas
+balance. A budget below the admission threshold, including any SSTORE
+sentry check, restores the original journal and discards the event.
+
+Independent Rust replay of both MIR wrappers and the emitted image
+confirms six completed stores and the event with the same timestamp 1.
+The initially cold fixture succeeds at 103,466 gas with zero gas
+remaining. At 103,465 it restores the initial storage and emits no event.
+The nonzero-IRM child call and its gas and rollback behavior remain open.
+
+The generated proof sources and replay are in the existing target
+directory. From `target/tv-routed-heap`, `shasum -a 256 -c
+market-success-sha256.txt` checks the continuation sources, emitted image,
+and independent replay inputs and outputs. The parent certificates are
+fingerprinted above. The joined theorems use `propext`, `Classical.choice`,
+and `Quot.sound`.
+
+| Artifact in `target/tv-routed-heap/` | SHA-256 |
+| --- | --- |
+| `MarketSuccessAgreement.lean` | `c042b97faa4f3c636ce2b0a5b364bfad92d0acce778a1a71ded83d8366641c0a` |
+| `MarketSuccessFromDispatch.lean` | `ef11b106c0a0d45e810d6b093025e7eebf7355cf8fd2394289bf5aa94bb5416f` |
+| `market-success-native.json` | `624d08fdda4ebd9726021e6c7b2a6f1dc29f75cb304c7214f12786b0796480e9` |
+| `market-success-sha256.txt` | `22c8debe9cdcb947e86fd7cc0277ccc68ae644e8f8cdf0ffe67e67891386f5b4` |
 
 ### Decoded set-code fee settlement
 

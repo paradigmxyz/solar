@@ -129,4 +129,33 @@ theorem Checked.execute {cfg : Config} {world frame debits exit}
     rw [clearWork, eq]
     simp only [expected,short,ite_false]
 
+/-- Extend an exact-charge prefix with a path whose admission checks can
+exceed the corresponding charges. Settlement uses the original journal. -/
+theorem Checked.executeAfterPrefix {cfg : Config} {initial middle : Journal}
+    {start cut : Frame} {count price : Nat} {suffix : List Debit} {exit : Exit}
+    (tail : Checked cfg middle cut suffix exit)
+    (head : MeteredPrefix cfg initial start middle cut count price) (fuel gas : Nat) :
+    (State.execute (fuel + (count + suffix.length)) cfg initial {start with gas := gas}).map
+        (fun r => {r with work := 0}) =
+      .ok (if gas < price + required suffix then ⟨.outOfGas,[],initial,0,0⟩
+        else settle initial (exit.result (gas - (price + charged suffix)))) := by
+  have joined : ∃ path, Checked cfg initial start path exit ∧
+      path.length = count + suffix.length ∧ required path = price + required suffix ∧
+      charged path = price + charged suffix := by
+    induction head with
+    | done => exact ⟨suffix, tail, by simp, by simp, by simp⟩
+    | @step _ _ _ _ _ _ _ _ charge debit _ ih =>
+      obtain ⟨rest, checked, length, need, cost⟩ := ih tail
+      refine ⟨⟨charge,charge⟩ :: rest, .next (Nat.le_refl _) debit checked, ?_, ?_, ?_⟩
+      · simp only [List.length_cons, length]
+        omega
+      · rw [required_exact, need, Nat.add_assoc]
+      · change charge + charged rest = _
+        omega
+  obtain ⟨path, checked, length, need, cost⟩ := joined
+  have result := checked.execute fuel gas
+  rw [length] at result
+  by_cases short : gas < price + required suffix <;>
+    simpa [expected, need, cost, short, settle] using result
+
 end SolarTV.EVM.State.BudgetedPath
