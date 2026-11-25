@@ -1858,6 +1858,47 @@ immediate. The enabled-IRM and later success paths remain open.
 | `MarketRejectChangedPush.lean` | `eda4742336ff058bb69ce83e4796fcea0764ed1ffc2a6402e2ca1c3a982be8c6` |
 | `market-reject-native.json` | `baf0cb269fca31909af722acf506f99686f48c7a3f620a7450cccfe069f30132` |
 
+### Morpho permission and market-status reads
+
+When the IRM and LLTV permission bytes are nonzero, Lean advances both
+captured `createMarket` wrappers to their market-status read. The cut is
+after 58 MIR transitions and 169 emitted instructions, at PC 1952.
+Both MIR cuts agree with the emitted cut on active memory, the journal
+with all three slots warmed, and the market-status word. The certificate
+retains the canonical calldata, zero-value, entry-memory and scalar
+return-placement premises of the earlier cuts.
+
+The emitted path costs 796 gas plus three Cancun storage read charges.
+Warmth is determined against the journal at each read, so the proof also
+applies when slot keys coincide. Lean checks rollback for every budget
+that cannot pay the full prefix. Independent Rust replay confirms the
+read keys and values and the full active memory, using a direct MIR
+probe after the third completed `SLOAD`. For the fixture's distinct
+slots, the emitted replay confirms all eight warm and cold combinations
+at the exact threshold and one gas unit short.
+
+Changing the emitted slot offset at PC 1947 from 2 to 3 breaks the checked
+PUSH immediate. Rust independently observes a different slot and value
+at PC 1952. The theorem ends before the branch on the market-status word.
+
+| Artifact in `target/tv-routed-heap/` | SHA-256 |
+| --- | --- |
+| `MarketPermissionsEVM.lean` | `d57bb2253afc7fb21e4e60bf3d6126709404cbbebea947d018dde4fd5170e6f7` |
+| `MarketPermissionsMIR.lean` | `01069bae1855f79e1f52ede12a18eea7d26199d33ef3d07928c126d67ab1cc30` |
+| `MarketPermissionsAgreement.lean` | `670ab47b104eb41f684625a1a8a8c9318e59f08edd6211cbe19f1dae06c9c744` |
+| `MarketPermissionsChangedPush.lean` | `71f0c623b339a183e7c7cc14047a51b2e10c126009f69e2a0f3d8d2257ecd584` |
+| `market-permissions-native.json` | `40c83716cb28322e6feed80d2d1cb29314311f2a7055dcd8fffec7707ff89a71` |
+
+The independent Rust replay also exercises the complete successful route
+with an enabled zero IRM address, an enabled LLTV, an uncreated market and
+timestamp 91. Both MIR wrappers and the emitted runtime agree on the
+successful output, persistent storage and event after six stores. The
+emitted path succeeds at 103,466 gas with all slots initially cold. One
+unit less rolls back every write and the event. The kernel proof past the
+market-status cut remains open. The replay record
+`target/tv-routed-heap/market-no-irm-native.json` has SHA-256
+`53becec60ed0b7321d86930cfa0463112c44318e8537f540772a22f7b80b10e3`.
+
 ### Decoded set-code fee settlement
 
 For decoded Prague and Osaka set-code envelopes, Lean executes the

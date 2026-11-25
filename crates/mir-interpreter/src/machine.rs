@@ -136,6 +136,8 @@ pub(crate) enum Outcome {
     Invalid,
     /// An explicitly priced message boundary exhausted its caller budget.
     OutOfGas,
+    /// A direct replay host requested a snapshot after a storage read.
+    StorageReadCut,
     /// A returndata copy exceeded the available bytes.
     ReturndataOutOfBounds,
     /// Execution exceeded a limit before it ended.
@@ -222,6 +224,11 @@ pub trait Host {
     /// Reads report the current value, including unpublished writes.
     fn observe_storage(&mut self, opcode: u8, slot: U256, value: U256) {
         let _ = (opcode, slot, value);
+    }
+
+    /// Stops direct semantic replay after a completed SLOAD, including its SSA assignment.
+    fn stop_at_storage_read(&mut self) -> bool {
+        false
     }
 
     /// Observes a completed explicit whole-word memory store.
@@ -913,6 +920,8 @@ impl<'a> Run<'_, 'a, '_> {
         let Some(semantics) = instruction.kind.semantics() else {
             return ControlFlow::Break(Outcome::Unsupported(mnemonic));
         };
+        let probe_sload =
+            self.semantic.is_some() && matches!(&semantics, Semantics::Opcode("sload", _));
         let frame = self.frames.last().expect("a run always has a frame");
         if self.semantic.is_some() {
             match semantics {
@@ -1396,6 +1405,10 @@ impl<'a> Run<'_, 'a, '_> {
             result
         };
         self.frame().values[value] = Some(RuntimeValue::Word(result));
+        if probe_sload && self.world.as_mut().is_some_and(|world| world.host.stop_at_storage_read())
+        {
+            return ControlFlow::Break(Outcome::StorageReadCut);
+        }
         ControlFlow::Continue(())
     }
 

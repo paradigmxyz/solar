@@ -171,6 +171,7 @@ fn execution_from(outcome: RunOutcome, effects: Effects) -> Execution {
         RunOutcome::Stop => Outcome::Success(Vec::new()),
         RunOutcome::Revert(data) => Outcome::Revert(data),
         RunOutcome::Invalid | RunOutcome::OutOfGas => Outcome::Halt,
+        RunOutcome::StorageReadCut => unreachable!("a transaction cannot request a replay cut"),
         RunOutcome::ReturndataOutOfBounds => Outcome::ReturndataOutOfBounds,
         RunOutcome::Limit(Limit::Fuel) => Outcome::Unsupported("runs too long".into()),
         RunOutcome::Limit(Limit::Depth) => Outcome::Unsupported("nests calls too deeply".into()),

@@ -26,6 +26,7 @@ struct Context<'a> {
     static_permission: bool,
     debug_reverts: bool,
     storage_trace: Option<Vec<(u8, U256, U256)>>,
+    probe_sloads: Option<usize>,
     store_trace: Option<Vec<(U256, U256)>>,
 }
 
@@ -48,6 +49,12 @@ impl Host for Context<'_> {
         {
             trace.push((opcode, slot, value));
         }
+    }
+    fn stop_at_storage_read(&mut self) -> bool {
+        self.probe_sloads.as_mut().is_some_and(|remaining| {
+            *remaining -= 1;
+            *remaining == 0
+        })
     }
     fn observe_mstore(&mut self, address: U256, word: U256) {
         if let Some(trace) = &mut self.store_trace
@@ -117,6 +124,9 @@ impl Host for Context<'_> {
 pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], String> {
     if request.gas || input.gas_policy.is_some() || input.gas.is_some() {
         return Err("direct MIR replay does not assign EVM gas costs".into());
+    }
+    if input.probe_sloads.is_some_and(|count| !(1..=TRACE_LIMIT).contains(&count)) {
+        return Err("MIR storage probe count exceeds the replay limit".into());
     }
     if input.memory.size > 65536
         || !input.memory.size.is_multiple_of(32)
@@ -194,7 +204,8 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
             blobs: blobs.clone(),
             static_permission: input.is_static,
             debug_reverts: input.debug_reverts,
-            storage_trace: input.trace_storage.then(Vec::new),
+            storage_trace: (input.trace_storage || input.probe_sloads.is_some()).then(Vec::new),
+            probe_sloads: input.probe_sloads,
             store_trace: input.trace_stores.then(Vec::new),
         };
         let execution = run_state(
@@ -209,31 +220,43 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
             &mut host,
             Options { evm_version: version, fuel: 1_000_000, depth: 128 },
         )?;
-        let (status, values, data, memory, keep_transient) = match execution.outcome {
-            StateOutcome::Return(values) => {
-                ("return", values, Vec::new(), Some(execution.memory), true)
+        let mut observation = if matches!(&execution.outcome, StateOutcome::StorageReadCut) {
+            json!({"outcome":"storage-read-cut", "memory":execution.memory})
+        } else {
+            if input.probe_sloads.is_some() {
+                return Err(match execution.outcome {
+                    StateOutcome::Unsupported(reason) => reason,
+                    _ => "MIR replay ended before the requested storage read".into(),
+                });
             }
-            StateOutcome::Success(data) => ("success", Vec::new(), data, None, false),
-            StateOutcome::Revert(data) => ("revert", Vec::new(), data, None, false),
-            StateOutcome::OutOfGas => ("out-of-gas", Vec::new(), Vec::new(), None, false),
-            StateOutcome::Invalid => ("exception", Vec::new(), Vec::new(), None, false),
-            StateOutcome::Unsupported(reason) => return Err(reason),
+            let (status, values, data, memory, keep_transient) = match execution.outcome {
+                StateOutcome::Return(values) => {
+                    ("return", values, Vec::new(), Some(execution.memory), true)
+                }
+                StateOutcome::Success(data) => ("success", Vec::new(), data, None, false),
+                StateOutcome::Revert(data) => ("revert", Vec::new(), data, None, false),
+                StateOutcome::OutOfGas => ("out-of-gas", Vec::new(), Vec::new(), None, false),
+                StateOutcome::Invalid => ("exception", Vec::new(), Vec::new(), None, false),
+                StateOutcome::StorageReadCut => unreachable!("no storage read probe was requested"),
+                StateOutcome::Unsupported(reason) => return Err(reason),
+            };
+            host.native.flush(PendingChanges {
+                storage: &execution.storage,
+                transient: &execution.transient,
+                logs: &execution.logs,
+            });
+            let keep_world = matches!(status, "return" | "success");
+            let mut observation = host.native.finish(keep_transient, keep_world)?;
+            let data = json!(data);
+            let values = json!(values.iter().map(|v| v.to_string()).collect::<Vec<_>>());
+            observation["outcome"] = json!(status);
+            observation["values"] = values;
+            observation["data"] = data;
+            observation["memory"] = json!(memory);
+            observation["returndata"] =
+                json!(if keep_transient { execution.return_data } else { Vec::new() });
+            observation
         };
-        host.native.flush(PendingChanges {
-            storage: &execution.storage,
-            transient: &execution.transient,
-            logs: &execution.logs,
-        });
-        let keep_world = matches!(status, "return" | "success");
-        let mut observation = host.native.finish(keep_transient, keep_world)?;
-        let data = json!(data);
-        let values = json!(values.iter().map(|v| v.to_string()).collect::<Vec<_>>());
-        observation["outcome"] = json!(status);
-        observation["values"] = values;
-        observation["data"] = data;
-        observation["memory"] = json!(memory);
-        observation["returndata"] =
-            json!(if keep_transient { execution.return_data } else { Vec::new() });
         if let Some(trace) = host.storage_trace {
             if trace.len() > TRACE_LIMIT {
                 return Err("MIR storage trace exceeds the replay limit".into());

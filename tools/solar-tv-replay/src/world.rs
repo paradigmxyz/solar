@@ -73,6 +73,9 @@ pub(super) struct Input {
     /// Include the ordered completed persistent-storage opcodes in MIR replay.
     #[serde(default)]
     trace_storage: bool,
+    /// Stop direct MIR replay after this many completed SLOAD instructions.
+    #[serde(default)]
+    probe_sloads: Option<usize>,
     /// Include the ordered completed whole-word memory stores in MIR replay.
     #[serde(default)]
     trace_stores: bool,
@@ -257,6 +260,9 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
     }
     if input.mir_layout.is_some() {
         return Err("MIR layout is not an EVM world input".into());
+    }
+    if input.probe_sloads.is_some() {
+        return Err("storage read probe requires MIR execution".into());
     }
     let budget = input.gas.ok_or("missing EVM entry gas budget")?;
     let reservoir = input.amsterdam_reservoir.unwrap_or_default();
