@@ -1,0 +1,7 @@
+@module BytesSlot
+fn @f() -> i256 {
+bb0:
+    v0 = inttoptr i256 128 to ptr<memory>
+    v1 = mapping_slot_bytes v0, 9
+    ret v1
+}

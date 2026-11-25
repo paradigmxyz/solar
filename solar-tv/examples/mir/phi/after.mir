@@ -1,0 +1,14 @@
+; === solar-tv/examples/mir/phi/before.mir (after cfg-simplify) ===
+@module Phi
+fn @pick(arg0: i256) -> i256 {
+  bb0:
+    switch arg0, default bb1, [0 => bb2]
+  bb1:                                            ; preds = bb0
+    v0 = add arg0, 2
+    jump bb2
+  bb2:                                            ; preds = bb1, bb0
+    v1 = phi [bb0: 1], [bb1: v0]
+    v2 = phi [bb0: 10], [bb1: 20]
+    v3 = add v1, v2
+    ret v3
+}

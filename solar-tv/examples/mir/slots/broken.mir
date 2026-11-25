@@ -1,0 +1,12 @@
+@module Slots
+fn @f() -> i256 {
+bb0:
+    v0 = mapping_slot 7, 8
+    v1 = storage_array_data_slot 3
+    v2 = storage_array_element_slot 5, 4, 2
+    v3 = xor v0, v1
+    v4 = xor v3, v2
+    v5 = storage_array_element_slot 3, 7, 0
+    v6 = xor v4, v5
+    ret v6
+}

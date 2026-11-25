@@ -1,0 +1,9 @@
+@module Switch
+fn @pick(arg0: i256) -> i256 {
+  bb0:
+    switch 5, default bb1, [arg0 => bb1, 5 => bb2, 7 => bb1]
+  bb1:
+    ret 1
+  bb2:
+    ret 2
+}

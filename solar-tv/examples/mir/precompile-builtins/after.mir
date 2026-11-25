@@ -1,0 +1,10 @@
+; === solar-tv/examples/mir/precompile-builtins/before.mir (after cfg-simplify) ===
+@module BuiltinHashes
+fn @f() -> i256 {
+  bb0:
+    v0 = inttoptr i256 128 to ptr<memory>
+    v1 = extcall static word i160 2, v0, gas 0x186a0
+    icall revert_if_zero<empty>, v1
+    v2 = mload 0
+    ret v2
+}

@@ -1,0 +1,29 @@
+@module CyclicDce
+fn @entry() [entry] {
+  bb0:
+    v0 = icall @f
+    mstore 0, v0
+    returndata 0, 32
+}
+fn @f() -> i256 {
+  bb0:
+    v0 = add 1, 2
+    v1 = mul v0, 7
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 0], [bb2: v3]
+    v4 = lt v2, 4
+    jumpi v4, bb2, bb3
+  bb2:
+    v3 = add v2, 1
+    v5 = sub v3, 2
+    icall @sink, v2
+    jump bb1
+  bb3:
+    ret v2
+}
+fn @sink(arg0: i256) {
+  bb0:
+    sstore 0, arg0
+    ret
+}

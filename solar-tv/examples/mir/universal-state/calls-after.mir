@@ -1,0 +1,12 @@
+@module Calls
+fn @f(arg0: i256) {
+  bb0:
+    v0 = icall @clean, arg0
+    sstore 0, v0
+    ret
+}
+
+fn @clean(arg0: i256) -> i256 {
+  bb0:
+    ret arg0
+}

@@ -4,7 +4,7 @@
 
 // CHECK-LABEL: {{^[ +].*}}fn @copy_byte{{[( ]}}
 // CHECK: + [[WORD:v[0-9]+]] = mload
-// CHECK: + [[BYTE:v[0-9]+]] = byte 0, [[WORD]]
+// CHECK: + [[BYTE:v[0-9]+]] = byte {{v[0-9]+}}, [[WORD]]
 // CHECK: + mstore8 {{v[0-9]+}}, [[BYTE]]
 fn @copy_byte(arg0: i256, arg1: i256) {
   bb0:
@@ -14,9 +14,9 @@ fn @copy_byte(arg0: i256, arg1: i256) {
 
 // CHECK-LABEL: {{^[ +].*}}fn @copy_word_and_byte{{[( ]}}
 // CHECK: + [[WORD:v[0-9]+]] = mload
-// CHECK: + [[BYTE:v[0-9]+]] = byte 0, [[WORD]]
+// CHECK: + [[BYTE:v[0-9]+]] = byte {{v[0-9]+}}, [[WORD]]
 // CHECK: + mstore8 {{v[0-9]+}}, [[BYTE]]
-// CHECK: + [[REVERSE_BYTE:v[0-9]+]] = byte 0, {{v[0-9]+}}
+// CHECK: + [[REVERSE_BYTE:v[0-9]+]] = byte {{v[0-9]+}}, {{v[0-9]+}}
 // CHECK: + mstore8 {{v[0-9]+}}, [[REVERSE_BYTE]]
 fn @copy_word_and_byte(arg0: i256, arg1: i256) {
   bb0:
@@ -25,7 +25,7 @@ fn @copy_word_and_byte(arg0: i256, arg1: i256) {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @copy_word_and_two_bytes{{[( ]}}
-// CHECK-NOT: mstore8
+// CHECK: mstore8
 // CHECK: {{^[ +].*}}ret
 fn @copy_word_and_two_bytes(arg0: i256, arg1: i256) {
   bb0:

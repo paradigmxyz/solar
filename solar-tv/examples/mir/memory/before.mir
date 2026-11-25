@@ -1,0 +1,8 @@
+@module Memory
+fn @f(arg0: i256) -> i256 {
+bb0:
+  mstore 0, 1
+  mstore 0, arg0
+  v0 = msize
+  ret v0
+}

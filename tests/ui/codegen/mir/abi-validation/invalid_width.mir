@@ -1,0 +1,8 @@
+//@ compile-flags: -Zmir-pipeline=none
+@module InvalidAbiObligation
+fn @f(arg0: i256) {
+bb0:
+  validate_abi uint257, arg0
+//~^ ERROR: invalid ABI word validator
+  ret
+}

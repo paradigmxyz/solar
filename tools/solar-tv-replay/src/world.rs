@@ -1,0 +1,537 @@
+//! Independent, journaled EVM execution for explicit-world proofs.
+//!
+//! Rebuilds the original IR through the compiler rather than accepting the Python importer's
+//! bytecode or instruction recipe. The existing evm2 engine executes nested calls, constructors,
+//! precompiles, refunds and rollback. A custom entry handler avoids transaction fees,
+//! nonce changes and intrinsic gas; an inspector supplies the explicit entry stack and budget.
+
+use super::Request;
+use alloy_consensus::{TxLegacy, transaction::Recovered};
+use alloy_primitives::{Address, Bytes, TxKind, U256, hex};
+use evm2::{
+    BaseEvmTypes, Evm, Precompiles, SpecId, TxResult,
+    bytecode::Bytecode,
+    ethereum::{TxEnvelope, execute_initial_frame, prepare_initial_frame, warm_base_accounts},
+    evm::{AccountInfo, InMemoryDB, inspector::Inspector},
+    interpreter::{Gas, GasTracker, InstrStop, Interpreter},
+    registry::{TxRegistry, TxRequest},
+};
+use serde::Deserialize;
+use serde_json::{Value, json};
+use std::{
+    cell::RefCell,
+    collections::BTreeMap,
+    fs,
+    process::Command,
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
+
+mod context;
+mod mir;
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Input {
+    #[serde(default)]
+    mir_layout: Option<serde_json::Value>,
+    #[serde(default)]
+    creation_gas: Vec<u64>,
+    #[serde(default)]
+    message_gas: Option<Vec<u64>>,
+    #[serde(default)]
+    mir_gas_samples: Vec<mir::GasSample>,
+    #[serde(default)]
+    builtin_gas: Vec<u64>,
+    #[serde(default)]
+    debug_reverts: bool,
+    compiler: String,
+    address: String,
+    caller: String,
+    origin: String,
+    gas_price: String,
+    chain_id: String,
+    blob_hashes: Vec<String>,
+    warm_addresses: Vec<String>,
+    block: context::Block,
+    memory: InitialMemory,
+    gas: Option<u64>,
+    #[serde(rename = "static")]
+    is_static: bool,
+    calldata: Vec<u8>,
+    accounts: Vec<Account>,
+    warm_slots: Vec<(String, String)>,
+    #[serde(default)]
+    gas_policy: Option<String>,
+    /// Observe the first root instruction at this PC in the fixture runtime.
+    #[serde(default)]
+    probe_pc: Option<usize>,
+    /// Execute the fixture's captured root bytecode directly.
+    #[serde(default)]
+    raw_runtime: bool,
+    /// Supply and observe a separate state-gas pool in Amsterdam raw replay.
+    #[serde(default)]
+    amsterdam_reservoir: Option<u64>,
+    /// Include the ordered completed persistent-storage opcodes in MIR replay.
+    #[serde(default)]
+    trace_storage: bool,
+    /// Stop direct MIR replay after this many completed SLOAD instructions.
+    #[serde(default)]
+    probe_sloads: Option<usize>,
+    /// Include the ordered completed whole-word memory stores in MIR replay.
+    #[serde(default)]
+    trace_stores: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Account {
+    address: String,
+    nonce: u64,
+    balance: String,
+    code: Vec<u8>,
+    storage: Vec<(String, String)>,
+    #[serde(default)]
+    transient: Vec<(String, String)>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InitialMemory {
+    data: Vec<u8>,
+    size: u64,
+}
+
+fn word(request: &Request, text: &str) -> Result<U256, String> {
+    let text = if let Some(name) = text.strip_prefix('$') {
+        request.inputs.get(name).ok_or("missing symbolic world input")?
+    } else {
+        text
+    };
+    U256::from_str_radix(text, 10).map_err(|error| error.to_string())
+}
+
+fn address(request: &Request, text: &str) -> Result<Address, String> {
+    let value = word(request, text)?;
+    if value >> 160 != U256::ZERO {
+        return Err("unclean world address".into());
+    }
+    Ok(Address::from_slice(&value.to_be_bytes::<32>()[12..]))
+}
+
+fn number(address: Address) -> String {
+    U256::from_be_slice(address.as_slice()).to_string()
+}
+
+fn code(request: &Request, input: &Input, text: &str) -> Result<Vec<u8>, String> {
+    let directory = tempfile::tempdir().map_err(|error| error.to_string())?;
+    let path = directory
+        .path()
+        .join(format!("entry.{}", if request.kind == "mir" { "mir" } else { "evmir" }));
+    fs::write(&path, text).map_err(|error| error.to_string())?;
+    let mut command = Command::new(&input.compiler);
+    command
+        .arg(path)
+        .args(["-Onone", "--emit=bin-runtime", "--allow=2264"])
+        .arg(format!("--evm-version={}", request.evm_version));
+    if request.kind == "evmir" {
+        command.arg("-Zevm-ir-pipeline=none");
+    }
+    let output = command.output().map_err(|error| error.to_string())?;
+    if !output.status.success() {
+        return Err(format!(
+            "world replay compiler rejected IR: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    let stdout = String::from_utf8(output.stdout).map_err(|error| error.to_string())?;
+    let artifact = stdout.lines().last().ok_or("missing world artifact")?;
+    let value: Value = serde_json::from_str(artifact).map_err(|error| error.to_string())?;
+    let artifacts = value["contracts"].as_object().ok_or("missing world runtime")?;
+    if artifacts.len() != 1 {
+        return Err("world replay requires exactly one runtime".into());
+    }
+    let encoded = artifacts.values().next().unwrap()["bin-runtime"]
+        .as_str()
+        .ok_or("missing world runtime bytes")?;
+    hex::decode(encoded).map_err(|error| error.to_string())
+}
+
+#[derive(Default)]
+struct Snapshot {
+    gas: u64,
+    refund: i64,
+    cut: Option<Value>,
+    samples: Vec<u64>,
+    budgets: Vec<u64>,
+    pcs: Vec<usize>,
+}
+
+struct Observer {
+    stack: Vec<U256>,
+    gas: u64,
+    reservoir: u64,
+    is_static: bool,
+    probe_pc: Option<usize>,
+    snapshot: Rc<RefCell<Snapshot>>,
+}
+
+impl Inspector<BaseEvmTypes> for Observer {
+    fn initialize_interp(&mut self, interp: &mut Interpreter<'_, '_, BaseEvmTypes>) {
+        if interp.message().depth == 0 {
+            interp.set_gas(Gas::new_with_execution_gas_and_reservoir(self.gas, self.reservoir));
+            interp.set_static(self.is_static);
+            for value in self.stack.iter().rev() {
+                interp.stack_mut().push(*value).expect("checked root stack height");
+            }
+        }
+    }
+
+    fn step(&mut self, interp: &mut Interpreter<'_, '_, BaseEvmTypes>) {
+        if let Some(pc) = self.probe_pc
+            && interp.message().depth == 0
+        {
+            let mut snapshot = self.snapshot.borrow_mut();
+            if snapshot.cut.is_some() {
+                return;
+            }
+            let gas = interp.gas().remaining();
+            if interp.pc() == pc && snapshot.pcs.len() < 2048 {
+                let stack = interp.stack();
+                snapshot.cut = Some(json!({
+                    "pc": pc,
+                    "gas": gas,
+                    "refund": interp.gas().refunded(),
+                    "stack": stack.as_slice().iter().rev().map(U256::to_string).collect::<Vec<_>>(),
+                    "memory": interp.memory().as_slice(),
+                    "returndata": interp.return_data().as_ref(),
+                    "samples": snapshot.samples,
+                    "budgets": snapshot.budgets,
+                    "pcs": snapshot.pcs,
+                }));
+            } else if snapshot.pcs.len() < 2048 {
+                snapshot.pcs.push(interp.pc());
+                match interp.opcode() {
+                    0x5a => snapshot.samples.push(gas),
+                    0xf1 | 0xf2 | 0xf4 | 0xfa => snapshot.budgets.push(gas),
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    fn step_end(&mut self, interp: &mut Interpreter<'_, '_, BaseEvmTypes>) {
+        if interp.message().depth == 0 {
+            let mut snapshot = self.snapshot.borrow_mut();
+            snapshot.gas = interp.gas().remaining();
+            snapshot.refund = interp.gas().refunded();
+        }
+    }
+}
+
+pub(super) fn spec(text: &str) -> Result<SpecId, String> {
+    Ok(match text {
+        "istanbul" => SpecId::ISTANBUL,
+        "berlin" => SpecId::BERLIN,
+        "london" => SpecId::LONDON,
+        "paris" => SpecId::MERGE,
+        "shanghai" => SpecId::SHANGHAI,
+        "cancun" => SpecId::CANCUN,
+        "prague" => SpecId::PRAGUE,
+        "osaka" => SpecId::OSAKA,
+        "amsterdam" => SpecId::AMSTERDAM,
+        _ => return Err("unsupported explicit-world fork".into()),
+    })
+}
+
+pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], String> {
+    if input.amsterdam_reservoir.is_some()
+        && (request.evm_version != "amsterdam"
+            || request.kind != "evmir"
+            || !input.raw_runtime
+            || input.probe_pc.is_some()
+            || input.gas_policy.as_deref() != Some("exact"))
+    {
+        return Err("a separate state-gas pool needs exact Amsterdam raw-bytecode replay".into());
+    }
+    if request.kind == "mir" {
+        if input.raw_runtime || input.probe_pc.is_some() {
+            return Err("bytecode probe requires EVM execution".into());
+        }
+        return mir::replay(request, input);
+    }
+    if input.mir_layout.is_some() {
+        return Err("MIR layout is not an EVM world input".into());
+    }
+    if !input.mir_gas_samples.is_empty() {
+        return Err("MIR gas samples require direct MIR execution".into());
+    }
+    if input.probe_sloads.is_some() {
+        return Err("storage read probe requires MIR execution".into());
+    }
+    let budget = input.gas.ok_or("missing EVM entry gas budget")?;
+    let reservoir = input.amsterdam_reservoir.unwrap_or_default();
+    let total = budget.saturating_add(reservoir);
+    if !matches!(request.kind.as_str(), "mir" | "evmir")
+        || total > 30_000_000
+        || input.calldata.len() > 65536
+        || input.accounts.len() > 33
+        || input.warm_slots.len() > 64
+        || input.warm_addresses.len() > 64
+        || input.blob_hashes.len() > 64
+        || input.block.hashes.len() > 256
+        || input.memory.size != 0
+        || !input.memory.data.is_empty()
+        || input.accounts.iter().any(|account| {
+            account.code.len() > 65536
+                || account.storage.len() > 64
+                || !account.transient.is_empty()
+        })
+    {
+        return Err("explicit-world replay limits exceeded".into());
+    }
+    let stack = super::words(request, "stack")?;
+    if stack.len() > 1024 || (request.kind == "mir" && !stack.is_empty()) {
+        return Err("invalid explicit-world entry stack".into());
+    }
+    let execute = |text: &str| -> Result<String, String> {
+        let root = address(request, &input.address)?;
+        let caller = address(request, &input.caller)?;
+        let code = if input.raw_runtime || input.probe_pc.is_some() {
+            let runtime = input
+                .accounts
+                .iter()
+                .find(|account| account.address == input.address)
+                .ok_or("raw bytecode replay requires a root account")?;
+            if input.probe_pc.is_some_and(|pc| pc >= runtime.code.len()) {
+                return Err("bytecode probe PC is outside the root runtime".into());
+            }
+            runtime.code.clone()
+        } else {
+            code(request, input, text)?
+        };
+        let block = context::block(request, input)?;
+        let environment = context::transaction(request, input)?;
+        let database = database(request, input, Some(&code))?;
+        // The observation is the complete fixture world, including untouched accounts and
+        // slots. Seed the overlay as well as its backing database so lazy reads cannot omit
+        // those cells from the final snapshot.
+        let initial = database.cache.clone();
+        let spec = spec(&request.evm_version)?;
+        let mut registry = TxRegistry::<BaseEvmTypes, TxResult>::new();
+        let data = Bytes::copy_from_slice(&input.calldata);
+        let settlement = input.amsterdam_reservoir.map(|_| Arc::new(Mutex::new(None)));
+        let settled = settlement.clone();
+        registry.register(
+            0,
+            |tx| match tx {
+                TxEnvelope::Legacy(tx) => Some(tx),
+                _ => None,
+            },
+            move |request: TxRequest<'_, '_, BaseEvmTypes, TxLegacy>| {
+                warm_base_accounts(request.host, caller, TxKind::Call(root));
+                let mut gas = GasTracker::new_with_execution_gas_and_reservoir(budget, reservoir);
+                let frame = prepare_initial_frame(
+                    request.host,
+                    caller,
+                    0,
+                    TxKind::Call(root),
+                    &data,
+                    U256::ZERO,
+                    &mut gas,
+                )?;
+                let result = execute_initial_frame(
+                    request.host,
+                    &environment,
+                    frame,
+                    &mut gas,
+                    budget,
+                    reservoir,
+                );
+                if let Some(settled) = &settled {
+                    *settled.lock().expect("the replay owns the settlement meter") =
+                        Some(result.gas);
+                }
+                Ok(TxResult::<BaseEvmTypes> {
+                    status: result.stop.is_success(),
+                    stop: result.stop,
+                    output: result.output,
+                    ..Default::default()
+                })
+            },
+        );
+        let mut evm =
+            Evm::<BaseEvmTypes>::new(spec, block, registry, database, Precompiles::base(spec));
+        evm.overlay_db_mut().cache = initial;
+        for addr in &input.warm_addresses {
+            evm.state_mut().prewarm(&address(request, addr)?);
+        }
+        for (addr, slot) in &input.warm_slots {
+            evm.state_mut().prewarm_storage_slot(&address(request, addr)?, word(request, slot)?);
+        }
+        let snapshot = Rc::new(RefCell::new(Snapshot { gas: budget, ..Default::default() }));
+        evm.set_inspector(Observer {
+            stack: stack.clone(),
+            gas: budget,
+            reservoir,
+            is_static: input.is_static,
+            probe_pc: input.probe_pc,
+            snapshot: snapshot.clone(),
+        });
+        let tx = Recovered::new_unchecked(
+            TxEnvelope::Legacy(TxLegacy {
+                to: TxKind::Call(root),
+                gas_limit: total,
+                ..Default::default()
+            }),
+            caller,
+        );
+        let outcome =
+            evm.transact(&tx).map(evm2::ExecutedTx::commit).map_err(|error| error.to_string())?;
+        let snapshot = snapshot.borrow();
+        if input.probe_pc.is_some() {
+            return snapshot
+                .cut
+                .as_ref()
+                .map(Value::to_string)
+                .ok_or_else(|| format!("bytecode probe was not reached ({:?})", outcome.stop));
+        }
+        let stop = match outcome.stop {
+            stop if stop.is_success() => "success",
+            InstrStop::Revert => "revert",
+            InstrStop::OutOfGas
+            | InstrStop::MemoryOOG
+            | InstrStop::MemoryLimitOOG
+            | InstrStop::PrecompileOOG
+            | InstrStop::InvalidOperandOOG
+            | InstrStop::ReentrancySentryOOG
+            | InstrStop::CreateInitCodeSizeLimit => "out-of-gas",
+            _ => "exception",
+        };
+        let mut accounts = BTreeMap::new();
+        for (&addr, account) in &evm.overlay_db().cache.accounts {
+            let Some(account) = account else { continue };
+            let slots = evm
+                .overlay_db()
+                .cache
+                .storage
+                .get(&addr)
+                .map(|storage| {
+                    storage
+                        .slots
+                        .iter()
+                        .filter(|(_, value)| !value.is_zero())
+                        .map(|(key, value)| (*key, *value))
+                        .collect::<BTreeMap<_, _>>()
+                })
+                .unwrap_or_default();
+            let code = if addr == root {
+                Vec::new()
+            } else {
+                account
+                    .code
+                    .as_ref()
+                    .or_else(|| evm.overlay_db().cache.contracts.get(&account.code_hash))
+                    .map(|code| code.original_byte_slice().to_vec())
+                    .unwrap_or_default()
+            };
+            accounts.insert(
+                addr,
+                json!([
+                    number(addr),
+                    account.nonce.to_string(),
+                    account.balance.to_string(),
+                    code,
+                    slots
+                        .iter()
+                        .map(|(key, value)| [key.to_string(), value.to_string()])
+                        .collect::<Vec<_>>()
+                ]),
+            );
+        }
+        let logs = outcome
+            .logs
+            .iter()
+            .map(|log| {
+                json!([
+                    number(log.address),
+                    log.data
+                        .topics()
+                        .iter()
+                        .map(|topic| U256::from_be_slice(topic.as_slice()).to_string())
+                        .collect::<Vec<_>>(),
+                    log.data.data.to_vec()
+                ])
+            })
+            .collect::<Vec<_>>();
+        let paid = input.gas_policy.is_some();
+        let mut observation = vec![
+            json!(stop),
+            json!(outcome.output.to_vec()),
+            json!(if !paid || matches!(stop, "exception" | "out-of-gas") {
+                0
+            } else {
+                snapshot.gas
+            }),
+            json!(if paid && stop == "success" { snapshot.refund } else { 0 }),
+            json!(accounts.into_values().collect::<Vec<_>>()),
+            json!(logs),
+        ];
+        if let Some(settlement) = settlement {
+            let meter = settlement
+                .lock()
+                .expect("the replay owns the settlement meter")
+                .ok_or("missing settled Amsterdam gas")?;
+            observation[2] = json!(meter.remaining());
+            observation[3] = json!(meter.refunded());
+            observation.push(json!([
+                meter.remaining(),
+                meter.reservoir(),
+                meter.state_gas_spent(),
+                meter.state_gas_spilled(),
+            ]));
+        }
+        Ok(json!(observation).to_string())
+    };
+    Ok([execute(&request.before)?, execute(&request.after)?])
+}
+
+/// The explicit fixture database; root code is supplied only for EVM IR replay.
+fn database(
+    request: &Request,
+    input: &Input,
+    root_code: Option<&[u8]>,
+) -> Result<InMemoryDB, String> {
+    let root = address(request, &input.address)?;
+    let mut database = InMemoryDB::default();
+    for account in &input.accounts {
+        let addr = address(request, &account.address)?;
+        let bytes = if addr == root { root_code.unwrap_or(&account.code) } else { &account.code };
+        database.insert_account_info(
+            &addr,
+            AccountInfo::default()
+                .with_nonce(account.nonce)
+                .with_balance(word(request, &account.balance)?)
+                .with_code(if bytes.len() == 23 && bytes.starts_with(&[0xef, 0x01, 0x00]) {
+                    Bytecode::new_eip7702(Address::from_slice(&bytes[3..]))
+                } else {
+                    Bytecode::new_legacy(Bytes::copy_from_slice(bytes))
+                }),
+        );
+        for (key, value) in &account.storage {
+            database.insert_account_storage(&addr, &word(request, key)?, &word(request, value)?);
+        }
+    }
+    // Missing history is explicitly zero in the fixture. EmptyDB's synthetic hashes
+    // are unsuitable here: seed the complete admissible BLOCKHASH window first.
+    let current = word(request, &input.block.number)?;
+    for distance in 1..=256u64 {
+        if let Some(number) = current.checked_sub(U256::from(distance)) {
+            database.insert_block_hash(&number, &Default::default());
+        }
+    }
+    for (number, hash) in &input.block.hashes {
+        database.insert_block_hash(&word(request, number)?, &word(request, hash)?.into());
+    }
+    Ok(database)
+}

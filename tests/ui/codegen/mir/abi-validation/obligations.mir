@@ -1,0 +1,27 @@
+//@ compile-flags: -Zmir-pipeline=none
+//@ filecheck:
+@module AbiObligations
+
+// CHECK-LABEL: fn @obligations
+// CHECK: validate_abi uint1, arg0
+// CHECK: validate_abi uint255, arg0
+// CHECK: validate_abi uint256, arg0
+// CHECK: validate_abi int8, arg0
+// CHECK: validate_abi int256, arg0
+// CHECK: validate_abi bytes24, arg0
+// CHECK: validate_abi bytes32, arg0
+// CHECK: validate_abi bool, arg0
+// CHECK: validate_abi enum 3, arg0
+fn @obligations(arg0: i256) {
+bb0:
+  validate_abi uint1, arg0
+  validate_abi uint255, arg0
+  validate_abi uint256, arg0
+  validate_abi int8, arg0
+  validate_abi int256, arg0
+  validate_abi function, arg0
+  validate_abi bytes32, arg0
+  validate_abi bool, arg0
+  validate_abi enum 3, arg0
+  ret
+}

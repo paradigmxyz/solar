@@ -30,5 +30,6 @@ pub use link::{
 mod isle_log;
 
 mod debugify;
+mod solar_tv;
 pub(crate) mod target;
 mod timing;

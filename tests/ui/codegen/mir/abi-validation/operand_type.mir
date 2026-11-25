@@ -1,0 +1,8 @@
+//@ compile-flags: -Zmir-pipeline=none
+@module InvalidAbiOperand
+fn @f(arg0: i1) {
+bb0:
+  validate_abi uint8, arg0
+//~? ERROR: [fn0] [bb0, inst0] `validate_abi` has incompatible scalar types; use an explicit cast
+  ret
+}

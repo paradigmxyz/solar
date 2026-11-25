@@ -35,6 +35,8 @@
 //! 16. **Canonical operand order**: constants sit on the right of commutative operations and
 //!     comparisons, and a comparison of two values is `lt` or `slt`, see
 //!     [`Function::has_canonical_operands`].
+//! 17. **Frame slots**: the multi-return pointer slot holds one word at offset zero, frame offsets
+//!     fit their convention's local region, and loads use the slot's result type.
 //!
 //! # Usage
 //!
@@ -43,9 +45,10 @@
 //! ```
 
 use crate::{
-    AbiType, BlockId, Builtin, Callee, ExtCallKind, Function, FunctionId, InstId, InstKind,
-    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PtrLocation, RequireKind,
-    ResultKind, StorageAlias, StructId, Terminator, TypeSize, Value, ValueId, analysis::CfgInfo,
+    AbiType, BlockId, Builtin, Callee, ExtCallKind, FrameMode, FrameSlotKind, Function, FunctionId,
+    InstId, InstKind, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PtrLocation,
+    RequireKind, ResultKind, StorageAlias, StructId, Terminator, TypeSize, Value, ValueId,
+    analysis::CfgInfo, memory::EvmMemoryLayout,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -872,6 +875,28 @@ impl<'a> Validator<'a> {
                 inst.kind.visit_operands(|value| check_struct(func.value_ty(value)));
                 check_struct(inst.result_ty);
                 match &inst.kind {
+                    InstKind::FrameLoad { offset, mode, kind }
+                    | InstKind::FrameStore { offset, mode, kind, .. } => {
+                        if *mode == FrameMode::MultiReturn
+                            && (*offset != 0 || *kind != FrameSlotKind::Word)
+                        {
+                            self.emit_at_inst(
+                                "multi-return frame slot requires a word at offset zero",
+                                block,
+                                id,
+                            );
+                        }
+                        let prefix = match mode {
+                            FrameMode::External => Some(EvmMemoryLayout::HEAP_START),
+                            FrameMode::Internal => EvmMemoryLayout::internal_frame_prefix(
+                                func.params.len() + func.return_components().len(),
+                            ),
+                            FrameMode::MultiReturn => Some(0),
+                        };
+                        if prefix.and_then(|prefix| prefix.checked_add(*offset)).is_none() {
+                            self.emit_at_inst("frame slot offset overflows u64", block, id);
+                        }
+                    }
                     InstKind::Phi(incoming) => {
                         for &(_, value) in incoming {
                             self.check_value_type(func.value_ty(value), inst.result_ty, block, id);
@@ -941,6 +966,11 @@ impl<'a> Validator<'a> {
                                 block,
                                 id,
                             );
+                        }
+                    }
+                    InstKind::ValidateAbi { validator, .. } => {
+                        if !validator.is_well_formed() {
+                            self.emit_at_inst("invalid ABI word validator", block, id);
                         }
                     }
                     InstKind::AbiDecode { layout, .. } => {

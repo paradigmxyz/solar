@@ -870,6 +870,111 @@ impl<'a> Verifier<'a> {
         }
         after
     }
+
+    /// Returns fixed entry heights justified by roots and every incoming direct edge.
+    ///
+    /// Propagate one height from each root; a conflicting arrival invalidates the block and
+    /// every successor. This separate fixed-point walk does not use the verifier's cycle-cut
+    /// minimum depths as exact values. Escaping labels and call continuations remain unknown.
+    pub fn stack_entry_exact_depths(
+        module: &Module,
+        evm_version: EvmVersion,
+    ) -> IndexVec<BlockId, Option<usize>> {
+        let dcx = DiagCtxt::with_silent_emitter(None);
+        if !Verifier::for_evm_version(&dcx, evm_version).verify_module_shape(module) {
+            return index_vec![None; module.blocks.len()];
+        }
+        let flows = label_flows(module);
+        let mut depths = index_vec![None; module.blocks.len()];
+        let mut unknown = DenseBitSet::new_empty(module.blocks.len());
+        let mut opaque = Vec::new();
+        let mut pending = Vec::new();
+        for (id, block) in module.blocks.iter_enumerated() {
+            if let Some(depth) =
+                block.metadata.entry_depth.map(usize::from).or((id == BlockId::ENTRY).then_some(0))
+            {
+                pending.push((id, depth));
+            }
+            for (at, inst) in block.instructions.iter().enumerate() {
+                if let Some(target) = inst.pushed_block()
+                    && !block.instructions.get(at + 1).is_some_and(|next| {
+                        matches!(next.as_evm_opcode(), Some(op::JUMP | op::JUMPI))
+                    })
+                {
+                    opaque.push(target);
+                }
+            }
+            opaque.extend(flows[id].returns.iter().map(|&(target, _)| target));
+        }
+        forget_exact_depths(module, &flows, &mut depths, &mut unknown, opaque);
+        while let Some((id, mut depth)) = pending.pop() {
+            if unknown.contains(id) || depths[id] == Some(depth) {
+                continue;
+            }
+            if depths[id].is_some() || depth > MAX_STACK_DEPTH {
+                forget_exact_depths(module, &flows, &mut depths, &mut unknown, vec![id]);
+                continue;
+            }
+            depths[id] = Some(depth);
+            let block = &module.blocks[id];
+            let mut edges = Vec::new();
+            let mut valid = true;
+            for (at, inst) in block.instructions.iter().enumerate() {
+                let effect = inst.stack_effect();
+                let Some(after) = depth
+                    .checked_sub(usize::from(effect.inputs))
+                    .map(|n| n + usize::from(effect.outputs))
+                else {
+                    valid = false;
+                    break;
+                };
+                depth = after;
+                if depth > MAX_STACK_DEPTH {
+                    valid = false;
+                    break;
+                }
+                if inst.as_evm_opcode() == Some(op::JUMPI)
+                    && let Some(target) = branch_target(block, at)
+                {
+                    edges.push((target, depth));
+                }
+            }
+            if valid && let Some(term) = &block.terminator {
+                let after = default_terminator_stack_effect(&term.kind).and_then(|effect| {
+                    depth
+                        .checked_sub(usize::from(effect.inputs))
+                        .map(|n| n + usize::from(effect.outputs))
+                });
+                if let Some(after) = after.filter(|&n| n <= MAX_STACK_DEPTH) {
+                    term.kind.visit_targets(|target| edges.push((target, after)));
+                } else {
+                    valid = false;
+                }
+            }
+            if valid {
+                pending.extend(edges);
+            } else {
+                forget_exact_depths(module, &flows, &mut depths, &mut unknown, vec![id]);
+            }
+        }
+        depths
+    }
+}
+
+/// Invalidates exact heights transitively, including modeled call continuations.
+fn forget_exact_depths(
+    module: &Module,
+    flows: &IndexVec<BlockId, LabelFlow>,
+    depths: &mut IndexVec<BlockId, Option<usize>>,
+    unknown: &mut DenseBitSet<BlockId>,
+    mut pending: Vec<BlockId>,
+) {
+    while let Some(id) = pending.pop() {
+        if unknown.insert(id) {
+            depths[id] = None;
+            direct_successors(&flows[id], &module.blocks[id], &mut pending);
+        }
+    }
 }
 
 /// The entry depths the stack-operation walk has propagated into a block.

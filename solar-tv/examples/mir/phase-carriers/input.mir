@@ -1,0 +1,42 @@
+@module CarrierLoop
+
+fn @entry() [entry] {
+  bb0:
+    tail_call @go
+}
+
+fn @go() {
+  bb0:
+    icall @abort, 37
+    invalid
+}
+
+fn @abort(arg0: i256) {
+  bb0:
+    mstore 0, arg0
+    revert 0, 32
+}
+
+fn @count(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v4]
+    v1 = inttoptr i256 v0 to ptr<memory>
+    v2 = ptrtoint ptr<memory> v1 to i256
+    v3 = lt v2, arg0
+    jumpi v3, bb2, bb3
+  bb2:
+    v4 = add v2, 1
+    jump bb1
+  bb3:
+    ret v2
+}
+
+fn @observe_gas() -> i256 {
+  bb0:
+    v0 = gas
+    v1 = inttoptr i256 v0 to ptr<memory>
+    v2 = ptrtoint ptr<memory> v1 to i256
+    ret v2
+}

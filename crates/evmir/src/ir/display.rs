@@ -23,6 +23,11 @@ impl Module {
             )
         })
     }
+
+    /// Displays a complete block using this module's stable labels and data names.
+    pub fn block_text(&self, id: BlockId) -> impl fmt::Display + '_ {
+        display_block(self, &self.blocks[id])
+    }
 }
 
 fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display + 'a {

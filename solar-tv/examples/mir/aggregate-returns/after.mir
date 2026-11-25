@@ -1,0 +1,28 @@
+@module AggregateReturns
+fn @f() -> i256 {
+  bb0:
+    v16 = icall @make
+    v29 = mload 32 !metadata(memory=scratch)
+    v18 = add v29, 32
+    v19 = mload v18
+    v20 = ne v19, 0
+    v21 = add v29, 64
+    v22 = mload v21
+    v23 = add v29, 96
+    v24 = mload v23
+    v25 = add v29, 128
+    v26 = mload v25
+    v3 = zext i8 v16 to i256
+    v5 = zext i1 v20 to i256
+    v9 = mul v22, 2
+    v12 = add v3, v5
+    v13 = add v12, v9
+    v14 = add v13, v24
+    v15 = add v14, v26
+    ret v15
+}
+
+fn @make() [return_abi=[i8, i1, i256, i256, i256]] {
+  bb0:
+    ret i8 255, true, 128, 7, 19
+}

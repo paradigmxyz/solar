@@ -1,0 +1,10 @@
+{
+  "kind": "amsterdam_storage",
+  "runtime": "0x60015f555f5f555f545f5260205ff3",
+  "reservoir": 100000,
+  "world": {
+    "version": 1,
+    "address": 65536,
+    "gas": 20000
+  }
+}

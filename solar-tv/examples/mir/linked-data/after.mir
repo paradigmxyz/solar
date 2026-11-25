@@ -1,0 +1,10 @@
+@module LinkedData
+@data
+  child_0: runtime_code "child.sol:Child"
+
+fn @f() -> i256 {
+  bb0:
+    mstore 0, 0x1122330000000000000000000000000000000000000000000000000000000000
+    v0 = mload 0
+    ret v0
+}

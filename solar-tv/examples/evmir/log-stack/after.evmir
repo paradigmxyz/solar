@@ -1,0 +1,36 @@
+@module LogStack
+bb0 [stack=6]:
+  push 64
+  mload
+  caller
+  dup 2
+  mstore
+  dup 5
+  push 32
+  dup 3
+  add
+  mstore
+  dup 4
+  push 64
+  dup 3
+  add
+  mstore
+  push 0x570954540bed6b1304a87dfe815a5eda4a648f7097a16240dcd85c9b5fd42a43
+  push 96
+  dup 5
+  swap 8
+  swap 3
+  log4
+  swap 3
+  mload
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  and
+  dup 2
+  swap 3
+  swap 1
+  push bb1
+  jump bb2
+bb1:
+  stop
+bb2:
+  stop

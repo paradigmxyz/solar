@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "caller": 42,
+  "accounts": [
+    {
+      "address": 65536,
+      "storage": {
+        "0": "9"
+      }
+    }
+  ]
+}

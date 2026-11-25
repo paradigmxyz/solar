@@ -1,0 +1,14 @@
+; === solar-tv/examples/mir/typed-branch/before.mir (after cfg-simplify) ===
+@module TypedBranch
+fn @pick(arg0: i1, arg1: i160) -> i160 {
+  bb0:
+    jumpi arg0, bb2, bb1
+  bb1:                                            ; preds = bb0
+    v0 = add arg1, i160 1
+    jump bb2
+  bb2:                                            ; preds = bb1, bb0
+    v1 = phi [bb0: arg1], [bb1: v0]
+    v2 = zext i160 v1 to i256
+    v3 = trunc i256 v2 to i160
+    ret v3
+}

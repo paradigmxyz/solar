@@ -828,7 +828,14 @@ fn copies_as_block(element: &AbiType, source: PackedArraySource) -> bool {
         }
     }
     match source {
-        PackedArraySource::Memory { .. } => matches!(element, AbiType::Word(None)),
+        PackedArraySource::Memory { layout } => {
+            let words = match layout {
+                MemoryObjectLayout::DynamicArray { element_words }
+                | MemoryObjectLayout::FixedArray { element_words, .. } => element_words,
+                _ => return false,
+            };
+            words == 1 && matches!(element, AbiType::Word(None))
+        }
         PackedArraySource::Slice(_) => plain_words(element),
     }
 }

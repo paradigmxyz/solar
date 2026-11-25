@@ -1,0 +1,33 @@
+; === solar-tv/examples/mir/allocation/before.mir (after lower-alloc) ===
+@module Allocations
+fn @f(arg0: i256) -> i256 {
+  bb0:
+    mstore 64, 128
+    v3 = icall @alloc, 32
+    memory_zero v3, 32
+    mstore v3, arg0
+    v4 = icall @alloc, 32
+    memory_zero v4, 32
+    mstore v4, 7
+    v2 = mload v3
+    ret v2
+}
+
+fn @alloc(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v1 = inttoptr i256 v0 to ptr<memory>
+    v2 = add v0, arg0 !metadata(alloc_ptr)
+    v3 = lt v2, v0
+    v4 = gt v2, 0xffffffffffffffff
+    v5 = or v3, v4
+    v6 = zext i1 v5 to i256
+    jumpi v5, bb1, bb2
+  bb2:                                            ; preds = bb0
+    mstore 64, v2 !metadata(memory=scratch)
+    ret v1
+  bb1 [cold]:                                     ; preds = bb0
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
