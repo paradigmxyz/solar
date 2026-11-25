@@ -1633,8 +1633,79 @@ pointer followed by a load from an older allocation. Both versions return
 overwrites the reserved pointer word and the original returns 17 while the
 forwarded version returns 7. Local Lean lemmas check that a continuing
 allocation publishes its nonwrapping end and that a disjoint byte store
-preserves the published word. Binding that invariant through the three
-compiler captures remains open.
+preserves the published word. The initial CSE gate leaves cursor propagation
+through those captures unproved.
+
+### Strict initialized-heap CSE audit
+
+The strict serial gate `evaluate --all --require-verified --valid-heap
+--pass cse --timeout 15 --seed 0` verifies all 48 pinned captures. The
+capture IDs, raw before and after hashes, input fingerprints and compiler
+outputs match the full audit and preceding CSE gate. The normal and capture
+runs again agree on ABI, creation bytecode and runtime bytecode.
+
+| Contract | Selected | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Solady WETH | 4 | 4 | 0 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 6 | 6 | 0 | 0 | 0 |
+| Morpho Blue | 38 | 38 | 0 | 0 | 0 |
+| Total | 48 | 48 | 0 | 0 | 0 |
+
+The compiler, launcher, replay binary, manifest and input hashes are those
+in the preceding CSE audit. The checker on Lean 4.34.1 has fingerprint
+`fe88a17abd058390bd248f24b207efb57af87575699befe742fb216b6100e670`.
+`target/tv-cse-heap-final/results.json` has SHA-256
+`7ba1f7f8b3cd103a530f2bc3730ee032b08c9acdc1065997c61e78a863d8b720`.
+
+The three certificates for `createMarket`, `setAuthorizationWithSig`, and
+`_accrueInterest` use `kernel-checked-valid-heap-read-reuse`. At the selected
+logical MIR entry, aligned memory up to 64 KiB covers the cursor at byte 64.
+The initial free-memory pointer lies between 128 and the uint64 maximum.
+Lean checks cursor offsets along all admitted edges and proves the result
+and exact cursor word of a successful nonzeroing allocation. A normal
+return with a typed scalar or pointer can compose a cursor summary.
+The `createMarket` decoder advances its caller's cursor by 160 bytes and
+returns the old cursor. The kernel checks that continuing raw messages
+preserve active words outside the output range in caller memory.
+
+The trusted typed exporter binds transfers, summaries and operands to
+the source effects. The heap analysis covers acyclic bodies and forgets
+a cursor when its incoming paths cannot establish a common offset.
+The initialized-heap contract applies to the selected logical MIR entry.
+Connecting the physical ABI cuts below to those MIR activations and
+pricing the rest of the emitted execution remain open.
+
+The independent regression returns 7 on both sides with an initial pointer
+of 128. With a pointer of zero it returns 17 before reuse and 7 after
+reuse. Redirecting a write to the old allocation produces the same
+difference at a valid pointer of 128 and loses the certificate even with
+`--valid-heap`.
+
+### Metered Morpho heap entry cuts
+
+Separate local certificates use the exact pinned Morpho runtime image,
+SHA-256 `d2c1c3d7bb22df8c2e0e9853f10f2657af1c547028e7287b0452a9943a23cd2e`.
+Lean checks each emitted dispatch instruction from PC zero to the FMP
+store, including the selector read, calldata length checks, jump targets,
+stack words and exact debit. The store writes 288 to bytes 64 through
+95 and establishes the initialized-heap contract from the emitted frame.
+The proofs quantify calldata with the stated selector and minimum length
+below `2^256`, zero call value, and arbitrary initial journal.
+
+| Public route | Selector | Minimum bytes | Instructions | Gas | Cut PC |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `createMarket` | `0x8c1358a2` | 164 | 61 | 250 | 1442 |
+| `setAuthorizationWithSig` | `0x8069218f` | 260 | 47 | 191 | 6639 |
+| `accrueInterest` | `0x151c1ade` | 164 | 47 | 185 | 1442 |
+
+Independent Rust replay reached the matching cut with zero gas remaining
+at each exact budget, and ran out of gas one unit below each budget.
+The generated `HeapPrefix*.lean` certificates and
+`heap-prefix-replay-boundaries.json` are retained in
+`target/tv-cse-heap-dev/`. Their entry-cut proofs establish the physical
+producer. The remaining obligations include the frame and argument
+correspondence at the logical MIR cut, the continuation to the internal
+`_accrueInterest` activation, and the emitted suffix.
 
 ### Stack-carried continuations
 

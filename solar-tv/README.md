@@ -2112,6 +2112,18 @@ the module that adds the shared checked allocation helper. Its 67-capture
 run also checks conditional branches, ABI encoding and memory zeroing.
 [Allocation audit](CORRECTNESS.md#strict-allocation-lowering-audit)
 
+To check MIR CSE with initialized logical heap entries, run the dedicated gate:
+
+```sh
+solar-tv/evaluate --all --require-verified --valid-heap --pass cse \
+  --timeout 15 --seed 0 --output target/tv-cse-heap
+```
+
+The extra proof mode records its cursor premise in each affected check.
+The selected MIR function starts with active, aligned memory and a live
+free-memory pointer of at least 128 that fits in uint64. Connecting the
+premise to physical ABI callers remains a separate proof obligation.
+
 Selected records for the same dispatch pair share the module-level proof
 report. Early CFG simplification, layout and compact PUSH captures can also
 share a physical-entry proof when it covers the label on both sides. The
