@@ -1982,8 +1982,9 @@ child calldata. A structural check covers the whole entry body, including
 phi and terminator operands, and finds exactly one use of the sampled
 SSA value in each wrapper. It is the gas operand of the same raw `CALL`.
 The composition still needs to relate the two caller gas checkpoints,
-the calldata and output area, and the effects of the child continuation.
-Direct Rust MIR replay rejects both wrappers at the isolated-GAS guard.
+the calldata and output area, and the effects of the child continuation
+for arbitrary environments. The concrete composition below supplies the
+gas inputs at these checkpoints.
 
 Independent Rust replay of the emitted image checks the 356-byte call
 input and zero value at the physical cut. A stateful IRM fixture commits
@@ -1999,6 +2000,57 @@ succeeds at 153,384 gas and rolls back at 153,383.
 | `MarketIrmMirShape.lean` | `f1af77ebfd5f8f809c4df31ff61178224ab6654739eba3f4231ec3ccb0f957ea` |
 | `market-child-native.json` | `4345ec79b9e5a919c0315b33ee1f6baec691e22447dfca364e0fd5bd2fa03ab6` |
 | `replay-market-child.py` | `b4044ea5d7f22f139eca71df03d4e32ec710be9fc293900cbef38ace9e9e2cff` |
+
+#### Composed IRM invocations
+
+The kernel follows the full emitted image from ABI entry at PC 0 through
+the `CALL` boundary to the terminal result. The checked trace supplies
+the pre-`GAS` sample and the parent budget immediately before the call to
+both typed `mirEE6CAo` captures. The typed transitions consume both records
+in order and execute the child bytecode for admitted calls. The proof
+compares the finalized accounts, logs, completion and return data, and
+equates the parent gas immediately after the child. The emitted trace
+separately checks the exact exit gas and refund.
+
+Independent Rust replay reparses the original MIR for each capture. It
+uses the emitted probe for the gas inputs and requires the sample at the
+scheduled function, block and instruction in each capture. A missing,
+misplaced or unused sample produces an unsupported replay. The Rust runs
+agree on the terminal effects and the returned CALL budget.
+
+| Fixture | Root gas | Result | Gas left at exit |
+| --- | ---: | --- | ---: |
+| Child writes and returns a word | 500,000 | Success with the parent event and child write | 346,930 |
+| Child checks all 356 calldata bytes before writing | 500,000 | Success with the parent event and child write | 346,575 |
+| Child writes and reverts with `0xdeadbeef` | 500,000 | Revert with the payload and full rollback | 346,932 |
+| Same successful child at its admission boundary | 153,384 | Success | 314 |
+| Same child with one less gas | 153,383 | Child failure, followed by parent revert and rollback | 321 |
+| Parent reaches `CALL` with zero gas | 128,312 | Parent out of gas with full rollback | 0 |
+
+The unpaid call consumes the GAS sample and checks that the MIR caller
+rejects the CALL budget. Both interpreters report an empty returned gas
+ledger because no child ran.
+
+These proofs use the pinned Cancun runtime, concrete accounts and calldata,
+timestamp 1, explicit MIR entry memory, and bounded traces. The general
+state and gas relation, and reentry into a MIR root whose runtime is
+unknown to the logical interpreter, remain open.
+
+The image theorem checks all 8,463 bytes against the runtime used for
+Rust replay. The six joined invocation theorems use `propext` and
+`Quot.sound`. The calldata-checking fixture used a 6 GiB Lean worker limit.
+`target/tv-routed-heap/market-irm-trace-sha256.txt` fingerprints 366 proof
+sources, captures and replay artifacts. From that directory, run `shasum
+-a 256 -c market-irm-trace-sha256.txt` to check the recorded inputs and
+outputs.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Compiler executable | `f996616dcf2ebacf05fc5cc439f4814dc38fe953fad90b698754281c59ef139c` |
+| Independent Rust replay | `afd4d44b1a2d91c975b6bca3dc1fb6531bf48d8d3750bf4c114ec6071afa1c7a` |
+| Emitted runtime bytes | `d2c1c3d7bb22df8c2e0e9853f10f2657af1c547028e7287b0452a9943a23cd2e` |
+| `MarketIrmImage.lean` | `334e6a559c24fca158a98926529a90aa04e14a6399c9ea3af094bf5718a6c1d6` |
+| `market-irm-trace-sha256.txt` | `8e9b168974c1d51b53f323d22b316a0b45a5cb7c1114722397828db7ca8c0b8b` |
 
 ### Decoded set-code fee settlement
 
