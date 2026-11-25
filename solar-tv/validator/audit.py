@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import tempfile
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -541,6 +542,27 @@ def record(
                 assumptions.append(
                     "calldata length fits an i256 word; copying from its end writes the same zero bytes with the same destination memory expansion"
                 )
+            elif (
+                program.import_evidence["kind"] == "kernel-checked-allocation-lowering"
+            ):
+                counts = Counter()
+                for proof in program.import_evidence["correspondence"].values():
+                    counts.update(proof.get("allocation_expansions", {}))
+                assumptions.append(
+                    "memory is aligned and fits the 64 KiB model at each expanded allocation; checked failure observes the exact panic bytes and discards private frame memory"
+                )
+                if counts["infallible"]:
+                    assumptions.append(
+                        "at each infallible reservation the source producer ensures that the cursor bump neither wraps nor exceeds uint64"
+                    )
+                if counts["floor-bump"]:
+                    assumptions.append(
+                        "heap-floor substitutions are outside creation and dispatch activations; at each substitution the named placement equals the live FMP and word 0x40 is already active"
+                    )
+                if counts["helper-bump"]:
+                    assumptions.append(
+                        "the checked helper has one word argument and one memory-pointer result; its call shares memory, and the model has enough internal call work and depth"
+                    )
             elif program.import_evidence["kind"] == "kernel-checked-conditional-checks":
                 assumptions.extend(
                     [

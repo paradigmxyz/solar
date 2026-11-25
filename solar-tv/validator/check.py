@@ -1214,6 +1214,7 @@ def main() -> int:
                         coalesce,
                         dead_ssa,
                         induction,
+                        lower_alloc,
                         memory_induction,
                         mir_cfg,
                     )
@@ -1246,7 +1247,7 @@ def main() -> int:
                             builtin_lowering.check,
                         )
                     )
-                    for validate in validators:
+                    for validate in (*validators, lower_alloc.check):
                         try:
                             result = validate(
                                 (args.before, args.after),
@@ -1263,7 +1264,8 @@ def main() -> int:
                             ):
                                 print(f"ABI contextual proof: {retry}", file=sys.stderr)
                             continue
-                        break
+                        if result is not None:
+                            break
                     else:
                         raise error from None
                     programs = list(result.pair)
@@ -1353,7 +1355,7 @@ def main() -> int:
         ):
             # A failed direct proof can still admit an action-by-action
             # certificate without duplicating the unfolding of shared tails.
-            from . import abi_effects, abi_encode, lower_abi, mir_cfg
+            from . import abi_effects, abi_encode, lower_abi, lower_alloc, mir_cfg
 
             if (
                 isinstance(error, Unsupported)
@@ -1382,6 +1384,17 @@ def main() -> int:
                         error = retry
                     else:
                         break
+
+            if fallback is None:
+                fallback = lower_alloc.check(
+                    (args.before, args.after),
+                    solar,
+                    rust_replay,
+                    version,
+                    args.timeout,
+                    args.function,
+                    verbose=args.verbose,
+                )
 
             if fallback is None and all(
                 program.symbolic_mir is not None for program in programs

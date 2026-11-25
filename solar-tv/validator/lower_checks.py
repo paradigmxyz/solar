@@ -34,7 +34,7 @@ def scratch(selector, words):
     }
 
 
-def short_helper(index):
+def expected_helper(index):
     def argument(index):
         return {"index": index, "kind": "arg", "type": WORD}
 
@@ -180,10 +180,14 @@ def bind_helper(tables, declarations):
         or HELPER in before
         or target[HELPER]["root"]
         or target[HELPER]["text"][0] != HELPER_HEADER
-        or helper != short_helper(helper["id"])
+        or helper != expected_helper(helper["id"])
     ):
         raise Unsupported("short-string helper does not match its checked body")
     return helper
+
+
+def materialize_pair(before, _after, helper):
+    return materialize(before, helper)
 
 
 def check(paths, solar, replay, version, timeout, function, *, verbose=False):

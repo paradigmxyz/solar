@@ -99,8 +99,8 @@ impl<'a> Snapshot<'a> {
         // Capture keeps the original selection and rejection for stable corpus sampling.
         // Universal prefix and terminal-region proofs need no guessed stack height.
         // Deleted functions require rooted function-table correspondence. Unused type
-        // declarations, phase advances, materialized dispatch and the private revert helper
-        // have module certificates.
+        // declarations, phase advances, materialized dispatch and the private allocation and
+        // revert helpers have module certificates.
         // Other rejected regions retain their original boundary restrictions.
         let prefix = layer == "evmir"
             && gas_policy.is_none()
@@ -110,10 +110,10 @@ impl<'a> Snapshot<'a> {
             && gas_policy.is_none()
             && region.is_some_and(|r| r.kind == "region")
             && rejection == Some("incoming EVM stack height is unknown");
-        let added_revert_helper = pass == "lower-checks"
+        let added_private_helper = matches!(pass, "lower-checks" | "lower-alloc")
             && rejection == Some("functions were added; interprocedural edits are not modeled");
         let prune = layer == "mir"
-            && (added_revert_helper
+            && (added_private_helper
                 || matches!(
                     rejection,
                     Some("function was removed or its identity changed")

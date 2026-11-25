@@ -617,9 +617,29 @@ theorem matchedCalls {{Value World Observation : Type}}
 """
 
 
+def proof_sources(prefix, setup, bodies, composition, *, module):
+    """Check large procedure tables without keeping all reductions live at once."""
+    module_limit = 100_000
+    single = setup + "".join(bodies) + composition
+    if not module or len(single) <= module_limit:
+        return [("Cfg", single)]
+
+    sources, batch = [], ""
+    for body in bodies:
+        if batch and len(batch) + len(body) > module_limit:
+            sources.append((f"CfgProcedures{len(sources)}", prefix + batch))
+            batch = ""
+        batch += body
+    if batch:
+        sources.append((f"CfgProcedures{len(sources)}", prefix + batch))
+    imports = "".join(f"import {name}\n" for name, _ in sources)
+    return [*sources, ("Cfg", imports + setup + composition)]
+
+
 def check(paths, solar, executable, version, timeout, function, *, lowering=None):
     from .check import PRELUDE, ROOT, build_model, run
 
+    helper_adapter = None
     if lowering == "lower-mapping-slots":
         from .lower_mapping_slots import materialize
     elif lowering == "lower-memory-objects":
@@ -632,6 +652,12 @@ def check(paths, solar, executable, version, timeout, function, *, lowering=None
         from .lower_memory_zero import materialize
     elif lowering == "lower-checks":
         from . import lower_checks
+
+        helper_adapter = lower_checks
+    elif lowering == "lower-alloc":
+        from . import lower_alloc
+
+        helper_adapter = lower_alloc
 
     texts, models, interfaces, declarations = [], [], [], []
     for path in paths:
@@ -671,27 +697,34 @@ def check(paths, solar, executable, version, timeout, function, *, lowering=None
     ):
         raise Unsupported("MIR CFG proof requires unambiguous names")
     helper = None
-    if lowering == "lower-checks":
-        helper = lower_checks.bind_helper(tables, declarations)
+    if helper_adapter is not None:
+        helper = helper_adapter.bind_helper(tables, declarations)
         if helper is not None:
-            tables[0][lower_checks.HELPER] = lower_checks.short_helper(helper["id"])
-            interfaces[1][1].remove(lower_checks.HELPER_HEADER)
-        if function is None and helper is None:
-            raise Unsupported(
-                "conditional check module proof needs the checked short-string helper"
+            tables[0][helper_adapter.HELPER] = helper_adapter.expected_helper(
+                helper["id"]
             )
-
-        def materialize(body):
-            return lower_checks.materialize(body, helper["id"] if helper else None)
+            interfaces[1][1].remove(helper_adapter.HELPER_HEADER)
+        if function is None and helper is None:
+            raise Unsupported("MIR module proof needs the checked private helper")
 
     if interfaces[0] != interfaces[1]:
         raise Unsupported("MIR CFG proof changed shared declarations or interfaces")
-    code = (
+    nonfresh = (
+        lower_alloc.nonfresh_activations(models[0])
+        if lowering == "lower-alloc"
+        else set()
+    )
+    prefix = (
         PRELUDE
         + """
 open MIR.CfgFlow
 set_option maxRecDepth 16384
 set_option maxHeartbeats 2000000
+"""
+    )
+    setup = (
+        prefix
+        + """
 #print axioms MIR.CfgFlow.typed_jump
 #print axioms MIR.CfgFlow.typed_enter_empty
 #print axioms MIR.CfgFlow.typed_literal_branch
@@ -718,14 +751,14 @@ set_option maxHeartbeats 2000000
     calls = {}
     procedure_pairs = []
     if lowering == "lower-mapping-slots":
-        code += """
+        setup += """
 #print axioms MIR.LowerMappingSlots.array
 #print axioms MIR.LowerMappingSlots.mapping
 """
     elif lowering == "lower-memory-objects":
-        code += "#print axioms MIR.PhaseShaping.pointer_add\n"
+        setup += "#print axioms MIR.PhaseShaping.pointer_add\n"
     elif lowering == "lower-arithmetic":
-        code += """
+        setup += """
 #print axioms MIR.LowerUnsignedArithmetic.add256
 #print axioms MIR.LowerUnsignedArithmetic.sub256
 #print axioms MIR.LowerUnsignedArithmetic.add128
@@ -736,24 +769,37 @@ set_option maxHeartbeats 2000000
 #print axioms MIR.LowerUnsignedArithmetic.panic_18
 """
     elif lowering == "lower-slices":
-        code += """
+        setup += """
 #print axioms MIR.LowerSlices.fields
 #print axioms MIR.LowerSlices.defined
 """
     elif lowering == "lower-memory-zero":
-        code += """
+        setup += """
 #print axioms MIR.LowerMemoryZero.padding_copy
 #print axioms MIR.LowerMemoryZero.zero_word_store
 """
     elif lowering == "lower-checks":
-        code += """
+        setup += """
 #print axioms MIR.LowerChecks.empty_check
 #print axioms MIR.LowerChecks.panic65_check
 #print axioms MIR.LowerChecks.short_check
 #print axioms MIR.LowerChecks.custom_one
 #print axioms MIR.LowerChecks.custom_three
 """
-    axioms_checks = code.count("#print axioms ")
+    elif lowering == "lower-alloc":
+        setup += """
+#print axioms MIR.LowerAlloc.free_pointer_request
+#print axioms MIR.LowerAlloc.Stage.bump_guard
+#print axioms MIR.LowerAlloc.Stage.load_bump
+#print axioms MIR.LowerAlloc.Stage.floor_bump
+"""
+        if helper is not None:
+            setup += """
+#print axioms MIR.LowerAlloc.Stage.checked_helper
+#print axioms MIR.LowerAlloc.Stage.helper_start
+#print axioms MIR.LowerAlloc.Stage.helper_return
+"""
+    bodies = []
     while work:
         name = work.pop()
         if name in checked:
@@ -772,7 +818,19 @@ set_option maxHeartbeats 2000000
         source = a
         expansions = {}
         if lowering is not None:
-            source, expanded = materialize(a)
+            if lowering == "lower-alloc":
+                source, expanded = lower_alloc.materialize_pair(
+                    a,
+                    b,
+                    helper["id"] if helper else None,
+                    allow_floor=a["id"] not in nonfresh,
+                )
+            elif helper_adapter is not None:
+                source, expanded = helper_adapter.materialize_pair(
+                    a, b, helper["id"] if helper else None
+                )
+            else:
+                source, expanded = materialize(a)
             if lowering != "lower-memory-objects" and name == function and not expanded:
                 raise Unsupported("selected function has no matching source operation")
             if expanded:
@@ -783,6 +841,7 @@ set_option maxHeartbeats 2000000
                     "lower-slices": "slice_projections",
                     "lower-memory-zero": "memory_zero_expansions",
                     "lower-checks": "guard_expansions",
+                    "lower-alloc": "allocation_expansions",
                 }[lowering]
                 expansions[field] = expanded
         (first, first_checks), (second, second_checks) = map(
@@ -807,22 +866,21 @@ set_option maxHeartbeats 2000000
                     raise Unsupported("MIR CFG proof has an ambiguous call binding")
                 work.extend(targets)
         product_initialization = []
+        body_code = ""
         for side, graph in enumerate((old, new)):
             products = product_certificate(f"products{i}_{side}", graph)
             product_initialization.append(bool(products))
             if products:
-                code += products
-                axioms_checks += 1
+                body_code += products
         literal_branches = [
             sum(node[0] == "literal" for node in graph) for graph in (old, new)
         ]
         if old == new:
-            code += graph_source(i, old, new)
-            code += f"""
+            body_code += graph_source(i, old, new)
+            body_code += f"""
 theorem identical{i} : before{i} = after{i} := by rfl
 #print axioms identical{i}
 """
-            axioms_checks += 1
             checked[name] = {
                 "proof": "identity",
                 "source_points": len(old),
@@ -843,8 +901,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
                     proof, copies, offsets = phase_carriers.paired_proof(i, source, b)
                 except Unsupported:
                     raise error from None
-                code += proof
-                axioms_checks += 1 + bool(offsets)
+                bodies.append(body_code + proof)
                 checked[name] = {
                     "proof": "carrier-copies" if copies else "word-offsets",
                     "copies": copies,
@@ -857,9 +914,8 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 render_point(point, targets, locals_)
                 for point, targets, locals_ in zip(points, edges, live, strict=True)
             ]
-            code += certificate(i, old, new, witnesses, limit)
+            body_code += certificate(i, old, new, witnesses, limit)
             matched = f"fun handle work locals state => preserved{i} handle work locals locals state"
-            axioms_checks += 2
             checked[name] = {
                 "proof": "path-correspondence",
                 "paired_points": len(points),
@@ -891,6 +947,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
         procedure_pairs.append(
             f"⟨{a['id']},⟨before{i},{limit}⟩,⟨after{i},{limit}⟩,{matched}⟩"
         )
+        bodies.append(body_code)
     complete = len(procedure_pairs) == len(checked)
     nested = any(calls.values()) and complete
     recursive_calls = recursive(calls)
@@ -899,19 +956,22 @@ theorem identical{i} : before{i} = after{i} := by rfl
             "recursive MIR requires path certificates for all direct callees"
         )
     if function is None and not complete:
-        raise Unsupported(
-            "conditional check module proof needs every function's call certificate"
-        )
+        raise Unsupported("MIR module proof needs every function's call certificate")
+    composition = ""
     if nested or function is None:
         entry = tables[0][function]["id"] if function is not None else None
-        code += call_proof(procedure_pairs, entry)
-        axioms_checks += 1
+        composition = call_proof(procedure_pairs, entry)
+    sources = proof_sources(prefix, setup, bodies, composition, module=function is None)
     entry_proof.success(build_model(timeout), "MIR CFG proof model")
     with tempfile.TemporaryDirectory(prefix="solar-tv-mir-cfg-") as folder:
-        output = entry_proof.success(
-            entry_proof.lean(Path(folder), "Cfg", code, timeout), "MIR CFG certificate"
-        )
-    entry_proof.check_axioms(output.splitlines(), axioms_checks)
+        for name, code in sources:
+            output = entry_proof.success(
+                entry_proof.lean(
+                    Path(folder), name, code, timeout, module=name != "Cfg"
+                ),
+                f"MIR CFG certificate {name}",
+            )
+            entry_proof.check_axioms(output.splitlines(), code.count("#print axioms "))
     evidence = {
         "kind": {
             "lower-mapping-slots": "kernel-checked-fixed-storage-slots",
@@ -920,12 +980,24 @@ theorem identical{i} : before{i} = after{i} := by rfl
             "lower-slices": "kernel-checked-slice-projections",
             "lower-memory-zero": "kernel-checked-memory-zero",
             "lower-checks": "kernel-checked-conditional-checks",
+            "lower-alloc": "kernel-checked-allocation-lowering",
         }.get(lowering, "kernel-checked-typed-jump-chain"),
         "functions": sorted(checked),
         "correspondence": checked,
-        "proof_sha256": hashlib.sha256(code.encode()).hexdigest(),
+        "proof_sha256": hashlib.sha256(
+            "".join(code for _, code in sources).encode()
+        ).hexdigest(),
+        **({"proof_modules": len(sources)} if len(sources) > 1 else {}),
         "boundary": "trusted structural exporter and action-constructor binding; unpriced shared effect handlers including calls and GAS; independent caller/ABI and backend correspondence remain separate",
-        **({"private_revert_helper": helper["id"]} if helper is not None else {}),
+        **(
+            {
+                "private_revert_helper"
+                if lowering == "lower-checks"
+                else "private_allocation_helper": helper["id"]
+            }
+            if helper is not None
+            else {}
+        ),
         **(
             {"nested_calls": {"recursive": recursive_calls, "functions": sorted(calls)}}
             if nested
