@@ -67,6 +67,7 @@ import SolarTV.EVMIR.StackGraph
 import SolarTV.EVMIR.ControlFlow
 import SolarTV.EVMIR.ContinuationFlow
 import SolarTV.EVMIR.InteractionTrace
+import SolarTV.EVMIR.State.CallRefinement
 import SolarTV.EVMIR.Transforms.SampledCall
 import SolarTV.EVMIR.Transforms.HeapEntry
 import SolarTV.EVMIR.Transforms.ReturnBuffer
