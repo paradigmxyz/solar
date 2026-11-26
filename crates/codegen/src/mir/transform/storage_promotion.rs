@@ -14,8 +14,8 @@
 //!   so the unflushed slot is unobservable there; reads of the promoted slot on those paths are
 //!   rewritten to the memory temp so revert data still sees the current value
 //! - reject opaque storage accesses on rollback exits because the rewrite cannot update them.
-//! - reject a function that names a constant memory range over a temporary's word, since the
-//!   assembly's word and the temporary would share it
+//! - reject a function that names, itself or in a function it may call, a constant memory range
+//!   over a temporary's word, since the assembly's word and the temporary would share it
 //! - with assembly that does not promise memory safety, also reject a memory write between the
 //!   initial store and the flush, or in a rollback exit, whose destination is not derived from a
 //!   compiler-owned pointer
@@ -51,6 +51,14 @@ impl MirPass for StorageScalarPromotion {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let unsafe_assembly = module.has_unsafe_assembly();
+        // Functions that promoted code may call name constant ranges of their own.
+        let callee_ranges = module
+            .runtime_reachable_functions()
+            .iter()
+            .map(|id| module.function(id))
+            .filter(|func| func.selector.is_none())
+            .flat_map(named_ranges)
+            .collect::<Vec<_>>();
         run_function_pass(module, analyses, |func, analyses| {
             // The pass currently introduces absolute low-memory temporaries, so it
             // only handles externally callable runtime entries.
@@ -62,7 +70,7 @@ impl MirPass for StorageScalarPromotion {
             if func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage) {
                 analyses.note_unreported_edit();
             }
-            promote_loops(func, unsafe_assembly)
+            promote_loops(func, unsafe_assembly, &callee_ranges)
         })
     }
 }
@@ -80,7 +88,7 @@ struct Candidate {
 }
 
 /// Promotes loops until none qualifies; returns whether any was promoted.
-fn promote_loops(func: &mut Function, unsafe_assembly: bool) -> bool {
+fn promote_loops(func: &mut Function, unsafe_assembly: bool, callee_ranges: &[(u64, u64)]) -> bool {
     let mut changed = false;
 
     // Promoting a loop can split its exit blocks and relocate the final
@@ -93,7 +101,8 @@ fn promote_loops(func: &mut Function, unsafe_assembly: bool) -> bool {
         let loop_info = LoopAnalyzer::new().analyze_structure(func);
         let Some((loop_data, preheader, candidates)) =
             loop_info.all_loops().find_map(|loop_data| {
-                let (preheader, candidates) = find_candidates(func, loop_data, unsafe_assembly)?;
+                let (preheader, candidates) =
+                    find_candidates(func, loop_data, unsafe_assembly, callee_ranges)?;
                 Some((loop_data, preheader, candidates))
             })
         else {
@@ -108,6 +117,7 @@ fn find_candidates(
     func: &Function,
     loop_data: &Loop,
     unsafe_assembly: bool,
+    callee_ranges: &[(u64, u64)],
 ) -> Option<(BlockId, Vec<Candidate>)> {
     let preheader = loop_data.preheader?;
     if loop_data.exit_blocks.is_empty()
@@ -187,16 +197,32 @@ fn find_candidates(
             &rewrite_blocks,
             &candidates,
             unsafe_assembly,
+            callee_ranges,
         ))
     .then_some((preheader, candidates))
+}
+
+/// Returns the start and end of each memory range the function names at a constant address,
+/// which ends at `u64::MAX` when its length is not constant.
+fn named_ranges(func: &Function) -> Vec<(u64, u64)> {
+    let mut ranges = Vec::new();
+    func.for_each_memory_range(|offset, size| {
+        if size != Some(0)
+            && let Some(start) = func.value_u64(offset)
+        {
+            ranges.push((start, size.and_then(|size| start.checked_add(size)).unwrap_or(u64::MAX)));
+        }
+    });
+    ranges
 }
 
 /// Returns whether nothing in the function may share a word with the temporaries that
 /// [`allocate_temp_addr`] places next: one per candidate, and the dirty flag of a lone slot
 /// without a preheader store.
 ///
-/// Code that names a constant range over a temporary's word, anywhere in the function, owns that
-/// word. In a module with assembly that does not promise memory safety, a write between the
+/// Code that names a constant range over a temporary's word, anywhere in the function or in a
+/// function it may call, owns that word. An address that reaches a callee as an argument is not
+/// seen. In a module with assembly that does not promise memory safety, a write between the
 /// initial stores and the flushes through another address also counts unless its destination
 /// derives from a compiler-owned pointer. Without such assembly, the compiler places every write
 /// it makes at a computed address on the heap or in a frame, above the temporaries, which
@@ -207,19 +233,15 @@ fn temp_words_are_unclobbered(
     blocks: &[BlockId],
     candidates: &[Candidate],
     unsafe_assembly: bool,
+    callee_ranges: &[(u64, u64)],
 ) -> bool {
     let words = candidates.len() + usize::from(candidates[0].init_store.is_none());
     let start = temp_base(func);
     let end = start + words as u64 * EvmMemoryLayout::WORD_SIZE;
-    let mut named = false;
-    func.for_each_memory_range(|offset, size| {
-        if size != Some(0)
-            && let Some(range_start) = func.value_u64(offset)
-        {
-            named |= range_start < end
-                && size.and_then(|size| range_start.checked_add(size)).is_none_or(|e| e > start);
-        }
-    });
+    let named = named_ranges(func)
+        .iter()
+        .chain(callee_ranges)
+        .any(|&(range_start, range_end)| range_start < end && range_end > start);
     if named {
         return false;
     }

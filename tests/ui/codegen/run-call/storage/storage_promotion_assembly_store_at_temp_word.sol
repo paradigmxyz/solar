@@ -4,6 +4,7 @@
 //@ run-call: pair 3 => 16
 //@ run-call: copy 3 => 8
 //@ run-call: earlier 3 => 4369
+//@ run-call: callee 3 => 4369
 
 // Assembly that names the address of a promoted slot's memory temporary, before its initial store
 // or between that store and the flush, must neither reach the temporary nor lose its word to it.
@@ -43,6 +44,22 @@ contract StoragePromotionAssemblyStoreAtTempWord {
             pop(staticcall(gas(), 4, 0x80, 0x20, 0x300, 0x20))
             r := mload(0x300)
         }
+    }
+
+    // A called function owns the word.
+    function callee(uint256 n) external returns (uint256 r) {
+        put();
+        x = 5;
+        for (uint256 i; i < n; ++i) x = x * 2 + 1;
+        return get();
+    }
+
+    function put() internal pure {
+        assembly { mstore(0x80, 0x1111) }
+    }
+
+    function get() internal pure returns (uint256 r) {
+        assembly { r := mload(0x80) }
     }
 
     function pair(uint256 n) external returns (uint256) {
