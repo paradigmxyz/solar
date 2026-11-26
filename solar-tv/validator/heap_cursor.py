@@ -19,6 +19,8 @@ AXIOMS = """
 #print axioms MIR.HeapCursor.callee_entry
 #print axioms MIR.HeapCursor.callee_return
 #print axioms MIR.HeapCursor.raw_call_preserves_word
+#print axioms MIR.HeapCursor.raw_load_at
+#print axioms MIR.HeapCursor.raw_store_at
 """
 
 
@@ -30,6 +32,8 @@ class Flow:
     observations: list
     dependencies: set
     summary: tuple | None
+    raw_loads: list
+    raw_stores: list
 
 
 def ordered_blocks(body):
@@ -104,6 +108,25 @@ def advance(inst, bindings, addresses, definitions, fork, read_only, lookup):
     return None, None, None
 
 
+def raw_cursor(inst, current, bindings, addresses, definitions, fork):
+    if current is None:
+        return None
+    op = inst["operation"]
+    if op["kind"] != "opcode" or op["name"] not in {"mload", "mstore"}:
+        return None
+    if reuse.identify(inst, bindings, definitions, fork, None) is None:
+        return None
+    target, *args = op["args"]
+    if reuse.constant(target) != 64:
+        return None
+    if op["name"] == "mload":
+        return 0, 0
+    base, offset = reuse.address(args[0], bindings, addresses)
+    if base == reuse.HEAP_BASE and current <= offset <= reuse.MEMORY_LIMIT:
+        return offset - current, None
+    return None
+
+
 def analyze(body, definitions, fork, read_only, lookup):
     order, parents = ordered_blocks(body)
     if not order:
@@ -117,6 +140,7 @@ def analyze(body, definitions, fork, read_only, lookup):
     addresses, outgoing = {}, {}
     dependencies, returns, cursors, transfers = set(), [], [0], []
     observations = []
+    raw_loads, raw_stores = [], []
 
     def point(cursor):
         cursors.append(cursor)
@@ -131,9 +155,18 @@ def analyze(body, definitions, fork, read_only, lookup):
         for node in incoming if index else [0]:
             transfers.append((node, start, 0))
         for inst in body["blocks"][index]["instructions"]:
-            bump, result, callee = advance(
-                inst, bindings, addresses, definitions, fork, read_only, lookup
-            )
+            raw = raw_cursor(inst, current, bindings, addresses, definitions, fork)
+            if raw is None:
+                bump, result, callee = advance(
+                    inst, bindings, addresses, definitions, fork, read_only, lookup
+                )
+            else:
+                bump, result = raw
+                callee = None
+                if result is None:
+                    raw_stores.append((start, current, bump))
+                else:
+                    raw_loads.append((start, current))
             if (
                 current is not None
                 and result is not None
@@ -167,6 +200,7 @@ def analyze(body, definitions, fork, read_only, lookup):
     summary = None
     if (
         not tailed
+        and not raw_stores
         and returns
         and returns[0][0] is not None
         and all(item == returns[0] for item in returns)
@@ -174,7 +208,16 @@ def analyze(body, definitions, fork, read_only, lookup):
         and all(ty["kind"] in {"word", "pointer"} for ty in body["returns"])
     ):
         summary = returns[0]
-    return Flow(addresses, cursors, transfers, observations, dependencies, summary)
+    return Flow(
+        addresses,
+        cursors,
+        transfers,
+        observations,
+        dependencies,
+        summary,
+        raw_loads,
+        raw_stores,
+    )
 
 
 def with_callees(body, functions, definitions, fork, read_only):
@@ -221,7 +264,20 @@ def certificate(name, flow):
         f"⟨{point},{displacement},{offset}⟩"
         for point, displacement, offset in flow.observations
     )
-    return f"""
+    predicate = "CursorWord" if flow.raw_stores else "At"
+    invariant = (
+        f"MIR.HeapCursor.invariant_for {name}Offsets {name}Edges (by decide +kernel) "
+        "(by decide +kernel) step (fun frame pos => MIR.HeapCursor.CursorWord frame floor pos)"
+        if flow.raw_stores
+        else f"MIR.HeapCursor.invariant {name}Offsets {name}Edges (by decide +kernel) "
+        "(by decide +kernel) step floor"
+    )
+    start = (
+        "(fun frame run => MIR.HeapCursor.At.cursorWord (start frame run))"
+        if flow.raw_stores
+        else "start"
+    )
+    code = f"""
 def {name}Offsets : MIR.HeapCursor.Offsets := #[{offsets}]
 def {name}Edges : List MIR.HeapCursor.Transfer := [{edges}]
 def {name}Reads : List MIR.HeapCursor.Observation := [{reads}]
@@ -230,12 +286,12 @@ theorem {name}Cursor (step : MIR.HeapCursor.Transfer → MIR.State.Frame → MIR
     (start : ∀ frame, MIR.HeapCursor.Runs {name}Edges step 0 frame → MIR.HeapCursor.Entry frame floor)
     (keeps : ∀ edge before after head delta, edge ∈ {name}Edges →
       MIR.HeapCursor.atPoint {name}Offsets edge.source = some head → edge.advance = some delta →
-      step edge before after → MIR.HeapCursor.At before floor head → MIR.HeapCursor.At after floor (head + delta))
+      step edge before after → MIR.HeapCursor.{predicate} before floor head →
+        MIR.HeapCursor.{predicate} after floor (head + delta))
     {{point frame offset}} (run : MIR.HeapCursor.Runs {name}Edges step point frame)
     (known : MIR.HeapCursor.atPoint {name}Offsets point = some offset) :
-    MIR.HeapCursor.At frame floor offset :=
-  MIR.HeapCursor.invariant {name}Offsets {name}Edges (by decide +kernel)
-    (by decide +kernel) step floor start keeps run known
+    MIR.HeapCursor.{predicate} frame floor offset :=
+  {invariant} {start} keeps run known
 theorem {name}Origins (read : MIR.HeapCursor.Observation) (member : read ∈ {name}Reads) :
     ∃ origin, MIR.HeapCursor.atPoint {name}Offsets read.point = some origin ∧
       origin + read.displacement = read.offset :=
@@ -245,3 +301,24 @@ theorem {name}Origins (read : MIR.HeapCursor.Observation) (member : read ∈ {na
 #print axioms {name}Cursor
 #print axioms {name}Origins
 """
+    for point, offset in flow.raw_loads:
+        known = "live" if flow.raw_stores else "live.cursorWord"
+        code += f"""
+theorem {name}Load{point} (cfg : MIR.State.Config) (frame : MIR.State.Frame) (floor : Word)
+    (live : MIR.HeapCursor.{predicate} frame floor {offset}) :
+    MIR.State.memoryOperation cfg frame .load [64] =
+      MIR.State.value frame (floor + BitVec.ofNat 256 {offset}) :=
+  MIR.HeapCursor.raw_load_at cfg frame floor {offset} {known}
+#print axioms {name}Load{point}
+"""
+    for point, offset, delta in flow.raw_stores:
+        code += f"""
+theorem {name}Store{point} (cfg : MIR.State.Config) (frame next : MIR.State.Frame) (floor : Word)
+    (live : MIR.HeapCursor.CursorWord frame floor {offset})
+    (written : MIR.State.memoryOperation cfg frame .store
+      [64, floor + BitVec.ofNat 256 {offset} + BitVec.ofNat 256 {delta}] = MIR.State.effect next) :
+    MIR.HeapCursor.CursorWord next floor {offset + delta} :=
+  MIR.HeapCursor.raw_store_at cfg frame next floor {offset} {delta} live written
+#print axioms {name}Store{point}
+"""
+    return code

@@ -63,6 +63,35 @@ def At (frame : Frame) (floor : Word) (offset : Nat) : Prop :=
 
 def Entry (frame : Frame) (floor : Word) : Prop := At frame floor 0
 
+/-- A raw cursor store publishes the given word. Its arithmetic need not
+establish the uint64 bound used by the checked allocation contract. -/
+def CursorWord (frame : Frame) (floor : Word) (offset : Nat) : Prop :=
+  Universal.MemoryValid frame ∧ 96 ≤ frame.memory.length ∧
+    readWord frame.memory 64 = floor + BitVec.ofNat 256 offset
+
+theorem At.cursorWord {frame : Frame} {floor : Word} {offset : Nat}
+    (known : At frame floor offset) : CursorWord frame floor offset :=
+  ⟨known.1,known.2.1,known.2.2.1⟩
+
+theorem raw_load_at (cfg : Config) (frame : Frame) (floor : Word) (offset : Nat)
+    (known : CursorWord frame floor offset) :
+    memoryOperation cfg frame .load [64] = value frame (floor + BitVec.ofNat 256 offset) := by
+  obtain ⟨⟨bounded,aligned⟩,active,word⟩ := known
+  simp [memoryOperation, FreshHeap.active_slot _ bounded aligned active, word,
+    value, Bind.bind, Except.bind]
+
+theorem raw_store_at (cfg : Config) (frame next : Frame) (floor : Word) (head advance : Nat)
+    (known : CursorWord frame floor head)
+    (written : memoryOperation cfg frame .store
+      [64, floor + BitVec.ofNat 256 head + BitVec.ofNat 256 advance] = effect next) :
+    CursorWord next floor (head + advance) := by
+  have aligned := known.1.2
+  have ⟨nextAligned,nextBounded,nextActive,cursor⟩ :=
+    StateReadReuse.store_word _ _ _ _ _ aligned written
+  change 96 ≤ next.memory.length at nextActive
+  rw [BitVec.add_assoc, ← BitVec.ofNat_add] at cursor
+  exact ⟨⟨nextBounded,nextAligned⟩,nextActive,cursor⟩
+
 theorem entry_inhabited (frame : Frame) :
     Entry {frame with memory := writeBytes (List.replicate 96 0) 64 (wordBytes 128)} 128 := by
   simp [Entry, At, Universal.MemoryValid, ↓readWord_writeWord, BitVec.ofNat]
@@ -275,16 +304,16 @@ inductive Runs (edges : List Transfer) (step : Transfer → Frame → Frame → 
   | next {edge before after} : Runs edges step edge.source before →
       edge ∈ edges → step edge before after → Runs edges step edge.into after
 
-theorem invariant (offsets : Offsets) (edges : List Transfer)
+theorem invariant_for (offsets : Offsets) (edges : List Transfer)
     (initial : atPoint offsets 0 = some 0) (verified : edges.all (checkTransfer offsets) = true)
-    (step : Transfer → Frame → Frame → Prop) (floor : Word)
-    (start : ∀ frame, Runs edges step 0 frame → At frame floor 0)
+    (step : Transfer → Frame → Frame → Prop) (tracks : Frame → Nat → Prop)
+    (start : ∀ frame, Runs edges step 0 frame → tracks frame 0)
     (keeps : ∀ edge before after head delta, edge ∈ edges →
       atPoint offsets edge.source = some head → edge.advance = some delta →
-      step edge before after → At before floor head → At after floor (head + delta))
+      step edge before after → tracks before head → tracks after (head + delta))
     {point frame} (run : Runs edges step point frame) {offset}
     (known : atPoint offsets point = some offset) :
-    At frame floor offset := by
+    tracks frame offset := by
   induction run generalizing offset with
   | entry frame =>
     rw [initial] at known
@@ -303,6 +332,18 @@ theorem invariant (offsets : Offsets) (edges : List Transfer)
           simpa [one, two, Bind.bind, Option.bind] using transfer
         rw [← same]
         exact keeps edge before after first delta member one two action (ih one)
+
+theorem invariant (offsets : Offsets) (edges : List Transfer)
+    (initial : atPoint offsets 0 = some 0) (verified : edges.all (checkTransfer offsets) = true)
+    (step : Transfer → Frame → Frame → Prop) (floor : Word)
+    (start : ∀ frame, Runs edges step 0 frame → At frame floor 0)
+    (keeps : ∀ edge before after head delta, edge ∈ edges →
+      atPoint offsets edge.source = some head → edge.advance = some delta →
+      step edge before after → At before floor head → At after floor (head + delta))
+    {point frame} (run : Runs edges step point frame) {offset}
+    (known : atPoint offsets point = some offset) : At frame floor offset :=
+  invariant_for offsets edges initial verified step (fun frame offset => At frame floor offset)
+    start keeps run known
 
 theorem observation (offsets : Offsets) (read : Observation)
     (verified : checkObservation offsets read = true) :

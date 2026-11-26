@@ -3467,6 +3467,32 @@ on `safeTransferFrom` because the selected capture changes both bodies.
 | `target/tv-memory-dse-current/rust-mir-replay.json` | `5f19307195f18f10708684525545460a897162407c1a885a09d8df138d76ac93` |
 | `target/tv-memory-dse-current/raw-heap-replay.json` | `e7db9cdf8b29bcf93e3894692b9d001781f27bed0186a215743fde35e6516957` |
 
+### Lowered heap cursor in the transfer helpers
+
+With `--valid-heap`, the checker now verifies the frozen `safeTransfer` and
+`safeTransferFrom` `memory-dse` captures through their direct callees. The
+rewritten body substitutes the cursor published by `MSTORE(64, old + delta)`
+for the later `MLOAD(64)`. The raw load reads the active word without growing
+memory. The raw store publishes the exact 256-bit value. The checked-allocation
+contract supplies the initial heap cursor. Raw cursor writes use a separate
+invariant for the published word and active memory, with the initial floor
+used to check disjoint addresses. Returning raw CALLs retain the active
+word when the output interval is empty or disjoint.
+
+The certificates assume an initialized logical caller heap, defined typed
+inputs, and shared GAS and message replies. The source exporter binds
+the raw operand expressions and checked cursor edges. The default corpus
+count remains **2,153 of 2,228** while the ABI-to-helper heap obligation is
+open. The focused regression independently replays equal initialized
+executions, a zero initial cursor that aliases a payload write, and a
+CALL that writes its output at byte 64. The latter loses the certificate
+and yields 42 before reuse versus 256 after it.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Checker on Lean 4.34.1 | `97c263c1a94de1a4d50be84e39597010bd64b76f723920a1175d89c3c77d81a7` |
+| `target/tv-memory-dse-current/conditional-transfers.json` | `0a7b16cdba285ad957881e753e807b33131044014a32217454e04aa4510ae4f6` |
+
 ### MIR CFG checks after an import timeout
 
 The earlier three-second census timed out on 23 Morpho MIR `cfg-simplify`

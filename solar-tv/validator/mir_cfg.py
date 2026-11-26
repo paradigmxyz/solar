@@ -767,6 +767,16 @@ def project_reads(
                     "known_addresses": len(flow.addresses),
                     "cursor_edges": len(flow.transfers),
                     "normal_return": flow.summary,
+                    **(
+                        {"raw_cursor_loads": len(flow.raw_loads)}
+                        if flow.raw_loads
+                        else {}
+                    ),
+                    **(
+                        {"raw_cursor_stores": len(flow.raw_stores)}
+                        if flow.raw_stores
+                        else {}
+                    ),
                 }
                 for identity, flow in heap_flows.items()
             }

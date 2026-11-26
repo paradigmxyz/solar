@@ -620,6 +620,15 @@ def record(
                         "the typed source binds the cursor transitions and address operands. Actual ABI callers and physical gas remain separate obligations",
                     ]
                 )
+                if any(
+                    flow.get("raw_cursor_stores")
+                    for check in program.import_evidence["correspondence"].values()
+                    for side in check.get("heap_cursor", ())
+                    for flow in side.values()
+                ):
+                    assumptions.append(
+                        "lowered cursor stores publish the tracked word on continuing paths. Their published values carry no checked-allocation upper bound"
+                    )
             if program.import_evidence["kind"] == "kernel-checked-fixed-storage-slots":
                 assumptions.append(
                     "fixed storage keys preserve scratch bytes and hash input in aligned memory up to 64 KiB at each expanded logical action"

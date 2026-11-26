@@ -692,6 +692,98 @@ fn @choose(arg0: i256) -> i256 {
                     observations[0] == observations[1], values[0] == values[1]
                 )
 
+    def test_raw_heap_reload_requires_a_preserved_cursor(self):
+        source = """@module RawHeap
+fn @choose(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 128
+    mstore 64, v1
+    v2 = add v0, 64
+    mstore v2, arg0
+    v3 = call 100000, arg1, 0, v2, 32, 0, 0
+    v4 = mload 64
+    ret v4
+}
+"""
+        optimized = source.replace("    v4 = mload 64\n    ret v4", "    ret v1")
+        clobbered = [
+            text.replace("v2, 32, 0, 0", "v2, 32, 64, 32")
+            for text in (source, optimized)
+        ]
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{name}.mir" for name in ("before", "after"))
+            before.write_text(source)
+            after.write_text(optimized)
+            record = self.check_loop(root, 0, valid_heap=True)
+            selected = record["import_correspondence"][0]["correspondence"]["choose"]
+            self.assertEqual(selected["state_read_reuse"], [{"memory": 1}, {}])
+            (flow,) = selected["heap_cursor"][0].values()
+            self.assertEqual(
+                (flow["raw_cursor_loads"], flow["raw_cursor_stores"]), (2, 1)
+            )
+
+            before.write_text(clobbered[0])
+            after.write_text(clobbered[1])
+            with self.assertRaises(Unsupported):
+                mir_cfg.check(
+                    (before, after),
+                    SOLAR,
+                    native.default(SOLAR),
+                    "cancun",
+                    30,
+                    "choose",
+                    valid_heap=True,
+                )
+
+            fixture = root / "world.json"
+            token = 65537
+            for pointer, texts, expected in (
+                (128, (source, optimized), ["256", "256"]),
+                (0, (source, optimized), ["7", "128"]),
+                (128, clobbered, ["42", "256"]),
+            ):
+                fixture.write_text(
+                    json.dumps(
+                        {
+                            "version": 1,
+                            "memory": {
+                                "data": "0x"
+                                + (bytes(64) + pointer.to_bytes(32, "big")).hex()
+                            },
+                            "accounts": [
+                                {"address": token, "code": "0x602a5f5260205ff3"}
+                            ],
+                        }
+                    )
+                )
+                config = world.read(fixture, SOLAR, None, kind="mir")
+                programs = [
+                    Program(
+                        ("world-entry", "mir"),
+                        ["arg0", "arg1"],
+                        "",
+                        "",
+                        replay_ir=text,
+                        selector="choose",
+                        evm_version="cancun",
+                        world=config,
+                    )
+                    for text in texts
+                ]
+                replay = native.replay(
+                    *programs, [7, token], executable=native.default(SOLAR), timeout=20
+                )
+                observations = list(map(json.loads, replay["observations"]))
+                self.assertEqual(
+                    [item["values"] for item in observations],
+                    [[value] for value in expected],
+                )
+                self.assertEqual(
+                    observations[0] == observations[1], expected[0] == expected[1]
+                )
+
     def test_cse_reuses_a_warm_slot_across_a_disjoint_write(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
