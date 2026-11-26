@@ -4,7 +4,7 @@
 //! deployment postlude reads the same words to patch runtime `PUSH<N>`
 //! placeholders. This module keeps both sides on one layout.
 
-use crate::{ImmutableEncoding, ImmutableId, Module, TypeSize, memory::EvmMemoryLayout};
+use crate::{ImmutableEncoding, ImmutableId, InstKind, Module, TypeSize, memory::EvmMemoryLayout};
 use solar_config::OptimizationMode;
 
 /// The highest end of a constant range that moves the immutable staging words: expanding memory
@@ -56,7 +56,12 @@ pub fn immutable_staging_base(module: &Module) -> u64 {
             .max(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE);
         let mut base = EvmMemoryLayout::align_word(fixed_end)
             .expect("constructor immutable staging address overflow");
-        if module.immutable_count() == 0 {
+        // Once `lower-immutables` has turned the assignments into stores, they are constant
+        // ranges themselves, and a module read back from text has lost the base it fixed.
+        let assigns = module.iter_functions().any(|(_, func)| {
+            func.instructions().any(|id| matches!(func.inst(id).kind, InstKind::StoreImmutable(..)))
+        });
+        if !assigns {
             return base;
         }
         // A range that ends above `MAX_STAGING_RANGE_END` costs more gas to expand than a

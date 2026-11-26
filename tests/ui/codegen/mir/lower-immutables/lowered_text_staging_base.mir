@@ -1,0 +1,58 @@
+//@ compile-flags: -O none -Zdump=disasm-deploy
+//@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+
+// A lowered module read back from text keeps the staging words that its constructor wrote: the
+// deployment code patches the runtime from the address that the constructor stored to, and the
+// stores themselves do not move the base.
+
+// CHECK-LABEL: (deployment)
+// CHECK: PUSH1 0x07
+// CHECK-NEXT: PUSH1 [[ADDR:0x[0-9a-f]+]]
+// CHECK-NEXT: MSTORE
+// CHECK: PUSH1 [[ADDR]]
+// CHECK-NEXT: MLOAD
+@module D
+@phase lowered
+@immutables
+  x: uint256
+
+; backend-memory-v1
+
+; constructor() [creation entry]
+fn @constructor() [constructor, creation_only] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb2, bb1
+  bb1:                                            ; preds = bb0
+    mstore 192, 7
+    mstore 128, 1
+    ret
+  bb2 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}
+
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:                                            ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xc55699c => bb2]
+  bb2:                                            ; preds = bb1
+    tail_call @x
+  bb3 [cold]:                                     ; preds = bb0, bb1
+    revert 0, 0
+}
+
+; getter for `uint256 public immutable x` [selector 0x0c55699c]
+fn @x() {
+  bb0:
+    v0 = loadimmutable x
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
+}
