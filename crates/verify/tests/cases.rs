@@ -962,6 +962,26 @@ fn emit_lean_spec_inherit_scope() {
     let _ = std::fs::remove_file(&out);
 }
 
+/// A base's private variable and the derived contract's of the same name each keep their own slot:
+/// the struct invariant reads both stored structs, each at its declaration's slot. A spec that
+/// names such a name is refused (`lean_unsupported/inherit_private_same_name*.sol`).
+#[test]
+fn emit_lean_spec_same_name_slots() {
+    let out = std::env::temp_dir()
+        .join(format!("solar-verify-lean-same-name-{}.lean", std::process::id()));
+    let run = run_verifier(&[
+        "--emit-lean-spec",
+        out.to_str().unwrap(),
+        "--lean-spec-module",
+        "SolidCore.Spec.Export.SameName",
+        "tests/snapshots/lean_export_same_name.sol",
+    ]);
+    assert!(run.stderr.is_empty(), "{}", run.stderr);
+    let lean = std::fs::read_to_string(&out).unwrap();
+    assert_data_eq!(tidy(&lean), file!["snapshots/lean_export_same_name.lean"]);
+    let _ = std::fs::remove_file(&out);
+}
+
 /// Every construct `--emit-lean-spec` does not translate is an error that names it, and nothing is
 /// written: each file of `snapshots/lean_unsupported` pins the message in its `// expect:` line.
 #[test]

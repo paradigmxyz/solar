@@ -181,7 +181,8 @@ struct SpecFnOut {
 struct Cx<'p, 'a> {
     p: &'p Program<'a>,
     c: &'p Contract<'a>,
-    layout: &'p FxHashMap<String, Slot>,
+    /// The storage slot of each of `c.state`'s variables, by position (None: not in storage).
+    layout: &'p [Option<Slot>],
     bytes_keys: &'p [String],
     /// The function whose spec this is, if any.
     f: Option<&'p Func<'a>>,
@@ -305,7 +306,7 @@ impl<'p, 'a> Cx<'p, 'a> {
             if self.bytes_keys.iter().any(|b| b == n) {
                 return Err((sp, format!("`{n}` has a `bytesN` mapping key")));
             }
-            let s = self.layout.get(n).ok_or((sp, format!("no storage slot for `{n}`")))?;
+            let s = self.slot(sv).ok_or((sp, format!("no storage slot for `{n}`")))?;
             return Ok(Val::Place {
                 place: format!(".slot {}", s.slot),
                 offset: format!(".lit {}", s.offset),
@@ -336,9 +337,13 @@ impl<'p, 'a> Cx<'p, 'a> {
     /// `c.state` give, is the same declaration; otherwise (a variable `c` alone declares, such as
     /// a derived contract's `S Color` or `S msg`, or a constant of `c` that shadows a file-level
     /// one) the name means one thing where the spec is written and another in `c`, and is refused.
+    ///
+    /// A name two declarations of the hierarchy share (a base's private variable and a derived
+    /// contract's of the same name, which Solidity allows) is refused in either contract: which
+    /// one it means depends on where it is written, which this lookup does not model.
     fn state_var(&self, n: &str, sp: Span) -> R<Option<&'p StateVar<'a>>> {
         let c = self.c;
-        let target = c.state.iter().find(|s| s.name == n);
+        let target = unique_state(c, n, self.file_consts, sp)?;
         let here = match self.scope.as_deref() {
             Some(s) if s == c.name => return Ok(target),
             Some(s) => {
@@ -346,7 +351,7 @@ impl<'p, 'a> Cx<'p, 'a> {
                     .p
                     .contract(s)
                     .ok_or((sp, format!("no contract `{s}` to resolve `{n}` in")))?;
-                d.state.iter().find(|v| v.name == n)
+                unique_state(d, n, self.file_consts, sp)?
             }
             None => c.state.iter().find(|v| v.name == n && self.file_consts.contains(&v.span)),
         };
@@ -375,6 +380,13 @@ impl<'p, 'a> Cx<'p, 'a> {
                 ))
             }
         }
+    }
+
+    /// The slot of `sv`, a variable of `c.state`: the slot of that declaration, not of another
+    /// of the same name.
+    fn slot(&self, sv: &StateVar<'a>) -> Option<&'p Slot> {
+        let i = self.c.state.iter().position(|v| std::ptr::eq(v, sv))?;
+        self.layout.get(i)?.as_ref()
     }
 
     /// What `b.m` is in the declarations of `scope` when `b` is no variable there: an enum
@@ -738,20 +750,50 @@ fn fuel(fns: &[SpecFnOut]) -> usize {
     depth.values().copied().max().unwrap_or(0)
 }
 
-/// Lays out a contract's state variables.
-fn layout(p: &Program<'_>, c: &Contract<'_>, sp: Span) -> R<FxHashMap<String, Slot>> {
-    let vars: Vec<_> = c
-        .state
-        .iter()
-        .filter(|s| !s.ghost && !s.constant && !s.immutable && !s.transient)
-        .collect();
-    let tys: Vec<Ty> = vars.iter().map(|s| s.ty.clone()).collect();
+/// Lays out a contract's state variables: the slot of each of `c.state`'s, by position (None for
+/// one not in storage). Keyed by declaration, not name: a base's private variable and a derived
+/// contract's of the same name each keep their own slot.
+fn layout(p: &Program<'_>, c: &Contract<'_>, sp: Span) -> R<Vec<Option<Slot>>> {
+    let stored = |s: &StateVar<'_>| !s.ghost && !s.constant && !s.immutable && !s.transient;
+    let tys: Vec<Ty> = c.state.iter().filter(|s| stored(s)).map(|s| s.ty.clone()).collect();
     let (pos, _) = pack(p, &tys, sp)?;
-    Ok(vars
+    let mut pos = pos.into_iter();
+    Ok(c.state
         .iter()
-        .zip(pos)
-        .map(|(s, (slot, offset))| (s.name.clone(), Slot { slot, offset, ty: s.ty.clone() }))
+        .map(|s| {
+            stored(s).then(|| {
+                let (slot, offset) = pos.next().expect("a position for each stored variable");
+                Slot { slot, offset, ty: s.ty.clone() }
+            })
+        })
         .collect())
+}
+
+/// The state variable `n` names in `c`'s hierarchy, if any: a contract's declaration shadows a
+/// file-level constant (`file_consts`) of that name. Refused when two declarations of the
+/// hierarchy share the name (entries with equal spans are one variable).
+fn unique_state<'p, 'a>(
+    c: &'p Contract<'a>,
+    n: &str,
+    file_consts: &[Span],
+    sp: Span,
+) -> R<Option<&'p StateVar<'a>>> {
+    let at_file = |s: &StateVar<'_>| file_consts.contains(&s.span);
+    let own = c.state.iter().any(|s| s.name == n && !at_file(s));
+    let mut vars = c.state.iter().filter(|s| s.name == n && (!own || !at_file(s)));
+    let first = vars.next();
+    if let Some(a) = first
+        && vars.any(|b| b.span != a.span)
+    {
+        return Err((
+            sp,
+            format!(
+                "`{n}` names more than one state variable in `{}`'s hierarchy (such as a base's private variable and another of that name)",
+                c.name
+            ),
+        ));
+    }
+    Ok(first)
 }
 
 /// Whether `f`'s body may assign `name`: an assignment, increment or `delete` of it anywhere in
@@ -908,7 +950,7 @@ pub(crate) fn export(program: &Program<'_>, unit: &SourceUnit<'_>, opts: &Opts) 
             for s in sinvs {
                 // Written on the struct, where it is declared.
                 cx.scope = program.scope_at(s.span);
-                invs.push(struct_inv(&mut cx, &sv.name, &sn, key.as_ref(), s)?);
+                invs.push(struct_inv(&mut cx, sv, &sn, key.as_ref(), s)?);
             }
         }
         // Function specs, for every external entry point.
@@ -1078,13 +1120,13 @@ fn struct_inside(ty: &Ty) -> Option<String> {
 /// (keyed by `key`): its field names read the stored fields.
 fn struct_inv<'p, 'a>(
     cx: &mut Cx<'p, 'a>,
-    var: &str,
+    var: &StateVar<'a>,
     sn: &str,
     key: Option<&Ty>,
     s: &Spec<'a>,
 ) -> R<String> {
     let sp = s.span;
-    let base = cx.layout.get(var).ok_or((sp, format!("no slot for `{var}`")))?;
+    let base = cx.slot(var).ok_or((sp, format!("no slot for `{}`", var.name)))?;
     let place = match key {
         None => format!(".slot {}", base.slot),
         Some(_) => format!(".entry (.slot {}) (.var \"__key\")", base.slot),
