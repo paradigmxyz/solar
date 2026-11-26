@@ -1454,9 +1454,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `solc` copies first and stores the length last. When inline assembly gives a
   memory `bytes` a length that reaches past the free memory pointer, the result's
   length word lies inside the source's declared bytes and `solar` copies it into
-  the result. With a source of length 77 and a 32-byte allocation that ends at
-  the free memory pointer, byte 63 of the result is `0x4d` in `solar` and `0x00`
-  in `solc`.
+  the result. With a source of length 77 and a zeroed 32-byte allocation that
+  ends at the free memory pointer, byte 63 of the result is `0x4d` in `solar`
+  and `0x00` in `solc`.
   `abi.encode` of the same source matches `solc`.
 - Rationale: the source claims memory past the free memory pointer, which the
   Solidity documentation does not reserve for it, so any allocation may
