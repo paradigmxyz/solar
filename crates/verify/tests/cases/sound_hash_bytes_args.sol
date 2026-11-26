@@ -22,6 +22,7 @@ contract BytesHash {
         return h1 == h2;
     }
     /// @custom:ensures result
+    // expect: solver returned unknown
     function bad_bytes_index_write(bytes memory b) external pure returns (bool) {
         require(b.length > 0 && b[0] == 0x00);
         bytes32 h1 = keccak256(b);

@@ -1512,3 +1512,13 @@ fn gap_import_alias() {
 fn gap_qualified_structs() {
     check("tests/cases/gap_qualified_structs.sol")
 }
+
+#[test]
+fn gap_keccak_literal() {
+    check("tests/cases/gap_keccak_literal.sol")
+}
+
+#[test]
+fn gap_keccak_quantified() {
+    check("tests/cases/gap_keccak_quantified.sol")
+}
