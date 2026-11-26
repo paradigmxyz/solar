@@ -5,6 +5,7 @@
 //@ run-call-fail: bytesCopyInvalidHeader() => Panic(0x22)
 //@ run-call: bytesDirtyTail() => 0xaa00000000000000000000000000000000000000000000000000000000000000
 //@ run-call: bytesCopyDirtyTail() => 0xaa00000000000000000000000000000000000000000000000000000000000000
+//@ run-call: bytesFreeMemoryGrowth() => 0x40
 //@ run-call: arrayDirtyHighByte() => 0
 //@ run-call: structDirtyHighByte() => 0
 //@ run-call: structCopyDirtyHighByte() => 0, 1, 2
@@ -13,7 +14,10 @@
 // checked and cleaned: an invalid short `bytes` header panics with `Panic(0x22)` and dirty bits
 // become zero. solc returns at once when the source and target slots are equal, leaving both as
 // they were. A copy between distinct slots behaves the same in both compilers when the
-// destination is clean; CODEGEN-025 covers a dirty one. See CODEGEN-032 in docs/SOLC_DIVERGENCE.md.
+// destination is clean; CODEGEN-025 covers a dirty one.
+// With valid storage the result is the same, but the load advances the free memory pointer, which
+// `bytesFreeMemoryGrowth()` shows; solc leaves it unchanged. See CODEGEN-032 in
+// docs/SOLC_DIVERGENCE.md.
 contract C {
     struct S {
         uint8 a;
@@ -57,6 +61,18 @@ contract C {
         assembly {
             mstore(0, other.slot)
             r := sload(add(keccak256(0, 32), 2))
+        }
+    }
+
+    function bytesFreeMemoryGrowth() external returns (uint256 growth) {
+        data = hex"11";
+        uint256 before;
+        assembly {
+            before := mload(0x40)
+        }
+        data = data;
+        assembly {
+            growth := sub(mload(0x40), before)
         }
     }
 

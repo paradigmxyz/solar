@@ -1462,8 +1462,10 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Difference: `data = data` for a `bytes` or `string`, `s = s` for a struct and
   `arr = arr` for an array load the value and write it back in `solar`. The copy
   helpers of `solc` return at once when the source and target slots are equal.
-  With valid storage the result is the same. After assembly writes storage, two
-  things differ. A `bytes` or `string` whose short-form header is invalid, such
+  With valid storage the stored result is the same, but the load advances the
+  free memory pointer, by 64 bytes for a 1-byte `bytes`, where `solc` leaves it
+  unchanged (as in CODEGEN-031). After assembly writes storage, two things
+  differ. A `bytes` or `string` whose short-form header is invalid, such
   as `sstore(data.slot, 0x40)`, panics with `Panic(0x22)` in `solar` and stays
   untouched in `solc`. Dirty bits are cleared by `solar` and kept by `solc`:
   the padding in the last data word of a long `bytes`, such as `0xaaff..ff`
@@ -1473,8 +1475,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   invalid header and for the padding of a long `bytes`: both panic, and both
   write `0xaa00..00`. Dirty bits in the destination are a different case, which
   CODEGEN-025 covers. A dirty enum panics as CODEGEN-022 describes.
-- Rationale: only assembly-forged storage reaches it, and a slot equality check
-  would add a branch to every storage-to-storage copy.
+- Rationale: only assembly-forged storage changes the stored result, and a slot
+  equality check would add a branch to every storage-to-storage copy.
 - Coverage: `tests/ui/codegen/run-call/storage/storage_self_assign_forged.sol`.
 
 ### CODEGEN-033: A calldata argument is copied to memory before later arguments are evaluated
@@ -1498,7 +1500,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   decoding.
 - Rationale: only a forged or malformed slice fails the copy, both compilers
   revert, except when assembly in a later argument ends the frame, and
-  deferring every conversion would complicate argument lowering.
+  deferring every conversion would complicate argument lowering. With valid
+  calldata the copy still runs before a later argument that panics, so a call
+  with a tight gas limit can run out of gas where `solc` panics.
 - Coverage: `tests/ui/codegen/run-call/calldata/calldata_forged_slice_argument_order.sol`.
 
 ### TYPECK-026: `@inheritdoc` references
