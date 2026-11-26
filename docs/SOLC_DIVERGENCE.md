@@ -1445,6 +1445,27 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `copy_recursive_struct_overlap_push_self_parent`, and
   `copy_recursive_struct_disjoint_copy_memory_growth` expects no growth.
 
+### CODEGEN-032: Inline assembly cannot read scratch word `0x20` after a multi-return internal call
+
+- ID: CODEGEN-032
+- Status: intentional
+- Difference: an internal call that returns several words writes the pointer to its
+  result buffer to scratch word `0x20` (`MULTI_RETURN_BUFFER_PTR_SLOT`), and MIR
+  models every such call as that write. Assembly that calls such a function and then
+  reads `mload(0x20)`, expecting the word the callee's own assembly stored there,
+  is not portable. `solc` leaves the word alone and compiles it, so the read sees the
+  callee's value. At `-O none` we return the same value. At `-O gas` and `-O size`
+  the stack planner takes the read for the protocol's pointer read, which has other
+  uses, and rejects the function with ``codegen cannot lower `f`: multi-word call
+  result through memory``.
+- Rationale: Solidity promises scratch space only between statements inside one
+  inline assembly block, so a value in it does not survive a Solidity statement.
+  Compiling this code would mean dropping the pointer store, or letting the user's
+  read see the pointer, and both change how every multi-return call is lowered for
+  code that no documented rule supports. We keep the error instead of a silently
+  different value.
+- Coverage: `tests/ui/codegen/run-call/assembly/multi_return_scratch_word.sol`.
+
 ### TYPECK-026: `@inheritdoc` references
 
 Status: intentional.
