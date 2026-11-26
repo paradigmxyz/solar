@@ -41,6 +41,13 @@ class HighMask:
 
 
 @dataclass(frozen=True)
+class RoundedSize:
+    length: int
+    result: int
+    combined: bool
+
+
+@dataclass(frozen=True)
 class RoundedExtent:
     length: int
     results: tuple[int, int, int, int]
@@ -126,6 +133,33 @@ def high_mask(instructions, position, uses):
         exponent,
     ]:
         return HighMask(exponent["index"], invert["result"], False), 3
+    return None
+
+
+def rounded_size(instructions, position, uses):
+    """Recognize either word-rounded size with no live intermediate."""
+    if position + 1 >= len(instructions):
+        return None
+    add, mask = instructions[position : position + 2]
+    operands = word_operands(add, "add")
+    if len(operands) != 2:
+        return None
+    length, amount = operands
+    if length["kind"] != "local" or uses[add["result"]] != 1:
+        return None
+    rounded, low_clear = word_local(add["result"]), word_constant(2**256 - 32)
+    if word_operands(mask, "and") not in ([rounded, low_clear], [low_clear, rounded]):
+        return None
+    if amount == word_constant(63):
+        return RoundedSize(length["index"], mask["result"], True), 2
+    if amount != word_constant(31) or position + 2 >= len(instructions):
+        return None
+    extent = instructions[position + 2]
+    if uses[mask["result"]] == 1 and word_operands(extent, "add") == [
+        word_local(mask["result"]),
+        word_constant(32),
+    ]:
+        return RoundedSize(length["index"], extent["result"], False), 3
     return None
 
 
@@ -269,6 +303,9 @@ def import_graph(body, *, combine=True, threaded=()):
                 nodes.append(
                     ("action", extent, [point(block["terminator"]["else"], index)])
                 )
+            elif combine and (size := rounded_size(instructions, position, uses)):
+                data, length = size
+                nodes.append(("action", data, [point(index, None, position + length)]))
             else:
                 inst = instructions[position]
                 nodes.append(("action", inst, [point(index, None, position + 1)]))
@@ -371,7 +408,7 @@ def flat_insert(data):
 def reads(data):
     if isinstance(data, (IncrementGuard, HighMask)):
         return [data.argument]
-    if isinstance(data, RoundedExtent):
+    if isinstance(data, (RoundedExtent, RoundedSize)):
         return [data.length]
     if word_key(data) == ("double", 1):
         return [data["operation"]["args"][0]["index"]]
@@ -428,7 +465,7 @@ theorem {name} : MIR.ProductInit.safe [{",".join(inserts)}] {sorted(observed)} =
 def writes(data):
     if isinstance(data, IncrementGuard):
         return [data.sum, data.guard]
-    if isinstance(data, HighMask):
+    if isinstance(data, (HighMask, RoundedSize)):
         return [data.result]
     if isinstance(data, RoundedExtent):
         return list(data.results)
@@ -441,6 +478,8 @@ def writes(data):
 def word_key(data):
     if isinstance(data, HighMask):
         return "highMask", data.complement
+    if isinstance(data, RoundedSize):
+        return "roundedSize", data.combined
     if not isinstance(data, dict) or "operation" not in data:
         return None
     op = data["operation"].get("name")
@@ -485,6 +524,8 @@ def action_signature(data):
             return ("word-shr", value)
         case "highMask":
             return ("word-high-mask",)
+        case "roundedSize":
+            return ("word-rounded-size",)
     raise AssertionError(f"unrecognized word rewrite {op}")
 
 
@@ -585,8 +626,8 @@ def render(nodes, symbols):
                     source = f".{op}Constant {value}#256"
                 case "double":
                     source = ".double"
-                case "highMask":
-                    source = f".highMask {str(value).lower()}"
+                case "highMask" | "roundedSize":
+                    source = f".{op} {str(value).lower()}"
                 case _:
                     source = f".scale .{op} {value}#8"
             key = f"(.word ({source}))"

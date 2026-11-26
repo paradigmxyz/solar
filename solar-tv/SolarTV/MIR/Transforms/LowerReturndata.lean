@@ -28,6 +28,30 @@ private theorem roundDown (n : Nat) (bound : n < 2^256) :
     rw [mask, Nat.and_zero]
   omega
 
+/-- Folding the header word into the rounded length is valid even when
+the word addition wraps. The subsequent allocation guard remains live. -/
+theorem combinedSize (length : Word) : ((length + 63) &&& ~~~(31 : Word)) = size length := by
+  have splitAdd : length + 63 = (length + 31) + 32 := by
+    rw [BitVec.add_assoc]
+    rfl
+  rw [splitAdd]
+  let rounded : Word := length + 31
+  change ((rounded + 32) &&& ~~~(31 : Word)) = (rounded &&& ~~~(31 : Word)) + 32
+  let n := rounded.toNat
+  have bound : n < 2^256 := rounded.isLt
+  have mask : (~~~(31 : Word)).toNat = 2^256-32 := by decide
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_add, BitVec.toNat_and, mask]
+  change ((n+32)%2^256) &&& (2^256-32) = ((n &&& (2^256-32))+32)%2^256
+  rw [roundDown n bound, roundDown _ (Nat.mod_lt _ (by decide))]
+  by_cases fits : n + 32 < 2^256
+  · rw [Nat.mod_eq_of_lt fits, Nat.mod_eq_of_lt (by omega : n / 32 * 32 + 32 < 2^256)]
+    omega
+  · have remainder : n+32-2^256 < 32 := by omega
+    have aligned : n/32*32+32 = 2^256 := by omega
+    rw [aligned, Nat.mod_self, Nat.mod_eq_sub_mod (by omega : 2^256 ≤ n+32),
+      Nat.mod_eq_of_lt (by omega : n+32-2^256 < 2^256), Nat.div_eq_of_lt remainder]
+
 theorem roundedSize (n : Nat) (bound : n + 63 < 2^256) :
     size (BitVec.ofNat 256 n) = BitVec.ofNat 256 ((n+63)/32*32) := by
   have nBound : n < 2^256 := by omega

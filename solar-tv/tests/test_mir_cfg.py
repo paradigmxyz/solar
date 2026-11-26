@@ -19,6 +19,51 @@ from validator.common import Program, Unsupported
 
 
 class MirCfgTests(unittest.TestCase):
+    def test_word_sequence_combines_the_allocation_rounding_adds(self):
+        old_rounding = """    v2 = add v1, 31
+    v3 = and v2, {mask}
+    v4 = add v3, 32
+"""
+        new_rounding = """    v2 = add v1, 63
+    v4 = and v2, {mask}
+"""
+        mask = 2**256 - 32
+        split = old_rounding.format(mask=mask)
+        original = f"""@module RoundedSize
+fn @choose(arg0: i256) -> i256 {{
+  bb0:
+    v1 = add arg0, 0
+{split}    sstore 7, v4
+    ret v4
+}}
+"""
+        optimized = original.replace(split, new_rounding.format(mask=mask))
+        changed = optimized.replace("v1, 63", "v1, 62")
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{side}.mir" for side in ("before", "after"))
+            before.write_text(original)
+            after.write_text(optimized)
+            args = (
+                (before, after),
+                SOLAR,
+                native.default(SOLAR),
+                "cancun",
+                60,
+                "choose",
+            )
+            result = mir_cfg.check(*args)
+            self.assertEqual(result.status, "verified")
+            proof = result.program.import_evidence["correspondence"]["choose"]
+            self.assertEqual(proof["word_rewrites"], 1)
+
+            after.write_text(changed)
+            with self.assertRaises(Unsupported):
+                mir_cfg.check(*args)
+            self.assertEqual(
+                self.replay_loop(root, original, changed, [1]), [["64"], ["32"]]
+            )
+
     def test_word_sequence_preserves_the_maximum_word_guard(self):
         maximum = 2**256 - 1
         guard = f"v0 = lt arg0, {maximum}"

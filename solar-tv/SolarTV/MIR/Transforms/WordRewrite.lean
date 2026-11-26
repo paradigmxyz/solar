@@ -1,4 +1,5 @@
 import SolarTV.MIR.Ops
+import SolarTV.MIR.Transforms.LowerReturndata
 
 /-! Canonical forms for the total word operations compared by the CFG proof.
 Keep each original opcode in the key. Normalization has the same typed MIR
@@ -17,6 +18,7 @@ inductive Key where
   | scale (kind : Scale) (exponent : BitVec 8)
   | double
   | highMask (complement : Bool)
+  | roundedSize (combined : Bool)
   deriving DecidableEq
 
 def Key.normalize : Key → Key
@@ -25,6 +27,7 @@ def Key.normalize : Key → Key
   | .scale .div exponent => .scale .shr exponent
   | .double => .scale .shl 1
   | .highMask _ => .highMask false
+  | .roundedSize _ => .roundedSize false
   | key => key
 
 def Key.result (key : Key) (input : Word) : Word :=
@@ -38,6 +41,8 @@ def Key.result (key : Key) (input : Word) : Word :=
   | .double => MIR.eval .add input input
   | .highMask true => MIR.unary .not (MIR.eval .sub (MIR.shift .shl 1 input) 1)
   | .highMask false => MIR.shift .shl (-1) input
+  | .roundedSize true => (input + 63) &&& ~~~(31 : Word)
+  | .roundedSize false => ((input + 31) &&& ~~~(31 : Word)) + 32
 
 private theorem shift_amount (x : BitVec 8) :
     (x.setWidth 256).toNat = x.toNat := BitVec.toNat_setWidth_of_le (by decide)
@@ -75,6 +80,10 @@ theorem normalized (key : Key) (input : Word) :
       · simp only [Word.shift, wide, ite_true]
         exact (BitVec.neg_zero (n := 256)).symm
       · simp only [Word.shift, wide, ite_false, BitVec.shiftLeft_neg]
+  | roundedSize combined =>
+    cases combined
+    · rfl
+    · exact (LowerReturndata.combinedSize input).symm
 
 inductive Offset where
   | add (amount : Word)
