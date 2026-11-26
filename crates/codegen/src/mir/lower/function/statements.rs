@@ -268,6 +268,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             StmtKind::Revert(expr) => self.lower_revert_payload(expr)?,
             StmtKind::AssemblyBlock(block, memory_safe) => {
                 self.cx.module.set_assembly(true);
+                // Assembly may use memory at the free memory pointer as scratch space, so a default
+                // object allocated inside the block would overwrite its data.
+                self.materialize_memory_default_bindings();
                 let previous = std::mem::replace(&mut self.in_inline_assembly, true);
                 let previous_writes = std::mem::take(&mut self.assembly_writes_memory);
                 let result = self.lower_block(*block);

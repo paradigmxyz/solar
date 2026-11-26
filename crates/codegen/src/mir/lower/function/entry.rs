@@ -307,12 +307,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn materialize_default_bindings(&mut self) {
+        self.materialize_bindings(|_| true);
+    }
+
+    /// Allocates the pending default memory objects, like solc does on function entry.
+    pub(super) fn materialize_memory_default_bindings(&mut self) {
+        self.materialize_bindings(|ty| ty.is_ref_at(DataLocation::Memory));
+    }
+
+    fn materialize_bindings(&mut self, filter: impl Fn(Ty<'gcx>) -> bool) {
         let mut ids = self
             .default_bindings
             .iter()
             .chain(self.deferred_bindings.iter())
             .copied()
-            .filter(|id| !self.values.contains_key(id))
+            .filter(|id| {
+                !self.values.contains_key(id) && filter(self.cx.gcx.type_of_item((*id).into()))
+            })
             .collect::<Vec<_>>();
         // Declaration order, not the hash order of the ids, which shifts with unrelated sources.
         ids.sort_unstable();
