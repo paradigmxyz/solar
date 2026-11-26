@@ -1532,3 +1532,8 @@ fn gap_old_return() {
 fn gap_lowlevel_helper() {
     check("tests/cases/gap_lowlevel_helper.sol")
 }
+
+#[test]
+fn gap_rlp_alias() {
+    check("tests/cases/gap_rlp_alias.sol")
+}
