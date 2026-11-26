@@ -10,6 +10,15 @@ LENGTH = "(BitVec.ofNat 256 env.input.length)"
 HEAD = "(Execution.readWord env.input 0)"
 
 
+@dataclass(frozen=True)
+class BoundedCalldataWord:
+    offset: int
+    bits: int
+
+    def __str__(self):
+        return f"(Execution.readWord env.input {self.offset})"
+
+
 @dataclass
 class Instruction:
     pc: int
@@ -20,14 +29,22 @@ class Instruction:
     immediate: int | None
     target: int | None
     length_bound: int | None = None
+    word_guard: tuple[BoundedCalldataWord, int] | None = None
 
 
 @dataclass
 class Dispatch:
     instructions: list[Instruction]
     pc: int
-    stack: list[int | str]
+    stack: list[int | str | BoundedCalldataWord]
     gas: int
+
+    def word_bounds(self):
+        return {
+            step.word_guard[0].offset: step.word_guard[0].bits
+            for step in self.instructions
+            if step.word_guard is not None
+        }
 
 
 def plan(runtime, site, pcs, catalog):
@@ -38,7 +55,7 @@ def plan(runtime, site, pcs, catalog):
     return route
 
 
-def plan_prefix(runtime, selector, pcs, catalog, version, minimum):
+def plan_prefix(runtime, selector, pcs, catalog, version, minimum, *, word_bounds=None):
     """Propose a memory-free path from entry, ending before the selected cut."""
     require(
         1 < len(pcs) <= 129
@@ -46,6 +63,7 @@ def plan_prefix(runtime, selector, pcs, catalog, version, minimum):
         and all(0 <= pc < len(runtime) for pc in pcs),
         "missing emitted ABI dispatcher path",
     )
+    bounds = word_bounds or {}
     stack = []
     path = []
     gas = 0
@@ -89,8 +107,19 @@ def plan_prefix(runtime, selector, pcs, catalog, version, minimum):
             stack.insert(0, 0)
         elif opcode == 0x35 and stack[0] == 0:
             stack[0] = HEAD
+        elif opcode == 0x35 and isinstance(stack[0], int) and stack[0] in bounds:
+            offset = stack[0]
+            stack[0] = BoundedCalldataWord(offset, bounds[offset])
         elif opcode == 0x1C and stack[:2] == [224, HEAD]:
             stack[:2] = [selector]
+        elif opcode == 0x1C and isinstance(stack[1], BoundedCalldataWord):
+            amount, word = stack[:2]
+            require(
+                isinstance(amount, int) and word.bits <= amount < 256,
+                "dispatcher shift exceeds the declared calldata word width",
+            )
+            step.word_guard = (word, amount)
+            stack[:2] = [0]
         elif opcode == 0x10 and stack[0] == LENGTH:
             require(
                 isinstance(stack[1], int) and stack[1] <= minimum,
@@ -177,6 +206,13 @@ def debit_source(name, step, binders, before, after, selector, cost):
         final = "exact enough"
     elif step.opcode == 0x34:
         facts.append("noValue")
+    elif step.word_guard is not None:
+        word, amount = step.word_guard
+        out += f"""  have word : Evm.shr {amount} {word} = 0 := by
+    apply MIR.TransferFromABI.shrFits {word} {amount} (by decide)
+    exact Nat.lt_of_lt_of_le head{word.offset} (by decide +kernel)
+"""
+        final = "exact word"
     elif step.opcode == 0x1C:
         out += f"""  have word : Evm.shr 224 (Execution.readWord env.input 0) = {selector} := by
     change Execution.readWord env.input 0 >>> 224 = {selector}

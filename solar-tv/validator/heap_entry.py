@@ -123,6 +123,9 @@ set_option linter.unusedSimpArgs false
     (noValue : env.value = 0)
     (selected : MIR.TransferFromDispatch.selector env.input = {selector})"""
     args = "env journal large small noValue selected"
+    for offset, bits in sorted(route.word_bounds().items()):
+        binders += f"\n    (head{offset} : (Execution.readWord env.input {offset}).toNat < 2^{bits})"
+        args += f" head{offset}"
     before_store = (
         f"dispatchFrame env 0 {route.pc} {dispatch_proof.stack_text(route.stack)}"
     )
@@ -186,7 +189,19 @@ theorem abi_heap_out_of_gas {binders} (caller : MIR.State.Frame) (work balance :
     )
 
 
-def check_routed(image, floor, extent, selector, minimum, cut, solar, version, timeout):
+def check_routed(
+    image,
+    floor,
+    extent,
+    selector,
+    minimum,
+    cut,
+    solar,
+    version,
+    timeout,
+    *,
+    word_bounds=None,
+):
     from .check import build_model
 
     if not (
@@ -199,6 +214,15 @@ def check_routed(image, floor, extent, selector, minimum, cut, solar, version, t
         and 0 <= extent <= 65536 - floor
     ):
         raise Unsupported("invalid ABI heap selector, cut, floor or input bound")
+    bounds = word_bounds or {}
+    if any(
+        type(offset) is not int
+        or type(bits) is not int
+        or not 4 <= offset <= minimum - 32
+        or not 1 <= bits < 256
+        for offset, bits in bounds.items()
+    ):
+        raise Unsupported("invalid bounded ABI head word")
     executable = native.default(solar)
     catalog = {
         entry["opcode"]: entry for entry in native.catalog(executable, timeout)["evmir"]
@@ -215,7 +239,13 @@ def check_routed(image, floor, extent, selector, minimum, cut, solar, version, t
         fixture = world.read(path, solar, "exact")
         observed = observe(image, fixture, version, executable, timeout, pc=cut - 1)
         route = dispatch_proof.plan_prefix(
-            image, selector, [*observed["pcs"], cut - 1], catalog, version, minimum
+            image,
+            selector,
+            [*observed["pcs"], cut - 1],
+            catalog,
+            version,
+            minimum,
+            word_bounds=bounds,
         )
         if route.stack[:2] != [64, floor] or not all(
             isinstance(value, int) for value in route.stack
@@ -265,6 +295,7 @@ def check_routed(image, floor, extent, selector, minimum, cut, solar, version, t
         "entry": 0,
         "selector": f"0x{selector:08x}",
         "min_calldata": minimum,
+        **({"word_bounds": route.word_bounds()} if route.word_bounds() else {}),
         "cut": cut,
         "heap_floor": floor,
         "extent": extent,
@@ -272,10 +303,27 @@ def check_routed(image, floor, extent, selector, minimum, cut, solar, version, t
         "gas_cost": charge,
         "assumptions": [
             "zero call value, empty entry stack and memory, selected ABI route and calldata length between the stated minimum and 2^256 minus one",
+            *(
+                [
+                    "each listed calldata word is below two to the power of its declared width"
+                ]
+                if route.word_bounds()
+                else []
+            ),
             "kernel-checked cursor and exact debit through the physical cut. MIR activation and suffix correspondence remain separate",
         ],
         "replay": {"funded": paid, "underfunded": unpaid[:3]},
     }
+
+
+def word_bound(value):
+    try:
+        offset, bits = value.split(":", 1)
+        return int(offset, 0), int(bits)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(
+            "expected OFFSET:BITS for an ABI word"
+        ) from error
 
 
 def main(argv):
@@ -291,6 +339,13 @@ def main(argv):
         help="ABI selector for a relocated heap store",
     )
     parser.add_argument("--min-calldata", type=int, help="minimum ABI calldata bytes")
+    parser.add_argument(
+        "--word-bound",
+        type=word_bound,
+        action="append",
+        default=[],
+        help="unsigned ABI head bound as OFFSET:BITS",
+    )
     parser.add_argument(
         "--cut",
         type=lambda value: int(value, 0),
@@ -310,10 +365,15 @@ def main(argv):
         image = bytes.fromhex(args.image.read_text().strip().removeprefix("0x"))
         route = (args.selector, args.min_calldata, args.cut)
         options = (args.solar, args.evm_version, args.timeout)
-        if all(value is None for value in route):
+        bounds = dict(args.word_bound)
+        if len(bounds) != len(args.word_bound):
+            raise Unsupported("duplicate ABI word offset")
+        if not bounds and all(value is None for value in route):
             evidence = check(image, args.floor, args.extent, *options)
         elif all(value is not None for value in route):
-            evidence = check_routed(image, args.floor, args.extent, *route, *options)
+            evidence = check_routed(
+                image, args.floor, args.extent, *route, *options, word_bounds=bounds
+            )
         else:
             raise Unsupported(
                 "an ABI heap proof requires --selector, --min-calldata and --cut together"

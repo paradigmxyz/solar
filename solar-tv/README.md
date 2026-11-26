@@ -2208,6 +2208,19 @@ call value and every admitted calldata length and payload. The report records
 the runtime and proof hashes, exact gas cost, and independent Rust replay
 at the paid and unpaid boundary.
 
+For an emitted unsigned-width guard before the store, supply the ABI word
+offset and width with `--word-bound`. Morpho's `borrow` route checks the
+two address words at offsets 228 and 260:
+
+```sh
+solar-tv/solar-tv heap-entry morpho-runtime.hex --floor 288 --extent 0 \
+  --selector 0x50d8cd4b --min-calldata 292 --cut 1442 \
+  --word-bound 228:160 --word-bound 260:160
+```
+
+The report lists the bounds used in the kernel proof. These are preconditions
+on the calldata admitted by the certificate.
+
 ### Reproducible real-contract evaluation
 
 Capture changed pass pairs without running the prover, then check a deterministic

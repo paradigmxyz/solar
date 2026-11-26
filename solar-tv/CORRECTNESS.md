@@ -3493,6 +3493,49 @@ and yields 42 before reuse versus 256 after it.
 | Checker on Lean 4.34.1 | `97c263c1a94de1a4d50be84e39597010bd64b76f723920a1175d89c3c77d81a7` |
 | `target/tv-memory-dse-current/conditional-transfers.json` | `0a7b16cdba285ad957881e753e807b33131044014a32217454e04aa4510ae4f6` |
 
+### Metered heap producers for the Morpho transfer callers
+
+The typed capture's runtime dispatch and transitive direct calls identify
+eight public entries that can reach a changed transfer helper. The entry
+checker now retains a symbolic ABI word until an emitted unsigned-width
+guard consumes it. The kernel derives a zero guard result from the supplied
+word bound. The other emitted actions include the selector and length
+checks, each static branch, and the `MSTORE` to byte 64.
+
+| Public route | Selector | Minimum bytes | Address offsets | Cut PC | Cursor | Instructions | Gas |
+| --- | --- | ---: | --- | ---: | ---: | ---: | ---: |
+| `repay` | `0x20b76e81` | 292 | 228 | 1442 | 288 | 57 | 222 |
+| `supplyCollateral` | `0x238d6579` | 260 | 196 | 1442 | 288 | 62 | 244 |
+| `borrow` | `0x50d8cd4b` | 292 | 228, 260 | 1442 | 288 | 61 | 236 |
+| `withdraw` | `0x5c2bea49` | 292 | 228, 260 | 1442 | 288 | 71 | 280 |
+| `withdrawCollateral` | `0x8720316d` | 260 | 196, 228 | 1442 | 288 | 66 | 258 |
+| `supply` | `0xa99aad89` | 292 | 228 | 1442 | 288 | 45 | 176 |
+| `liquidate` | `0xd8eabcb8` | 292 | 164 | 1442 | 288 | 55 | 220 |
+| `flashLoan` | `0xe0232b42` | 100 | — | 6303 | 128 | 45 | 188 |
+
+The proofs quantify a matching selector, zero call value, the listed length
+and 160-bit address bounds, and arbitrary initial journal. They establish
+the heap contract at the cut and prove rollback for every insufficient gas
+balance. The pinned Rust executor reaches each cut with zero gas at the
+exact charge and exhausts gas one unit below. An independent regression
+changes the address test from shift 160 to shift 159. The changed image
+loses its entry certificate and raises an exception for an address with
+bit 159 set, which reaches the original heap store.
+
+Composing these entry cuts with the two conditional MIR certificates still
+requires preserving the admitted heap through the remaining decoder and
+caller actions and binding each emitted helper entry to the MIR activation.
+Separately, direct typed MIR execution and pinned Rust replay agree on the
+`extSloads` return for an explicit two-slot world. The corpus count is
+unchanged by these prefix and scenario checks.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Pinned runtime bytecode | `d2c1c3d7bb22df8c2e0e9853f10f2657af1c547028e7287b0452a9943a23cd2e` |
+| Checker on Lean 4.34.1 | `908bea3671518be7b5ee7aa273c4191fefde35d618da5867ffe5b62f2f4c3c2c` |
+| `target/tv-memory-dse-current/heap-prefix-caller-audit.json` | `3f828471ff150a9dd14bedba50ba881ee3f151ae46b242acea64d3db724a11b6` |
+| `target/tv-memory-dse-current/extSloads-world-proof.json` | `29523962304188265e7a0ac83d9059b62100ef076e21ecb4b5a5d18f2a04088d` |
+
 ### MIR CFG checks after an import timeout
 
 The earlier three-second census timed out on 23 Morpho MIR `cfg-simplify`
