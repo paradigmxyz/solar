@@ -1462,10 +1462,10 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   read whose value has another use makes it reject the function with ``codegen
   cannot lower `f`: multi-word call result through memory``. A read that uses the
   word as a pointer, such as `mload(add(mload(0x20), 32))`, binds to the call's
-  own results, and `solc` reads the callee's word as an address instead. A read
-  in a later block than the call is outside the projection, so the call publishes
-  the pointer to the word and the read returns it, silently, at `-O gas` and
-  `-O size`.
+  own results, and `solc` reads the callee's word as an address instead. When
+  the call uses no result beyond the first, a read in a later block is outside
+  the projection, so the call publishes the pointer to the word and the read
+  returns it, silently, at `-O gas` and `-O size`.
 - Rationale: Solidity promises scratch space only between statements inside one
   inline assembly block, so a value in it does not survive a Solidity statement.
   Compiling this code would mean telling the user's read from the protocol's
