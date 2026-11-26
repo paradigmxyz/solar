@@ -547,9 +547,7 @@ fn import_closure_order(gcx: Gcx<'_>, source: hir::SourceId) -> FxIndexSet<hir::
     let mut closure = FxIndexSet::default();
     visit(gcx, source, &mut FxHashSet::default(), &mut closure);
     let mut roots = closure.into_iter().collect::<Vec<_>>();
-    roots.sort_by(|&a, &b| {
-        gcx.hir.source(a).file.name.cmp_source_unit_name(&gcx.hir.source(b).file.name)
-    });
+    roots.sort_by_cached_key(|&id| gcx.hir.source(id).file.name.source_unit_name_key());
     let (mut seen, mut order) = (FxHashSet::default(), FxIndexSet::default());
     for id in roots {
         visit(gcx, id, &mut seen, &mut order);
