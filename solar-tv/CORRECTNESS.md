@@ -3420,6 +3420,53 @@ The saved corpus join reaches **2,151 of 2,228**, with 77 open IDs.
 | `target/tv-inline-returns-entry/inline-returns-complete.json` | `e848c435e997132ea410c420f750f738153634f38594ec4e6d55de47faefc7d2` |
 | `target/tv-inline-returns-entry/remaining-after-morpho.json` | `69636f6feb72c87d19363bca4d288d2b2715f9d07034e89bc6b05456615ab49c` |
 
+### MIR redundant and terminal word stores
+
+The state-reuse certificate now checks a repeated `mstore` whose dominating
+store publishes the same typed address and word. The checked slice excludes
+redefinitions of either operand. The producer activates all 32 bytes, and
+the intervening actions must preserve those bytes on every continuing path.
+The model's successful store is then an exact frame identity. Callee paths
+that revert still execute their original writes and revert data.
+
+For a store suffix immediately before `STOP`, the kernel checks the literal
+address ranges within 64 KiB. The stores can expand private memory. The
+terminal observation retains the earlier effects and discards that memory.
+The comparison retains GAS and message requests with shared replies. The
+source exporter and action binding remain trusted. These certificates use
+logical, unpriced MIR execution.
+
+Serial checks at 60 seconds per stage verify Solady WETH `permit` after
+dropping its last two stores and Morpho Blue `_isHealthy.31` after removing
+a repeated scratch store across a returning arithmetic helper. Both raw
+before and after fingerprints match the frozen corpus. The regressions
+use Lean and the Rust interpreter to distinguish a write that changes a
+live word and a write whose bytes reach a log before `STOP`.
+
+The saved join covers **5 of 10** pinned `memory-dse` checks and
+**2,153 of 2,228** corpus captures, with 75 open. The remaining `memory-dse`
+captures change live heap cursor traffic in helpers and their callers or
+remove a cursor write before a loop that returns data.
+
+Pinned Rust replay agrees on the result and live state of `_isHealthy.31`
+for an explicit market fixture. It also confirms the returned array in one
+`extSloads` fixture. The `load_storage_bytes` replay returns address 128 on
+both sides, with final cursor 160 before and 128 after. Its proof needs a
+caller whose behavior is independent of that update. Both transfer helpers agree
+at initial cursor 128 with a shared GAS sample and an empty-return child.
+At initial cursor zero, the original helpers finish with cursor 32 and the
+rewritten helpers finish with cursors 160 and 192. The remaining proof needs
+to establish the initialized caller heap. The `liquidate` proof also depends
+on `safeTransferFrom` because the selected capture changes both bodies.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Checker on Lean 4.34.1 | `a55ed55bbeda5f7a9bcefe8a44757ea6cb4db792367145f0f41747e56b510ede` |
+| `target/tv-memory-dse-current/memory-store-certificates.json` | `731f0a37a222b57fc49de9c84dd3b752484cbe8ef8e89ee1c4a471c5c7e46d57` |
+| `target/tv-memory-dse-current/remaining-after-stores.json` | `194067eec29daf047e2da0557f003b9120dba6d1aff9e76156a9add16bd5cb2f` |
+| `target/tv-memory-dse-current/rust-mir-replay.json` | `5f19307195f18f10708684525545460a897162407c1a885a09d8df138d76ac93` |
+| `target/tv-memory-dse-current/raw-heap-replay.json` | `e7db9cdf8b29bcf93e3894692b9d001781f27bed0186a215743fde35e6516957` |
+
 ### MIR CFG checks after an import timeout
 
 The earlier three-second census timed out on 23 Morpho MIR `cfg-simplify`

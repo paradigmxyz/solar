@@ -1,9 +1,9 @@
-"""Check that every path from a dominating producer preserves a state read."""
+"""Check state read reuse and redundant stores from dominating producers."""
 
 from collections import defaultdict
 from dataclasses import dataclass
 
-from . import dead_ssa, phi_edges, scalar_reuse
+from . import dead_ssa, mir_state, phi_edges, scalar_reuse
 from .scalar_checks import WORD, local, substitute
 
 WORD_MODULUS = 2**256
@@ -50,6 +50,9 @@ AXIOMS = """
 #print axioms MIR.StateReadReuse.expanded_read
 #print axioms MIR.StateReadReuse.load_word
 #print axioms MIR.StateReadReuse.store_word
+#print axioms MIR.StateReadReuse.stored_bytes
+#print axioms MIR.StateReadReuse.repeated_store
+#print axioms MIR.StateReadReuse.fixed_stop_stores
 #print axioms MIR.StateReadReuse.word_write_disjoint
 #print axioms MIR.StateReadReuse.relative_disjoint
 #print axioms MIR.StateReadReuse.mapping_reuse
@@ -65,6 +68,14 @@ class Site:
     producer: int
     consumer: int
     slice: int
+
+
+@dataclass(frozen=True)
+class StorePair:
+    site: Site
+    producer_args: list
+    consumer_args: list
+    redefinitions: int
 
 
 def constant(operand):
@@ -329,16 +340,23 @@ def checked_slice(producer, consumer, incoming, preserves_fact):
     return Site(producer, consumer, sum(1 << point for point in seen))
 
 
-def normalize(body, definitions, fork, *, read_only=(), heap=None):
+def normalize(
+    body, definitions, fork, *, read_only=(), heap=None, rewrite_stores=False
+):
     blocks = body["blocks"]
     successors = [phi_edges.targets(block["terminator"]) for block in blocks]
     dom, _ = scalar_reuse.dominance(successors)
     entries, actions, points = [], {}, 0
+    redefinitions = defaultdict(int)
     for block in blocks:
+        for phi in block["phis"]:
+            redefinitions[phi["result"]] |= 1 << points
         points += 1  # Simultaneous phi assignment before the first instruction.
         entries.append(points - 1)
         for inst in block["instructions"]:
             actions[points] = inst
+            if inst["result"] is not None:
+                redefinitions[inst["result"]] |= 1 << points
             points += 1
         points += 1  # The terminator carries every outgoing edge.
     edges, incoming = [], defaultdict(list)
@@ -355,9 +373,31 @@ def normalize(body, definitions, fork, *, read_only=(), heap=None):
     }
     producers, aliases, reduced = defaultdict(list), {}, dict(actions)
     sites = []
+    stores = defaultdict(list)
+    store_pairs = []
+    stop_stores = {}
     for index in sorted(dom, key=lambda block: (len(dom[block]), block)):
         start = entries[index] + 1
-        for point in range(start, start + len(blocks[index]["instructions"])):
+        end = start + len(blocks[index]["instructions"])
+        if rewrite_stores and blocks[index]["terminator"]["kind"] == "stop":
+            offsets = []
+            while end > start:
+                inst = actions[end - 1]
+                op = inst["operation"]
+                if (
+                    op["kind"] != "opcode"
+                    or op["name"] != "mstore"
+                    or identify(inst, bindings, definitions, fork, None) is None
+                    or (offset := constant(op["args"][0])) is None
+                    or not 0 <= offset <= MEMORY_LIMIT - 32
+                ):
+                    break
+                offsets.append(offset)
+                end -= 1
+                del reduced[end]
+            if offsets:
+                stop_stores[index] = list(reversed(offsets))
+        for point in range(start, end):
             inst = substitute(actions[point], aliases)
             reduced[point] = inst
             if inst["result"] is not None:
@@ -366,6 +406,18 @@ def normalize(body, definitions, fork, *, read_only=(), heap=None):
             if identified is None:
                 continue
             key, value, write = identified
+
+            def preserves_read(node, fact=key):
+                return preserves(
+                    reduced.get(node),
+                    fact,
+                    bindings,
+                    definitions,
+                    fork,
+                    read_only,
+                    heap,
+                )
+
             if not write:
                 for owner, producer, prior in reversed(producers[key]):
                     if owner not in dom[index]:
@@ -374,15 +426,7 @@ def normalize(body, definitions, fork, *, read_only=(), heap=None):
                         producer,
                         point,
                         incoming,
-                        lambda node, fact=key: preserves(
-                            reduced.get(node),
-                            fact,
-                            bindings,
-                            definitions,
-                            fork,
-                            read_only,
-                            heap,
-                        ),
+                        preserves_read,
                     )
                     if site is not None:
                         aliases[inst["result"]] = prior
@@ -392,6 +436,45 @@ def normalize(body, definitions, fork, *, read_only=(), heap=None):
                 else:
                     producers[key].append((index, point, value))
             else:
+                if rewrite_stores and key[0] == "memory":
+                    args = inst["operation"]["args"]
+                    operand_key = dead_ssa.stable(args)
+                    changed = 0
+                    for arg in args:
+                        if arg["kind"] == "local":
+                            changed |= redefinitions[arg["index"]]
+
+                    def preserves_store(
+                        node, literal_range=key[1][0] is None, read=preserves_read
+                    ):
+                        if literal_range:
+                            return read(node)
+                        # A symbolic address may depend on a value recomputed in a
+                        # loop. Intervening writes need independently known ranges.
+                        return preserves_all(
+                            reduced.get(node), definitions, fork, read_only
+                        )
+
+                    for owner, producer, prior_args in reversed(stores[operand_key]):
+                        if owner not in dom[index]:
+                            continue
+                        site = checked_slice(
+                            producer,
+                            point,
+                            incoming,
+                            preserves_store,
+                        )
+                        if site is not None and not (changed & site.slice):
+                            sites.append(("redundant_mstore", site))
+                            store_pairs.append(
+                                StorePair(site, prior_args, args, changed)
+                            )
+                            del reduced[point]
+                            break
+                    else:
+                        stores[operand_key].append((index, point, args))
+                    if point not in reduced:
+                        continue
                 producers[key].append((index, point, value))
     result = [
         {
@@ -406,17 +489,23 @@ def normalize(body, definitions, fork, *, read_only=(), heap=None):
         }
         for index, block in enumerate(blocks)
     ]
-    return substitute({**body, "blocks": result}, aliases), edges, sites
+    return (
+        substitute({**body, "blocks": result}, aliases),
+        edges,
+        sites,
+        store_pairs,
+        stop_stores,
+    )
 
 
-def certificate(name, edges, sites):
+def certificate(name, edges, sites, store_pairs):
     if not sites:
         return ""
     graph = ",".join(f"({source},{target})" for source, target in edges)
     rows = ",".join(
         f"⟨{site.producer},{site.consumer},{site.slice:#x}⟩" for _, site in sites
     )
-    return f"""
+    code = f"""
 def {name}Edges : MIR.StateReadReuse.Edges := [{graph}]
 def {name}Sites : List MIR.StateReadReuse.Site := [{rows}]
 theorem {name}Checked :
@@ -432,3 +521,30 @@ theorem {name}Sound {{α : Type}} (site : MIR.StateReadReuse.Site)
     (List.all_eq_true.mp {name}Checked _ member) step holds establish preserve run
 #print axioms {name}Sound
 """
+    for index, pair in enumerate(store_pairs):
+        label = f"{name}Store{index}"
+        code += f"""
+theorem {label}Operands : ({mir_state.operands(pair.producer_args)} : List MIR.State.Operand) =
+    {mir_state.operands(pair.consumer_args)} := rfl
+theorem {label}Stable : {pair.site.slice:#x} &&& {pair.redefinitions:#x} = (0 : Nat) :=
+  by decide +kernel
+#print axioms {label}Operands
+#print axioms {label}Stable
+"""
+    return code
+
+
+def stop_store_certificate(name, tails):
+    code = ""
+    for block, offsets in sorted(tails.items()):
+        name_at = f"{name}Stop{block}"
+        terms = ",".join(f"{offset}#256" for offset in offsets)
+        code += f"""
+theorem {name_at} (cfg : MIR.State.Config) (frame : MIR.State.Frame) (values : List Word)
+    (aligned : frame.memory.length % 32 = 0) (bounded : frame.memory.length ≤ 65536) :
+    MIR.StateReadReuse.stopStores cfg ([{terms}].zip values) frame =
+      .ok (MIR.State.observe (MIR.State.finish (.success []) frame)) :=
+  MIR.StateReadReuse.fixed_stop_stores cfg [{terms}] values frame aligned bounded (by decide +kernel)
+#print axioms {name_at}
+"""
+    return code

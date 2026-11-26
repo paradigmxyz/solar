@@ -707,7 +707,16 @@ def proof_sources(prefix, setup, bodies, composition):
 
 
 def project_reads(
-    i, bodies, definitions, fork, empty_targets, read_only, tables, *, use_heap
+    i,
+    bodies,
+    definitions,
+    fork,
+    empty_targets,
+    read_only,
+    tables,
+    *,
+    use_heap,
+    rewrite_stores,
 ):
     projected, state_stats, scalar_stats, heap_stats = [], [], [], []
     code = ""
@@ -721,12 +730,24 @@ def project_reads(
             )
             if heap_flows:
                 heap = heap_flows[body["id"]].addresses
-        reduced, edges, reuses = state_read_reuse.normalize(
-            body, definitions, fork, read_only=read_only[side], heap=heap
+        reduced, edges, reuses, stores, stop_stores = state_read_reuse.normalize(
+            body,
+            definitions,
+            fork,
+            read_only=read_only[side],
+            heap=heap,
+            rewrite_stores=rewrite_stores,
         )
         scalar = {}
         if reuses:
-            code += state_read_reuse.certificate(f"reads{i}_{side}", edges, reuses)
+            code += state_read_reuse.certificate(
+                f"reads{i}_{side}", edges, reuses, stores
+            )
+        if stop_stores:
+            code += state_read_reuse.stop_store_certificate(
+                f"reads{i}_{side}", stop_stores
+            )
+        if reuses or stop_stores:
             untrimmed = reduced
             reduced, scalar, sites = scalar_reuse.normalize(
                 untrimmed, definitions, fork, empty_targets=empty_targets
@@ -735,7 +756,10 @@ def project_reads(
         for identity, flow in heap_flows.items():
             code += heap_cursor.certificate(f"heap{i}_{side}_{identity}", flow)
         projected.append(import_graph(reduced))
-        state_stats.append(dict(Counter(space for space, _ in reuses)))
+        stats = dict(Counter(space for space, _ in reuses))
+        if stop_stores:
+            stats["terminal_mstore"] = sum(map(len, stop_stores.values()))
+        state_stats.append(stats)
         scalar_stats.append(scalar)
         heap_stats.append(
             {
@@ -1154,7 +1178,12 @@ theorem identical{i} : before{i} = after{i} := by rfl
                     alternatives = (
                         (False, True) if valid_heap and name == function else (False,)
                     )
-                    for use_heap in alternatives:
+                    candidates = [
+                        (use_heap, rewrite_stores)
+                        for rewrite_stores in (False, True)
+                        for use_heap in alternatives
+                    ]
+                    for use_heap, rewrite_stores in candidates:
                         try:
                             candidate = project_reads(
                                 i,
@@ -1165,6 +1194,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
                                 read_only,
                                 tables,
                                 use_heap=use_heap,
+                                rewrite_stores=rewrite_stores,
                             )
                             (
                                 projected,
@@ -1175,7 +1205,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
                             ) = candidate
                             pairs = pairing(*projected)
                         except Unsupported:
-                            if use_heap == alternatives[-1]:
+                            if (use_heap, rewrite_stores) == candidates[-1]:
                                 raise
                         else:
                             break

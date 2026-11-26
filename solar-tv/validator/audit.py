@@ -593,6 +593,22 @@ def record(
                         "normal-return summaries for direct callees are checked from their exported bodies. Storage offsets share a modular base or are exact constants. Mapping hashes use the same bytes and hash function",
                     ]
                 )
+                if any(
+                    side.get("redundant_mstore")
+                    for check in program.import_evidence["correspondence"].values()
+                    for side in check.get("state_read_reuse", ())
+                ):
+                    assumptions.append(
+                        "redundant word stores have identical typed operands with no intervening redefinition on the certified slice. The earlier store activates the full word and its bytes are preserved on continuing paths"
+                    )
+                if any(
+                    side.get("terminal_mstore")
+                    for check in program.import_evidence["correspondence"].values()
+                    for side in check.get("state_read_reuse", ())
+                ):
+                    assumptions.append(
+                        "terminal stores have literal intervals within 64 KiB. STOP discards private memory and retains the preceding effects"
+                    )
             if any(
                 check.get("heap_cursor")
                 for check in program.import_evidence["correspondence"].values()

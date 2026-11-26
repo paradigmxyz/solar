@@ -1,5 +1,6 @@
 import SolarTV.MIR.Transforms.DceEffects
 import SolarTV.MIR.Transforms.PhaseShaping
+import SolarTV.MIR.State.Observe
 
 /-! A repeated state read can reuse its dominating value if the intervening
 actions preserve the relevant storage cell or active memory bytes. -/
@@ -77,6 +78,81 @@ theorem store_word (cfg : Config) (frame next : Frame) (offset word : Word)
     have ⟨a,b,c⟩ := expanded_extent _ _ _ 32 aligned (by decide) expansion
     simp only [writeBytes_length]
     exact ⟨a,b,c,readWord_writeWord _ _ _ c⟩
+
+/-- An admitted store activates the entire word and establishes its byte image. -/
+theorem stored_bytes (cfg : Config) (frame next : Frame) (offset word : Word)
+    (aligned : frame.memory.length % 32 = 0)
+    (success : memoryOperation cfg frame .store [offset,word] = effect next) :
+    offset.toNat + 32 ≤ next.memory.length ∧
+      readBytes next.memory offset.toNat 32 = wordBytes word := by
+  simp only [memoryOperation, wordBytes_length, effect, Bind.bind, Except.bind] at success
+  split at success
+  · contradiction
+  · rename_i grown expansion
+    cases success
+    have covered := (expanded_extent _ _ _ 32 aligned (by decide) expansion).2.2
+    simp only [writeBytes_length]
+    exact ⟨covered, by
+      simpa only [wordBytes_length] using
+        readBytes_writeBytes_same grown (wordBytes word) offset.toNat (by simpa using covered)⟩
+
+/-- A repeated store writes the existing byte image and cannot expand memory. -/
+theorem repeated_store (cfg : Config) (frame : Frame) (offset word : Word)
+    (aligned : frame.memory.length % 32 = 0) (bounded : frame.memory.length ≤ 65536)
+    (covers : offset.toNat + 32 ≤ frame.memory.length)
+    (same : readBytes frame.memory offset.toNat 32 = wordBytes word) :
+    memoryOperation cfg frame .store [offset,word] = effect frame := by
+  have rounded : 32 * (frame.memory.length / 32) = frame.memory.length := by omega
+  have fits : (offset.toNat + 32 + 31) / 32 ≤ frame.memory.length / 32 := by omega
+  have write := writeBytes_existing frame.memory (wordBytes word) offset.toNat (by simpa using same)
+  simp only [memoryOperation, wordBytes_length, expand, requiredWords, memoryWords,
+    Nat.reduceEqDiff, ite_false, Nat.max_eq_left fits, rounded, Nat.not_lt.mpr bounded,
+    Nat.sub_self, List.replicate_zero, List.append_nil, Except.bind, Bind.bind, write]
+
+def stopStores (cfg : Config) : List (Word × Word) → Frame → Except String Observation
+  | [], frame => .ok (observe (finish (.success []) frame))
+  | (offset, word) :: rest, frame => do
+    let .returned (_, next) ← memoryOperation cfg frame .store [offset,word]
+      | .error "unexpected terminal store outcome"
+    stopStores cfg rest next
+
+/-- After STOP, the enclosing activation has no continuation that can read
+the stores. A bounded literal interval ensures that the interpreter evaluates
+each store instead of failing at its memory work limit. -/
+theorem stop_stores (cfg : Config) (stores : List (Word × Word)) (frame : Frame)
+    (aligned : frame.memory.length % 32 = 0) (bounded : frame.memory.length ≤ 65536)
+    (addresses : ∀ pair ∈ stores, pair.1.toNat + 32 ≤ 65536) :
+    stopStores cfg stores frame = .ok (observe (finish (.success []) frame)) := by
+  induction stores generalizing frame with
+  | nil => rfl
+  | cons pair rest ih =>
+    obtain ⟨offset,word⟩ := pair
+    have room := addresses (offset,word) (by simp)
+    change offset.toNat + 32 ≤ 65536 at room
+    have cap : 32 * requiredWords frame.memory offset.toNat 32 ≤ 65536 := by
+      simp only [requiredWords, memoryWords, Nat.reduceEqDiff, ite_false]
+      omega
+    let grown := frame.memory ++ List.replicate
+      (32 * requiredWords frame.memory offset.toNat 32 - frame.memory.length) 0
+    have expanded : expand frame.memory offset.toNat 32 = .ok grown := by
+      simp [expand, Nat.not_lt.mpr cap, grown]
+    obtain ⟨nextAligned,nextBounded,_⟩ := expanded_extent _ _ _ _ aligned (by decide) expanded
+    let next := {frame with memory := writeBytes grown offset.toNat (wordBytes word)}
+    have stored : memoryOperation cfg frame .store [offset,word] = effect next := by
+      simp [memoryOperation, expanded, Bind.bind, Except.bind, next]
+    have keep : observe (finish (.success []) next) = observe (finish (.success []) frame) := rfl
+    simp only [stopStores, stored, effect, Bind.bind, Except.bind]
+    rw [ih next (by simpa [next] using nextAligned) (by simpa [next] using nextBounded)
+      (fun pair member => addresses pair (List.mem_cons_of_mem _ member)), keep]
+
+theorem fixed_stop_stores (cfg : Config) (offsets values : List Word) (frame : Frame)
+    (aligned : frame.memory.length % 32 = 0) (bounded : frame.memory.length ≤ 65536)
+    (addresses : offsets.all (fun offset => decide (offset.toNat + 32 ≤ 65536)) = true) :
+    stopStores cfg (offsets.zip values) frame = .ok (observe (finish (.success []) frame)) := by
+  apply stop_stores cfg _ frame aligned bounded
+  intro pair member
+  obtain ⟨offset,word⟩ := pair
+  exact of_decide_eq_true (List.all_eq_true.mp addresses offset (List.of_mem_zip member).1)
 
 theorem load_word (cfg : Config) (frame next : Frame) (offset word : Word)
     (aligned : frame.memory.length % 32 = 0)

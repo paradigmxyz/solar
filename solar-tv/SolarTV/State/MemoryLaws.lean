@@ -67,6 +67,21 @@ theorem readBytes_writeBytes_same (memory bytes : List Byte) (offset : Nat)
     simp [readBytes, writeBytes_eq_spec, writeBytesSpec, List.getElem?_mapIdx, List.getElem?_eq_getElem hm,
       Nat.add_sub_cancel_left, List.getElem?_eq_getElem hj] <;> omega
 
+theorem writeBytes_existing (memory bytes : List Byte) (offset : Nat)
+    (same : readBytes memory offset bytes.length = bytes) :
+    writeBytes memory offset bytes = memory := by
+  rw [writeBytes_eq_spec]
+  apply List.ext_getElem
+  · simp [writeBytesSpec]
+  · intro i written active
+    by_cases inside : offset ≤ i ∧ i < offset + bytes.length
+    · have relative : i - offset < bytes.length := by omega
+      have old := congrArg (fun row : List Byte => row[i-offset]?) same
+      simp only [readBytes, List.getElem?_map, List.getElem?_range relative,
+        Option.map_some, Nat.add_sub_of_le inside.1] at old
+      simp [writeBytesSpec, inside, ← old, List.getElem?_eq_getElem active]
+    · simp [writeBytesSpec, inside]
+
 theorem flatten_wordBytes (word : Word) : (BitVec.flattenList (wordBytes word)).setWidth 256 = word := by
   have hl : (wordBytes word).length = 32 := by simp [wordBytes]
   apply BitVec.eq_of_getLsbD_eq

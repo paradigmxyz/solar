@@ -802,6 +802,96 @@ fn @choose(arg0: i256) -> i256 {
                 self.assertEqual(new["values"], ["32" if left == source else "0"])
                 self.assertEqual(old == new, left == source)
 
+    def test_memory_dse_reuses_a_store_across_a_returning_helper(self):
+        source = """@module RedundantStore
+fn @guard(arg0: i256) -> i256 {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb1:
+    mstore 0, 37
+    revert 0, 32
+  bb2:
+    ret arg0
+}
+
+fn @choose(arg0: i256) -> i256 {
+  bb0:
+    mstore 0, arg0
+    mstore 32, 19
+    v0 = icall @guard, arg0
+    mstore 0, arg0
+    v1 = mload 0
+    v2 = add v0, v1
+    ret v2
+}
+"""
+        reduced = source.replace(
+            "    mstore 0, arg0\n    v1 = mload 0", "    v1 = mload 0"
+        )
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{name}.mir" for name in ("before", "after"))
+            before.write_text(source)
+            after.write_text(reduced)
+            proof = self.check_loop(root, 0)
+            reuse = proof["import_correspondence"][0]["correspondence"]["choose"][
+                "state_read_reuse"
+            ]
+            self.assertEqual(reuse[0]["redundant_mstore"], 1)
+            self.assertEqual(
+                self.replay_loop(root, source, reduced, [7]), [["14"], ["14"]]
+            )
+
+            original, wrong = [
+                text.replace("mstore 32, 19", "mstore 0, 19")
+                for text in (source, reduced)
+            ]
+            before.write_text(original)
+            after.write_text(wrong)
+            counterexample = self.check_loop(root, 1)
+            witness = counterexample["witness"]
+            self.assertEqual(witness["observations"], witness["native_observations"])
+            self.assertEqual(
+                self.replay_loop(root, original, wrong, [7]), [["14"], ["26"]]
+            )
+
+    def test_memory_dse_discards_only_stores_after_the_last_observation(self):
+        source = """@module TerminalStore
+fn @choose() {
+  bb0:
+    v0 = gas
+    mstore 0, 7
+    log 0, 32
+    mstore 0, 9
+    stop
+}
+"""
+        optimized = source.replace("    mstore 0, 9\n", "")
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{name}.mir" for name in ("before", "after"))
+            before.write_text(source)
+            after.write_text(optimized)
+            proof = self.check_loop(root, 0)
+            rewrites = proof["import_correspondence"][0]["correspondence"]["choose"][
+                "state_read_reuse"
+            ]
+            self.assertEqual(rewrites, [{"terminal_mstore": 1}, {}])
+
+            # Move the store ahead of the log so its bytes become observable.
+            before.write_text(
+                source.replace("    v0 = gas\n", "").replace(
+                    "    log 0, 32\n    mstore 0, 9", "    mstore 0, 9\n    log 0, 32"
+                )
+            )
+            after.write_text(optimized.replace("    v0 = gas\n", ""))
+            fixture = root / "world.json"
+            fixture.write_text('{"version":1}')
+            counterexample = self.check_loop(root, 1, fixture=fixture)
+            witness = counterexample["witness"]
+            self.assertEqual(witness["observations"], witness["native_observations"])
+
     def test_egraph_loop_with_wrapping_words_and_pointer_callee(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
