@@ -1422,7 +1422,7 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - ID: CODEGEN-031
 - Status: intentional
 - Difference: a storage-to-storage copy of a struct or array reads the whole
-  source into memory, then writes the target. Two things differ from `solc`
+  source into memory, then writes the target. Three things differ from `solc`
   0.8.39, which copies directly when the operands are disjoint and takes a
   memory snapshot only when it finds the source inside the target.
   - A copy whose source contains its target, such as
@@ -1432,18 +1432,67 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   - Every such copy, recursive or not, advances the free memory pointer by the
     size of the snapshot. `solc` leaves it unchanged for disjoint operands and
     rewinds it after a snapshot.
+  - A recursive copy whose target contains its source, after assembly forged
+    the length of the target array, runs out of gas in `solar`: the copy has no
+    overlap check and clears the old target elements one by one up to the
+    forged length. `solc` computes `length * 2` in its overlap check, sees it
+    overflow and reverts with `Panic(0x11)`; its test
+    `copy_recursive_struct_overlap_length_mul_overflow_reverts.sol` expects the
+    panic. A disjoint copy with the same forged length runs out of gas in both.
 - Rationale: reading the source before writing makes every overlap safe,
   including a target that contains its source, the direction that corrupted
   storage in `solc` before 0.8.39, without a runtime overlap check. The
   growth shows in assembly that reads the free memory pointer around the copy,
   and as extra memory expansion gas, so a transaction that copies often can
-  run out of gas where `solc` completes.
-- Coverage: `tests/ui/codegen/run-call/storage/recursive_struct_source_contains_target.sol`
-  and `tests/ui/codegen/run-call/storage/recursive_struct_overlap_copy.sol`.
+  run out of gas where `solc` completes. Only assembly forges an array length,
+  the call reverts either way, and a length check would add code to every
+  recursive copy.
+- Coverage: `tests/ui/codegen/run-call/storage/recursive_struct_source_contains_target.sol`,
+  `tests/ui/codegen/run-call/storage/recursive_struct_overlap_copy.sol` and
+  `tests/ui/codegen/run-call/storage/recursive_struct_forged_length_copy.sol`.
   Twelve upstream tests expect a failure, eleven of the
   `copy_recursive_struct_*source_contains_target*` tests and
   `copy_recursive_struct_overlap_push_self_parent`, and
   `copy_recursive_struct_disjoint_copy_memory_growth` expects no growth.
+
+### CODEGEN-032: Assigning a storage value to itself loads and rewrites it
+
+- ID: CODEGEN-032
+- Status: intentional
+- Difference: `data = data` for a `bytes` or `string`, `s = s` for a struct and
+  `arr = arr` for an array load the value and write it back in `solar`. The copy
+  helpers of `solc` return at once when the source and target slots are equal.
+  With valid storage the result is the same. After assembly writes storage, two
+  things differ. A `bytes` or `string` whose short-form header is invalid, such
+  as `sstore(data.slot, 0x40)`, panics with `Panic(0x22)` in `solar` and stays
+  untouched in `solc`. Dirty bits are cleared by `solar` and kept by `solc`:
+  the padding in the last data word of a long `bytes`, such as `0xaaff..ff`
+  becoming `0xaa00..00` for a 65-byte value, the high byte of a slot that holds
+  `uint8[]` elements, and the high byte of the slot of a struct
+  `{uint8 a; uint256 b}`. A copy between distinct slots matches `solc`: both
+  panic on the invalid header and both clear the padding. A dirty enum panics
+  as CODEGEN-022 describes.
+- Rationale: only assembly-forged storage reaches it, and a slot equality check
+  would add a branch to every storage-to-storage copy.
+- Coverage: `tests/ui/codegen/run-call/storage/storage_self_assign_forged.sol`.
+
+### CODEGEN-033: A calldata argument is copied to memory before later arguments are evaluated
+
+- ID: CODEGEN-033
+- Status: intentional
+- Difference: when a struct constructor, an internal call or a tuple converts a
+  calldata argument to memory, `solar` copies it as soon as it evaluates the
+  argument, before the later ones. `solc` evaluates every argument first, then
+  converts. If assembly moved the calldata slice out of range, such as
+  `s.offset := 0xffffff` with `s.length := 0`, then `S({a: s, b: x - 1})`,
+  `take(s, x - 1)` with an internal `take(bytes memory, uint256)`, and
+  `(bytes memory m, uint256 y) = (s, x - 1)` revert with empty data in `solar`
+  and with `Panic(0x11)` in `solc` for `x == 0`. For `x == 1` both revert with
+  empty data. Only the revert data differs. CODEGEN-015 covers the opposite
+  order, in ABI decoding.
+- Rationale: only a forged or malformed slice fails the copy, both compilers
+  revert, and deferring every conversion would complicate argument lowering.
+- Coverage: `tests/ui/codegen/run-call/calldata/calldata_forged_slice_argument_order.sol`.
 
 ### TYPECK-026: `@inheritdoc` references
 
