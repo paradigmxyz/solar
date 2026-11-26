@@ -140,7 +140,7 @@ fn abi_ty<'a>(p: &Program<'a>, v: &'a ast::VariableDefinition<'a>, sp: Span) -> 
     if let TypeKind::Elementary(ElementaryType::FixedBytes(n)) = &v.ty.kind {
         return Ok(format!("(.fixedBytes {})", n.bytes()));
     }
-    let ty = crate::vc::ty_of(p, &v.ty);
+    let ty = crate::vc::ty_of(p, &[], &v.ty);
     if let Ty::Int(n) | Ty::Uint(n) = ty
         && n % 8 != 0
     {
@@ -954,7 +954,7 @@ fn abi_name<'a>(p: &Program<'a>, v: &'a ast::VariableDefinition<'a>) -> Option<S
         TypeKind::Elementary(ElementaryType::FixedBytes(n)) => format!("bytes{}", n.bytes()),
         TypeKind::Elementary(ElementaryType::Bytes) => "bytes".into(),
         TypeKind::Elementary(ElementaryType::String) => "string".into(),
-        _ => match crate::vc::ty_of(p, &v.ty) {
+        _ => match crate::vc::ty_of(p, &[], &v.ty) {
             Ty::Bool => "bool".into(),
             Ty::Uint(n) => format!("uint{n}"),
             Ty::Int(n) => format!("int{n}"),

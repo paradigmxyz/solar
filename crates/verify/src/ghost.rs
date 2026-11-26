@@ -524,6 +524,11 @@ impl<'p, 'a> Cx<'p, 'a> {
                     if l == "this" {
                         return Callees::External(format!("this.{m}"));
                     }
+                    // A struct a contract or interface declares, constructed by its qualified name.
+                    if self.prog.contract(l).is_some() && self.prog.qualified_struct(l, m).is_some()
+                    {
+                        return Callees::Builtin;
+                    }
                     if let Some(lc) = self.prog.contract(l)
                         && !lc.kind.is_interface()
                     {

@@ -1,7 +1,7 @@
 //! Frontend: collect contracts, flatten inheritance and parse NatSpec specs with Solar's parser.
 use crate::{
     spec::{QInfo, preprocess},
-    ty::{Ty, parse_ty_text},
+    ty::{Ty, parse_ty_text_in},
 };
 use solar_parse::{
     Parser,
@@ -176,6 +176,11 @@ pub(crate) struct Program<'a> {
     /// or `L.f` for one of its functions (`using {L.f} for T`). Its own directives, its file's
     /// and every `global` one.
     pub using: FxHashMap<String, FxHashSet<String>>,
+    /// `import {A as B}` renames: `B` stands for `A` everywhere (names are global).
+    pub import_aliases: FxHashMap<String, String>,
+    /// Struct names several contracts declare (`IOld.Item`, `INew.Item`): each such struct is
+    /// keyed by its qualified name, and a bare use resolves in the contracts in scope.
+    pub qualified_structs: FxHashSet<String>,
 }
 
 impl<'a> Program<'a> {
@@ -225,7 +230,39 @@ impl<'a> Program<'a> {
             .collect()
     }
 
+    /// The key of struct `n` as written where the contracts `scope` (a linearization) are
+    /// visible: its bare name, or for a name several contracts declare, the one declaration
+    /// in scope (`C.n`), else a file-level one. None when that is not exactly one.
+    pub(crate) fn struct_key(&self, scope: &[String], n: &str) -> Option<String> {
+        if !self.qualified_structs.contains(n) {
+            return self.struct_fields(n).is_some().then(|| n.to_string());
+        }
+        let found: Vec<String> = scope
+            .iter()
+            .map(|c| format!("{c}.{n}"))
+            .filter(|k| self.struct_fields(k).is_some())
+            .collect();
+        match &found[..] {
+            [k] => Some(k.clone()),
+            [] => self.struct_fields(n).is_some().then(|| n.to_string()),
+            _ => None,
+        }
+    }
+
+    /// The key of struct `C.n` written with its contract's name.
+    pub(crate) fn qualified_struct(&self, c: &str, n: &str) -> Option<String> {
+        let c = self.import_aliases.get(c).map_or(c, String::as_str);
+        let k = format!("{c}.{n}");
+        if self.struct_fields(&k).is_some() {
+            return Some(k);
+        }
+        // A struct only one declaration has keeps its bare name.
+        (!self.qualified_structs.contains(n) && self.struct_fields(n).is_some())
+            .then(|| n.to_string())
+    }
+
     pub(crate) fn contract(&self, name: &str) -> Option<&Contract<'a>> {
+        let name = self.import_aliases.get(name).map_or(name, String::as_str);
         self.contracts.iter().find(|c| c.name == name)
     }
     /// The contract whose modifiers `f`'s header names, when `f` runs for `c`: `c` itself
@@ -253,6 +290,15 @@ struct Builder<'s, 'a> {
     ambiguous_structs: FxHashSet<String>,
     /// Every declaration of an enum, user-defined value type or contract, by bare name.
     type_spans: FxHashMap<String, FxHashSet<Span>>,
+    /// `import {A as B}`: `B` to `A`.
+    import_aliases: FxHashMap<String, String>,
+    /// Each struct declaration with the contract that declares it, if any.
+    struct_decls: Vec<(Option<String>, &'a ast::ItemStruct<'a>, &'a ast::DocComments<'a>)>,
+    /// See `Program::qualified_structs`; `struct_keys` holds every struct's key.
+    qualified_structs: FxHashSet<String>,
+    struct_keys: FxHashSet<String>,
+    /// The contracts whose declarations are visible where types are being read.
+    scope: Vec<String>,
     /// Constant names that several declarations give different sizes, and constants sized
     /// through another constant: sizes are keyed by bare name, so neither sizes an array.
     const_conflicts: FxHashSet<String>,
@@ -353,7 +399,40 @@ impl<'s, 'a> Builder<'s, 'a> {
             }
             TypeKind::Function(_) => Ty::Opaque,
             TypeKind::Custom(p) => {
-                let n = p.last().as_str().to_string();
+                let mut n = p.last().as_str().to_string();
+                if p.segments().len() == 1
+                    && let Some(a) = self.import_aliases.get(&n)
+                {
+                    n = a.clone();
+                }
+                if self.qualified_structs.contains(&n) {
+                    let segs = p.segments();
+                    if segs.len() >= 2 {
+                        let c = segs[segs.len() - 2].as_str();
+                        let c = self.import_aliases.get(c).map_or(c, String::as_str);
+                        let k = format!("{c}.{n}");
+                        if self.struct_keys.contains(&k) {
+                            return Ty::Struct(k);
+                        }
+                    }
+                    let found: Vec<String> = self
+                        .scope
+                        .iter()
+                        .map(|c| format!("{c}.{n}"))
+                        .filter(|k| self.struct_keys.contains(k))
+                        .collect();
+                    match &found[..] {
+                        [k] => return Ty::Struct(k.clone()),
+                        [] if self.struct_keys.contains(&n) => return Ty::Struct(n),
+                        _ => {
+                            self.errors.push((
+                                t.span,
+                                format!("struct name `{n}` does not name one declaration here"),
+                            ));
+                            return Ty::Opaque;
+                        }
+                    }
+                }
                 if self.ambiguous_structs.contains(&n) {
                     Ty::Opaque
                 } else if let Some(k) = self.enums.get(&n) {
@@ -667,6 +746,11 @@ pub(crate) fn build<'a>(
         struct_docs: vec![],
         ambiguous_structs: FxHashSet::default(),
         type_spans: FxHashMap::default(),
+        import_aliases: FxHashMap::default(),
+        struct_decls: vec![],
+        qualified_structs: FxHashSet::default(),
+        struct_keys: FxHashSet::default(),
+        scope: vec![],
         const_conflicts: FxHashSet::default(),
         const_derived: FxHashSet::default(),
         unknown_sizes: vec![],
@@ -688,48 +772,72 @@ pub(crate) fn build<'a>(
     let mut imported = FxHashSet::default();
     // file-level functions, and whether each comes from an imported file
     let mut free_fns: Vec<(&'a ast::Item<'a>, &'a ItemFunction<'a>, bool)> = vec![];
-    let collect_names = |b: &mut Builder<'_, 'a>, it: &'a ast::Item<'a>| match &it.kind {
-        ItemKind::Enum(e) => {
-            b.type_spans.entry(e.name.as_str().to_string()).or_default().insert(e.name.span);
-            b.enums.insert(e.name.as_str().to_string(), e.variants.len());
-            for (i, v) in e.variants.iter().enumerate() {
-                b.enum_variants.insert(format!("{}.{}", e.name.as_str(), v.name.as_str()), i);
-            }
-        }
-        ItemKind::Udvt(u) => {
-            b.type_spans.entry(u.name.as_str().to_string()).or_default().insert(u.name.span);
-            b.udvts.insert(u.name.as_str().to_string(), &u.ty);
-        }
-        ItemKind::Struct(st) => {
-            b.struct_items.push(st);
-            b.struct_names.insert(st.name.as_str().to_string());
-            b.struct_docs.push((st.name.as_str().to_string(), &it.docs));
-        }
-        ItemKind::Variable(v) => {
-            if let (Some(n), Some(init)) = (v.name, v.initializer.as_deref())
-                && let Some(k) = array_size(&b.const_sizes, init)
+    // `import {A as B}`: names are global here, so `B` stands for `A` in every file.
+    for u in units {
+        for it in u.items.iter() {
+            if let ItemKind::Import(imp) = &it.kind
+                && let ast::ImportItems::Aliases(list) = &imp.items
             {
-                let n = n.as_str().to_string();
-                if matches!(init.kind, ast::ExprKind::Ident(_)) {
-                    b.const_derived.insert(n.clone());
-                }
-                if b.const_sizes.get(&n).is_some_and(|&old| old != k) {
-                    b.const_conflicts.insert(n.clone());
-                }
-                if !b.const_conflicts.contains(&n) {
-                    b.const_sizes.insert(n, k);
+                for (orig, alias) in list.iter() {
+                    let Some(a) = alias else { continue };
+                    let (o, a) = (orig.as_str().to_string(), a.as_str().to_string());
+                    match b.import_aliases.get(&a) {
+                        Some(prev) if *prev != o => b.errors.push((
+                            it.span,
+                            format!("import alias `{a}` stands for both `{prev}` and `{o}`: names are resolved globally"),
+                        )),
+                        _ => {
+                            b.import_aliases.insert(a, o);
+                        }
+                    }
                 }
             }
         }
-        _ => {}
-    };
+    }
+    let collect_names =
+        |b: &mut Builder<'_, 'a>, it: &'a ast::Item<'a>, container: Option<&str>| match &it.kind {
+            ItemKind::Enum(e) => {
+                b.type_spans.entry(e.name.as_str().to_string()).or_default().insert(e.name.span);
+                b.enums.insert(e.name.as_str().to_string(), e.variants.len());
+                for (i, v) in e.variants.iter().enumerate() {
+                    b.enum_variants.insert(format!("{}.{}", e.name.as_str(), v.name.as_str()), i);
+                }
+            }
+            ItemKind::Udvt(u) => {
+                b.type_spans.entry(u.name.as_str().to_string()).or_default().insert(u.name.span);
+                b.udvts.insert(u.name.as_str().to_string(), &u.ty);
+            }
+            ItemKind::Struct(st) => {
+                b.struct_decls.push((container.map(str::to_string), st, &it.docs));
+                b.struct_items.push(st);
+                b.struct_names.insert(st.name.as_str().to_string());
+                b.struct_docs.push((st.name.as_str().to_string(), &it.docs));
+            }
+            ItemKind::Variable(v) => {
+                if let (Some(n), Some(init)) = (v.name, v.initializer.as_deref())
+                    && let Some(k) = array_size(&b.const_sizes, init)
+                {
+                    let n = n.as_str().to_string();
+                    if matches!(init.kind, ast::ExprKind::Ident(_)) {
+                        b.const_derived.insert(n.clone());
+                    }
+                    if b.const_sizes.get(&n).is_some_and(|&old| old != k) {
+                        b.const_conflicts.insert(n.clone());
+                    }
+                    if !b.const_conflicts.contains(&n) {
+                        b.const_sizes.insert(n, k);
+                    }
+                }
+            }
+            _ => {}
+        };
     let last = units.len().saturating_sub(1);
     let items_of = units
         .iter()
         .enumerate()
         .flat_map(|(index, unit)| unit.items.iter().map(move |item| (item, index != last)));
     for (it, from_import) in items_of {
-        collect_names(&mut b, it);
+        collect_names(&mut b, it, None);
         if let ItemKind::Function(f) = &it.kind {
             free_fns.push((it, f, from_import));
             for st in f.body.iter().flat_map(|b| b.stmts.iter()) {
@@ -768,8 +876,20 @@ pub(crate) fn build<'a>(
             }
             order.push(n);
             for sub in c.body.iter() {
-                collect_names(&mut b, sub);
+                collect_names(&mut b, sub, Some(c.name.as_str()));
             }
+        }
+    }
+    for (a, o) in b.import_aliases.clone() {
+        if a != o
+            && (b.type_spans.contains_key(&a)
+                || b.struct_names.contains(&a)
+                || free_fns.iter().any(|(_, f, _)| f.header.name.is_some_and(|n| n.as_str() == a)))
+        {
+            b.errors.push((
+                Span::DUMMY,
+                format!("import alias `{a}` (for `{o}`) is also the name of a declaration: names are resolved globally"),
+            ));
         }
     }
     // A name that several declarations share stays opaque, even when they read alike: types,
@@ -787,11 +907,48 @@ pub(crate) fn build<'a>(
             || b.contract_names.iter().any(|c| c == n)
             || b.udvts.contains_key(n)
     };
+    // Several declarations of a struct name, each in a different contract (and at most one at
+    // file level), are told apart by qualified name: `INew.Item`.
+    let mut qualified: FxHashSet<String> = FxHashSet::default();
+    for (n, s) in &spans {
+        if s.len() < 2 || other_kind(n) {
+            continue;
+        }
+        let mut seen: FxHashMap<Option<String>, Span> = FxHashMap::default();
+        let mut ok = true;
+        for (c, st, _) in &b.struct_decls {
+            if st.name.as_str() != *n {
+                continue;
+            }
+            if let Some(sp) = seen.get(c)
+                && *sp != st.name.span
+            {
+                ok = false;
+            }
+            seen.insert(c.clone(), st.name.span);
+        }
+        // A contract's struct shadows a file-level one of its name in its own code, but not in
+        // a base's code, which is verified in the derived contract's scope: keep those apart by
+        // refusing them, as before.
+        ok &= !seen.contains_key(&None);
+        if ok {
+            qualified.insert(n.to_string());
+        }
+    }
     b.ambiguous_structs = spans
         .into_iter()
-        .filter(|(n, s)| s.len() > 1 || other_kind(n))
+        .filter(|(n, s)| (s.len() > 1 || other_kind(n)) && !qualified.contains(*n))
         .map(|(n, _)| n.to_string())
         .collect();
+    for (c, st, _) in &b.struct_decls {
+        let n = st.name.as_str();
+        let key = match c {
+            Some(c) if qualified.contains(n) => format!("{c}.{n}"),
+            _ => n.to_string(),
+        };
+        b.struct_keys.insert(key);
+    }
+    b.qualified_structs = qualified;
     let only_structs = b.ambiguous_structs.iter().all(|n| !other_kind(n));
     // Enums, user-defined value types and contracts are keyed by bare name too: two of them
     // (or one of each) sharing a name would give one the other's range, size or kind.
@@ -828,20 +985,32 @@ pub(crate) fn build<'a>(
     }
     let mut structs = vec![];
     let mut emitted = FxHashSet::default();
-    for st in b.struct_items.clone() {
+    let mut struct_docs = vec![];
+    for (c, st, docs) in b.struct_decls.clone() {
         let name = st.name.as_str();
-        if b.ambiguous_structs.contains(name) || !emitted.insert(name) {
+        if b.ambiguous_structs.contains(name) {
             continue;
         }
+        let key = match &c {
+            Some(c) if b.qualified_structs.contains(name) => format!("{c}.{name}"),
+            _ => name.to_string(),
+        };
+        if !emitted.insert(key.clone()) {
+            continue;
+        }
+        // Field types read in the declaring contract's scope.
+        b.scope = c.iter().cloned().collect();
         let fields = st
             .fields
             .iter()
             .map(|f| (f.name.map(|n| n.as_str().to_string()).unwrap_or_default(), b.ty(&f.ty)))
             .collect();
-        structs.push((st.name.as_str().to_string(), fields));
+        structs.push((key.clone(), fields));
+        struct_docs.push((key, docs));
     }
+    b.scope.clear();
     let mut struct_invs: FxHashMap<String, Vec<Spec<'a>>> = FxHashMap::default();
-    for (n, docs) in b.struct_docs.clone() {
+    for (n, docs) in struct_docs {
         for (tag, content, span) in custom_tags(docs) {
             if tag == "invariant"
                 && let Some(sp) = b.parse_spec(&content, span)
@@ -863,9 +1032,15 @@ pub(crate) fn build<'a>(
         // Solidity's C3 linearization, most base first; a depth-first order where it fails
         // (solc rejects such a hierarchy).
         let mut lin: Vec<String> = vec![];
+        let aliases = b.import_aliases.clone();
+        let base_name = |p: &ast::AstPath<'_>| -> String {
+            let n = p.last().as_str();
+            aliases.get(n).cloned().unwrap_or_else(|| n.to_string())
+        };
         fn c3<'a>(
             n: &str,
             items: &FxHashMap<String, (&'a ast::Item<'a>, &'a ast::ItemContract<'a>)>,
+            base_name: &dyn Fn(&ast::AstPath<'_>) -> String,
             depth: usize,
         ) -> Option<Vec<String>> {
             let (_, c) = items.get(n)?;
@@ -873,12 +1048,11 @@ pub(crate) fn build<'a>(
                 return None;
             }
             // Bases are listed from the most base-like to the most derived.
-            let bases: Vec<String> =
-                c.bases.iter().rev().map(|b| b.name.last().as_str().to_string()).collect();
+            let bases: Vec<String> = c.bases.iter().rev().map(|b| base_name(&b.name)).collect();
             let mut seqs: Vec<Vec<String>> = vec![];
             for b in &bases {
                 if items.contains_key(b) {
-                    seqs.push(c3(b, items, depth + 1)?);
+                    seqs.push(c3(b, items, base_name, depth + 1)?);
                 }
             }
             seqs.push(bases.iter().filter(|b| items.contains_key(*b)).cloned().collect());
@@ -903,6 +1077,7 @@ pub(crate) fn build<'a>(
         fn dfs<'a>(
             n: &str,
             items: &FxHashMap<String, (&'a ast::Item<'a>, &'a ast::ItemContract<'a>)>,
+            base_name: &dyn Fn(&ast::AstPath<'_>) -> String,
             lin: &mut Vec<String>,
         ) {
             if lin.iter().any(|x| x == n) {
@@ -910,17 +1085,17 @@ pub(crate) fn build<'a>(
             }
             if let Some((_, c)) = items.get(n) {
                 for base in c.bases.iter() {
-                    dfs(base.name.last().as_str(), items, lin);
+                    dfs(&base_name(&base.name), items, base_name, lin);
                 }
                 lin.push(n.to_string());
             }
         }
-        match c3(name, &items, 0) {
+        match c3(name, &items, &base_name, 0) {
             Some(mut l) => {
                 l.reverse();
                 lin = l;
             }
-            None => dfs(name, &items, &mut lin),
+            None => dfs(name, &items, &base_name, &mut lin),
         }
         let (_, own) = items[name];
         let mut con = Contract {
@@ -961,6 +1136,8 @@ pub(crate) fn build<'a>(
                 }
             }
         }
+        // A struct name several contracts declare resolves among this hierarchy's.
+        b.scope = lin.clone();
         for cn in &lin {
             let (item, c) = items[cn];
             for (tag, content, span) in custom_tags(&item.docs) {
@@ -991,9 +1168,39 @@ pub(crate) fn build<'a>(
                     }
                     "ghost" => {
                         let content = content.trim().trim_end_matches(';');
+                        // A struct, enum, contract or user-defined value type by its name, or by
+                        // a qualified one (`I.Deposit`) whose last part names one declaration.
+                        let named = |t: &str| -> Option<Ty> {
+                            let n = t.rsplit('.').next()?.trim();
+                            if b.ambiguous_structs.contains(n) {
+                                return None;
+                            }
+                            if b.qualified_structs.contains(n) {
+                                let q = t.trim();
+                                let q = match q.rsplit_once('.') {
+                                    Some((c, s)) => {
+                                        let c = c.rsplit('.').next().unwrap_or(c);
+                                        let c = b.import_aliases.get(c).map_or(c, String::as_str);
+                                        format!("{c}.{s}")
+                                    }
+                                    None => return None,
+                                };
+                                return b.struct_keys.contains(&q).then(|| Ty::Struct(q));
+                            }
+                            if b.struct_names.contains(n) {
+                                return Some(Ty::Struct(n.to_string()));
+                            }
+                            if let Some(k) = b.enums.get(n) {
+                                return Some(Ty::Enum(n.to_string(), *k));
+                            }
+                            if b.contract_names.iter().any(|c| c == n) {
+                                return Some(Ty::Contract(n.to_string()));
+                            }
+                            udvts.get(n).cloned()
+                        };
                         match content
                             .rsplit_once(char::is_whitespace)
-                            .and_then(|(t, n)| Some((parse_ty_text(t)?, n)))
+                            .and_then(|(t, n)| Some((parse_ty_text_in(t, &named)?, n)))
                         {
                             Some((ty, n)) => con.state.push(StateVar {
                                 name: n.to_string(),
@@ -1015,7 +1222,7 @@ pub(crate) fn build<'a>(
             }
             for base in c.bases.iter() {
                 if !base.arguments.is_empty() {
-                    con.base_args.insert(base.name.last().as_str().to_string(), &base.arguments);
+                    con.base_args.insert(base_name(&base.name), &base.arguments);
                 }
             }
             for sub in c.body.iter() {
@@ -1431,6 +1638,8 @@ pub(crate) fn build<'a>(
         refused_fns,
         absint: b.absint,
         using,
+        import_aliases: b.import_aliases.clone(),
+        qualified_structs: b.qualified_structs.clone(),
     };
     let (ghost_errors, lemmas) = crate::ghost::check(&program);
     for c in &mut program.contracts {

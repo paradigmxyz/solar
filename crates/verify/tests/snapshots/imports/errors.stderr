@@ -6,21 +6,13 @@ error: file ./auxiliary/Missing.sol not found
   │
   ╰ help: pass remappings as `prefix=path`, or `--base-path` and `--include-path`
 
-error: imports that rename or namespace symbols are not supported
-  ╭▸ tests/snapshots/imports/errors.sol:4:1
-  │
-4 │ import {Twice as Once} from "./auxiliary/Twice.sol";
-  │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  │
-  ╰ help: import the names as they are: `import {A} from "a.sol";`
-
-error: imports that rename or namespace symbols are not supported
+error: imports that namespace symbols are not supported
   ╭▸ tests/snapshots/imports/errors.sol:5:1
   │
 5 │ import * as All from "./auxiliary/Twice.sol";
   │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   │
-  ╰ help: import the names as they are: `import {A} from "a.sol";`
+  ╰ help: import the names: `import {A} from "a.sol";` or `import {A as B} from "a.sol";`
 
 error: `Twice` is defined in more than one file
   ╭▸ tests/snapshots/imports/errors.sol:8:10
