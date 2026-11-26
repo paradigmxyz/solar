@@ -15,18 +15,24 @@
 //! header branches on `i < n` into the body and otherwise leaves the loop,
 //! where `i` is a header phi with a literal start that every back edge
 //! advances by the same literal positive step, `n` is defined outside the
-//! loop, and some instruction of the loop reads `i + k < n`.
+//! loop, and some instruction of the loop reads `i + k < n`. The header's other
+//! instructions must be free of effects, because the original header repeats
+//! them for the iteration the main loop declined.
 //!
 //! Safety: `i` starts at a literal and grows by a literal step, so within
 //! the target's trip-count bound `i + K` cannot wrap and `i + K < n` implies
 //! `i < n`; the main loop therefore runs a prefix of the iterations the
 //! original loop runs, with the same values and effects, and hands the
-//! original loop the exact loop-carried state where it stops. Every loop
-//! block is cloned with its instructions and effects unchanged. Edges that
-//! leave the loop from its body reach the same blocks from both copies;
-//! their phis gain the cloned edge. Loop-defined values may escape only on
-//! those direct exit edges; downstream uses would lose their dominating
-//! definition when the cloned loop bypasses the original loop.
+//! original loop the exact loop-carried state where it stops. The original
+//! header runs its instructions again for the iteration the main header
+//! declined, so they must have no effects: a store, log or call would run
+//! twice, and a read of remaining gas or memory size could see a new value and
+//! branch the other way. Every loop block is cloned with its instructions and
+//! effects unchanged. Edges that leave the loop from its body reach the same
+//! blocks from both copies; their phis gain the cloned edge. Loop-defined
+//! values may escape only on those direct exit edges; downstream uses would
+//! lose their dominating definition when the cloned loop bypasses the original
+//! loop.
 //!
 //! Profitability: gas mode only, since the loop's code is duplicated; the
 //! loop is bounded in instructions and must hold a guard to fold. Runs in
@@ -124,7 +130,7 @@ fn plan(func: &Function, loops: &LoopInfo, l: &Loop) -> Option<Split> {
         return None;
     }
     let loop_insts = l.instructions(func);
-    if loop_insts.count() > MAX_LOOP_INSTRUCTIONS {
+    if loop_insts.count() > MAX_LOOP_INSTRUCTIONS || !header_repeats_safely(func, l.header) {
         return None;
     }
     let defined_in_loop = |value| match func.value(value) {
@@ -214,6 +220,16 @@ fn plan(func: &Function, loops: &LoopInfo, l: &Loop) -> Option<Split> {
         counter,
         bound,
         lookahead,
+    })
+}
+
+/// Whether the header's non-phi instructions can run twice for one iteration: the original
+/// header repeats them for the iteration a main loop or a peeled copy declined.
+pub(super) fn header_repeats_safely(func: &Function, header: BlockId) -> bool {
+    func.blocks[header].instructions.iter().all(|&inst| {
+        let kind = &func.inst(inst).kind;
+        matches!(kind, InstKind::Phi(_))
+            || !(kind.has_side_effects() || kind.effects().observes_execution())
     })
 }
 
