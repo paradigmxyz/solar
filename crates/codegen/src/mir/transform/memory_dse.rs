@@ -1501,6 +1501,7 @@ impl MemoryStoreEliminator {
 
                 if let Some(cached_copy) = cached.get(&key).copied()
                     && Self::copy_dominates(cfg.dominators(), cached_copy, block_id, index)
+                    && func.value_ty(cached_copy.value) == func.value_ty(loaded_value)
                 {
                     replacements.insert(loaded_value, cached_copy.value);
                     func.set_inst_kind(
