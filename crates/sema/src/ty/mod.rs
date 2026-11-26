@@ -2250,13 +2250,10 @@ fn struct_chains(gcx: _, key: ()) -> &'gcx IndexSlice<hir::StructId, [StructChai
 /// the given sources by name, then the sources its import callback loads, each source's new
 /// imports by name as the source is parsed.
 pub(crate) fn source_parse_order(gcx: _, key: ()) -> &'gcx IndexSlice<hir::SourceId, [usize]> {
-    let by_name = |&a: &hir::SourceId, &b: &hir::SourceId| {
-        let name = |id| &gcx.hir.source(id).file.name;
-        name(a).cmp_source_unit_name(name(b))
-    };
+    let by_name = |&id: &hir::SourceId| gcx.hir.source(id).file.name.source_unit_name_key();
     let mut queue =
         gcx.hir.source_ids().filter(|&id| !gcx.hir.source(id).imported).collect::<Vec<_>>();
-    queue.sort_by(by_name);
+    queue.sort_by_cached_key(by_name);
     let mut seen = queue.iter().copied().collect::<FxHashSet<_>>();
     let mut i = 0;
     while let Some(&id) = queue.get(i) {
@@ -2264,7 +2261,7 @@ pub(crate) fn source_parse_order(gcx: _, key: ()) -> &'gcx IndexSlice<hir::Sourc
         let mut new =
             gcx.hir.source(id).imports.iter().map(|&(_, import)| import).collect::<Vec<_>>();
         new.retain(|&import| seen.insert(import));
-        new.sort_by(by_name);
+        new.sort_by_cached_key(by_name);
         queue.extend(new);
     }
     let mut order = IndexVec::from_vec(vec![usize::MAX; gcx.hir.sources().len()]);
