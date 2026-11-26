@@ -281,6 +281,14 @@ def expected_mode(
     unit, sname = expr(shape, "source_unit"), shape.get("source_contract")
     if not isinstance(sname, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", sname):
         fail("shape.json: source_contract must be the contract's name")
+    # The source unit may hold other contracts, interfaces and libraries: src names the one the
+    # statement is about, and it must be the contract whose fresh export (code, runtimeBytes) the
+    # statement binds, never a sibling.
+    if sname != a.contract:
+        fail(
+            f"shape.json: source_contract {sname} is not --contract {a.contract}, whose export the "
+            "statement binds"
+        )
     entries = shape.get("entries")
     if not isinstance(entries, list) or not entries:
         fail("shape.json: entries must list the external functions")

@@ -265,10 +265,19 @@ def main():
         fail("shape.json has no generic block")
     kind = shape.get("kind")
     root = pathlib.Path(a.certified) / a.name
-    gens = [p for p in (root / "gen").iterdir() if p.is_dir()]
-    if len(gens) != 1:
-        fail("expected one exported contract under gen/")
-    gen = gens[0]
+    # solar exports every contract of the source; the statement is about the one shape.json's
+    # source names (source_ast.contract), whose export the stage proofs and the bytes are of.
+    gens = sorted(p.name for p in (root / "gen").iterdir() if p.is_dir())
+    named = (shape.get("source_ast") or {}).get("contract")
+    if named is None:
+        if len(gens) != 1:
+            fail(
+                "expected one exported contract under gen/, or shape.json source_ast.contract"
+            )
+        named = gens[0]
+    if not isinstance(named, str) or named not in gens:
+        fail(f"no export of the source's contract {named!r} under gen/ ({', '.join(gens)})")
+    gen = root / "gen" / named
     contract = gen.name
     stages = last_stage((root / "Proofs" / "Stages.lean").read_text())
     bt = (gen / "Bytecode.lean").read_text()

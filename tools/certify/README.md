@@ -90,13 +90,20 @@ run the driver on Counter.
 stated subset of Solidity and refuses everything else before any build, with exit 3 and a
 `BLOCKED: <feature> (...)` line naming the first place each feature appears; the record's
 `status` is `BLOCKED` and its `blocked` list holds every refusal. A `BLOCKED` run proves
-and claims nothing. The subset is one self-contained file with one concrete contract that has no
-bases, no constructor parameters and no fallback or receive function, and none of:
+and claims nothing. The subset is one self-contained file and one concrete contract in it that has
+no bases, no constructor parameters and no fallback or receive function. The file may hold other
+contracts, interfaces and libraries: with several concrete contracts, `--contract` names the one
+certified, and the statement is about it alone (its source is the whole unit with that contract
+named, its bytes that contract's export). A sibling is part of the certified contract only as the
+library internal functions and free functions it calls, which solar inlines and the envelope
+checks as the contract's own code; a public library function it calls runs by DELEGATECALL and is
+an external call. The contract and the code it inlines have none of:
 
 - imports;
 - inline assembly;
-- external calls (including try/catch, low-level calls and calls of external functions), contract
-  creation and payable functions or value transfers;
+- external calls (including try/catch, low-level calls, calls of external functions and of public
+  library functions), contract creation (`new`, and `type(C).creationCode` or `runtimeCode`,
+  which embed another contract's bytecode) and payable functions or value transfers;
 - reads of other accounts (`code`, `codehash`, `balance`) and of `selfdestruct`, `gasleft` or
   `blockhash`;
 - loops, apart from the counted `for` loops the source erasure covers (one per external function,

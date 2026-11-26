@@ -7,6 +7,7 @@ Lean. Run: python3 tools/certify/test_sibling_code.py"""
 
 import pathlib
 import sys
+import tempfile
 import unittest
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -124,6 +125,23 @@ class SiblingCode(unittest.TestCase):
             [f for f, _ in envelope("LibInline.sol", "CtorLoop", lifecycle=True)],
             ["loop"],
         )
+
+
+class StatementBindsTarget(unittest.TestCase):
+    def test_source_contract_is_the_exported_one(self):
+        """final.py binds the export of --contract: a shape whose source contract is another unit of
+        the source (a sibling) is refused, the same one is written."""
+        from test_generic import expected_shape, final_py
+
+        with tempfile.TemporaryDirectory() as t:
+            code, err, _ = final_py(expected_shape(source_contract="C"), pathlib.Path(t))
+            self.assertEqual(code, 0, err)
+        with tempfile.TemporaryDirectory() as t:
+            code, err, _ = final_py(
+                expected_shape(source_contract="Sibling"), pathlib.Path(t)
+            )
+            self.assertNotEqual(code, 0)
+            self.assertIn("source_contract Sibling is not --contract C", err)
 
 
 if __name__ == "__main__":
