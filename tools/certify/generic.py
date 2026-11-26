@@ -293,35 +293,166 @@ def param_of(p, enums):
     return None
 
 
-def creation_reach(cdef, extra=()):
+def linearization(ast, cdef):
+    """CDEF's bases in solc's C3 order, most derived first (CDEF itself first), as
+    (contract definitions, None), or (None, why) when the driver cannot certify the order: a base
+    it cannot find, a cycle, C3 failing, or an order other than solc's linearizedBaseContracts. The
+    order is computed here as solc does (NameAndTypeResolver: CDEF, then the merge of its direct
+    bases' linearizations, last-listed base first, with the reversed list of direct bases), the same
+    computation as the Lean frontend's ContractDecl.dispatchOrder?, and must equal the order solc
+    reports for the contract it compiled; frontend() then has Lean check its own order against
+    solc's in the kernel (linearization_eq)."""
+    byid = {
+        n["id"]: n
+        for n in walk(ast)
+        if n.get("nodeType") == "ContractDefinition" and "id" in n
+    }
+    names = [d.get("name") for d in byid.values()]
+    if len(set(names)) != len(names):
+        return None, "two contracts share a name, and the Lean frontend finds bases by name"
+    memo = {}
+
+    def merge(seqs):
+        seqs = [list(q) for q in seqs if q]
+        out = []
+        while seqs:
+            for q in seqs:
+                head = q[0]
+                if not any(head in r[1:] for r in seqs):
+                    break
+            else:
+                return None
+            out.append(head)
+            seqs = [[x for x in r if x != head] for r in seqs]
+            seqs = [r for r in seqs if r]
+        return out
+
+    def lin(cid, stack):
+        if cid in memo:
+            return memo[cid]
+        if cid in stack:
+            raise ValueError("the inheritance graph has a cycle")
+        c = byid[cid]
+        bases = []
+        for b in c.get("baseContracts", []):
+            ref = (b.get("baseName") or {}).get("referencedDeclaration")
+            if ref not in byid:
+                raise ValueError(f"{c.get('name')}: a base outside the source unit")
+            bases.append(ref)
+        rev = bases[::-1]
+        m = merge([lin(b, stack | {cid}) for b in rev] + [rev])
+        if m is None:
+            raise ValueError(f"{c.get('name')}: no C3 linearization of its bases")
+        memo[cid] = [cid] + m
+        return memo[cid]
+
+    try:
+        order = lin(cdef["id"], frozenset())
+    except ValueError as e:
+        return None, str(e)
+    solc = cdef.get("linearizedBaseContracts")
+    if solc != order:
+        shown = lambda ids: ", ".join(byid[i].get("name", "?") if i in byid else str(i) for i in ids or [])
+        return None, (
+            f"the C3 order {shown(order)} is not the order solc reports ({shown(solc)}): "
+            "refused rather than flattened by either"
+        )
+    return [byid[i] for i in order], None
+
+
+class Dispatch:
+    """Internal calls resolved as they run in the most-derived contract of LIN (its contracts, most
+    derived first): a call or modifier invocation naming a virtual function or modifier runs its
+    final override in LIN, and super.f() in contract X runs the first f after X in LIN that is or
+    overrides the f the call names (solc's superFunction). Callables are every function and
+    modifier of LIN's contracts, by id."""
+
+    def __init__(self, lin):
+        self.lin = lin
+        self.callables, self.home, self.pos = {}, {}, {}
+        for i, c in enumerate(lin):
+            self.pos[c["id"]] = i
+            for n in walk(c):
+                if n.get("nodeType") in ("FunctionDefinition", "ModifierDefinition") and "id" in n:
+                    self.callables[n["id"]] = n
+                    self.home[n["id"]] = i
+        self.bases = {}
+        for k, n in self.callables.items():
+            self.bases[k] = set(n.get("baseFunctions") or []) | set(n.get("baseModifiers") or [])
+        changed = True
+        while changed:
+            changed = False
+            for k in self.bases:
+                more = set().union(*(self.bases.get(b, set()) for b in self.bases[k])) - self.bases[k]
+                if more:
+                    self.bases[k] |= more
+                    changed = True
+
+    def first_after(self, ref, after):
+        for c in self.lin[after:]:
+            for n in c.get("nodes", []):
+                k = n.get("id")
+                if k in self.callables and (k == ref or ref in self.bases[k]):
+                    return k
+        return None
+
+    def target(self, ref, node=None, site=None):
+        """The callable a call or invocation naming REF runs, or None when REF is not one. NODE is the
+        call's callee expression (for super), SITE the id of the callable the call is in."""
+        if ref not in self.callables:
+            return None
+        e = node or {}
+        if (
+            e.get("nodeType") == "MemberAccess"
+            and (e.get("expression") or {}).get("nodeType") == "Identifier"
+            and (e.get("expression") or {}).get("name") == "super"
+            and site in self.home
+        ):
+            return self.first_after(ref, self.home[site] + 1)
+        if e.get("nodeType") == "MemberAccess":
+            return ref  # C.f(): a static call of the named function
+        return self.first_after(ref, 0) or ref
+
+
+def creation_reach(cdef, lin=None, extra=()):
     """The AST nodes creation can run in CDEF: the constructor (with its modifiers and base
     constructor invocations), every state variable's initializer, and, through internal calls and
     modifier invocations, every function and modifier they reach, those of CDEF and the inlined
     sibling code EXTRA (sibling_code's library and free functions). Returns (the ids of those nodes,
     whether some call or invocation could not be resolved to a function or modifier of CDEF or
-    EXTRA, in which case nothing counts as runtime-only)."""
-    defs = {
-        n["id"]: n
-        for n in [*walk(cdef), *extra]
-        if n.get("nodeType") in ("FunctionDefinition", "ModifierDefinition")
-        and "id" in n
-    }
+    EXTRA, in which case nothing counts as runtime-only). With LIN (CDEF's linearization, most
+    derived first), every base's constructor and initializers are roots too, and calls resolve as
+    they run in CDEF (Dispatch)."""
+    lin = lin or [cdef]
+    disp = Dispatch(lin)
+    defs = dict(disp.callables)
+    for n in (m for f in extra for m in walk(f)):
+        if n.get("nodeType") in ("FunctionDefinition", "ModifierDefinition") and "id" in n:
+            defs.setdefault(n["id"], n)
+
+    def resolve(ref, node, site):
+        # The callable of LIN a call runs (Dispatch), else the inlined sibling function it names.
+        k = disp.target(ref, node, site)
+        return k if k is not None else (ref if ref in defs else None)
     roots = [
-        n
-        for n in walk(cdef)
+        (n, n["id"])
+        for c in lin
+        for n in walk(c)
         if n.get("nodeType") == "FunctionDefinition" and n.get("kind") == "constructor"
     ]
     roots += [
-        n["value"]
-        for n in cdef.get("nodes", [])
+        (n["value"], None)
+        for c in lin
+        for n in c.get("nodes", [])
         if n.get("nodeType") == "VariableDeclaration"
         and n.get("stateVariable")
         and n.get("value")
     ]
+    bases = {c["id"] for c in lin}
     unresolved = False
     seen, todo, reach = set(), list(roots), set()
     while todo:
-        node = todo.pop()
+        node, site = todo.pop()
         if id(node) in seen:
             continue
         seen.add(id(node))
@@ -330,15 +461,19 @@ def creation_reach(cdef, extra=()):
             t = m.get("nodeType")
             if t == "ModifierInvocation":
                 ref = (m.get("modifierName") or {}).get("referencedDeclaration")
-                if ref in defs:
-                    todo.append(defs[ref])
+                k = resolve(ref, None, site)
+                if k is not None:
+                    todo.append((defs[k], k))
+                elif ref in bases:
+                    pass  # a base constructor specifier: every base constructor is a root
                 else:
-                    unresolved = True  # a base constructor or an unknown modifier
+                    unresolved = True  # an unknown modifier
             elif t == "FunctionCall" and m.get("kind") == "functionCall":
                 e = m.get("expression") or {}
                 ref = e.get("referencedDeclaration")
-                if ref in defs:
-                    todo.append(defs[ref])
+                k = resolve(ref, e, site)
+                if k is not None:
+                    todo.append((defs[k], k))
                 elif isinstance(ref, int) and ref < 0:
                     pass  # a builtin (require, keccak256, ...)
                 elif " internal" in str(
@@ -348,7 +483,7 @@ def creation_reach(cdef, extra=()):
     return reach, unresolved
 
 
-def sibling_code(ast, cdef):
+def sibling_code(ast, cdef, lin=None):
     """The code of the source's other units that CDEF runs inline, and the calls that would run a
     sibling's deployed code instead. A source may hold other contracts, interfaces and libraries
     beside CDEF: only what CDEF reaches is part of it. CDEF reaches a library's internal (or
@@ -358,7 +493,8 @@ def sibling_code(ast, cdef):
     sibling is compiled into CDEF's runtime bytecode. Returns (the reached function and modifier
     definitions, closed under what they reach in turn, each with the unit that declares it, None for
     a free function; the call sites that run a public or external library function, by DELEGATECALL
-    into the deployed library, each as (call node, library name, function name))."""
+    into the deployed library, each as (call node, library name, function name)). With LIN (CDEF's
+    linearization, most derived first), its bases' code is CDEF's own and reaches siblings too."""
     owner = {}
     for unit in ast.get("nodes", []):
         if unit.get("nodeType") == "ContractDefinition":
@@ -367,7 +503,8 @@ def sibling_code(ast, cdef):
                     owner[n["id"]] = (n, unit)
         elif unit.get("nodeType") == "FunctionDefinition":
             owner[unit["id"]] = (unit, None)
-    own = {n["id"] for n in walk(cdef) if "id" in n}
+    lin = lin or [cdef]
+    own = {n["id"] for c in lin for n in walk(c) if "id" in n}
 
     def inlined(ref, here, expr):
         """Whether REF (a declaration a node in unit HERE names, through EXPR when it is a callee)
@@ -387,7 +524,7 @@ def sibling_code(ast, cdef):
         return unit is here and (expr or {}).get("nodeType") == "Identifier"
 
     reached, delegate, seen = [], [], set()
-    todo = [(cdef, cdef)]
+    todo = [(c, c) for c in lin]
     while todo:
         root, here = todo.pop()
         for n in walk(root):
@@ -477,16 +614,48 @@ def envelope(
     if not cdefs:
         raise Failed(f"no contract {contract} in the source")
     cdef = cdefs[0]
+    # Inheritance: the contract is checked as the Lean frontend flattens it (CheckedInput.contract
+    # translates the most-derived contract over its C3 order: functions with overrides resolved,
+    # storage laid out base first, super calls as internal calls), so the checks below walk every
+    # contract of the order. The order must be solc's (linearization), and what the flattening does
+    # not cover yet is refused by name.
+    lin, why = linearization(ast, cdef)
+    if lin is None:
+        block("inheritance", cdef, why)
+        lin = [cdef]
+    for c in lin:
+        for spec in c.get("baseContracts", []):
+            if spec.get("arguments"):
+                block(
+                    "inheritance: base constructor arguments",
+                    spec,
+                    f"{c.get('name')} passes arguments to the base constructor "
+                    f"{(spec.get('baseName') or {}).get('name')}: base constructor arguments are not handled yet",
+                )
+        for n in c.get("nodes", []):
+            if n.get("nodeType") != "FunctionDefinition" or n.get("kind") != "constructor":
+                continue
+            for m in n.get("modifiers", []):
+                ref = (m.get("modifierName") or {}).get("referencedDeclaration")
+                if m.get("kind") == "baseConstructorSpecifier" or ref in {x["id"] for x in lin}:
+                    if m.get("arguments"):
+                        block(
+                            "inheritance: base constructor arguments",
+                            m,
+                            f"{c.get('name')}'s constructor passes arguments to the base constructor "
+                            f"{(m.get('modifierName') or {}).get('name')}: base constructor arguments are not handled yet",
+                        )
+                elif c is not cdef:
+                    block(
+                        "inheritance: modifier on a base constructor",
+                        m,
+                        f"the constructor of base {c.get('name')} has the modifier "
+                        f"{(m.get('modifierName') or {}).get('name')}: modifiers on base constructors are not handled",
+                    )
     # Only the named contract is certified: its siblings (other contracts, interfaces, libraries)
-    # are compiled into its bytecode only as the library and free functions it runs inline
-    # (sibling_code), which are checked below as its own code. Its bases are part of it.
-    if cdef.get("baseContracts"):
-        block(
-            "inheritance",
-            cdef,
-            f"{cdef.get('name')} inherits; only a contract with no bases",
-        )
-    inline, delegate = sibling_code(ast, cdef)
+    # are compiled into its bytecode only as the library and free functions it (or a base in its
+    # linearization) runs inline (sibling_code), which are checked below as its own code.
+    inline, delegate = sibling_code(ast, cdef, lin)
     for call, lib, fname in delegate:
         block(
             "external call",
@@ -495,12 +664,14 @@ def envelope(
             "by DELEGATECALL, a sibling's code outside the certified contract",
         )
     inline_defs = [node for node, _ in inline]
-    own = {n["id"] for n in walk(cdef) if "id" in n}
+    own = {n["id"] for c in lin for n in walk(c) if "id" in n}
     import loop_cuts
 
     # Each loop's function and why the source erasure (eraseLoopStmt) certainly does not cover it,
     # or None, by node.
-    loop_why = {id(n): (fname, why) for n, fname, why in loop_cuts.loop_shapes(cdef)}
+    loop_why = {
+        id(n): (fname, why) for c in lin for n, fname, why in loop_cuts.loop_shapes(c)
+    }
     for node, unit in inline:
         where = f"{unit.get('name')}." if unit is not None else ""
         for n in walk(node):
@@ -510,13 +681,13 @@ def envelope(
                     "a loop in inlined library or free function code, which the loop cut hook "
                     "does not read",
                 )
-    creation, creation_unresolved = creation_reach(cdef, inline_defs)
+    creation, creation_unresolved = creation_reach(cdef, lin, inline_defs)
     enums = {}
     for n in walk(ast):
         if n.get("nodeType") == "EnumDefinition":
             enums[n["name"]] = len(n.get("members", []))
             enums[n.get("canonicalName", n["name"])] = len(n.get("members", []))
-    for n in [*walk(cdef), *(m for node in inline_defs for m in walk(node))]:
+    for n in [*(m for c in lin for m in walk(c)), *(m for node in inline_defs for m in walk(node))]:
         t = n.get("nodeType")
         if t == "InlineAssembly":
             block(
@@ -645,7 +816,7 @@ def envelope(
         for n in walk(ast)
         if n.get("nodeType") == "VariableDeclaration" and "id" in n
     }
-    cycles, values = recursion_cycles(cdef, variables, inline_defs)
+    cycles, values = recursion_cycles(cdef, variables, lin, inline_defs)
     for names, call in cycles:
         fns = [
             n
@@ -680,7 +851,7 @@ def envelope(
         env_re = re.compile(
             r"\b(block\.\w+|tx\.\w+|gasleft|blockhash|chainid|basefee|coinbase|prevrandao)\b"
         )
-        for n in walk(cdef):
+        for n in (m for c in lin for m in walk(c)):
             if n.get("nodeType") in (
                 "ContractDefinition",
                 "FunctionDefinition",
@@ -709,13 +880,16 @@ def envelope(
                 None,
                 f"{sig}: only uintN, intN, bool, address and enum parameters and results",
             )
+        # The definition the selector dispatches to: the most derived one in the C3 order.
+        fsel = keccak.keccak256(sig.encode())[:4].hex()
         fdef = next(
             (
                 n
-                for n in walk(cdef)
+                for c in lin
+                for n in c.get("nodes", [])
                 if n.get("nodeType") == "FunctionDefinition"
-                and n.get("name") == e["name"]
                 and n.get("kind") == "function"
+                and n.get("functionSelector") == fsel
             ),
             None,
         )
@@ -907,8 +1081,31 @@ def natspec_checks(ast, contract):
     )
     if cdef is None:
         return None, []
+    # With bases, the checks read the flattened contract: the state variables and the public
+    # functions of the whole C3 order (each selector's most derived definition). The initial state
+    # is decided only when no base has a constructor or an initializer (a base constructor runs
+    # before CDEF's initializers and can reach CDEF's variables through a virtual call).
+    lin, _ = linearization(ast, cdef)
+    lin = lin or [cdef]
+    flat, seen_sel = [], set()
+    for c in lin:
+        for n in c.get("nodes", []):
+            if n.get("nodeType") == "FunctionDefinition" and n.get("kind") == "function":
+                sel = n.get("functionSelector")
+                if sel is None:
+                    continue
+                if sel in seen_sel:
+                    continue
+                seen_sel.add(sel)
+            flat.append(n)
+    base_init = any(
+        n.get("nodeType") == "FunctionDefinition" and n.get("kind") == "constructor"
+        or n.get("nodeType") == "VariableDeclaration" and n.get("stateVariable") and n.get("value")
+        for c in lin[1:]
+        for n in c.get("nodes", [])
+    )
     svars = {}
-    for n in cdef.get("nodes", []):
+    for n in (m for c in lin for m in c.get("nodes", [])):
         if n.get("nodeType") == "VariableDeclaration" and n.get("stateVariable"):
             v = n.get("value")
             svars[n["name"]] = (
@@ -916,7 +1113,7 @@ def natspec_checks(ast, contract):
                 if v and v.get("nodeType") == "Literal" and v.get("kind") == "number"
                 else (0 if v is None else None)
             )
-    for f in cdef.get("nodes", []):
+    for f in flat:
         if f.get("nodeType") != "FunctionDefinition" or f.get("kind") != "function":
             continue
         if (
@@ -955,7 +1152,7 @@ def natspec_checks(ast, contract):
                 None,
             )
             sets = literal_assignments(ctor.get("body")) if ctor else {}
-            if sets is not None and len(init) == len(svars):
+            if sets is not None and len(init) == len(svars) and not base_init:
                 init.update(sets)
                 if spec_holds(atoms, init) is False:
                     shown = ", ".join(f"{k} = {init[k]}" for k, _, _ in atoms)
@@ -963,7 +1160,7 @@ def natspec_checks(ast, contract):
                         f"invariant: {text} fails in the initial state (the constructor leaves {shown})",
                         invs,
                     )
-            for f in cdef.get("nodes", []):
+            for f in flat:
                 if (
                     f.get("nodeType") != "FunctionDefinition"
                     or f.get("kind") != "function"
@@ -984,22 +1181,19 @@ def natspec_checks(ast, contract):
     return None, invs
 
 
-def recursion_cycles(cdef, variables, extra=()):
+def recursion_cycles(cdef, variables, lin=None, extra=()):
     """The contract's recursion: each strongly connected component of its internal call graph that
     has a cycle (functions or modifiers that can reach themselves) and that the contract's own
     functions and modifiers reach, as (names, first call site), and the calls through internal
     function values, whose callee the source does not name. The graph's nodes are the contract's
-    functions and modifiers and EXTRA, the sibling library and free functions CDEF runs inline
+    functions and modifiers (with LIN, CDEF's linearization, most derived first: every function and
+    modifier of its contracts) and EXTRA, the sibling library and free functions CDEF runs inline
     (sibling_code; a contract calls them internally, so a cycle through them is recursion too); an
     edge is an internal call naming one of them (an Identifier, or a MemberAccess such as C.f) or a
-    modifier invocation. VARIABLES holds the ids of the source's variable declarations (struct
-    members included)."""
-    own = {
-        n["id"]: n
-        for n in walk(cdef)
-        if n.get("nodeType") in ("FunctionDefinition", "ModifierDefinition")
-        and "id" in n
-    }
+    modifier invocation, to the callable the call runs in CDEF (Dispatch: final overrides, super).
+    VARIABLES holds the ids of the source's variable declarations (struct members included)."""
+    disp = Dispatch(lin or [cdef])
+    own = dict(disp.callables)
     callables = dict(own)
     for f in extra:
         for n in walk(f):
@@ -1032,6 +1226,10 @@ def recursion_cycles(cdef, variables, extra=()):
                     values.append((cid, n))
             else:
                 continue
+            k = disp.target(
+                ref, None if t == "ModifierInvocation" else n.get("expression"), cid
+            )
+            ref = k if k is not None else ref
             if ref in callables:
                 out.append(ref)
                 site.setdefault((cid, ref), n)
@@ -3628,7 +3826,7 @@ def frontend(lean_dir, src, src_sha, name, contract, solc):
     fe = pathlib.Path("/tmp/solar-certify-src") / src_sha
     fe.mkdir(parents=True, exist_ok=True)
     shutil.copy(src, fe / f"{name}.sol")
-    return run(
+    rc, body, err = run(
         [
             sys.executable,
             str(pathlib.Path(lean_dir) / "scripts/solc_ast_to_lean_source.py"),
@@ -3641,6 +3839,44 @@ def frontend(lean_dir, src, src_sha, name, contract, solc):
             f"Certified.{name}.Src",
             "--body-only",
         ]
+    )
+    if rc == 0:
+        body += linearization_lean(name, contract, solc, fe / f"{name}.sol")
+    return rc, body, err
+
+
+def linearization_lean(name, contract, solc, src):
+    """For a contract with bases, a kernel-checked theorem that the Lean frontend's C3 order of it
+    (ContractDecl.dispatchOrder?, the order CheckedInput.contract flattens it by) is the order solc
+    reports for the contract it compiled (linearizedBaseContracts), else "". The envelope refuses a
+    contract whose order the driver does not check (linearization), so a contract with bases always
+    gets the theorem."""
+    try:
+        ast, _ = solc_ast(solc, pathlib.Path(src))
+    except (Blocked, Failed):
+        return ""
+    cdef = next(
+        (
+            n
+            for n in ast.get("nodes", [])
+            if n.get("nodeType") == "ContractDefinition" and n.get("name") == contract
+        ),
+        None,
+    )
+    if cdef is None or not cdef.get("baseContracts"):
+        return ""
+    lin, _ = linearization(ast, cdef)
+    if lin is None:
+        return ""
+    order = ", ".join(lean_str(c["name"]) for c in lin)
+    return (
+        f"\nnamespace Certified.{name}.Src\n\n"
+        "/-- The frontend flattens the contract over solc's C3 order (linearizedBaseContracts). -/\n"
+        "theorem linearization_eq :\n"
+        f"    ((Executable.SourceUnit.findContract? importedSourceUnit {lean_str(contract)}).bind\n"
+        "      (Executable.ContractDecl.dispatchOrder? (Executable.SourceUnit.contracts importedSourceUnit))).map\n"
+        f"      (List.map (fun d : ContractDecl => d.name)) = some [{order}] := by decide\n"
+        f"\nend Certified.{name}.Src\n"
     )
 
 
