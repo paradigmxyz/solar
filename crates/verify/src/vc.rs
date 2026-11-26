@@ -5859,7 +5859,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         let outer = self.mem_walk.replace(Some(vec![]));
         self.effect_frames.borrow_mut().push(Self::fn_ptr_names(f.item));
         self.walk_scope.borrow_mut().push(self.prog.mod_scope(self.c, f));
-        let direct = self.mem_param_written_body(body, &mod_args, n);
+        let direct = self.mem_param_written_body(f, body, &mod_args, n);
         self.walk_scope.borrow_mut().pop();
         self.effect_frames.borrow_mut().pop();
         let calls = std::mem::replace(&mut *self.mem_walk.borrow_mut(), outer).unwrap_or_default();
@@ -5917,6 +5917,7 @@ impl<'p, 'a> Vc<'p, 'a> {
 
     fn mem_param_written_body(
         &self,
+        f: &'p Func<'a>,
         body: &'a ast::Block<'a>,
         mod_args: &[(&'a Expr<'a>, bool)],
         n: &str,
@@ -5930,7 +5931,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             self.effects(x, &mut out, &mut all, &mut FxHashSet::default());
             match &x.kind {
                 ExprKind::Call(callee, args) => {
-                    if args.exprs().any(is_n) {
+                    if args.exprs().any(is_n) && !self.reads_mem_args(f, callee, args.len()) {
                         hit = true;
                     }
                     if let ExprKind::Member(b, _) = &callee.peel_parens().kind
@@ -5973,6 +5974,57 @@ impl<'p, 'a> Vc<'p, 'a> {
         }
         drop(expr);
         hit || passed || out.contains(n)
+    }
+
+    /// Whether the call `callee(..)` in `f`'s body only reads its memory arguments: an
+    /// `abi.*` builtin, or a low-level `call`, `staticcall` or `delegatecall` on an address
+    /// variable, which copy them out (the callee runs in its own memory). Any other call may be
+    /// an internal function that writes them.
+    fn reads_mem_args(&self, f: &Func<'a>, callee: &Expr<'_>, nargs: usize) -> bool {
+        let ExprKind::Member(b, m) = &callee.peel_parens().kind else { return false };
+        let ExprKind::Ident(b) = &b.peel_parens().kind else { return false };
+        let (b, m) = (b.as_str(), m.as_str());
+        // The names `f` declares for `b`, with whether each is an address.
+        let mut decls = vec![];
+        let mut note = |v: &ast::VariableDefinition<'_>| {
+            if v.name.is_some_and(|i| i.as_str() == b) {
+                decls.push(matches!(
+                    v.ty.kind,
+                    ast::TypeKind::Elementary(ast::ElementaryType::Address(_))
+                ));
+            }
+        };
+        for v in f.item.header.parameters.iter().chain(f.item.header.returns()) {
+            note(v);
+        }
+        for s in f.item.body.iter().flat_map(|b| b.stmts.iter()) {
+            walk::all_stmts(s, &mut |s| match &s.kind {
+                StmtKind::DeclSingle(v) => note(v),
+                StmtKind::DeclMulti(vs, _) => {
+                    vs.iter().filter_map(|v| v.as_ref().unspan()).for_each(&mut note)
+                }
+                StmtKind::Try(t) => {
+                    t.clauses.iter().flat_map(|c| c.args.iter()).for_each(&mut note)
+                }
+                _ => {}
+            });
+        }
+        if b == "abi" {
+            return decls.is_empty()
+                && self.prog.contract(b).is_none()
+                && !self.prog.contracts.iter().any(|c| c.state.iter().any(|s| s.name == b));
+        }
+        if !matches!(m, "call" | "staticcall" | "delegatecall") || decls.is_empty() {
+            return false;
+        }
+        // A library function a `using` directive attaches under that name may be what runs.
+        let attached = self.prog.using_fns(m, nargs).iter().any(|(c, g)| {
+            self.prog
+                .using
+                .values()
+                .any(|att| att.contains(&c.name) || att.contains(&format!("{}.{}", c.name, g.name)))
+        });
+        !attached && decls.iter().all(|&a| a)
     }
 
     fn cast(&mut self, ty: Ty, v: Val) -> Val {
