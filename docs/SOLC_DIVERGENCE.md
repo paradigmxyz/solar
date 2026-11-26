@@ -1433,12 +1433,15 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
     size of the snapshot. `solc` leaves it unchanged for disjoint operands and
     rewinds it after a snapshot.
   - A recursive copy whose target contains its source, after assembly forged
-    the length of the target array, runs out of gas in `solar`: the copy has no
-    overlap check and clears the old target elements one by one up to the
-    forged length. `solc` reverts with `Panic(0x11)` from the checked
-    `2 * length` when it clears those elements; its test
+    the length of the target array to a value whose product with the element's
+    slot count overflows 256 bits, such as `2**255` for a two-slot element,
+    runs out of gas in `solar`: the copy has no overlap check and clears the
+    old target elements one by one up to the forged length. `solc` reverts
+    with `Panic(0x11)` from the checked `2 * length` when it clears those
+    elements; its test
     `copy_recursive_struct_overlap_length_mul_overflow_reverts.sol` expects the
-    panic. A disjoint copy with the same forged length runs out of gas in both.
+    panic. Smaller lengths behave alike in both compilers, and so does a
+    disjoint copy with the same forged length: both run out of gas.
 - Rationale: reading the source before writing makes every overlap safe,
   including a target that contains its source, the direction that corrupted
   storage in `solc` before 0.8.39, without a runtime overlap check. The
