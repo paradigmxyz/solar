@@ -12,7 +12,7 @@ contract Hashing {
     function ok_packed_same_widths(uint8 a, uint16 b, uint8 c, uint16 d) external pure returns (bool) {
         return keccak256(abi.encodePacked(a, b)) != keccak256(abi.encodePacked(c, d));
     }
-    // expect: postcondition not satisfied
+    // expect: solver returned unknown
     /// @custom:ensures (keccak256(a) != keccak256(c)) ==> result
     function bad_packed_dynamic(bytes calldata a, bytes calldata b, bytes calldata c, bytes calldata d) external pure returns (bool) {
         return keccak256(abi.encodePacked(a, b)) != keccak256(abi.encodePacked(c, d));

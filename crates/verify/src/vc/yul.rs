@@ -453,6 +453,15 @@ impl<'p, 'a> Vc<'p, 'a> {
             self.keccak_in.insert(x.clone(), (len.clone(), val.to_string()));
             return x;
         }
+        // Inside a quantified spec the same facts guard the body (see `Vc::quant`).
+        if let Some(top) = self.quant_facts.last_mut() {
+            top.push(format!(
+                "(and (= (sv_keccak_len {t}) {}) (= (sv_keccak_val {t}) {val}) (<= {} {t}) (<= {t} {}))",
+                num(len),
+                num(&pow2(128)),
+                num(&(w256() - 1))
+            ));
+        }
         t
     }
 
@@ -735,7 +744,8 @@ impl<'p, 'a> Vc<'p, 'a> {
         // a function of the preimage value, hence of the hash. Stating it as an uninterpreted
         // projection lets the solver get field equality from hash equality by congruence,
         // instead of reasoning about sums of 2^(256*k)-sized terms.
-        if k > 1 && !x.contains(' ') {
+        let ground = !x.contains(' ');
+        if k > 1 && (ground || !self.quant_facts.is_empty()) {
             for (i, w) in words.iter().enumerate() {
                 if !fits[i] {
                     continue;
@@ -747,10 +757,14 @@ impl<'p, 'a> Vc<'p, 'a> {
 "
                     ));
                 }
-                self.smt.send(&format!(
-                    "(assert (= ({f} {x}) {w}))
+                if ground {
+                    self.smt.send(&format!(
+                        "(assert (= ({f} {x}) {w}))
 "
-                ));
+                    ));
+                } else if let Some(top) = self.quant_facts.last_mut() {
+                    top.push(format!("(= ({f} {x}) {w})"));
+                }
             }
         }
         x
@@ -852,8 +866,17 @@ impl<'p, 'a> Vc<'p, 'a> {
     }
 
     pub(super) fn keccak_solidity(&mut self, argv: &[&'a Expr<'a>]) -> R<Var> {
-        let (kind, vals) = self.hash_args(argv)?;
         let ty = Ty::Uint(256);
+        // The hash of bytes known here (a string or hex literal, or their packed encoding) is
+        // a constant: the real keccak256, so every way of computing it agrees.
+        if let [a] = argv
+            && let Some(bytes) = Self::known_bytes(a)
+        {
+            let h = alloy_primitives::keccak256(&bytes);
+            let t = num(&BigInt::from_bytes_be(num_bigint::Sign::Plus, h.as_slice()));
+            return Ok(Var { ty, t, len: None });
+        }
+        let (kind, vals) = self.hash_args(argv)?;
         // abi.encode of static values goes through the keccak that assembly shares. Its words
         // are read from each value when it is evaluated, while the compiled code encodes memory
         // only after every argument ran: an argument that writes anything (`abi.encode(a, a[0] =
@@ -888,7 +911,8 @@ impl<'p, 'a> Vc<'p, 'a> {
         // A reference argument (bytes, string, an array or struct) is hashed by the value it had
         // when evaluated, but encoded from memory after every argument ran: when a later one may
         // write, the hash is of nothing known.
-        if argv.len() == 1
+        if kind != "raw"
+            && argv.len() == 1
             && vals.iter().any(|v| matches!(v.ty, Ty::Opaque | Ty::Arr(..) | Ty::Struct(_)))
             && self.encode_writes(argv[0])
         {
@@ -900,6 +924,42 @@ impl<'p, 'a> Vc<'p, 'a> {
             self.smt.send(&format!("(assert {})\n", ty.range(&t).unwrap()));
         }
         Ok(Var { ty, t, len: None })
+    }
+
+    /// The bytes `e` stands for when the source gives them: a string or hex literal, its
+    /// conversion to `bytes` or `string`, or `abi.encodePacked` of such literals.
+    fn known_bytes(e: &Expr<'_>) -> Option<Vec<u8>> {
+        match &e.peel_parens().kind {
+            ExprKind::Lit(lit, _) => match &lit.kind {
+                ast::LitKind::Str(_, b, _) => Some(b.as_byte_str().to_vec()),
+                _ => None,
+            },
+            ExprKind::Call(c, args) => match &c.peel_parens().kind {
+                ExprKind::Type(t)
+                    if matches!(
+                        t.kind,
+                        ast::TypeKind::Elementary(
+                            ast::ElementaryType::Bytes | ast::ElementaryType::String
+                        )
+                    ) =>
+                {
+                    let xs: Vec<_> = args.exprs().collect();
+                    if xs.len() == 1 { Self::known_bytes(xs[0]) } else { None }
+                }
+                ExprKind::Member(b, m)
+                    if matches!(&b.kind, ExprKind::Ident(i) if i.name == sym::abi)
+                        && m.as_str() == "encodePacked" =>
+                {
+                    let mut out = vec![];
+                    for x in args.exprs() {
+                        out.extend(Self::known_bytes(x)?);
+                    }
+                    Some(out)
+                }
+                _ => None,
+            },
+            _ => None,
+        }
     }
 
     /// Whether an argument of this `abi.*` call may write anything.

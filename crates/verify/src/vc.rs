@@ -254,6 +254,9 @@ pub(crate) struct Vc<'p, 'a> {
     /// `create2` of `type(C).creationCode`), whose constructors run no outside code: each holds
     /// C's code or, where creation failed, none. Forgotten at any call that may run outside code.
     known_code: Vec<(String, String)>,
+    /// Facts about terms a quantified spec's body built from its binders (hashes of them),
+    /// one frame per quantifier being evaluated: `quant` makes them part of its body.
+    pub(crate) quant_facts: Vec<Vec<String>>,
 }
 
 fn is_atom(t: &str) -> bool {
@@ -373,6 +376,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             failed_goals: vec![],
             creation_code: FxHashMap::default(),
             known_code: vec![],
+            quant_facts: vec![],
         }
     }
 
@@ -6016,7 +6020,11 @@ impl<'p, 'a> Vc<'p, 'a> {
                 .push((name.clone(), self.env.insert(name.clone(), Var { ty, t: sym, len: None })));
             self.bound.push(name.clone());
         }
+        self.quant_facts.push(vec![]);
         let b = self.eval_spec(body);
+        // Facts that hold of the hashes the body built from its binders (injectivity, word
+        // projections): valid wherever the solver's hash model is, so they may guard the body.
+        ranges.extend(self.quant_facts.pop().unwrap_or_default());
         for (name, old) in saved.into_iter().rev() {
             self.bound.pop();
             match old {
