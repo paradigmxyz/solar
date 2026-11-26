@@ -58,22 +58,23 @@ impl MirPass for StorageScalarPromotion {
             .iter_functions()
             .map(|(id, _)| module.functions_reachable_from(id))
             .collect::<IndexVec<_, _>>();
+        let ranges =
+            module.iter_functions().map(|(_, func)| named_ranges(func)).collect::<IndexVec<_, _>>();
         let mut callee_ranges = FxHashMap::<[u8; 4], Vec<(u64, u64)>>::default();
         for (id, func) in module.iter_functions() {
             if let Some(selector) = func.selector {
-                callee_ranges.entry(selector).or_default().extend(
-                    module
-                        .iter_functions()
-                        .filter(|&(other, _)| {
-                            other != id
-                                && (reach[id].contains(other)
-                                    || reach.iter_enumerated().any(|(caller, callees)| {
-                                        callees.contains(id)
-                                            && (caller == other || callees.contains(other))
-                                    }))
-                        })
-                        .flat_map(|(_, other)| named_ranges(other)),
-                );
+                let mut related = reach[id].clone();
+                for (caller, callees) in reach.iter_enumerated() {
+                    if callees.contains(id) {
+                        related.insert(caller);
+                        related.union(callees);
+                    }
+                }
+                related.remove(id);
+                callee_ranges
+                    .entry(selector)
+                    .or_default()
+                    .extend(related.iter().flat_map(|other| ranges[other].iter().copied()));
             }
         }
         run_function_pass(module, analyses, |func, analyses| {

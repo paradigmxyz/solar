@@ -63,24 +63,21 @@ pub fn immutable_staging_base(module: &Module) -> u64 {
         // transaction can pay, so it runs out of gas when executed and leaves the base where it
         // is. Raising the base to it would make every deployment pay, even when a branch that
         // never runs names the range.
-        let ranges = module
+        let mut ranges = module
             .constructor_reachable_functions()
             .iter()
             .flat_map(|func| module.function(func).constant_memory_ranges_outside_reverts())
             .filter(|&(_, end)| end <= MAX_STAGING_RANGE_END)
             .collect::<Vec<_>>();
-        loop {
-            let end = immutable_staging_end(base, module.immutable_count());
-            let Some(raised) = ranges
-                .iter()
-                .filter(|&&(start, range_end)| start < end && range_end > base)
-                .map(|&(_, range_end)| range_end)
-                .max()
-            else {
-                return base;
-            };
-            base = raised.next_multiple_of(EvmMemoryLayout::WORD_SIZE);
+        // One sweep by start address suffices: a range that starts at or after the staging end
+        // cannot overlap any window that a later, higher-starting range moves it to.
+        ranges.sort_unstable();
+        for (start, end) in ranges {
+            if start < immutable_staging_end(base, module.immutable_count()) && end > base {
+                base = end.next_multiple_of(EvmMemoryLayout::WORD_SIZE);
+            }
         }
+        base
     })
 }
 
