@@ -1542,3 +1542,8 @@ fn gap_rlp_alias() {
 fn gap_asm_scratch() {
     check("tests/cases/gap_asm_scratch.sol")
 }
+
+#[test]
+fn gap_spec_uninterpreted() {
+    check("tests/cases/gap_spec_uninterpreted.sol")
+}

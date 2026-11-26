@@ -181,6 +181,9 @@ pub(crate) struct Program<'a> {
     /// Struct names several contracts declare (`IOld.Item`, `INew.Item`): each such struct is
     /// keyed by its qualified name, and a bare use resolves in the contracts in scope.
     pub qualified_structs: FxHashSet<String>,
+    /// Each spec's expression, which is parsed as a file of its own, with the NatSpec tag it
+    /// was written in.
+    pub spec_sites: Vec<(Span, Span)>,
 }
 
 impl<'a> Program<'a> {
@@ -271,6 +274,12 @@ impl<'a> Program<'a> {
     pub(crate) fn mod_scope<'s>(&'s self, c: &'s Contract<'a>, f: &Func<'a>) -> &'s Contract<'a> {
         if c.lin.contains(&f.contract) { c } else { self.contract(&f.contract).unwrap_or(c) }
     }
+
+    /// Where the spec code at `span` was written: its NatSpec tag, or `span` itself when it is
+    /// not spec code.
+    pub(crate) fn spec_site(&self, span: Span) -> Span {
+        self.spec_sites.iter().find(|(e, _)| e.contains(span)).map_or(span, |&(_, tag)| tag)
+    }
 }
 
 struct Builder<'s, 'a> {
@@ -297,6 +306,8 @@ struct Builder<'s, 'a> {
     /// See `Program::qualified_structs`; `struct_keys` holds every struct's key.
     qualified_structs: FxHashSet<String>,
     struct_keys: FxHashSet<String>,
+    /// See `Program::spec_sites`.
+    spec_sites: Vec<(Span, Span)>,
     /// The contracts whose declarations are visible where types are being read.
     scope: Vec<String>,
     /// Constant names that several declarations give different sizes, and constants sized
@@ -362,7 +373,10 @@ impl<'s, 'a> Builder<'s, 'a> {
                 ));
                 None
             }
-            Ok(e) => Some(Spec { expr: e, text: text.to_string(), span }),
+            Ok(e) => {
+                self.spec_sites.push((e.span, span));
+                Some(Spec { expr: e, text: text.to_string(), span })
+            }
             Err(d) => {
                 d.emit();
                 self.errors.push((span, format!("could not parse spec `{text}`")));
@@ -750,6 +764,7 @@ pub(crate) fn build<'a>(
         struct_decls: vec![],
         qualified_structs: FxHashSet::default(),
         struct_keys: FxHashSet::default(),
+        spec_sites: vec![],
         scope: vec![],
         const_conflicts: FxHashSet::default(),
         const_derived: FxHashSet::default(),
@@ -1640,6 +1655,7 @@ pub(crate) fn build<'a>(
         using,
         import_aliases: b.import_aliases.clone(),
         qualified_structs: b.qualified_structs.clone(),
+        spec_sites: std::mem::take(&mut b.spec_sites),
     };
     let (ghost_errors, lemmas) = crate::ghost::check(&program);
     for c in &mut program.contracts {
