@@ -865,6 +865,106 @@ impl<'p, 'a> Vc<'p, 'a> {
         if flat.is_empty() { f } else { format!("({f} {})", flat.join(" ")) }
     }
 
+    /// The bytes `abi.encodePacked` builds from `vals`, as a function of the values: `None`
+    /// unless every value is of a fixed width or bytes (a string or bytes value). Its length is
+    /// the sum of the parts' lengths, and each byte of a fixed-width part or of a literal is
+    /// known at its offset (a constant, plus the lengths of the bytes values before it). Nothing
+    /// says it is injective: bytes values of unknown length can split the same bytes apart in
+    /// more than one way. Bytes values are terms of their contents: equal bytes are one term
+    /// (memory bytes written in place get a new term, and are never shared while written; see
+    /// `memalias`).
+    pub(super) fn packed_bytes(&mut self, vals: &[Var]) -> Option<String> {
+        // The packed encoding of one bytes value is that value.
+        if let [v] = vals
+            && v.ty == Ty::Opaque
+        {
+            return Some(v.t.clone());
+        }
+        let mut flat = vec![];
+        let mut tags = vec![];
+        // Each part: its term, and its width in bytes when it is of a fixed width.
+        let mut parts = vec![];
+        for v in vals {
+            let w = match &v.ty {
+                Ty::Opaque => None,
+                Ty::Bool | Ty::Enum(..) => Some(1),
+                Ty::Uint(n) | Ty::Int(n) | Ty::Bytes(n) if n % 8 == 0 && *n <= 256 => {
+                    Some(*n as u64 / 8)
+                }
+                Ty::Addr | Ty::Contract(_) => Some(20),
+                _ => return None,
+            };
+            let (t, tag) =
+                if w.is_some() { self.hash_arg(v, true) } else { (v.t.clone(), "dyn".to_string()) };
+            flat.push(t.clone());
+            tags.push(tag);
+            parts.push((t, w));
+        }
+        let f = format!("sv_packed.{}", tags.join("."));
+        self.declare_fun(&f, flat.len(), "Int");
+        let p = if flat.is_empty() { f } else { format!("({f} {})", flat.join(" ")) };
+        if self.bound.is_empty() {
+            let byte = self.bytes_byte_fn();
+            let mut facts = vec![];
+            let mut k = 0u64;
+            let mut lens: Vec<String> = vec![];
+            // An offset: a constant plus the lengths of the bytes values before it.
+            let off = |k: u64, lens: &[String]| {
+                if lens.is_empty() { k.to_string() } else { format!("(+ {k} {})", lens.join(" ")) }
+            };
+            for (t, w) in &parts {
+                match *w {
+                    Some(w) => {
+                        for j in 0..w {
+                            let sh = num(&pow2(8 * (w - 1 - j) as u32));
+                            let b = match (w, j) {
+                                (1, _) => t.clone(),
+                                (_, 0) => format!("(div {t} {sh})"),
+                                _ if j == w - 1 => format!("(mod {t} 256)"),
+                                _ => format!("(mod (div {t} {sh}) 256)"),
+                            };
+                            facts.push(format!("(= ({byte} {p} {}) {b})", off(k + j, &lens)));
+                        }
+                        k += w;
+                    }
+                    None => match Self::lit_bytes(t) {
+                        Some(bs) => {
+                            for (j, b) in bs.iter().enumerate() {
+                                facts.push(format!(
+                                    "(= ({byte} {p} {}) {b})",
+                                    off(k + j as u64, &lens)
+                                ));
+                            }
+                            k += bs.len() as u64;
+                        }
+                        None => lens.push(self.opaque_len(t)),
+                    },
+                }
+            }
+            let len = self.opaque_len(&p);
+            facts.push(format!("(= {len} {})", off(k, &lens)));
+            for x in facts {
+                self.smt.send(&format!("(assert {x})\n"));
+            }
+        }
+        Some(p)
+    }
+
+    /// The function giving byte `i` of bytes value `t`, `(sv_bbyte t i)`: a function of the
+    /// value, so the same bytes read twice (in the code and in a spec) agree.
+    pub(super) fn bytes_byte_fn(&mut self) -> &'static str {
+        let f = "sv_bbyte";
+        self.declare_fun(f, 2, "Int");
+        self.ret_bound(f, &Ty::Uint(8));
+        f
+    }
+
+    /// The bytes of the term of a string or hex literal that fits 32 bytes (`|str.<hex>|`).
+    pub(super) fn lit_bytes(t: &str) -> Option<Vec<u8>> {
+        let hex = t.strip_prefix("|str.")?.strip_suffix('|')?;
+        (0..hex.len()).step_by(2).map(|i| u8::from_str_radix(hex.get(i..i + 2)?, 16).ok()).collect()
+    }
+
     pub(super) fn keccak_solidity(&mut self, argv: &[&'a Expr<'a>]) -> R<Var> {
         let ty = Ty::Uint(256);
         // The hash of bytes known here (a string or hex literal, or their packed encoding) is
@@ -963,7 +1063,7 @@ impl<'p, 'a> Vc<'p, 'a> {
     }
 
     /// Whether an argument of this `abi.*` call may write anything.
-    fn encode_writes(&self, e: &'a Expr<'a>) -> bool {
+    pub(super) fn encode_writes(&self, e: &'a Expr<'a>) -> bool {
         let ExprKind::Call(_, inner) = &e.kind else {
             return true;
         };

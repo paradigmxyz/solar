@@ -1562,3 +1562,8 @@ fn gap_spec_uninterpreted() {
 fn gap_qualified_files() {
     check("tests/cases/gap_qualified_files.sol")
 }
+
+#[test]
+fn gap_bytes_contents() {
+    check("tests/cases/gap_bytes_contents.sol")
+}

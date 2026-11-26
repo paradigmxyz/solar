@@ -3380,8 +3380,8 @@ impl<'p, 'a> Vc<'p, 'a> {
                 let b = self.eval(base)?;
                 let mut i = self.eval_index(idx)?;
                 if b.ty == Ty::Opaque {
-                    // memory bytes written in place: another name may share them, and their
-                    // contents (not tracked) become unknown
+                    // memory bytes written in place: their contents become unknown (no other
+                    // name shares them: see `memalias::check`)
                     self.creation_code.clear();
                     let t = self.decl("bytes", &Ty::Opaque);
                     return self.assign(base, Self::val(Ty::Opaque, t));
@@ -3852,14 +3852,20 @@ impl<'p, 'a> Vc<'p, 'a> {
                         Ok(out)
                     }
                     Ty::Opaque => {
-                        // A byte of bytes we do not track; an index past the length reverts.
+                        // A byte of bytes, a function of their value (writes in place give the
+                        // bytes a new value; see `assign`); an index past the length reverts.
                         let len = self.opaque_len(&b.t);
                         self.panic_unless(
                             &format!("(and (<= 0 {}) (< {} {len}))", i.t, i.t),
                             "bytes index may be out of bounds",
                             idx.span,
                         );
-                        let t = self.decl("byte", &Ty::Uint(8));
+                        let byte = self.bytes_byte_fn();
+                        let t = format!("({byte} {} {})", b.t, i.t);
+                        if self.bound.is_empty() {
+                            self.smt
+                                .send(&format!("(assert {})\n", Ty::Uint(8).range(&t).unwrap()));
+                        }
                         Ok(Self::val(Ty::Uint(8), t))
                     }
                     Ty::Bytes(n) => {
@@ -3955,6 +3961,14 @@ impl<'p, 'a> Vc<'p, 'a> {
                 };
                 if self.declared_funs.insert(t.clone()) {
                     self.smt.send(&format!("(declare-const {t} {})\n", Ty::Opaque.sort()));
+                    // Its length and bytes (the first 256 of a longer one).
+                    let len = self.opaque_len(&t);
+                    let byte = self.bytes_byte_fn();
+                    let mut facts = format!("(assert (= {len} {}))\n", raw.len());
+                    for (j, b) in raw.iter().take(256).enumerate() {
+                        facts.push_str(&format!("(assert (= ({byte} {t} {j}) {b}))\n"));
+                    }
+                    self.smt.send(&facts);
                 }
                 Ok(Self::val(Ty::Opaque, t))
             }
@@ -4792,6 +4806,22 @@ impl<'p, 'a> Vc<'p, 'a> {
                         let rets = self.internal_call(c, f, vals, e.span, false)?;
                         self.write_back_storage_params(f, &argv, &caps, e.span)?;
                         return Ok(rets);
+                    }
+                    if bn == "abi" && m == "encodePacked" {
+                        // The packed bytes, a function of the values (see `packed_bytes`). A
+                        // reference argument is encoded from memory after every argument ran,
+                        // so when one may write, the bytes are of nothing known.
+                        let vals = argv.iter().map(|a| self.eval(a)).collect::<R<Vec<_>>>()?;
+                        let refs = vals
+                            .iter()
+                            .any(|v| matches!(v.ty, Ty::Opaque | Ty::Arr(..) | Ty::Struct(_)));
+                        if !(refs && self.encode_writes(e))
+                            && let Some(p) = self.packed_bytes(&vals)
+                        {
+                            return Ok(vec![Self::val(Ty::Opaque, p)]);
+                        }
+                        let t = self.decl("abi", &Ty::Opaque);
+                        return Ok(vec![Self::val(Ty::Opaque, t)]);
                     }
                     if bn == "abi" {
                         // the encoded bytes of abi.decode, as a term

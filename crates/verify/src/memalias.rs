@@ -58,8 +58,9 @@ struct Pass<'p, 'a> {
     modifier: bool,
 }
 
+/// A struct, an array, or (in memory) bytes or a string.
 fn is_ref(t: &Ty) -> bool {
-    matches!(t, Ty::Struct(_) | Ty::Arr(..))
+    matches!(t, Ty::Struct(_) | Ty::Arr(..) | Ty::Opaque)
 }
 
 /// Rejects in-place writes through memory references of `f`'s body and modifiers that may share
@@ -262,6 +263,33 @@ impl<'p, 'a> Pass<'p, 'a> {
     /// Whether a value of a struct or array type is freshly allocated: what a variable it
     /// initializes then owns.
     fn fresh(&self, e: &'a Expr<'a>) -> bool {
+        match &e.peel_parens().kind {
+            // A string or hex literal is copied into new memory.
+            ExprKind::Lit(..) => return true,
+            ExprKind::Call(callee, args) => match &callee.peel_parens().kind {
+                // The bytes `abi.encode*` and `bytes.concat` build are new, their arguments
+                // copied into them.
+                ExprKind::Member(b, m)
+                    if matches!(&b.kind, ExprKind::Ident(i) if i.as_str() == "abi" && !self.user_names.contains("abi"))
+                        && m.as_str().starts_with("encode") =>
+                {
+                    return true;
+                }
+                ExprKind::Member(b, m)
+                    if matches!(b.peel_parens().kind, ExprKind::Type(_))
+                        && m.as_str() == "concat" =>
+                {
+                    return true;
+                }
+                // `bytes(s)` and `string(b)` name the memory of their argument.
+                ExprKind::Type(_) => {
+                    let xs: Vec<_> = args.exprs().collect();
+                    return xs.len() == 1 && self.fresh(xs[0]);
+                }
+                _ => {}
+            },
+            _ => {}
+        }
         let mut inner_ref = false;
         crate::walk::sub_exprs(e, &mut |x| inner_ref |= self.ref_root(x).is_some());
         if inner_ref {
