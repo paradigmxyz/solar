@@ -1185,7 +1185,7 @@ pub(crate) fn build<'a>(
                                     }
                                     None => return None,
                                 };
-                                return b.struct_keys.contains(&q).then(|| Ty::Struct(q));
+                                return b.struct_keys.contains(&q).then_some(Ty::Struct(q));
                             }
                             if b.struct_names.contains(n) {
                                 return Some(Ty::Struct(n.to_string()));
