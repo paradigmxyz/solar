@@ -4396,6 +4396,13 @@ impl<'p, 'a> Vc<'p, 'a> {
                     ast::TypeKind::Custom(p) => p.last().as_str().to_string(),
                     _ => "?".into(),
                 };
+                // Declarations of one interface name in several files may have different ids.
+                if self.prog.shared_interfaces.contains(&n) {
+                    return Err((
+                        e.span,
+                        format!("`type({n}).interfaceId` of an interface several files declare"),
+                    ));
+                }
                 return Ok(self.named_const(&format!("iid.{n}"), &Ty::Bytes(32)));
             }
             if m == "name" || m == "creationCode" || m == "runtimeCode" {

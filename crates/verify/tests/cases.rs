@@ -318,6 +318,16 @@ fn import_errors() {
     assert_data_eq!(tidy(&run.stderr), file!["snapshots/imports/errors.stderr"]);
 }
 
+/// An interface two files declare is one only where no file sees both, as solc requires, and
+/// only when the declarations read alike.
+#[test]
+fn import_shared_interface() {
+    let run = run_verifier(&["--dry-run", "tests/snapshots/imports/clash.sol"]);
+    assert_data_eq!(tidy(&run.stderr), file!["snapshots/imports/clash.stderr"]);
+    let run = run_verifier(&["--dry-run", "tests/snapshots/imports/unlike.sol"]);
+    assert_data_eq!(tidy(&run.stderr), file!["snapshots/imports/unlike.stderr"]);
+}
+
 /// `--instrument` rewrites only the verified file, so it refuses a check in an imported one.
 #[test]
 fn instrument_imported_check() {
@@ -1546,4 +1556,9 @@ fn gap_asm_scratch() {
 #[test]
 fn gap_spec_uninterpreted() {
     check("tests/cases/gap_spec_uninterpreted.sol")
+}
+
+#[test]
+fn gap_qualified_files() {
+    check("tests/cases/gap_qualified_files.sol")
 }
