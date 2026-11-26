@@ -1455,11 +1455,14 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   read of the word needs it. Assembly that calls such a function and then reads
   `mload(0x20)`, expecting the word the callee's own assembly stored there, is not
   portable. `solc` leaves the word alone and compiles it, so the read sees the
-  callee's value. At `-O none` we return the same value, because the results come
-  back on the stack and nothing touches the word. At `-O gas` and `-O size` the
-  stack planner takes the read for the protocol's pointer read, which has other
-  uses, and rejects the function with ``codegen cannot lower `f`: multi-word call
-  result through memory``.
+  callee's value. We return the same value at `-O none`, because the results
+  come back on the stack and nothing touches the word, and at `-O gas` and
+  `-O size` when the callee is inlined. When it is not, the stack planner takes
+  the first read of the word after the call for the protocol's pointer read. A
+  read whose value has another use makes it reject the function with ``codegen
+  cannot lower `f`: multi-word call result through memory``. A read that uses the
+  word as a pointer, such as `mload(add(mload(0x20), 32))`, binds to the call's
+  own results, and `solc` reads the callee's word as an address instead.
 - Rationale: Solidity promises scratch space only between statements inside one
   inline assembly block, so a value in it does not survive a Solidity statement.
   Compiling this code would mean telling the user's read from the protocol's
