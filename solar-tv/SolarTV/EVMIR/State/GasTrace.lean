@@ -1,4 +1,5 @@
 import SolarTV.EVMIR.State.MeteredPrefix
+import SolarTV.State.MemoryLaws
 
 /-! Exact EVM gas accounting up to an optional instruction boundary. A CALL
 runs its child before resuming the caller, so the prefix includes unused
@@ -89,6 +90,38 @@ theorem returnedGas (cfg : Config) (execute : ChildExecutor)
       .ok (some ⟨parent.gas,requested,budget.charged,budget.supplied,child.gas⟩) := by
   simp only [advance,callDebit,admitted,Bool.false_eq_true,ite_false,forwarded,executed,
     Bind.bind,Except.bind,Pure.pure,Except.pure,Except.map,Nat.add_sub_cancel_left,Option.bind_some]
+
+/-- A forwarded message with an empty output interval leaves caller memory
+unchanged. The child still controls returndata, the journal and unused gas. -/
+theorem advance_noOutput (cfg : Config) (execute : ChildExecutor)
+    (message : Calls.Message) (offset requested : Nat) (code : ExecutionCode)
+    (world : Journal) (parent : Frame) (budget : Calls.Budget)
+    (admitted : (decide (parent.environment.depth ≥ 1024) ||
+      ((message.kind == .call || message.kind == .callcode) &&
+       (account world parent.environment.address).balance.ult message.value)) = false)
+    (forwarded : Calls.forwardGas cfg.fork parent.gas requested (Calls.hasValue message) = some budget) :
+    advance cfg execute (.call message offset 0 requested code world parent) = (do
+      let child ← executeCall execute cfg (warmAddress world message.destination)
+        parent.environment message code budget.supplied
+      return .inr (child.work, child.world, {parent with
+        stack := child.value :: parent.stack
+        returnData := child.data
+        gas := parent.gas - budget.charged + child.gas})) := by
+  have memory : writeBytes parent.memory offset [] = parent.memory :=
+    writeBytes_existing _ _ _ (readBytes_zero _ _)
+  simp only [advance, admitted, Bool.false_eq_true, ite_false, forwarded, List.take_zero, memory]
+
+/-- Expose a checked instruction signal while retaining the ordinary executor
+and its work accounting for any child. -/
+theorem run_signal (fuel : Nat) {cfg : Config} {world : Journal} {frame : Frame} {signal : Step}
+    (issued : instruction cfg world frame = .ok signal) :
+    run (fuel+1) cfg world frame = (do
+      match ← advance cfg (run fuel cfg) signal with
+      | .inl result => return {result with work := result.work+1}
+      | .inr (spent,nextWorld,nextFrame) =>
+        let result ← run (fuel-spent) cfg nextWorld nextFrame
+        return {result with work := result.work+spent+1}) := by
+  simp only [run, issued, Bind.bind, Except.bind] <;> rfl
 
 /-- The cut itself executes no instruction. Child evaluation uses the same
 executor and work accounting as the full bytecode interpreter. -/

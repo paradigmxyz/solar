@@ -215,24 +215,6 @@ theorem encode (frame : Frame) (sender receiver amount : Word)
     erw [h5]
 
 
-private theorem readPrefix (memory extra : List Byte) (offset count : Nat)
-    (within : offset + count ≤ memory.length) :
-    readBytes (memory ++ extra) offset count = readBytes memory offset count := by
-  unfold readBytes
-  apply List.map_congr_left
-  intro i hi
-  have hm : offset + i < memory.length := by have := List.mem_range.mp hi; omega
-  simp [List.getElem?_append_left hm]
-
-private theorem readTake (memory : List Byte) (offset count keep : Nat) (within : keep ≤ count) :
-    (readBytes memory offset count).take keep = readBytes memory offset keep := by
-  simp [readBytes, ←List.map_take, Nat.min_eq_left within]
-
-private theorem readSplit (memory : List Byte) (offset first rest : Nat) :
-    readBytes memory offset (first+rest) =
-      readBytes memory offset first ++ readBytes memory (offset+first) rest := by
-  simp [readBytes,List.range_add,List.map_append,List.map_map,Function.comp_def,Nat.add_assoc]
-
 private theorem readStore (before after : List Byte) (offset : Nat) (word : Word)
     (written : storeWord before offset word = .ok after)
     (within : offset + 32 ≤ after.length) :
@@ -263,7 +245,7 @@ private theorem readStoreDisjoint (before after : List Byte) (offset source coun
     split at ex
     · contradiction
     · cases ex
-      exact readPrefix _ _ _ _ within
+      exact readBytes_append_prefix _ _ _ _ within
 
 def canonicalInput (sender receiver amount : Word) : List Byte :=
   (wordBytes selector).take 4 ++ wordBytes sender ++ wordBytes receiver ++ wordBytes amount
@@ -278,9 +260,9 @@ private theorem payloadAfterStores (p : Nat) (sender receiver amount : Word)
     (l4 : p+100 ≤ m4.length) (l5 : p+132 ≤ m5.length) :
     readBytes m5 (p+32) 100 = canonicalInput sender receiver amount := by
   have first : readBytes m2 (p+32) 4 = (wordBytes selector).take 4 := by
-    rw [←readTake m2 (p+32) 32 4 (by decide),readStore _ _ _ _ h2 (by omega)]
-  rw [show 100 = 4 + (32 + (32+32)) by decide,readSplit,readSplit m5 (p+32+4),
-    readSplit m5 (p+32+4+32)]
+    rw [←readBytes_take m2 (p+32) 32 4 (by decide),readStore _ _ _ _ h2 (by omega)]
+  rw [show 100 = 4 + (32 + (32+32)) by decide,readBytes_split,readBytes_split m5 (p+32+4),
+    readBytes_split m5 (p+32+4+32)]
   have offsets : p+32+4 = p+36 ∧ p+32+4+32 = p+68 ∧ p+32+4+32+32 = p+100 := by omega
   rw [offsets.2.2,offsets.2.1,offsets.1]
   rw [readStoreDisjoint _ _ _ (p+32) 4 _ h5 (by omega) (Or.inr (by omega)),

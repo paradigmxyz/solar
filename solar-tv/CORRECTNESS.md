@@ -3601,6 +3601,65 @@ PYTHONPATH=solar-tv LEAN_NUM_THREADS=1 uv run --project solar-tv python \
 | `target/tv-memory-dse-current/FlashLoanTransferEntryWrongArg.lean` | `1fc82920c673eed253a34b554d0e5deb1a9baeb143a768a57f6ac56a7b5620bd` |
 | `target/tv-memory-dse-current/flash-first-helper.json` | `196bcf0e1a2c11048a2e1b81bf4000b042c12e51b1f3b1483c0370e6e30a4634` |
 
+### FlashLoan first token call and child return
+
+The kernel extends the entry proof to GAS at PC 3598, CALL at PC 3599,
+and the resumed caller at PC 3600. It checks the code-size probe and
+warming, the five memory stores, and the complete 68-byte payload
+`transfer(caller, amount)` at byte 160. The caller's active memory is
+256 bytes and its free-memory cursor is 256. CALL uses zero value and an
+empty output interval. On return the caller retains its exact memory and
+receives the child's success flag, returndata and journal from the ordinary
+EVM interpreter.
+
+The theorem inherits the canonical Cancun FlashLoan entry conditions
+above. It assumes the token passes the code-size guard, depth is below
+1,024 for the paid call, and the paid root gas fits a word. It quantifies
+the token's actual code, the initial journal, and the available gas and
+work. The 155 instructions before GAS cost 2,310 plus the code-size probe
+fee. GAS deducts two, and CALL deducts 100 before applying EIP-150. If
+`available` is the gas left after those deductions, the child receives
+`available - available / 64`. The parent resumes with `available / 64`
+plus the unused child gas. The composed theorem executes the actual child
+and resumes ordinary execution with its effects and remaining work. A
+separate theorem checks root rollback below the CALL payment threshold,
+including all budgets that exhaust at the prefix, GAS or CALL. Lean's
+axiom audit lists only `propext`, `Classical.choice` and `Quot.sound`.
+
+Pinned Rust replay uses a token that returns its GAS word, then repeats
+with a token that reverts with the same bytes. It checks the call operands,
+unmodified parent memory, child flag and returndata, and exact gas at
+PC 3600. The one-unit-short run exhausts gas and discards the FlashLoan
+log. The exact minimum pays for CALL and returns a failed child to the
+caller with zero remaining gas. Changing GAS to PC at 3598 reduces the
+cold fixture's forwarded gas to 3,598 and fails the kernel's byte check.
+
+| Token access, with 500,000 root gas | Minimum to pay CALL | GAS sample | Child gas | Parent gas at PC 3600 |
+| --- | ---: | ---: | ---: | ---: |
+| Cold | 5,012 | 495,088 | 487,254 | 494,973 |
+| Warm | 2,512 | 497,588 | 489,715 | 497,473 |
+
+The correspondence reaches the first external child return in the pinned
+runtime. The helper's MIR correspondence, returndata handling after
+PC 3600, the callback and the second transfer remain separate proofs.
+
+From the repository root, rerun the retained entry audit above first if
+its generated source is missing. The call audit then checks the original
+and changed Lean sources and runs the pinned Rust replay serially.
+
+```sh
+PYTHONPATH=solar-tv LEAN_NUM_THREADS=1 uv run --project solar-tv python \
+  target/tv-memory-dse-current/check-flash-call.py
+```
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Checker on Lean 4.34.1 | `ec1cac12d516f957df3b5b45ebf80212cae9ce82a79305a8e1d4ca94f3bcb0e9` |
+| `target/tv-memory-dse-current/check-flash-call.py` | `770d646a8bc17cf2f162f4d6c29c42de9686c0aa5e8ba826a8c0cc6f7fecd596` |
+| `target/tv-memory-dse-current/FlashLoanTransferCall.lean` | `1eb4329c6e9a9e7827471621438ae91cee113f5bb52c8af3116827e427f93ef9` |
+| `target/tv-memory-dse-current/FlashLoanTransferWrongGas.lean` | `2004e1f712efa5ec88ba624e917aadcaf72d4f20104a920d24ffc449abee6d81` |
+| `target/tv-memory-dse-current/flash-first-call.json` | `1780bc321e5de4c299d8c70dd99260ea9864437c2f4d5db2dc12f3f261b1d0c1` |
+
 ### MIR CFG checks after an import timeout
 
 The earlier three-second census timed out on 23 Morpho MIR `cfg-simplify`

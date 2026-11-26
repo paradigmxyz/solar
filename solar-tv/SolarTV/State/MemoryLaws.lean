@@ -11,6 +11,24 @@ open EvmRules
 @[simp] theorem readBytes_zero (bytes : List Byte) (offset : Nat) :
     readBytes bytes offset 0 = [] := by rfl
 
+theorem readBytes_append_prefix (memory suffix : List Byte) (offset count : Nat)
+    (within : offset + count ≤ memory.length) :
+    readBytes (memory ++ suffix) offset count = readBytes memory offset count := by
+  unfold readBytes
+  apply List.map_congr_left
+  intro i hi
+  have active : offset + i < memory.length := by have := List.mem_range.mp hi; omega
+  simp [List.getElem?_append_left active]
+
+theorem readBytes_take (memory : List Byte) (offset count keep : Nat) (within : keep ≤ count) :
+    (readBytes memory offset count).take keep = readBytes memory offset keep := by
+  simp [readBytes, ← List.map_take, Nat.min_eq_left within]
+
+theorem readBytes_split (memory : List Byte) (offset first rest : Nat) :
+    readBytes memory offset (first+rest) =
+      readBytes memory offset first ++ readBytes memory (offset+first) rest := by
+  simp [readBytes, List.range_add, List.map_append, List.map_map, Function.comp_def, Nat.add_assoc]
+
 theorem writeBytes_eq_spec (memory bytes : List Byte) (offset : Nat) :
   writeBytes memory offset bytes = writeBytesSpec memory offset bytes := by
   apply List.ext_getElem?
@@ -113,11 +131,6 @@ theorem flatten_wordBytes (word : Word) : (BitVec.flattenList (wordBytes word)).
 @[simp↓] theorem readWord_append_prefix (memory bytes : List Byte) (offset : Nat)
     (h : offset + 32 ≤ memory.length) : readWord (memory ++ bytes) offset = readWord memory offset := by
   unfold readWord
-  congr 2
-  unfold readBytes
-  apply List.map_congr_left
-  intro i hi
-  have hm : offset + i < memory.length := by have := List.mem_range.mp hi; omega
-  simp [List.getElem?_append_left hm]
+  rw [readBytes_append_prefix memory bytes offset 32 h]
 
 end SolarTV.Execution
