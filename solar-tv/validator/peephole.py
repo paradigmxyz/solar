@@ -100,7 +100,17 @@ def low_mask_tail(tail, catalog):
     return tail, []
 
 
-def certificate(common, tail, models, imported, version, prelude, *, edits=None):
+def certificate(
+    common,
+    tail,
+    models,
+    imported,
+    version,
+    prelude,
+    *,
+    edits=None,
+    preserve_stack_faults=False,
+):
     code = prelude + "set_option maxHeartbeats 3000000\n"
     for name, model, ops in zip(("before", "after"), models, imported, strict=True):
         following = (
@@ -113,13 +123,18 @@ def {name} (prices : Nat → Nat × Nat) : List EVM.Effects.Op := [{",".join(ops
 def {name}Common : List String := {json.dumps(instructions[: len(common)])}
 def {name}Tail : EVM.Suffix.Tail := ⟨{json.dumps(suffix)}, {json.dumps(model["terminal"])}, {following}⟩
 """
+    stateful = any(op.startswith(".effect ") for ops, _, _ in imported for op in ops)
+    # The pure prefix contract includes stack faults. Stateful and low-mask
+    # certificates retain their original-success refinement policy.
+    strict = preserve_stack_faults and edits is None and not stateful
+    allow_source_fault = "false" if strict else "true"
     code += f"""
 private theorem sharedPrefix : afterCommon = beforeCommon := by decide
 private theorem sharedTail : afterTail = beforeTail := by decide
 
 theorem middle (prices : Nat → Nat × Nat) (ctx : EVM.Context) (stack : EVM.Stack) :
     EVM.Effects.Refines (EVM.Effects.expand ctx .{version} (after prices) stack 0)
-      (EVM.Effects.expand ctx .{version} (before prices) stack 0) true := by
+      (EVM.Effects.expand ctx .{version} (before prices) stack 0) {allow_source_fault} := by
 """
     if edits is None:
         need = max(row[1] for row in imported)
@@ -162,7 +177,17 @@ theorem contextual {{World Halt : Type}}
     return code
 
 
-def check(paths, solar, replay, version, timeout, entry, *, paired_observers=False):
+def check(
+    paths,
+    solar,
+    replay,
+    version,
+    timeout,
+    entry,
+    *,
+    paired_observers=False,
+    preserve_stack_faults=False,
+):
     from .check import PRELUDE, ROOT, build_model, run
 
     if version == "amsterdam":
@@ -217,7 +242,14 @@ def check(paths, solar, replay, version, timeout, entry, *, paired_observers=Fal
                 )
                 edits_proof.extend(f".same ({op})" for op in ops)
     code = certificate(
-        common, tail, models, imported, version, PRELUDE, edits=edits_proof
+        common,
+        tail,
+        models,
+        imported,
+        version,
+        PRELUDE,
+        edits=edits_proof,
+        preserve_stack_faults=preserve_stack_faults,
     )
     build = build_model(timeout)
     if build.returncode:

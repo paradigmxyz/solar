@@ -1444,6 +1444,7 @@ def main() -> int:
                         version,
                         args.timeout,
                         entry,
+                        preserve_stack_faults=args.prefix is not None,
                     )
                 except peephole.UnpairedContinuation as retry:
                     error = retry

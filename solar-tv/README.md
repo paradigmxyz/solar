@@ -1550,6 +1550,8 @@ The pass hook uses this mode for unknown-height block windows. Capture retains
 its original rejection and region identity; evaluation chooses the proof mode
 **after** sampling. A failed universal proof is unsupported, since a hypothetical
 stack need not be reachable. It never fabricates a compiler counterexample.
+The generic pure peephole fallback also checks the complete stack-fault domain
+when selected through `--prefix`.
 
 ### Exact scalar rewrites inside stateful blocks
 
