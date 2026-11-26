@@ -4,10 +4,12 @@
 //@ run-call: mul 2 => 0x030644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd3, 0x15ed738c0e0a7c92e7845f96b2ae9c0a68a6a449e3538fc7ff3ebf7a5a18a2c4
 //@ run-call: named => 5, 6
 //@ run-call: mixed => 5, 6
+//@ run-call: lowered => 7, 0
 
 // Assembly can use memory at the free memory pointer as temporary space. The default object of a
 // memory return must exist before the block runs, so allocating it inside the block cannot
-// overwrite the block's data.
+// overwrite the block's data. It also sits below every allocation of the body, so a block that
+// lowers the free memory pointer to such an allocation leaves it intact.
 contract AssemblyReturnDefaultAlloc {
     struct Point {
         uint256 x;
@@ -62,6 +64,18 @@ contract AssemblyReturnDefaultAlloc {
         }
     }
 
+    function lowerPointer() internal pure returns (Point memory r) {
+        bytes memory b = new bytes(32);
+        assembly {
+            mstore(r, 7)
+            mstore(0x40, b)
+            let free := mload(0x40)
+            mstore(free, 1)
+            mstore(add(free, 0x20), 2)
+            mstore(add(free, 0x40), 3)
+        }
+    }
+
     function mul(uint256 k) external view returns (uint256, uint256) {
         Point memory r = ecMul(k, Point(1, 2));
         return (r.x, r.y);
@@ -75,5 +89,10 @@ contract AssemblyReturnDefaultAlloc {
     function mixed() external pure returns (uint256, uint256) {
         Mixed memory r = mixedStruct();
         return (r.x, r.b.length + 6);
+    }
+
+    function lowered() external pure returns (uint256, uint256) {
+        Point memory r = lowerPointer();
+        return (r.x, r.y);
     }
 }

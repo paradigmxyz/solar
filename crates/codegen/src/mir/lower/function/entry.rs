@@ -1,6 +1,28 @@
 //! Function signature, constructor, and body orchestration.
 
 use super::*;
+use solar_sema::hir::Visit;
+use std::ops::ControlFlow;
+
+/// Finds an inline assembly block in a function body.
+struct ContainsAssembly<'gcx> {
+    hir: &'gcx hir::Hir<'gcx>,
+}
+
+impl<'gcx> Visit<'gcx> for ContainsAssembly<'gcx> {
+    type BreakValue = ();
+
+    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
+        self.hir
+    }
+
+    fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<()> {
+        if matches!(stmt.kind, StmtKind::AssemblyBlock(..)) {
+            return ControlFlow::Break(());
+        }
+        self.walk_stmt(stmt)
+    }
+}
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn bind_signature(&mut self, function: &hir::Function<'_>) {
@@ -410,6 +432,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<()> {
         // return_values = lower_body(modifiers)
         if modifiers.is_empty() {
+            // Assembly may use memory at the free memory pointer as scratch space, and may move
+            // the pointer below earlier allocations, so allocate the default memory returns on
+            // entry, below everything else, as solc does.
+            let mut finder = ContainsAssembly { hir: &self.cx.gcx.hir };
+            if body.stmts.iter().any(|stmt| finder.visit_stmt(stmt).is_break()) {
+                self.materialize_memory_default_bindings();
+            }
             self.lower_block(body)
         } else {
             self.materialize_default_bindings();
