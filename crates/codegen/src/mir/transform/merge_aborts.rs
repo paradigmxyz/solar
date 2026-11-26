@@ -577,7 +577,8 @@ fn upper_bound(func: &Function, value: ValueId, depth: usize) -> Option<U256> {
         },
         InstKind::Shr(shift, source) => {
             let shift = usize::try_from(func.value_u256(shift)?).ok()?;
-            Some(upper_bound(func, source, depth)?.checked_shr(shift).unwrap_or(U256::ZERO))
+            // The floor: ruint's `checked_shr` is `None` once a set bit is shifted out.
+            Some(upper_bound(func, source, depth)? >> shift)
         }
         InstKind::Phi(ref incoming) => {
             // counter = phi [entry: start], [latch: counter + c1 + ... + ck]
