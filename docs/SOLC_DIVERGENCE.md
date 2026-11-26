@@ -1471,7 +1471,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `uint8[]` elements, and the high byte of the slot of a struct
   `{uint8 a; uint256 b}`. A copy between distinct slots matches `solc` for the
   invalid header and for the padding of a long `bytes`: both panic, and both
-  write `0xaa00..00`. A dirty enum panics as CODEGEN-022 describes.
+  write `0xaa00..00`. Dirty bits in the destination are a different case, which
+  CODEGEN-025 covers. A dirty enum panics as CODEGEN-022 describes.
 - Rationale: only assembly-forged storage reaches it, and a slot equality check
   would add a branch to every storage-to-storage copy.
 - Coverage: `tests/ui/codegen/run-call/storage/storage_self_assign_forged.sol`.

@@ -12,8 +12,8 @@
 // Assigning a storage value to itself loads it and writes it back, so assembly-forged storage is
 // checked and cleaned: an invalid short `bytes` header panics with `Panic(0x22)` and dirty bits
 // become zero. solc returns at once when the source and target slots are equal, leaving both as
-// they were. A copy between distinct slots behaves the same in both compilers. See CODEGEN-032 in
-// docs/SOLC_DIVERGENCE.md.
+// they were. A copy between distinct slots behaves the same in both compilers when the
+// destination is clean; CODEGEN-025 covers a dirty one. See CODEGEN-032 in docs/SOLC_DIVERGENCE.md.
 contract C {
     struct S {
         uint8 a;
