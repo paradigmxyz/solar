@@ -1475,10 +1475,12 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   has length 4 and starts with `0xffffffff` in both compilers. The word that
   `mload(add(r, 0x20))` reads is `0xffffffff` followed by 28 zero bytes in
   `solar` and all `0xff` in `solc` with `--via-ir`.
-- Rationale: only assembly that forges the selector and reads past the length of
-  the result sees it. Calldata validation, storage reads and conversions all
-  clean a `bytes4`, so ordinary Solidity cannot produce a dirty one, and any
-  argument overwrites the bytes after the selector.
+- Rationale: only assembly that forges the selector sees it, by reading past
+  the length of the result, or by pointing an argument at the result's own
+  memory so that the encoder copies the dirty bytes. Calldata validation,
+  storage reads and conversions all clean a `bytes4`, so ordinary Solidity
+  cannot produce a dirty one, and an argument elsewhere overwrites the bytes
+  after the selector.
 - Coverage: `tests/ui/codegen/run-call/assembly/abi_encode_selector_forged_bits.sol`.
 
 ### TYPECK-026: `@inheritdoc` references
