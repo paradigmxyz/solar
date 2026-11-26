@@ -941,6 +941,27 @@ fn emit_lean_spec_enum_scope() {
     let _ = std::fs::remove_file(&out);
 }
 
+/// A spec resolves its names where it is written, and a contract that inherits it exports it with
+/// the same meaning: the file-level enum member, `msg.sender`, the file-level constant and the
+/// base's state variable, at the same slot. A derived contract in which one of those names means
+/// something else is refused (`lean_unsupported/inherit_*.sol`).
+#[test]
+fn emit_lean_spec_inherit_scope() {
+    let out = std::env::temp_dir()
+        .join(format!("solar-verify-lean-inherit-scope-{}.lean", std::process::id()));
+    let run = run_verifier(&[
+        "--emit-lean-spec",
+        out.to_str().unwrap(),
+        "--lean-spec-module",
+        "SolidCore.Spec.Export.InheritScope",
+        "tests/snapshots/lean_export_inherit_scope.sol",
+    ]);
+    assert!(run.stderr.is_empty(), "{}", run.stderr);
+    let lean = std::fs::read_to_string(&out).unwrap();
+    assert_data_eq!(tidy(&lean), file!["snapshots/lean_export_inherit_scope.lean"]);
+    let _ = std::fs::remove_file(&out);
+}
+
 /// Every construct `--emit-lean-spec` does not translate is an error that names it, and nothing is
 /// written: each file of `snapshots/lean_unsupported` pins the message in its `// expect:` line.
 #[test]

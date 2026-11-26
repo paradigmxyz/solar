@@ -27,7 +27,7 @@
 //! steps: they are not part of a function's external spec and are not exported; the trusted ones
 //! (`@custom:assume`, `@custom:trusted`) are listed in the module's `trusted`.
 use crate::{
-    prog::{Contract, EnumMember, Func, Program, Spec},
+    prog::{Contract, EnumMember, Func, Program, Spec, StateVar},
     ty::{Ty, parse_ty_text},
     walk,
 };
@@ -195,8 +195,13 @@ struct Cx<'p, 'a> {
     fns: Vec<SpecFnOut>,
     visiting: Vec<String>,
     /// The contract whose declarations the spec being exported is written in (None: at file
-    /// level): an enum name resolves there, not in `c` (see `Program::enum_member`).
+    /// level). Its names resolve there, as Solidity resolves that contract's code: an enum (see
+    /// `Program::enum_member`), a global, a state variable or a spec function. A state variable
+    /// is then read in `c`'s layout, which must have that same variable under that name, and any
+    /// name that resolves differently in `c` is refused (see `state_var`).
     scope: Option<String>,
+    /// The file-level constants' declarations: the state a spec written at file level sees.
+    file_consts: &'p [Span],
 }
 
 fn paren(s: &str) -> String {
@@ -281,7 +286,7 @@ impl<'p, 'a> Cx<'p, 'a> {
             "this" => return Ok(Val::Term(".env .self".into())),
             _ => {}
         }
-        if let Some(sv) = self.c.state.iter().find(|s| s.name == n) {
+        if let Some(sv) = self.state_var(n, sp)? {
             if sv.ghost_decl.is_some() {
                 return Ok(Val::Ghost { name: n.into(), keys: vec![], ty: sv.ty.clone() });
             }
@@ -310,18 +315,86 @@ impl<'p, 'a> Cx<'p, 'a> {
         Err((sp, format!("unknown name `{n}` in a spec")))
     }
 
-    /// Whether `n` names a bound variable, a parameter, a return value or a state variable (the
-    /// names `ident` reads, in its order), which a member access on `n` then reads rather than a
-    /// global or an enum.
-    fn shadowed(&self, n: &str) -> bool {
-        self.bound.iter().any(|b| b == n)
+    /// Whether `n` names a bound variable, a parameter, a return value or a state variable where
+    /// the spec is written (the names `ident` reads, in its order), which a member access on `n`
+    /// then reads rather than a global or an enum. A state variable of that name in `c` but not
+    /// where the spec is written (or the reverse) is refused (`state_var`).
+    fn shadowed(&self, n: &str, sp: Span) -> R<bool> {
+        Ok(self.bound.iter().any(|b| b == n)
             || (!self.in_fn
                 && self.f.is_some_and(|f| {
                     f.params.iter().any(|p| p.0 == n)
                         || f.rets.iter().any(|r| r.0 == n)
                         || (n == "result" && self.allow_result)
                 }))
-            || self.c.state.iter().any(|s| s.name == n)
+            || self.state_var(n, sp)?.is_some())
+    }
+
+    /// The state variable `n` names where the spec is written (`scope`: that contract's state,
+    /// its bases' included; at file level, the file's constants), which the export then reads in
+    /// `c`'s layout. That is sound only when `c`'s variable of that name, the one `layout` and
+    /// `c.state` give, is the same declaration; otherwise (a variable `c` alone declares, such as
+    /// a derived contract's `S Color` or `S msg`, or a constant of `c` that shadows a file-level
+    /// one) the name means one thing where the spec is written and another in `c`, and is refused.
+    fn state_var(&self, n: &str, sp: Span) -> R<Option<&'p StateVar<'a>>> {
+        let c = self.c;
+        let target = c.state.iter().find(|s| s.name == n);
+        let here = match self.scope.as_deref() {
+            Some(s) if s == c.name => return Ok(target),
+            Some(s) => {
+                let d = self
+                    .p
+                    .contract(s)
+                    .ok_or((sp, format!("no contract `{s}` to resolve `{n}` in")))?;
+                d.state.iter().find(|v| v.name == n)
+            }
+            None => c.state.iter().find(|v| v.name == n && self.file_consts.contains(&v.span)),
+        };
+        match (here, target) {
+            (None, None) => Ok(None),
+            (Some(a), Some(b)) if a.span == b.span => Ok(Some(b)),
+            _ => {
+                let what = |v: Option<&StateVar<'_>>| match v {
+                    None => "no state variable",
+                    Some(_) => "a state variable",
+                };
+                let what_there = match (here, target) {
+                    (Some(_), Some(_)) => "another state variable",
+                    _ => what(target),
+                };
+                Err((
+                    sp,
+                    format!(
+                        "`{n}` names {} where the spec is written ({}) but {what_there} in `{}`",
+                        what(here),
+                        self.scope
+                            .as_deref()
+                            .map_or("at file level".to_string(), |s| format!("in `{s}`")),
+                        c.name
+                    ),
+                ))
+            }
+        }
+    }
+
+    /// What `b.m` is in the declarations of `scope` when `b` is no variable there: an enum
+    /// member's index, a supported global, or why it is refused (None: neither an enum nor a global
+    /// there).
+    fn member_in(&self, scope: Option<&str>, b: &str, m: &str) -> Option<Result<String, String>> {
+        match self.p.enum_member(scope, b, m) {
+            // An enum member, such as `Color.Blue`, is its index: the value `(.enum k)` reads
+            // from storage.
+            EnumMember::Index(i) => return Some(Ok(format!(".lit {i}"))),
+            EnumMember::Refused(why) => return Some(Err(why)),
+            EnumMember::NotVisible => {}
+        }
+        match (b, m) {
+            ("msg", "sender") => Some(Ok(".env .sender".into())),
+            ("msg", "value") => Some(Ok(".env .value".into())),
+            ("block", "timestamp") => Some(Ok(".env .timestamp".into())),
+            ("msg" | "block" | "tx", _) => Some(Err(format!("`{b}.{m}` not exported"))),
+            _ => None,
+        }
     }
 
     fn index(&mut self, b: Val, key: String, sp: Span) -> R<Val> {
@@ -446,27 +519,33 @@ impl<'p, 'a> Cx<'p, 'a> {
                         _ => Err((sp, format!("member `.{m}` of a type not exported"))),
                     };
                 }
-                // A name a variable shadows reads that variable, below. Otherwise an enum visible
-                // where the spec is written comes first, as in Solidity, then the globals.
+                // A name a variable shadows where the spec is written reads that variable, below.
+                // Otherwise an enum visible there comes first, as in Solidity, then the globals.
                 if let ExprKind::Ident(b) = &base.kind
-                    && !self.shadowed(b.as_str())
+                    && !self.shadowed(b.as_str(), base.span)?
                 {
                     let b = b.as_str();
-                    match self.p.enum_member(self.scope.as_deref(), b, m) {
-                        // An enum member, such as `Color.Blue`, is its index: the value `(.enum k)`
-                        // reads from storage.
-                        EnumMember::Index(i) => return Ok(Val::Term(format!(".lit {i}"))),
-                        EnumMember::Refused(why) => return Err((sp, why)),
-                        EnumMember::NotVisible => {}
-                    }
-                    match (b, m) {
-                        ("msg", "sender") => return Ok(Val::Term(".env .sender".into())),
-                        ("msg", "value") => return Ok(Val::Term(".env .value".into())),
-                        ("block", "timestamp") => return Ok(Val::Term(".env .timestamp".into())),
-                        ("msg" | "block" | "tx", _) => {
-                            return Err((sp, format!("`{b}.{m}` not exported")));
+                    match self.member_in(self.scope.as_deref(), b, m) {
+                        Some(Ok(t)) => {
+                            // A spec inherited from a base is exported for `c` too: refused when
+                            // `b.m` means something else there (an enum `c`'s hierarchy declares
+                            // over a global, or another enum member's index).
+                            let c = self.c.name.as_str();
+                            if self.scope.as_deref() != Some(c) {
+                                let there = self.member_in(Some(c), b, m);
+                                if there.as_ref().is_none_or(|x| x.as_ref() != Ok(&t)) {
+                                    return Err((
+                                        sp,
+                                        format!(
+                                            "`{b}.{m}` means `{t}` where the spec is written but not in `{c}`"
+                                        ),
+                                    ));
+                                }
+                            }
+                            return Ok(Val::Term(t));
                         }
-                        _ => {}
+                        Some(Err(why)) => return Err((sp, why)),
+                        None => {}
                     }
                     // An enum declared where this spec cannot see it, such as in another contract.
                     if let Some(d) = self.p.enum_decls.iter().find(|d| d.name == b) {
@@ -575,6 +654,26 @@ impl<'p, 'a> Cx<'p, 'a> {
                     .iter()
                     .find(|f| f.name == n && f.params.len() == argv.len())
                     .ok_or((sp, format!("call of `{n}` not exported")))?;
+                // The function is the one `c` runs (an override, as an internal call dispatches),
+                // of a function declared where the spec is written.
+                if self.scope.as_deref() != Some(c.name.as_str()) {
+                    let here =
+                        self.scope.as_deref().and_then(|s| self.p.contract(s)).is_some_and(|d| {
+                            d.funcs
+                                .iter()
+                                .chain(&d.overridden)
+                                .any(|g| g.name == n && g.params.len() == argv.len())
+                        });
+                    if !here {
+                        return Err((
+                            sp,
+                            format!(
+                                "spec function `{n}` is not declared where the spec is written, only in `{}`",
+                                c.name
+                            ),
+                        ));
+                    }
+                }
                 let mut ts = vec![];
                 for a in &argv {
                     ts.push(paren(&self.term(a)?));
@@ -710,6 +809,14 @@ fn list(ts: &[String]) -> String {
 /// Exports `program`'s specs, or the first construct that cannot be exported.
 pub(crate) fn export(program: &Program<'_>, unit: &SourceUnit<'_>, opts: &Opts) -> R<String> {
     let mut bytes_keys = vec![];
+    let file_consts: Vec<Span> = unit
+        .items
+        .iter()
+        .filter_map(|it| match &it.kind {
+            ItemKind::Variable(v) => Some(v.span),
+            _ => None,
+        })
+        .collect();
     for item in unit.items.iter() {
         if let ItemKind::Contract(c) = &item.kind {
             for it in c.body.iter() {
@@ -757,6 +864,7 @@ pub(crate) fn export(program: &Program<'_>, unit: &SourceUnit<'_>, opts: &Opts) 
             fns: vec![],
             visiting: vec![],
             scope: None,
+            file_consts: &file_consts,
         };
         // Contract invariants, then struct invariants over every stored value of the struct.
         let mut invs = vec![];

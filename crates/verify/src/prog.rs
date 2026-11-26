@@ -98,6 +98,10 @@ pub(crate) struct StateVar<'a> {
     /// EIP-1153 transient storage (`transient` variables, and the ghost `__traw` behind
     /// tload/tstore): cleared at the end of every transaction.
     pub transient: bool,
+    /// The declaration: the variable's, or the `@custom:ghost` tag's; `Span::DUMMY` for the
+    /// model's own state (`__balance` and the like). Two entries of one name are one variable
+    /// only when their spans are equal (`spec_lean` checks a spec's names this way).
+    pub span: Span,
 }
 
 pub(crate) struct Contract<'a> {
@@ -1324,6 +1328,7 @@ pub(crate) fn build<'a>(
                                 ghost: true,
                                 ghost_decl: Some(span),
                                 transient: false,
+                                span,
                             }),
                             None => {
                                 b.errors.push((span, format!("bad ghost declaration `{content}`")))
@@ -1361,6 +1366,7 @@ pub(crate) fn build<'a>(
                             ghost: false,
                             ghost_decl: None,
                             transient: v.data_location == Some(ast::DataLocation::Transient),
+                            span: v.span,
                         });
                     }
                     ItemKind::Function(f) if f.kind.is_modifier() => {
@@ -1451,6 +1457,7 @@ pub(crate) fn build<'a>(
                     ghost: false,
                     ghost_decl: None,
                     transient: false,
+                    span: v.span,
                 });
             }
         }
@@ -1468,6 +1475,7 @@ pub(crate) fn build<'a>(
                 ghost: true,
                 ghost_decl: None,
                 transient: true,
+                span: Span::DUMMY,
             });
             // raw storage slots that inline assembly reaches with sload/sstore (assumed disjoint
             // from the declared state variables)
@@ -1480,6 +1488,7 @@ pub(crate) fn build<'a>(
                 ghost: true,
                 ghost_decl: None,
                 transient: false,
+                span: Span::DUMMY,
             });
         }
         let uses_time = con.invariants.iter().any(|s| s.text.contains("__time"))
@@ -1501,6 +1510,7 @@ pub(crate) fn build<'a>(
                 ghost: true,
                 ghost_decl: None,
                 transient: false,
+                span: Span::DUMMY,
             });
         }
         if con.kind == ContractKind::Contract || con.kind == ContractKind::AbstractContract {
@@ -1514,6 +1524,7 @@ pub(crate) fn build<'a>(
                 ghost: true,
                 ghost_decl: None,
                 transient: false,
+                span: Span::DUMMY,
             });
             // which code each address holds: a value of this epoch, which every external call and
             // contract creation moves on (code changes only through outside code), so code read
@@ -1527,6 +1538,7 @@ pub(crate) fn build<'a>(
                 ghost: true,
                 ghost_decl: None,
                 transient: false,
+                span: Span::DUMMY,
             });
             if creates || has_asm || lib_asm {
                 // the addresses this contract deployed with code that can never be removed
@@ -1540,6 +1552,7 @@ pub(crate) fn build<'a>(
                     ghost: true,
                     ghost_decl: None,
                     transient: false,
+                    span: Span::DUMMY,
                 });
             }
             if con.kind == ContractKind::Contract
@@ -1671,6 +1684,7 @@ pub(crate) fn build<'a>(
                     ghost: false,
                     ghost_decl: None,
                     transient: false,
+                    span: v.span,
                 });
             }
         }
