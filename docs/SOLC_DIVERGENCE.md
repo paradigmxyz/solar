@@ -1089,7 +1089,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   temporary's word, or,
   with assembly that does not promise memory safety, when a write between the
   slot's initial store and its flush goes to an address the compiler cannot
-  place. An address that reaches a callee as an argument is not seen either.
+  place. An address that reaches a callee as an argument is not seen either, and
+  neither is a word that assembly writes through a computed address before the
+  slot's initial store and reads after the flush.
   A copy to a constant address whose length is
   not constant, as `codecopy(0xc0, 0, codesize())` in a constructor, names no
   finite range, and neither does a store to an address that code computes, as in
