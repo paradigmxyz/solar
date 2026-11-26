@@ -31,6 +31,9 @@ contract BytesHash {
         return h1 == h2;
     }
     /// @custom:ensures result
+    // The hash after the write is of nothing known: refuting the claim needs a model of
+    // the hash axioms, which the solver may not find in time.
+    // expect: solver returned unknown
     function bad_bytes_write_packed(bytes memory b) external pure returns (bool) {
         require(b.length > 0 && b[0] == 0x00);
         bytes32 h1 = keccak256(abi.encodePacked(b, uint256(2)));

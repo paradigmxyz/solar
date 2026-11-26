@@ -1567,3 +1567,8 @@ fn gap_qualified_files() {
 fn gap_bytes_contents() {
     check("tests/cases/gap_bytes_contents.sol")
 }
+
+#[test]
+fn gap_packed_hash() {
+    check("tests/cases/gap_packed_hash.sol")
+}

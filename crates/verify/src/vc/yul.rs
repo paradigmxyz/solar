@@ -848,7 +848,20 @@ impl<'p, 'a> Vc<'p, 'a> {
     /// other `abi.*` forms, or raw bytes) and per list of argument tags, so two calls share a
     /// function only when equal values give equal preimages. It is injective unless a packed
     /// encoding holds a value of no fixed width, which can shift the bytes of its neighbours.
+    ///
+    /// The packed encoding of anything with bytes in it hashes as those bytes: the hash of
+    /// `packed_bytes`, a function of the byte sequence, so equal arguments hash equally however
+    /// the hash was reached (through a variable holding the bytes or not). The raw hash is
+    /// injective over byte sequences, and the packed bytes are not claimed injective in their
+    /// arguments (different splits can give the same bytes), so two such hashes differ only
+    /// where their bytes are known to differ.
     pub(super) fn hash_flat(&mut self, h: &str, kind: &str, vals: &[Var]) -> String {
+        if kind == "encodePacked"
+            && vals.iter().any(|v| v.ty == Ty::Opaque)
+            && let Some(p) = self.packed_bytes(vals)
+        {
+            return self.hash_flat(h, "raw", &[Var { ty: Ty::Opaque, t: p, len: None }]);
+        }
         let mut flat = vec![];
         let mut tags = vec![];
         for v in vals {
@@ -946,6 +959,19 @@ impl<'p, 'a> Vc<'p, 'a> {
             for x in facts {
                 self.smt.send(&format!("(assert {x})\n"));
             }
+        }
+        // Bytes of fixed-width values alone: their keccak256 is the hash of their packed
+        // encoding (the functions `hash_flat` names), so hashing a variable that holds them
+        // agrees with hashing the encoding in place. Only the functions are declared here: their
+        // injectivity comes with the first hash that uses them.
+        if !parts.is_empty() && parts.iter().all(|(_, w)| w.is_some()) && self.bound.is_empty() {
+            let direct = format!("sv_keccak256.encodePacked.{}", tags.join("."));
+            let raw = "sv_keccak256.raw.dyn";
+            self.declare_fun(&direct, flat.len(), "Int");
+            self.ret_bound(&direct, &Ty::Uint(256));
+            self.declare_fun(raw, 1, "Int");
+            self.ret_bound(raw, &Ty::Uint(256));
+            self.smt.send(&format!("(assert (= ({raw} {p}) ({direct} {})))\n", flat.join(" ")));
         }
         Some(p)
     }
