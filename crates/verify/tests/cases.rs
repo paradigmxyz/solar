@@ -1522,3 +1522,8 @@ fn gap_keccak_literal() {
 fn gap_keccak_quantified() {
     check("tests/cases/gap_keccak_quantified.sol")
 }
+
+#[test]
+fn gap_old_return() {
+    check("tests/cases/gap_old_return.sol")
+}
