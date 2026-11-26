@@ -3265,7 +3265,48 @@ The complete breakdown and individual IDs are in
 All 11 `dead-arg-elim` IDs refer to a single Morpho capture pair. The
 independently exported bodies agree across all 46 functions after removing
 the unused decoder parameter and the constant argument at ten call sites,
-with bijective SSA renumbering. The argument-erasure proof remains open.
+with bijective SSA renumbering. This is the capture pair checked below.
+
+### Strict MIR dead-argument audit
+
+The serial `evaluate --all --require-verified --pass dead-arg-elim
+--timeout 90 --seed 0` run verifies 11 of 11 captures, all in Morpho Blue.
+It records zero unsupported, timed-out, inconclusive, failed or
+counterexample results. The 11 capture IDs and their raw IR hashes match
+the full audit. The source archives, inputs and normal and capture-enabled
+ABI, creation bytecode and runtime bytecode match the pinned corpus.
+
+The kernel checks the independently rendered typed action graphs for all
+46 functions. Only declared internal argument slots may disappear. Each
+retained read uses a live slot, and every direct or tail call projects its
+operands in the original order. Induction on the activation and logical
+work bounds composes the callees and preserves shared effects and returns.
+Compiler/schema export, mapping typed operands and SSA identities to the
+logical graphs, and shared effect and return handlers are premises. The
+certificate covers unused parameter erasure. Physical gas, backend frame
+placement, result pruning and arguments only forwarded into dead slots
+remain separate obligations.
+
+The regression compiles a real pass invocation that removes an unused
+parameter from a helper reached by direct and tail calls. Changing a
+retained argument fails the certificate. The direct Lean interpreter and
+the pinned Rust replay independently observe the changed return. On the
+archived Morpho pair, Rust also replays the decoder at the matched entry
+with the original argument `4` and the empty projected argument list.
+Both return pointer 128 and write the same five tuple words. Both revert
+with empty data and no stores when an address word sets bit 160.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Compiler executable | `f996616dcf2ebacf05fc5cc439f4814dc38fe953fad90b698754281c59ef139c` |
+| Serial compiler launcher | `4e5a4f6faa73f5d017a534afaa4d3f9a8c052abe1c2435f192108577b79239e9` |
+| Independent Rust replay | `1c08fa6d66c19b52b661c4db7c93fc1d257948cb592d9856d09a237c174bca0c` |
+| Checker on Lean 4.34.1 | `10f7c3e02e78911133c555a666e6315b82ce219ffbbd1912e3bfaf5824d9b090` |
+| `target/tv-dead-arguments-verified/results.json` | `58d4404ca37aa5422e5e6d2f32280af640331e5e4f8b18695b09b111ea39bf57` |
+| `target/tv-integer-cleanup-current/dead-arg-export/decoder-replay.json` | `4bdbb2173b24814f0853af36b6b069b3d6e297d23900f5086d6944a3c416d44e` |
+| `target/tv-dead-arguments-verified/remaining-by-pass.json` | `20900c1b65c8be548553f7bb79ed2cc6b1b4ed4d4a56a7c92ec40ec64a7477dd` |
+
+The saved join reaches 2,134 of 2,228 capture IDs, with 94 open.
 
 ### MIR CFG checks after an import timeout
 

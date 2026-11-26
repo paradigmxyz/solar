@@ -885,6 +885,14 @@ def record(
                 assumptions.append(
                     "closed retained MIR callees have kernel-checked equal typed bodies; calls at the cut use the same arbitrary handler with the recorded function ID and arguments"
                 )
+        elif program and program.scope == "mir-dead-arguments":
+            assumptions.extend(
+                [
+                    "kernel-checked unused parameter slots and exact operand projection at every reachable direct and tail call in the exported module",
+                    "same shared effect and return handlers, with arbitrary state and all logical work and activation bounds; internal calls enter with the projected typed operands",
+                    "trusted validated source export, typed slot binding, bijective SSA naming and action rendering; physical gas, ABI-to-stack placement and real child behavior require separate correspondence",
+                ]
+            )
         elif program and program.scope == "mir-schedule":
             assumptions.extend(
                 [
@@ -1024,6 +1032,7 @@ def record(
                 "builtin-lowering",
                 "mir-schedule",
                 "mir-abort-merge",
+                "mir-dead-arguments",
             }
         ):
             assumptions.append(
@@ -1085,6 +1094,7 @@ def record(
                 "mir-interaction-tree",
                 "mir-schedule",
                 "mir-abort-merge",
+                "mir-dead-arguments",
             }
             and program.symbolic_mir is None
         ):
@@ -1133,6 +1143,7 @@ def record(
                     "mir-interaction-tree",
                     "mir-schedule",
                     "mir-abort-merge",
+                    "mir-dead-arguments",
                 }
                 or program.scope == "layout-flow"
                 and program.import_evidence["interactions"]
@@ -1203,7 +1214,12 @@ def record(
             }
             if program
             and program.scope
-            in {"mir-interaction-tree", "mir-schedule", "mir-abort-merge"}
+            in {
+                "mir-interaction-tree",
+                "mir-schedule",
+                "mir-abort-merge",
+                "mir-dead-arguments",
+            }
             else {}
         ),
         **(

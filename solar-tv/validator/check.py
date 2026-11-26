@@ -650,6 +650,7 @@ def check(
 
 def check_mir_lowering(paths, solar, replay, version, timeout, function, verbose):
     from . import (
+        dead_arguments,
         lower_arithmetic,
         lower_checks,
         lower_integers,
@@ -663,6 +664,7 @@ def check_mir_lowering(paths, solar, replay, version, timeout, function, verbose
     )
 
     for validate in (
+        dead_arguments.check,
         mir_schedule.check,
         merge_aborts.check,
         lower_integers.check,

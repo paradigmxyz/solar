@@ -198,7 +198,7 @@ def rounded_extent(block, position, uses, definitions):
     return RoundedExtent(length["index"], results, division, bool(guard))
 
 
-def import_graph(body):
+def import_graph(body, *, combine=True):
     """Keep predecessor-selected phi inputs as one simultaneous action."""
     blocks = body["blocks"]
     uses = Counter(dead_ssa.reads(blocks, reject_undefined=False))
@@ -240,12 +240,14 @@ def import_graph(body):
             )
         elif position < len(block["instructions"]):
             instructions = block["instructions"]
-            if guard := increment_guard(instructions, position):
+            if combine and (guard := increment_guard(instructions, position)):
                 nodes.append(("action", guard, [point(index, None, position + 2)]))
-            elif mask := high_mask(instructions, position, uses):
+            elif combine and (mask := high_mask(instructions, position, uses)):
                 data, length = mask
                 nodes.append(("action", data, [point(index, None, position + length)]))
-            elif extent := rounded_extent(block, position, uses, definitions):
+            elif combine and (
+                extent := rounded_extent(block, position, uses, definitions)
+            ):
                 nodes.append(
                     ("action", extent, [point(block["terminator"]["else"], index)])
                 )
