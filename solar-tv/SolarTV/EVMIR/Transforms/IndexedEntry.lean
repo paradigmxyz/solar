@@ -29,7 +29,7 @@ def successors (code : State.CodeChunks) (cfg : State.Config) (finalImage : Bool
     Option (List Point) := do
   if finalImage && code.size ≤ point.pc then return [] else
   let inst ← RelocatedReturn.decode code point.pc
-  let words := (State.stackMotion cfg inst.opcode (code.immediate point.pc)).carry point.words
+  let words := (State.stackMotion cfg point.pc inst.opcode (code.immediate point.pc)).carry point.words
   if State.stopsControl inst.opcode then return []
   else if isJump inst.opcode then
     let target ← point.words.word 0
@@ -137,9 +137,9 @@ theorem successor_of_resume (code : State.CodeChunks) (data : List State.Byte)
     rw [← opcode, same, beforePc] at described
     obtain ⟨effect, stackEffect⟩ := described
     have literals := pushed_with_data code data before.pc inst.opcode (next ▸ inside)
-    have motion : (State.stackMotion cfg inst.opcode (code.immediate before.pc)).realizes
+    have motion : (State.stackMotion cfg before.pc inst.opcode (code.immediate before.pc)).realizes
         frame.stack after.stack := by
-      simpa only [State.stackMotion, literals] using stackEffect after.stack resumed
+      simpa only [State.stackMotion, literals, beforePc] using stackEffect after.stack resumed
     have carried := State.StackMotion.carry_matches _ _ _ _ beforeWords motion
     unfold State.ControlEffect at effect
     simp only [beforePc] at effect

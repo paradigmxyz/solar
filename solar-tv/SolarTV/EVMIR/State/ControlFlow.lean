@@ -32,31 +32,39 @@ private def pureInputs : EVM.Op → Nat
   | .addmod | .mulmod => 3
   | _ => 2
 
+private def pureMotion : EVM.Op → StackMotion
+  | .add => .binary Evm.add
+  | .sub => .binary Evm.sub
+  | op => .replace (pureInputs op) 1
+
 private theorem pure_motion (opcode : Nat) (op : EVM.Op) (ctx : EVM.Context)
     (before after : EVM.Stack) (found : pureOp opcode = some op)
     (ran : EVM.step ctx op before = some after) :
-    (StackMotion.replace (pureInputs op) 1).realizes before after := by
+    (pureMotion op).realizes before after := by
   unfold pureOp at found
   split at found <;> try contradiction
   all_goals
     cases found
     rcases before with _ | ⟨a,_ | ⟨b,_ | ⟨c,rest⟩⟩⟩ <;>
-      simp_all [EVM.step, pureInputs]
-  all_goals cases ran; exact ⟨_,rfl⟩
+      simp_all [EVM.step, pureInputs, pureMotion]
+  all_goals
+    cases ran
+    first | exact ⟨_,_,_,rfl,rfl⟩ | exact ⟨_,rfl⟩
 
 private def noResult (opcode : Nat) : Bool :=
   [0x3c,0x37,0x39,0x3e,0x50,0x52,0x53,0x55,0x5d,0x56,0x57,0x5b,0x5e].contains opcode ||
     (0xa0 ≤ opcode && opcode ≤ 0xa4)
 
-/-- Only a proved literal or stack permutation adds known words. The
-ordinary opcode cases retain the untouched suffix under the operands. -/
-def stackMotion (cfg : Config) (opcode : Nat) (immediate : Nat → Word) : StackMotion :=
+/-- Literals, PC, and arithmetic on known words can provide an address.
+The ordinary opcode cases retain the untouched suffix under the operands. -/
+def stackMotion (cfg : Config) (pc opcode : Nat) (immediate : Nat → Word) : StackMotion :=
   if let some word := pushedWord opcode immediate then
     .push word (if opcode = 0x5f then (available cfg opcode).inputs else 0)
-  else if let some op := pureOp opcode then .replace (pureInputs op) 1
+  else if let some op := pureOp opcode then pureMotion op
   else if range : 0x80 ≤ opcode ∧ opcode ≤ 0x9f then
     if opcode < 0x90 then .dup ⟨opcode - 0x80, by omega⟩
     else .swap ⟨opcode - 0x90, by omega⟩
+  else if opcode = 0x58 then .push (BitVec.ofNat 256 pc) (available cfg opcode).inputs
   else .replace (available cfg opcode).inputs (if noResult opcode then 0 else 1)
 
 /-- Every potentially resuming instruction has one of three kinds of PC
@@ -78,7 +86,7 @@ def InstructionEffect (cfg : Config) (frame after : Frame) (signal : Step)
     (opcode : Nat) (immediate : Nat → Word) (jump : Word → Bool) : Prop :=
   ControlEffect frame after opcode (available cfg opcode).inputs immediate jump ∧
     ∀ stack, signal.resumedStack stack →
-      (stackMotion cfg opcode immediate).realizes frame.stack stack
+      (stackMotion cfg frame.pc opcode immediate).realizes frame.stack stack
 
 private def ResumesWith (action : Action) (property : Step → Frame → Prop) : Prop :=
   ∀ signal after, action = .ok signal → signal.continuation = some after → property signal after
@@ -250,7 +258,7 @@ theorem instruction_control (cfg : Config) (world : Journal) (frame : Frame)
         omega
       simp [InstructionEffect, ControlEffect, pushedWord, h₁, h₂, h₃, h₄, pure,
         stackMotion, Step.resumedStack]
-      exact StackMotion.replace_one _ _ _ |>.mp (pure_motion _ _ _ _ _ pure (by assumption))
+      exact pure_motion _ _ _ _ _ pure (by assumption)
 
 /-- Resolving a child call or creation keeps the parent's continuation PC.
 Child execution supplies one reply to the caller's remaining stack. -/

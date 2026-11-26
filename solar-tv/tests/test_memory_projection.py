@@ -16,6 +16,7 @@ from validator.common import Program
 
 MODULE = "SolarTV.EVMIR.MemoryProjection"
 WRITES = "SolarTV.EVMIR.MemoryWrites"
+SPILL = "SolarTV.EVMIR.Transforms.SpilledReturn"
 VERSION = "cancun"
 VALUE = int.from_bytes(bytes(range(1, 33)), "big")
 
@@ -278,3 +279,101 @@ def emittedCopy (journal : Execution.Journal) (frame : EVM.State.Frame)
                     changed = self.observe(text, altered, gas=charge, probe_pc=copy + 1)
                     self.assertEqual(changed["stack"], [str(source), str(size)])
                     self.assertEqual(len(changed["memory"]), 64)
+
+    def test_emitted_spilled_return(self):
+        text = """@module Spill
+bb0 [stack=0]:
+  push bb1
+  push 128
+  mstore
+  push 65535
+  push 0
+  mstore
+  jump bb2
+bb1 [stack=0]:
+  push 195
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb2 [stack=0]:
+  push 128
+  mload
+  jump
+"""
+        image, decoded = self.compile_runtime(text)
+        (load,) = [pc for pc, (op, _) in decoded.items() if op == "mload"]
+        store = next(pc for pc, (op, _) in decoded.items() if op == "mstore")
+        destination = decoded[0][1]
+        count = 100_000
+        before = self.observe(text, image, gas=count, probe_pc=load)
+        after = self.observe(text, image, gas=count, probe_pc=destination)
+        prefix = count - after["gas"]
+        self.assertEqual(before["stack"], ["128"])
+        self.assertEqual(before["gas"] - after["gas"], 11)
+        self.assertEqual(after["stack"], [])
+        self.assertEqual(int.from_bytes(bytes(before["memory"][128:160])), destination)
+        self.assertEqual(
+            self.observe(text, image, gas=prefix, probe_pc=destination)["gas"], 0
+        )
+        self.assertEqual(self.observe(text, image, gas=prefix - 1)[0], "out-of-gas")
+        self.assertEqual(self.observe(text, image)[:2], ["success", [0] * 31 + [195]])
+
+        entry_proof.success(check.build_model(60, SPILL), "spill model build")
+        changed = image[: load - 1] + b"\0" + image[load:]
+        for suffix, artifact in (("Original", image), ("WrongSlot", changed)):
+            source = f"""import {SPILL}
+open SolarTV EvmRules Execution EVM.State EVM.SpilledReturn
+set_option autoImplicit false
+set_option Elab.async false
+def image : List Byte := {list(artifact)}
+def cfg : Config := ⟨.{VERSION}, {world.opcode_rows(self.catalog, VERSION)}, 0, {{}}, none⟩
+def destination : Word := {destination}
+theorem savedSlot : image[{load - 2}]? = some 0x60 ∧ image[{load - 1}]? = some 128 := by decide +kernel
+theorem emittedSave (world : Journal) (frame : Frame) (grown : List Byte) (tail : EVM.Stack)
+    (imageEq : frame.code = image) (pc : frame.pc = {store})
+    (stack : frame.stack = 128 :: destination :: tail) (height : tail.length + 2 ≤ 1024)
+    (arena : expand frame.memory (128 : Word).toNat 32 = .ok grown) :
+    let charge := 3 + memoryCharge frame.memory (128 : Word).toNat 32
+    let memory := writeBytes grown (128 : Word).toNat (wordBytes destination)
+    instruction cfg world frame =
+      (if frame.gas < charge then stepExhausted world
+       else .ok (.next world {{frame with pc := frame.pc+1, stack := tail, memory, gas := frame.gas-charge}})) ∧
+      saved memory 128 destination := by
+  exact EVM.SpilledReturn.store cfg world frame grown 128 destination tail 3 0
+    (by decide +kernel) (by rw [imageEq, pc]; decide +kernel) stack (by simp; omega) arena
+theorem emittedResume (world : Journal) (frame : Frame) (memory written grown : List Byte)
+    (tail : EVM.Stack) (value : Word)
+    (imageEq : frame.code = image) (pc : frame.pc = {load})
+    (stack : frame.stack = 128 :: tail) (height : tail.length + 1 ≤ 1024)
+    (aligned : frame.memory.length % 32 = 0)
+    (writeArena : expand memory 0 32 = .ok written)
+    (write : frame.memory = writeBytes written 0 (wordBytes value))
+    (readArena : expand frame.memory 128 32 = .ok grown)
+    (stored : saved memory 128 destination) :
+    MeteredPrefix cfg world frame world {{frame with pc := destination.toNat, stack := tail, memory := grown}}
+      2 (3 + memoryCharge frame.memory 128 32 + 8) := by
+  apply EVM.SpilledReturn.resume cfg world frame grown 128 destination tail 3 8 0 0
+  · decide +kernel
+  · decide +kernel
+  · rw [imageEq, pc]; decide +kernel
+  · rw [imageEq, pc]; decide +kernel
+  · rw [imageEq]; decide +kernel
+  · exact stack
+  · simpa using height
+  · exact aligned
+  · exact readArena
+  · rw [write]
+    exact EVM.SpilledReturn.preserve memory written (wordBytes value) 128 destination 0 32
+      writeArena (by simp) stored
+#print axioms emittedSave
+#print axioms emittedResume
+"""
+            proof = entry_proof.lean(self.folder, "Spilled" + suffix, source, 30)
+            if artifact == image:
+                entry_proof.success(proof, "emitted spilled return")
+                entry_proof.check_axioms(proof.stdout.splitlines(), 2)
+            else:
+                self.assertNotEqual(proof.returncode, 0)
+                self.assertEqual(self.observe(text, changed)[0], "exception")

@@ -12,7 +12,7 @@ from pathlib import Path
 from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
-from validator import native, world
+from validator import encoded_table, native, world
 from validator.call_budget import decode_runtime
 from validator.common import Program
 
@@ -646,3 +646,40 @@ bb3:
         result, record = self.cli(image, [1], 1, entry=2, version="amsterdam")
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertEqual(record["status"], "unsupported")
+
+    def test_computed_jump_respects_the_range_guard(self):
+        # PC + 8 computes the return address before jumping to the helper at 26.
+        runtime = bytes.fromhex(
+            "5f3558600801601a56005b80600111601357fe5b506018565b005b56"
+        )
+        # PC + 17 returns immediately before the unchecked table.
+        bypass = runtime[:4] + bytes([17]) + runtime[5:]
+        tables = [
+            {"entry_pc": 20, "range_guards": [{"pc": 11}], "entries": [{"pc": 24}]}
+        ]
+        for image, coverage, outcome in (
+            (runtime, "verified", "exception"),
+            (bypass, "unproven", "success"),
+        ):
+            with self.subTest(coverage=coverage):
+                proof = encoded_table.check_entry(
+                    image,
+                    tables,
+                    native.catalog(self.replay, 30),
+                    VERSION,
+                    30,
+                    final_image=True,
+                )
+                self.assertEqual(proof["status"], coverage, proof)
+                program = self.program(
+                    "@module Probe\nbb0 [stack=0]:\n  stop\n", image, 1, 500
+                )
+                replay = native.replay(
+                    program,
+                    program,
+                    [],
+                    raw_runtime=True,
+                    executable=self.replay,
+                    timeout=30,
+                )
+                self.assertEqual(json.loads(replay["observations"][0])[0], outcome)

@@ -1,8 +1,8 @@
 import SolarTV.EVMIR.State.Interpreter
 
 /-! Stack effects for physical control-flow proofs. A replacement retains the
-suffix below the consumed operands. Its outputs carry no facts. PUSH, DUP
-and SWAP retain exact words so a continuation can be moved around before JUMP. -/
+suffix below the consumed operands. PUSH, DUP and SWAP retain exact words,
+and word arithmetic with known operands can resolve a computed JUMP. -/
 
 namespace SolarTV.EVM.State
 open EvmRules
@@ -12,6 +12,7 @@ inductive StackMotion where
   | dup (depth : Fin 256)
   | swap (depth : Fin 256)
   | replace (inputs outputs : Nat)
+  | binary (eval : Word → Word → Word)
 
 def StackMotion.realizes (motion : StackMotion) (before after : EVM.Stack) : Prop :=
   match motion with
@@ -20,6 +21,8 @@ def StackMotion.realizes (motion : StackMotion) (before after : EVM.Stack) : Pro
   | .swap depth => EVM.step ⟨0,0,0,[],0⟩ (.swap depth) before = some after
   | .replace inputs outputs =>
     ∃ words : EVM.Stack, words.length = outputs ∧ after = words ++ before.drop inputs
+  | .binary eval =>
+    ∃ first second tail, before = first :: second :: tail ∧ after = eval first second :: tail
 
 @[simp] theorem StackMotion.push_realizes (value : Word) (inputs : Nat) (before after : EVM.Stack) :
     (.push value inputs : StackMotion).realizes before after ↔
@@ -54,6 +57,10 @@ theorem KnownStack.empty_matches (stack : EVM.Stack) : KnownStack.matches [] sta
 private def swappedIndex (index depth : Nat) : Nat :=
   if index = 0 then depth else if index = depth then 0 else index
 
+private def KnownStack.binary (words : KnownStack) (eval : Word → Word → Word) : Option Word := do
+  let first ← words.word 0
+  (eval first) <$> words.word 1
+
 private def StackMotion.move (motion : StackMotion) (words : KnownStack) : KnownStack :=
   match motion with
   | .push word inputs => some word :: words.drop inputs
@@ -62,6 +69,7 @@ private def StackMotion.move (motion : StackMotion) (words : KnownStack) : Known
     (List.range (max words.length (depth.val+2))).map
       (fun index => words.word (swappedIndex index (depth.val+1)))
   | .replace inputs outputs => List.replicate outputs none ++ words.drop inputs
+  | .binary eval => words.binary eval :: words.drop 2
 
 /-- A wider estimated stack is sound when an instruction succeeds. The
 untracked suffix carries no facts, including about its length. -/
@@ -136,6 +144,24 @@ private theorem moved (motion : StackMotion) (words : KnownStack) (before after 
     · simp [inside, List.getElem?_drop] at known
       have kept := related (inputs + (index-outputs)) value known
       simpa [List.getElem?_append, length, inside, List.getElem?_drop] using kept
+  | binary eval =>
+    obtain ⟨first,second,tail,rfl,rfl⟩ := realized
+    cases index with
+    | zero =>
+      change words.binary eval = some value at known
+      cases left : words.word 0 with
+      | none => simp [KnownStack.binary, left, Bind.bind, Option.bind] at known
+      | some a =>
+        cases right : words.word 1 with
+        | none => simp [KnownStack.binary, left, right, Bind.bind, Option.bind] at known
+        | some b =>
+          have firstEq : first = a := by simpa using related 0 a left
+          have secondEq : second = b := by simpa using related 1 b right
+          simpa [KnownStack.binary, left, right, Bind.bind, Option.bind, firstEq, secondEq] using known
+    | succ index =>
+      have source := related (2+index) value (by
+        simpa [StackMotion.move, KnownStack.word, List.getElem?_drop] using known)
+      simpa [Nat.add_comm 2 index] using source
 
 theorem StackMotion.carry_matches (motion : StackMotion) (words : KnownStack)
     (before after : EVM.Stack) (related : words.matches before)

@@ -4378,7 +4378,8 @@ points. Its roots are physical entry, every guard miss, and every proved
 table destination. Tables in the same image join the same certificate, so
 a destination can lead to another checked table or back to the first one.
 Outside a producer cut the graph follows both outcomes
-of a conditional jump, and each jump target must come from a known PUSH.
+of a conditional jump. A jump target may come from a known PUSH or PC
+and can be carried through ADD or SUB of two known operands.
 The kernel proves that interpreter continuations stay inside this set
 until a producer is reached. The set excludes the table entry. This holds
 for arbitrary live inputs, gas, world state, and child responses. The
@@ -4393,6 +4394,22 @@ only the local certificate. Unresolved computed jumps, routes into opaque
 data, and oversized reachability checks also leave this scope local.
 The decoder still excludes Amsterdam images with extended-stack
 immediates, which must be distinguished from `JUMPDEST` bytes.
+
+The computed-return regression puts a PC-relative continuation on the
+stack before transferring to a helper. Changing the offset makes the
+helper return past the selector guard and loses physical-entry coverage.
+The independent Rust EVM reaches the invalid guard miss on the original
+and completes on the changed image.
+
+`SpilledReturn` separately certifies the bytecode MSTORE that records a
+continuation, preservation across disjoint writes, and a metered
+MLOAD–JUMP sequence. The jump must resolve to a real destination. The
+composed prefix charges memory expansion and checks both paid and unpaid
+balances. The regression assembles a supplied EVM IR spill and reload,
+checks the encoded slot, and replays an altered reload independently.
+The symbolic proof takes the stack, slot and write footprint as explicit
+inputs. Checking the stackifier's spill allocation and lifetimes remains
+open.
 
 The normalized graph keeps the largest temporary stack
 requirement along each chain of jumps and checks that changed requirements

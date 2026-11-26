@@ -126,6 +126,7 @@ import SolarTV.MIR.Transforms.LowerAllocStage
 import SolarTV.MIR.Transforms.LowerAllocHelper
 import SolarTV.MIR.Transforms.CallHandoff
 import SolarTV.MIR.Transforms.FlashCallback
+import SolarTV.EVMIR.Transforms.SpilledReturn
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
 -- proof introduces sorryAx and fails the build even if it lives in an import.

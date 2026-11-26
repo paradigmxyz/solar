@@ -1424,11 +1424,12 @@ the table without one of its checked selector producers. The proof starts
 at bytecode PC zero and resumes from every guard miss and table destination.
 Tables in the same image can share the proof, including cyclic dispatches.
 The compiler bundle reports `selector_scope: "from-physical-entry"` for
-that stronger result. Lean tracks literal return addresses through PUSH,
-DUP, SWAP and the untouched suffix of other operations, including internal
-helper returns before a switch. The analysis retains the top 32 stack facts.
-Unresolved computed jumps, spilled return addresses and execution into an
-unchecked data suffix leave the proof scoped to the local mask or guard.
+that stronger result. Lean tracks known return addresses through PUSH,
+DUP, SWAP, PC, ADD, SUB and the untouched suffix of other operations.
+Both inputs must be known to retain an arithmetic result. The analysis
+retains the top 32 stack facts. Targets that require recovering a memory
+slot or reading an unchecked data suffix can leave the proof scoped to
+the local mask or guard.
 
 The shared-helper regression in `examples/solidity/indexed-table-return.sol`
 checks both public entrypoints against the emitted table. Changing the
