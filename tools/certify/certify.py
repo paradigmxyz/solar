@@ -33,6 +33,7 @@ import cutpoints
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import asm_cert
+import export_ns
 import rec_cuts
 
 AXIOMS = "[propext, Classical.choice, Quot.sound]"
@@ -589,7 +590,7 @@ def main():
     contract = manifest["contract"]
     gm, pm, ns, label = args.gen_module, args.proof_module, args.namespace, args.label
     expected = json.loads(args.axioms)
-    exported = f"SolarTV.Export.{contract}"
+    exported = export_ns.of_gen(args.gen)
     # sym_exec's steps are unhygienic: their lemmas resolve where it runs.
     opens = f"Machine {exported}" + (
         "" if ns == "SolarTV.Milestone.W1" else " SolarTV.Milestone.W1"
@@ -991,9 +992,21 @@ def main():
     # every gas below 2 ^ 256.
     # A recursive program's heights settle only with its cut points as heads (below).
     recursive = rec_cuts.is_recursive(args.gen)
-    dyn = outside is not None or (not recursive and not asm_cert.static_ok(last_text, code))
-    if dyn:
-        outside = asm_cert.outside(last_text, dyn=True)
+    # The certificate is inferred only for the execution theorem, and the inference is untrusted: a
+    # program it finds no certificate for (heights the checker cannot bound, such as a return the
+    # checker sends to every return label) gets the stage proofs without the execution theorem.
+    dyn, cert, why = False, None, None
+    if cut:
+        try:
+            dyn = outside is not None or (
+                not recursive and not asm_cert.static_ok(last_text, code)
+            )
+            if dyn:
+                outside = asm_cert.outside(last_text, dyn=True)
+            if not outside and not recursive:
+                cert, maxs = asm_cert.lean_cert(asm_cert.infer(last_text, code, dyn))
+        except SystemExit as e:
+            why = str(e.code).removeprefix("error: ")
     if not cut:
         # The execution theorem reads the stages backwards (LABEL_certified_back), which only
         # the cut-point composition writes; loop-free stages compose forwards only.
@@ -1027,8 +1040,9 @@ def main():
         else:
             executes, rec_exec = f"{label}_bytecode", True
             write(out / "Execution.lean", ex)
+    elif cert is None:
+        print(f"assembly: decoded only; no certificate for the assembly checker: {why}", file=sys.stderr)
     else:
-        cert, maxs = asm_cert.lean_cert(asm_cert.infer(last_text, code, dyn))
         executes = f"{label}_bytecode"
         A, L = (
             "SolidCore.Refinement.Solar.Assemble",

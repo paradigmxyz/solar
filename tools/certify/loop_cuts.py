@@ -51,6 +51,8 @@ import shutil
 import sys
 import tempfile
 
+import export_ns
+
 HERE = pathlib.Path(__file__).resolve().parent
 
 FORMAT = "solar-verify loop heads 1"
@@ -190,8 +192,8 @@ def gen_driver(name, contract, fname, sel, nargs, summary=None):
         "",
         "def main : IO UInt32 :=",
         f"  {GEN_MODULE}.run",
-        f"    {{ stage0 := SolarTV.Export.{contract}.stage0",
-        f'      stage0Name := "SolarTV.Export.{contract}.stage0"',
+        f"    {{ stage0 := {export_ns.of_run(name, contract)}.stage0",
+        f'      stage0Name := "{export_ns.of_run(name, contract)}.stage0"',
         "      cut := Verify.LoopSource.Equiv.Generated.cut",
         '      cutName := "Verify.LoopSource.Equiv.Generated.cut"',
         f"      contract? := {checked}",

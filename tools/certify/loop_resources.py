@@ -56,6 +56,7 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import asm_cert
+import export_ns
 import fixed_fuel
 
 Unsupported = fixed_fuel.Unsupported
@@ -713,7 +714,7 @@ def emit(
     text,
 ):
     """The module for one shape, or Unsupported."""
-    prog = f"SolarTV.Export.{contract}.{last}"
+    prog = f"{export_ns.of_gen(gen_dir)}.{last}"
     H, B, X, E = ob["header"], ob["B"], ob["X"], ob["E"]
     mod = Module(prog)
     fact_names = ["hcv", "hsz", "hsel"]

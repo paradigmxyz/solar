@@ -57,6 +57,7 @@ import tempfile
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(HERE))
+import export_ns
 import keccak
 import lakefile_inputs
 
@@ -541,7 +542,8 @@ def envelope(
         for n in walk(ast)
         if n.get("nodeType") == "VariableDeclaration" and "id" in n
     }
-    cycles, values = recursion_cycles(cdef, variables)
+    free = [n for n in ast.get("nodes", []) if n.get("nodeType") == "FunctionDefinition"]
+    cycles, values = recursion_cycles(cdef, variables, free)
     for names, call in cycles:
         fns = [
             n
@@ -859,19 +861,26 @@ def natspec_checks(ast, contract):
     return None, invs
 
 
-def recursion_cycles(cdef, variables):
+def recursion_cycles(cdef, variables, free=()):
     """The contract's recursion: each strongly connected component of its internal call graph that
-    has a cycle (functions or modifiers that can reach themselves), as (names, first call site), and
-    the calls through internal function values, whose callee the source does not name. The graph's
-    nodes are the contract's functions and modifiers; an edge is an internal call naming one of them
-    (an Identifier, or a MemberAccess such as C.f) or a modifier invocation. VARIABLES holds the ids
-    of the source's variable declarations (struct members included)."""
-    callables = {
+    has a cycle (functions or modifiers that can reach themselves) and that the contract's own
+    functions and modifiers reach, as (names, first call site), and the calls through internal
+    function values, whose callee the source does not name. The graph's nodes are the contract's
+    functions and modifiers and FREE, the source unit's free functions (a contract calls them
+    internally, so a cycle through them is recursion too); an edge is an internal call naming one of
+    them (an Identifier, or a MemberAccess such as C.f) or a modifier invocation. VARIABLES holds
+    the ids of the source's variable declarations (struct members included)."""
+    own = {
         n["id"]: n
         for n in walk(cdef)
         if n.get("nodeType") in ("FunctionDefinition", "ModifierDefinition")
         and "id" in n
     }
+    callables = dict(own)
+    for f in free:
+        for n in walk(f):
+            if n.get("nodeType") == "FunctionDefinition" and "id" in n:
+                callables.setdefault(n["id"], n)
     edges, site, values = {}, {}, []
     for cid, c in callables.items():
         out = edges.setdefault(cid, [])
@@ -896,7 +905,7 @@ def recursion_cycles(cdef, variables):
                 if internal_value and (
                     ref in variables if named else e.get("nodeType") not in other
                 ):
-                    values.append(n)
+                    values.append((cid, n))
             else:
                 continue
             if ref in callables:
@@ -935,11 +944,20 @@ def recursion_cycles(cdef, variables):
                     if w == v:
                         break
                 sccs.append(comp)
+    # What the contract's own functions and modifiers reach: a free function it never calls is not
+    # part of its code.
+    reached, todo = set(own), list(own)
+    while todo:
+        for w in edges[todo.pop()]:
+            if w not in reached:
+                reached.add(w)
+                todo.append(w)
+    values = [n for cid, n in values if cid in reached]
     cycles = []
     for comp in sccs:
         members = set(comp)
         inner = [(x, y) for x in comp for y in edges[x] if y in members]
-        if not inner:
+        if not inner or not members & reached:
             continue
         first = min(
             inner, key=lambda xy: int(site[xy].get("src", "0:0:0").split(":")[0])
@@ -1068,9 +1086,21 @@ def storage_pairs(text):
     )
 
 
+# What solar writes where the linker puts a library's address: 20 bytes, as 40 characters.
+LIBRARY_PLACEHOLDER = re.compile(r"__\$[0-9a-fA-F]{34}\$__")
+
+
 def scan_bytecode(hexcode):
+    """The opcodes of the runtime bytecode HEXCODE outside the fragment, each with its first pc,
+    and "unlinked library" with the offset of the first library placeholder: the code calls a
+    library whose address only linking fixes, which is not code the stages can describe."""
+    found = {}
+    m = LIBRARY_PLACEHOLDER.search(hexcode)
+    if m:
+        found["unlinked library"] = m.start() // 2
+        hexcode = LIBRARY_PLACEHOLDER.sub("0" * 40, hexcode)
     code = bytes.fromhex(hexcode)
-    found, i = {}, 0
+    i = 0
     while i < len(code):
         op = code[i]
         if op == 0xFE:  # INVALID: the start of the metadata or data section
@@ -1138,6 +1168,8 @@ def runtime_lean(deployed, plain):
 
 
 def lowering_lean(name, contract, fns, events, core_lit, storage_lit, sym=False):
+    # The run's stages are exported under its own namespace (export_ns.py).
+    X = export_ns.of_run(name, contract)
     ns = f"Certified.{name}.Lowering"
     sels = "\n".join(
         f"/-- The selector of §{f['sig']}§. -/\nabbrev sel{i} : Nat := {hex(f['sel'])}\n"
@@ -1169,13 +1201,13 @@ set_option maxRecDepth 100000 in
 /-- The kernel's evaluation: the generic check for every caller (the caller a symbolic word)
 accepts stage0 for every function. -/
 theorem check_sym_stage0 :
-    Generic.checkSym fuel mirFuel coreLit SolarTV.Export.{contract}.stage0 fns = true := by
+    Generic.checkSym fuel mirFuel coreLit {X}.stage0 fns = true := by
   decide +kernel
 
 set_option maxRecDepth 100000 in
 /-- The kernel's evaluation: stage0 reverts on a call with a value, whoever sends it. -/
 theorem checkValueSym_stage0 :
-    Generic.checkValue mirFuel coreLit SolarTV.Export.{contract}.stage0 fns .allSym = true := by
+    Generic.checkValue mirFuel coreLit {X}.stage0 fns .allSym = true := by
   decide +kernel
 """
         if sym
@@ -1238,13 +1270,13 @@ kernel_rfl shape_eq shape? (some (coreLit, true)) using {using}
 set_option maxRecDepth 100000 in
 /-- The kernel's evaluation: the generic check accepts stage0 for every function. -/
 theorem check_stage0 :
-    Generic.check fuel mirFuel coreLit SolarTV.Export.{contract}.stage0 fns .all = true := by
+    Generic.check fuel mirFuel coreLit {X}.stage0 fns .all = true := by
   decide +kernel
 
 set_option maxRecDepth 100000 in
 /-- The kernel's evaluation: no function is payable, and stage0 reverts on a call with a value. -/
 theorem checkValue_stage0 :
-    Generic.checkValue mirFuel coreLit SolarTV.Export.{contract}.stage0 fns .all = true := by
+    Generic.checkValue mirFuel coreLit {X}.stage0 fns .all = true := by
   decide +kernel
 {sym_thms}
 theorem deployed_of {{c : TypeCheck.CheckedContract}} (hc : contract? = .ok c) :
@@ -1256,6 +1288,7 @@ end {ns}
 
 
 def probe_lean(name, contract, fns):
+    X = export_ns.of_run(name, contract)
     """The probe (never part of a proof): SolidCore's evaluation of the checked contract's core and
     of its constructor's storage, printed for the generated module to state as literals, and per
     function whether SolidCore's erased tree and the symbolic run of the first lowered MIR exist
@@ -1264,7 +1297,7 @@ def probe_lean(name, contract, fns):
         f'  IO.println ("PROBE fn {f["sig"]}: " ++ (match core.findFunctionBySelector? {f["sel"]} with\n'
         f'    | none => "no source function"\n'
         f"    | some fn => match Generic.eraseFn (Generic.envOf core) fuel fn, "
-        f"Generic.symTree SolarTV.Export.{contract}.stage0 {f['sel']} {len(f['params'])} mirFuel .all with\n"
+        f"Generic.symTree {X}.stage0 {f['sel']} {len(f['params'])} mirFuel .all with\n"
         f'      | none, _ => "source tree undefined (erasure)"\n'
         f'      | _, none => "MIR symbolic run undefined"\n'
         f'      | some a, some b => if Generic.Tree.agree a b then "agree" else ("trees differ: source " ++ (reprStr a.canon).replace "\\n" " " ++ " MIR " ++ (reprStr b.canon).replace "\\n" " ")))'
@@ -1276,7 +1309,7 @@ def probe_lean(name, contract, fns):
         f'  IO.println ("PROBE sym fn {f["sig"]}: " ++ (match core.findFunctionBySelector? {f["sel"]} with\n'
         f'    | none => "no source function"\n'
         f"    | some fn => match Generic.eraseFnSym (Generic.envOf core) fuel fn, "
-        f"Generic.symTree SolarTV.Export.{contract}.stage0 {f['sel']} {len(f['params'])} mirFuel .allSym with\n"
+        f"Generic.symTree {X}.stage0 {f['sel']} {len(f['params'])} mirFuel .allSym with\n"
         f'      | none, _ => "source tree undefined (erasure)"\n'
         f'      | _, none => "MIR symbolic run undefined"\n'
         f'      | some a, some b => if Generic.Tree.agree a b then "agree" else ("trees differ: source " ++ (reprStr a.canon).replace "\\n" " " ++ " MIR " ++ (reprStr b.canon).replace "\\n" " ")))'
@@ -3228,6 +3261,7 @@ def shape_json(
         "spec_modules": [f"{name}.Lowering", "Verify.ShapeGeneric"],
         "proof_module": f"{name}.Shape",
         "proof": f"Certified.{name}.Shape.published",
+        "export_ns": export_ns.of_run(name, contract),
         "generic": {
             "lowering": f"{name}.Lowering",
             "ns": ns,
@@ -3703,14 +3737,63 @@ def solar_runtime(solar, src, contract, extra=(), cwd=None):
     return None, f"no contract {contract} in solar's output"
 
 
+def run_name(src):
+    """The run's name for SOURCE: its stem, made a Lean identifier, and its SHA-256's first 8 hex
+    digits. The run's modules and its export's namespace (export_ns.py) are under it."""
+    src = pathlib.Path(src)
+    sha = hashlib.sha256(src.read_text().encode()).hexdigest()
+    base = re.sub(r"[^a-z0-9_]", "_", src.stem.lower()).strip("_") or "c"
+    if not base[0].isalpha():
+        base = "c_" + base
+    return f"{base}_{sha[:8]}"
+
+
+IMPORT_PATH = re.compile(r"""\bimport\s+(?:[^;"']*?\bfrom\s+)?["']([^"']+)["']""")
+COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.S)
+
+
+def import_closure(src):
+    """SOURCE (first) and the files its imports reach, resolved as solar resolves them without
+    remappings: a path starting with ./ or ../ against the importing file's directory, any other
+    against SOURCE's directory, where solar runs. A file that does not exist is left out, for solar
+    to report."""
+    src = pathlib.Path(src).resolve()
+    seen, todo = [src], [src]
+    while todo:
+        f = todo.pop()
+        for p in IMPORT_PATH.findall(COMMENT.sub(" ", f.read_text())):
+            t = (f.parent if p.startswith(("./", "../")) else src.parent) / p
+            t = pathlib.Path(os.path.normpath(t))
+            if t.is_file() and t not in seen:
+                seen.append(t)
+                todo.append(t)
+    return seen
+
+
 def export_stages(solar, src, contract, tmp):
-    """solar's runtime bytecode of the contract and its stages, exported to TMP/gen. The manifest
-    records solar's arguments and the source's path, so solar runs in TMP on a copy of the source,
-    with both paths relative to it: the manifest is then the same wherever TMP and the source sit."""
+    """solar's runtime bytecode of the contract and its stages, exported to TMP/gen under the run's
+    own namespace (export_ns.run_prefix of run_name). The manifest records solar's arguments and the
+    sources' paths, so solar runs in TMP on a copy of the source and the files its imports reach,
+    laid out as they are relative to each other, with every path relative to TMP: the manifest is
+    then the same wherever TMP and the source sit."""
     tmp = pathlib.Path(tmp)
-    copy = pathlib.Path(src).name
-    shutil.copy(src, tmp / copy)
-    return solar_runtime(solar, copy, contract, ["-Zemit-lean-stages=gen"], cwd=tmp)
+    files = import_closure(src)
+    root = pathlib.Path(os.path.commonpath([f.parent for f in files]))
+    for f in files:
+        dest = tmp / f.relative_to(root)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(f, dest)
+    main = files[0].relative_to(root)
+    cwd = tmp / main.parent
+    gen = os.path.relpath(tmp / "gen", cwd)
+    ns = export_ns.run_prefix(run_name(src))
+    return solar_runtime(
+        solar,
+        main.name,
+        contract,
+        [f"-Zemit-lean-stages={gen}", f"-Zlean-stages-namespace={ns}"],
+        cwd=cwd,
+    )
 
 
 def gas_need(solar, src, name, contract, tmp):
@@ -5010,10 +5093,7 @@ def main():
         ap.error("--constructor-args needs --tier lifecycle")
     text = src.read_text()
     src_sha = hashlib.sha256(text.encode()).hexdigest()
-    base_name = re.sub(r"[^a-z0-9_]", "_", src.stem.lower()).strip("_") or "c"
-    if not base_name[0].isalpha():
-        base_name = "c_" + base_name
-    name = f"{base_name}_{src_sha[:8]}"
+    name = run_name(src)
     record = {
         "schema": "solar-certify-generic/1",
         "name": name,
@@ -5194,6 +5274,12 @@ def main():
             raise Blocked(
                 [
                     {
+                        "feature": "unlinked library",
+                        "where": f"byte {pc}",
+                        "detail": "the runtime bytecode has an unlinked library placeholder",
+                    }
+                    if op == "unlinked library"
+                    else {
                         "feature": "bytecode",
                         "where": f"pc {pc}",
                         "detail": f"the runtime bytecode has {op}",

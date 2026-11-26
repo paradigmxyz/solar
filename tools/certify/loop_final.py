@@ -72,6 +72,7 @@ import sys
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
+import export_ns
 import loop_cuts
 
 JOIN_MODULE = "Verify.LoopSource.Equiv.EraseLoopFinal"
@@ -197,7 +198,7 @@ def resources(name, contract, gen_dir, plain, sel, nargs, params):
             last=lower,
             gen_dir=gen_dir,
             ob=ob,
-            code_term=f"⟨(SolarTV.Export.{contract}.bytecode.map UInt8.ofNat).toArray⟩",
+            code_term=f"⟨({export_ns.of_gen(gen_dir)}.bytecode.map UInt8.ofNat).toArray⟩",
             code_import=f"{name}.gen.{contract}.Bytecode",
             sel=sel,
             nargs=nargs,

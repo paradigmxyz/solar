@@ -38,6 +38,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import asm_cert
+import export_ns
 import gen_ctxgas
 
 
@@ -88,14 +89,14 @@ def last_stage(stages_text):
     }
 
 
-def any_caller_lean(name, contract, g, shape, stages, bound, K):
+def any_caller_lean(name, contract, g, shape, stages, bound, K, export=None):
     """NAME.AnyCaller for the caller route "any": AnyCaller.bytes_eq_source_from on Lowering's
     check for every caller (check_sym_stage0, checkValueSym_stage0), solar-tv's backend stages to
     the final EVM IR under every oracle, the final EVM IR's run within its fuel on every call and
     NAME.CtxGas's checker with contexts and gas on the exact bytes. The same text for every
     contract on the route, from shape.json and Stages.lean alone; untrusted: the kernel re-derives
     every claim, and final.py states the type it must have."""
-    X = f"SolarTV.Export.{contract}"
+    X = export or export_ns.of_contract(contract)
     M = stages["ns"]
     ns = g["ns"]
     sns = g.get("source_ns", ns)
@@ -237,7 +238,9 @@ def any_caller_route(name, shape, g, root, gen, contract, stages, value):
         fail(
             f"shape.json: any_caller gas bound {K} is below the checker's {bound} or not below 2^64"
         )
-    return ctx_text, any_caller_lean(name, contract, g, shape, stages, bound, K)
+    return ctx_text, any_caller_lean(
+        name, contract, g, shape, stages, bound, K, export_ns.of_gen(gen)
+    )
 
 
 def main():
@@ -293,7 +296,9 @@ def main():
         fail(
             f"shape.json: gas bound {K} is below the checker's {need} or not below 2^64"
         )
-    X = f"SolarTV.Export.{contract}"
+    X = export_ns.of_gen(gen)
+    if X != export_ns.of_shape(shape, contract):
+        fail(f"shape.json: export_ns is not the namespace of the export under gen/ ({X})")
     M = stages["ns"]
     ns = g["ns"]
     sns = g.get("source_ns", ns)

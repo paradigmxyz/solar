@@ -22,6 +22,7 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import asm_cert
 import asm_ctxl
+import export_ns
 
 
 class CtxGasError(Exception):
@@ -41,7 +42,17 @@ def generate(
     gen, module_prefix, contract, final, skip=None, slice_from=None, selector=None
 ):
     """The module text and what the inference found: (text, {top, env, reads, costs, F, notes}).
-    Raises CtxGasError when the program is outside what the checker can certify."""
+    Raises CtxGasError when the program is outside what the checker can certify, including when
+    asm_ctxl's or asm_cert's inference stops (they exit with the CLI's error line, such as a block
+    entered in two contexts)."""
+    try:
+        return _generate(gen, module_prefix, contract, final, skip, slice_from, selector)
+    except SystemExit as e:
+        why = e.code if isinstance(e.code, str) else f"error: the inference exits ({e.code})"
+        raise CtxGasError(why) from None
+
+
+def _generate(gen, module_prefix, contract, final, skip, slice_from, selector):
     a = argparse.Namespace(
         gen=pathlib.Path(gen),
         module_prefix=module_prefix,
@@ -162,7 +173,8 @@ def generate(
             bl = f"    [.jump {b}]{sep}\n"
         out_blocks.append(h + bl)
     guarded = "{ blocks := [\n" + "".join(out_blocks) + "] }"
-    ns = f"SolarTV.Export.{a.contract}.CtxGas"
+    export = export_ns.of_gen(a.gen)
+    ns = f"{export}.CtxGas"
     q = "\x60"
     out = f"""import {a.module_prefix}.{final_mod}
 import {a.module_prefix}.Bytecode
@@ -188,12 +200,12 @@ namespace {ns}
 open SolidCore.Refinement.Solar SolidCore.Refinement.Solar.AssembleCtx
 
 /-- The exact runtime bytecode, byte by byte. -/
-abbrev bytes : List Nat := SolarTV.Export.{a.contract}.bytecode
+abbrev bytes : List Nat := {export}.bytecode
 
 def code : ByteArray := ⟨(bytes.map UInt8.ofNat).toArray⟩
 
 /-- The final EVM IR. -/
-abbrev prog : SolidCore.Refinement.Solar.Assemble.Program := SolarTV.Export.{a.contract}.{a.final}
+abbrev prog : SolidCore.Refinement.Solar.Assemble.Program := {export}.{a.final}
 
 /-- The blocks outside the checker's fragment. -/
 def F : List Nat := {F}

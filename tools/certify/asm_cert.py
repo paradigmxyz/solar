@@ -353,6 +353,39 @@ def meet(a, b):
     return [x if x == y else None for x, y in zip(a, b)]
 
 
+def gaining_cycle(blocks, raised, rising, n):
+    """The error for heights that do not settle: a cycle of edges (following `raised` back from a
+    block the last round raised, one of RISING) along which the stack gains words, so no highest entry heights (`maxs`)
+    satisfy the checker's bound on every edge. Through a dynamic jump this is the checker's
+    abstraction of returns: it sends every `jumpDyn` to every return label, so a return can
+    re-enter an earlier call's return site with the later call's words still on the stack."""
+    b = rising[-1] if rising else None
+    for _ in range(n):
+        if b is None or raised[b] is None:
+            break
+        b = raised[b]
+    cycle, seen = [], set()
+    while b is not None and b not in seen:
+        seen.add(b)
+        cycle.append(b)
+        b = raised[b]
+    if b in cycle:
+        cycle = cycle[cycle.index(b) :]
+    cycle.reverse()
+    path = " -> ".join(f"bb{c}" for c in [*cycle, *cycle[:1]])
+    dyn = [c for c in cycle if blocks[c] and blocks[c][-1][0] == "jumpDyn"]
+    why = (
+        f"; {', '.join(f'bb{c}' for c in dyn)} returns by a dynamic jump, which the checker sends "
+        "to every return label, so a return re-enters an earlier call's return site higher"
+        if dyn
+        else ""
+    )
+    return (
+        "error: the stack heights of the final EVM IR have no bound the assembly checker accepts: "
+        f"the cycle {path} gains stack words on every round{why}"
+    )
+
+
 def infer(program_text, code, dyn=False, bail=None, heads=None):
     """The certificate's fields and the highest entry heights, as Lean literals' data.
 
@@ -381,8 +414,12 @@ def infer(program_text, code, dyn=False, bail=None, heads=None):
     entry[0] = (0, 0, [])
     for t, (high, need, ty) in heads.items():
         entry[t] = (need, high, ty)
+    # raised[t]: the block whose edge last raised t's highest entry, to name a cycle that gains.
+    raised = [None] * n
+    # The needs and the types only fall and the highest entries are longest paths, so without a
+    # cycle that gains height the rounds settle within n + 2 or so; 4 n + 8 is ample.
     for _ in range(4 * n + 8):
-        changed = False
+        changed, rising = False, []
         for b in range(n):
             current = entry[b]
             if current is None:
@@ -412,12 +449,15 @@ def infer(program_text, code, dyn=False, bail=None, heads=None):
                         max(old[1], new[1]),
                         meet(old[2], new[2]),
                     )
+                if old is None or new[1] > old[1]:
+                    raised[t] = b
+                    rising.append(t)
                 if new != old:
                     entry[t], changed = new, True
         if not changed:
             break
     else:
-        raise SystemExit("error: the stack heights of the final EVM IR do not settle")
+        raise SystemExit(gaining_cycle(blocks, raised, rising, n))
     entry = [e if e is not None else (0, 0, []) for e in entry]
     needs = [e[0] for e in entry]
     types = [(e[2][: e[0]] + [None] * e[0])[: e[0]] for e in entry]

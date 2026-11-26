@@ -89,6 +89,8 @@ import json
 import re
 import sys
 
+import export_ns
+
 NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_.?'!]*$")
 # A statement input: a term without tactics, commands or type ascriptions (no newline, colon,
 # semicolon, backtick or tactic keyword); its meaning is checked by the kernel like the rest.
@@ -754,7 +756,7 @@ def main():
         "open_functional": "_root_.SolidCore.Refinement.Shapes.OpenFunctional",
     }[kind]
     gas = f" ({expr(shape, 'gas')})" if kind in ("certified", "compiled") else ""
-    export = f"_root_.SolarTV.Export.{a.contract}"
+    export = f"_root_.{export_ns.of_shape(shape, a.contract)}"
     premises = "".join(f"({e}) →\n    " for e in env)
     binders = " ".join(f"_h{i}" for i in range(len(env)))
     term = f"{proof} {binders}".strip()
