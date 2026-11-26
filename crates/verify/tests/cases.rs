@@ -1572,3 +1572,8 @@ fn gap_bytes_contents() {
 fn gap_packed_hash() {
     check("tests/cases/gap_packed_hash.sol")
 }
+
+#[test]
+fn gap_returndata() {
+    check("tests/cases/gap_returndata.sol")
+}

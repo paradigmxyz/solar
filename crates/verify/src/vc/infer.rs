@@ -205,6 +205,14 @@ impl<'p, 'a> Vc<'p, 'a> {
                 }
             }
         }
+        // A loop that may call changes the frame's latest call at its head (see `rd_note`).
+        if self.env.contains_key(super::RD_N) && Self::may_call(cond, next, body) {
+            for k in [super::RD_N, super::RD_OK, super::RD_SIZE, super::RD_WORD] {
+                let ty = self.env[k].ty.clone();
+                let v = self.fresh_var(k, &ty);
+                self.env.insert(k.to_string(), v);
+            }
+        }
         let (head_guard, head_env) = (self.guard.clone(), self.env.clone());
         if self.trial == 0 {
             let keep = self.loop_vars(cond, next, body, &targets);
@@ -958,6 +966,26 @@ impl<'p, 'a> Vc<'p, 'a> {
         self.inferred.truncate(s.inferred);
         self.loop_recs.truncate(s.loop_recs);
         self.ph = s.ph;
+    }
+
+    /// Whether a loop may make an external call: its guard, step or body calls anything or
+    /// runs assembly.
+    fn may_call(
+        cond: Option<&'a Expr<'a>>,
+        next: Option<&'a Expr<'a>>,
+        body: &'a Stmt<'a>,
+    ) -> bool {
+        let mut exprs: Vec<&'a Expr<'a>> = cond.into_iter().chain(next).collect();
+        let mut asm = false;
+        walk::all_stmts(body, &mut |s| {
+            asm |= matches!(s.kind, StmtKind::Assembly(_));
+            walk::stmt_exprs(s, &mut |e| exprs.push(e));
+        });
+        let mut call = false;
+        for e in exprs {
+            walk::sub_exprs(e, &mut |x| call |= matches!(x.kind, ExprKind::Call(..)));
+        }
+        asm || call
     }
 }
 

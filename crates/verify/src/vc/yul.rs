@@ -1318,6 +1318,53 @@ impl<'p, 'a> Vc<'p, 'a> {
         }
     }
 
+    /// The output buffer of a call, when the frame's latest call is recorded (see `rd_note`)
+    /// and the buffer is short and at a constant offset in the scratch space: what the call
+    /// returns is then written there byte by byte.
+    fn y_rd_out(&self, off: &str, len: &str) -> Option<(u64, u64)> {
+        if !self.env.contains_key(super::RD_N) {
+            return None;
+        }
+        let o = u64::try_from(self.y_konst(off)?).ok()?;
+        let n = u64::try_from(self.y_konst(len)?).ok()?;
+        (n <= 64 && o.checked_add(n)? <= SCRATCH_END).then_some((o, n))
+    }
+
+    /// Records a call of the block as the frame's latest (`count` when no `external_call`
+    /// counted it): its flag `ok`, and return data of unknown length and contents, the first
+    /// bytes of which the call copies into its output buffer `out` (`y_rd_out`). The EVM copies
+    /// min(buffer size, return data size) bytes: a byte past the end of the return data keeps
+    /// what memory held, an arbitrary byte where the block never wrote it.
+    fn y_rd_record(&mut self, ok: &str, out: Option<(u64, u64)>, count: bool) {
+        if !self.env.contains_key(super::RD_N) {
+            return;
+        }
+        let rd = self.decl("returndata", &Ty::Opaque);
+        let size = self.opaque_len(&rd);
+        let word = self.rd_word(&rd);
+        let rec = Some((ok.to_string(), size.clone(), word));
+        if count {
+            self.rd_note(rec)
+        } else {
+            self.rd_set(rec)
+        }
+        let Some((o, n)) = out else { return };
+        let byte = self.bytes_byte_fn();
+        for i in 0..n {
+            let k = mkey(o + i);
+            // what memory held before: an arbitrary byte where the block never wrote it
+            let old = match self.env.get(&k) {
+                Some(v) => v.t.clone(),
+                None => self.decl("mbyte", &Ty::Uint(8)),
+            };
+            let b = format!("({byte} {rd} {i})");
+            self.smt.send(&format!("(assert {})\n", Ty::Uint(8).range(&b).unwrap()));
+            let t = self.def("rdbyte", "Int", &format!("(ite (< {i} {size}) {b} {old})"));
+            self.ranges.insert(t.clone(), (BigInt::zero(), BigInt::from(255)));
+            self.env.insert(k, Var { ty: Ty::Uint(8), t, len: None });
+        }
+    }
+
     // ------------------------------------------------------------------ statements
     pub(super) fn exec_asm(&mut self, a: &'a ast::StmtAssembly<'a>, span: Span) -> R<()> {
         if let Some(d) = &a.dialect
@@ -2341,6 +2388,17 @@ impl<'p, 'a> Vc<'p, 'a> {
                     .ok_or((span, format!("`{name}()` is not available here")))?;
                 one(v.t)
             }
+            // the frame's latest call's, once every path made one (see `rd_note`)
+            "returndatasize"
+                if !self.spec
+                    && matches!(
+                        self.env.get(super::RD_N).map(|v| v.t.as_str()),
+                        Some("1" | "2")
+                    ) =>
+            {
+                want(0)?;
+                one(self.env[super::RD_SIZE].t.clone())
+            }
             "gas" | "gasprice" | "returndatasize" | "coinbase" | "basefee" | "blobbasefee"
             | "prevrandao" | "difficulty" | "gaslimit" | "msize" | "codesize" | "calldatasize"
             | "selfbalance" | "balance" | "extcodesize" | "extcodehash" | "blockhash"
@@ -2493,14 +2551,19 @@ impl<'p, 'a> Vc<'p, 'a> {
                     return unsupported(span, "assembly `call` inside a spec evaluation");
                 }
                 // an external call: outside code may reenter (see external_call); value leaves
-                // this contract on success; the output buffer becomes unknown
-                self.y_clobber(cx, span, &a[5], &a[6])?;
+                // this contract on success; the output buffer becomes unknown, or, while the
+                // frame's latest call is recorded, what the call returned
+                let out = self.y_rd_out(&a[5], &a[6]);
+                if out.is_none() {
+                    self.y_clobber(cx, span, &a[5], &a[6])?;
+                }
                 let ok = self.decl("call_ok", &Ty::Bool);
                 if self.y_konst(&a[2]).is_none_or(|v| !v.is_zero()) {
                     let v = a[2].clone();
                     self.send_value(&v, Some(&ok));
                 }
                 self.external_call(vec![], false, span)?;
+                self.y_rd_record(&ok, out, false);
                 one(Self::y_flagt(&ok))
             }
             "create" | "create2" => {
@@ -2521,7 +2584,10 @@ impl<'p, 'a> Vc<'p, 'a> {
                 }
                 let known = self.y_creation_code(cx, c);
                 match &known {
-                    Some(cn) if self.deploys_quietly(cn) => self.bump_code_epoch(),
+                    Some(cn) if self.deploys_quietly(cn) => {
+                        self.bump_code_epoch();
+                        self.rd_note(None);
+                    }
                     _ => {
                         self.external_call(vec![], false, span)?;
                     }
@@ -2548,9 +2614,14 @@ impl<'p, 'a> Vc<'p, 'a> {
                 if self.spec {
                     return unsupported(span, "assembly `staticcall` inside a spec evaluation");
                 }
-                // the output buffer becomes unknown; the result is an arbitrary success flag
-                self.y_clobber(cx, span, &a[4], &a[5])?;
+                // the output buffer becomes unknown (or what the call returned, as for `call`);
+                // the result is an arbitrary success flag
+                let out = self.y_rd_out(&a[4], &a[5]);
+                if out.is_none() {
+                    self.y_clobber(cx, span, &a[4], &a[5])?;
+                }
                 let ok = self.decl("staticcall", &Ty::Bool);
+                self.y_rd_record(&ok, out, true);
                 one(Self::y_flagt(&ok))
             }
             _ => unsupported(span, format!("assembly builtin `{name}` is not supported")),

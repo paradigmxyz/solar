@@ -275,6 +275,10 @@ impl<'p, 'a> Cx<'p, 'a> {
         }
         match n {
             "__time" => return Ok(Val::Term(".env .time".into())),
+            // the Lean semantics has no return data of the latest call
+            _ if crate::vc::RD_BUILTINS.contains(&n) => {
+                return Err((sp, format!("`{n}` (the latest call's return data) is not exported")));
+            }
             "this" => return Ok(Val::Term(".env .self".into())),
             _ => {}
         }

@@ -96,6 +96,39 @@ struct Decl<'a> {
     calldata: bool,
 }
 
+/// Env keys of the record of the running frame's latest external call (see `Vc::rd_note`),
+/// bound while the verified function's postconditions read it: how many calls every path has
+/// made so far (`0`, `1`, `2` for more than one, any other term where paths disagree or a
+/// loop may call), and that call's success flag, return data length and first return data word.
+const RD_N: &str = "@rd.n";
+const RD_OK: &str = "@rd.ok";
+const RD_SIZE: &str = "@rd.size";
+const RD_WORD: &str = "@rd.word";
+
+/// The spec builtins over the latest external call of the function body: its success flag, the
+/// length of its return data, and the first 32 bytes of that data as a word (zero bytes past its
+/// end, so a shorter return gives a word whose low bytes are zero).
+pub(crate) const RD_BUILTINS: [&str; 3] =
+    ["__call_success", "__returndatasize", "__returndataword"];
+
+/// Whether spec text names a return data builtin.
+fn rd_mentioned(text: &str) -> bool {
+    RD_BUILTINS.iter().any(|b| text.contains(b))
+}
+
+/// Where the return data builtins may be read (see `RD_BUILTINS`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RdSpec {
+    /// Nowhere: preconditions, invariants, statement specs, other contracts' specs.
+    Off,
+    /// The verified function's own postconditions: its body must make exactly one call on
+    /// every path.
+    Own,
+    /// The postconditions of an internal function a call uses as its summary: the callee's own
+    /// proof checked that it calls once.
+    Summary,
+}
+
 /// Storage pointers' targets, captured index values and names (see `Vc::ptr_state`).
 type PtrState<'a> = (FxHashMap<String, &'a Expr<'a>>, FxHashMap<String, Env>, FxHashSet<String>);
 
@@ -182,6 +215,8 @@ pub(crate) struct Vc<'p, 'a> {
     warnings: Vec<(String, Option<Span>)>,
     /// `@custom:reveal f(..)` being evaluated: unfold opaque `f` once
     reveal: Option<String>,
+    /// Where the return data builtins may be read now.
+    rd_spec: RdSpec,
     /// structs whose invariant was already checked against the zero value in this function
     zero_checked: FxHashSet<String>,
     /// the function being verified (lemma cycles)
@@ -344,6 +379,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             defs: Default::default(),
             warnings: vec![],
             reveal: None,
+            rd_spec: RdSpec::Off,
             zero_checked: FxHashSet::default(),
             cur_fn: None,
             rets: vec![],
@@ -1663,6 +1699,9 @@ impl<'p, 'a> Vc<'p, 'a> {
         self.in_ctor = ctor;
         self.init_env(ctor)?;
         self.rets = f.rets.iter().map(|(n, _)| n.clone()).collect();
+        if f.ensures.iter().any(|en| rd_mentioned(&en.text)) {
+            self.rd_start();
+        }
         let c = self.c;
         if ctor {
             // State initializers run in the contract's scope, before the constructor: none of
@@ -1942,10 +1981,19 @@ impl<'p, 'a> Vc<'p, 'a> {
         }
         let exit_env = self.env.clone();
         self.spec_exit_env(f);
+        self.rd_spec = RdSpec::Own;
         for en in &f.ensures {
-            let v = self.eval_spec(en.expr)?;
+            let v = self.eval_spec(en.expr);
+            let v = match v {
+                Ok(v) => v,
+                Err(e) => {
+                    self.rd_spec = RdSpec::Off;
+                    return Err(e);
+                }
+            };
             self.check(&v.t, "postcondition not satisfied", en.span, Some(en));
         }
+        self.rd_spec = RdSpec::Off;
         self.env = exit_env;
         if f.is_entry() {
             for inv in &c.invariants {
@@ -3688,6 +3736,9 @@ impl<'p, 'a> Vc<'p, 'a> {
                     }
                     return Ok(v);
                 }
+                if self.spec && RD_BUILTINS.contains(&n) {
+                    return self.rd_read(n, e.span);
+                }
                 if self.spec && n == "result" {
                     if let [r] = &self.rets[..]
                         && let Some(v) = self.env.get(r)
@@ -4627,6 +4678,8 @@ impl<'p, 'a> Vc<'p, 'a> {
                     }
                     "keccak256" => return Ok(vec![self.keccak_solidity(&argv)?]),
                     "sha256" | "ripemd160" => {
+                        // a staticcall to a precompile, which replaces the return data
+                        self.rd_note(None);
                         let (kind, vals) = self.hash_args(&argv)?;
                         let t = self.hash_flat(n, &kind, &vals);
                         let ty = Ty::Uint(256);
@@ -4636,6 +4689,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                         return Ok(vec![Self::val(ty, t)]);
                     }
                     "ecrecover" => {
+                        self.rd_note(None);
                         let mut xs = vec![];
                         for a in &argv {
                             xs.push(self.eval(a)?.t);
@@ -4770,6 +4824,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                             // only C's own code runs, which cannot call back in; the address
                             // now holds new code
                             self.bump_code_epoch();
+                            self.rd_note(None);
                             let r = self.fresh_var("created", &ty);
                             // `new` reverts where the creation fails
                             self.assume(&format!("(not (= {} 0))", r.t));
@@ -5099,7 +5154,13 @@ impl<'p, 'a> Vc<'p, 'a> {
                         self.delegate = delegate;
                         self.in_ctor = in_ctor;
                         let mut r = r?;
-                        r[0] = Self::val(Ty::Bool, ok);
+                        r[0] = Self::val(Ty::Bool, ok.clone());
+                        // the frame's latest call: its flag and the return data it gave
+                        if self.env.contains_key(RD_N) {
+                            let size = self.opaque_len(&r[1].t);
+                            let word = self.rd_word(&r[1].t);
+                            self.rd_set(Some((ok, size, word)));
+                        }
                         Ok(r)
                     }
                     (Ty::Contract(cn), _) => {
@@ -6456,6 +6517,8 @@ impl<'p, 'a> Vc<'p, 'a> {
 
     /// addr.transfer(v) / addr.send(v): moves v wei out of this contract (2300 gas: no reentry).
     fn transfer_send(&mut self, m: &str, to: &str, v: Val) -> R<Vec<Val>> {
+        // a call to the recipient: it may return data
+        self.rd_note(None);
         // The recipient runs with a 2300 gas stipend: too little to write storage (SSTORE
         // needs more than 2300 gas left) but enough to reenter us and write transient storage.
         self.with_storage(|s| {
@@ -6556,6 +6619,104 @@ impl<'p, 'a> Vc<'p, 'a> {
         Ok(value)
     }
 
+    /// Starts the record of the frame's latest external call (`RD_N`): no call yet.
+    fn rd_start(&mut self) {
+        let u = Ty::Uint(256);
+        self.env.insert(RD_N.into(), Var { ty: u.clone(), t: "0".into(), len: None });
+        self.env.insert(RD_OK.into(), Var { ty: Ty::Bool, t: "false".into(), len: None });
+        self.env.insert(RD_SIZE.into(), Var { ty: u.clone(), t: "0".into(), len: None });
+        self.env.insert(RD_WORD.into(), Var { ty: u, t: "0".into(), len: None });
+    }
+
+    /// Notes a call this frame makes (an external or low-level call, a creation, a transfer, a
+    /// precompile, a delegatecall into a library), while the record is kept: one more call on
+    /// this path, and its result `rec` (success, return data length, first word), unknown when
+    /// `None`.
+    fn rd_note(&mut self, rec: Option<(String, String, String)>) {
+        if self.spec {
+            return;
+        }
+        let Some(n) = self.env.get(RD_N).map(|v| v.t.clone()) else { return };
+        let n = if n == "0" { "1" } else { "2" };
+        self.env.insert(RD_N.into(), Var { ty: Ty::Uint(256), t: n.into(), len: None });
+        self.rd_set(rec);
+    }
+
+    /// Sets what the frame's latest call returned (see `rd_note`), without counting a call.
+    fn rd_set(&mut self, rec: Option<(String, String, String)>) {
+        if self.spec || !self.env.contains_key(RD_N) {
+            return;
+        }
+        let (ok, size, word) = match rec {
+            Some(r) => r,
+            None => {
+                let ok = self.decl("call_ok", &Ty::Bool);
+                let rd = self.decl("returndata", &Ty::Opaque);
+                let size = self.opaque_len(&rd);
+                let word = self.rd_word(&rd);
+                (ok, size, word)
+            }
+        };
+        let u = Ty::Uint(256);
+        self.env.insert(RD_OK.into(), Var { ty: Ty::Bool, t: ok, len: None });
+        self.env.insert(RD_SIZE.into(), Var { ty: u.clone(), t: size, len: None });
+        self.env.insert(RD_WORD.into(), Var { ty: u, t: word, len: None });
+    }
+
+    /// The first 32 bytes of bytes value `rd` as a big-endian word, with zero bytes past its
+    /// length.
+    fn rd_word(&mut self, rd: &str) -> String {
+        let byte = self.bytes_byte_fn();
+        let len = self.opaque_len(rd);
+        let mut parts = vec![];
+        for i in 0..32u32 {
+            let b = format!("({byte} {rd} {i})");
+            self.smt.send(&format!("(assert {})\n", Ty::Uint(8).range(&b).unwrap()));
+            parts.push(format!("(* {} (ite (< {i} {len}) {b} 0))", num(&pow2(8 * (31 - i)))));
+        }
+        let w = self.def("rdword", "Int", &format!("(+ {})", parts.join(" ")));
+        self.ranges.insert(w.clone(), (BigInt::from(0), pow2(256) - 1));
+        w
+    }
+
+    /// A return data builtin (`RD_BUILTINS`) in a spec.
+    fn rd_read(&mut self, n: &str, span: Span) -> R<Val> {
+        let key = match n {
+            "__call_success" => RD_OK,
+            "__returndatasize" => RD_SIZE,
+            _ => RD_WORD,
+        };
+        match self.rd_spec {
+            RdSpec::Off => {
+                return Err((
+                    span,
+                    format!(
+                        "`{n}` (the latest external call's result) is only allowed in a function's postconditions"
+                    ),
+                ));
+            }
+            RdSpec::Own => match self.env.get(RD_N).map(|v| v.t.as_str()) {
+                Some("1") => {}
+                Some("0") => {
+                    return Err((
+                        span,
+                        format!("`{n}` reads the latest external call, but the body makes none"),
+                    ));
+                }
+                _ => {
+                    return Err((
+                        span,
+                        format!(
+                            "`{n}` needs exactly one external call on every path through the body, but some path makes more than one or none, or calls in a loop"
+                        ),
+                    ));
+                }
+            },
+            RdSpec::Summary => {}
+        }
+        self.env.get(key).cloned().ok_or((span, format!("`{n}` is not available here")))
+    }
+
     fn external_call(&mut self, rets: Vec<Ty>, is_static: bool, span: Span) -> R<Vec<Val>> {
         // Outside code reads and writes the state, not the running body's locals of its names.
         self.with_storage(|s| s.external_call_inner(rets, is_static, span))
@@ -6565,6 +6726,8 @@ impl<'p, 'a> Vc<'p, 'a> {
         if self.in_library() {
             return self.with_host(|s| s.external_call(rets, is_static, span));
         }
+        // a call this frame makes: what it returns is unknown unless the caller says (`rd_set`)
+        self.rd_note(None);
         self.call_value = None;
         if !is_static {
             self.bump_code_epoch();
@@ -6886,6 +7049,32 @@ impl<'p, 'a> Vc<'p, 'a> {
         span: Span,
         library: bool,
     ) -> R<Vec<Val>> {
+        // A public or external library function runs by delegatecall, which replaces the
+        // frame's latest return data.
+        if library
+            && !self.spec
+            && matches!(
+                f.item.header.visibility(),
+                Some(ast::Visibility::Public | ast::Visibility::External)
+            )
+        {
+            self.rd_note(None);
+        }
+        // The callee's specs read none of the caller's return data.
+        let saved = std::mem::replace(&mut self.rd_spec, RdSpec::Off);
+        let r = self.internal_call_inner(c, f, args, span, library);
+        self.rd_spec = saved;
+        r
+    }
+
+    fn internal_call_inner(
+        &mut self,
+        c: &'p Contract<'a>,
+        f: &'p Func<'a>,
+        args: Vec<Val>,
+        span: Span,
+        library: bool,
+    ) -> R<Vec<Val>> {
         if self.spec && f.opaque && self.reveal.as_deref() != Some(f.name.as_str()) {
             let ret = f
                 .rets
@@ -7129,10 +7318,21 @@ impl<'p, 'a> Vc<'p, 'a> {
                     self.shadow(n);
                     self.env.insert(n.clone(), v);
                 }
+                // The callee's calls run in this frame: its last one, which only its
+                // postconditions describe, is now the frame's latest (its own proof checked
+                // that it makes exactly one where they read it).
+                if self.env.contains_key(RD_N) || f.ensures.iter().any(|en| rd_mentioned(&en.text))
+                {
+                    if !self.env.contains_key(RD_N) {
+                        self.rd_start();
+                    }
+                    self.rd_note(None);
+                }
                 let saved_rets = std::mem::replace(
                     &mut self.rets,
                     f.rets.iter().map(|(n, _)| n.clone()).collect(),
                 );
+                self.rd_spec = RdSpec::Summary;
                 for en in &f.ensures {
                     let v = self.eval_spec(en.expr);
                     if v.is_err() {
@@ -7141,6 +7341,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                     let v = v?;
                     self.assume(&v.t);
                 }
+                self.rd_spec = RdSpec::Off;
                 self.rets = saved_rets;
             } else {
                 if self.depth > 8 {

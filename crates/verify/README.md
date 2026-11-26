@@ -120,6 +120,17 @@ plus:
 - `forall uint256 i, address a :: body` and `exists T x :: body`, with binders ranging over their
   types.
 - `__time`: the latest `block.timestamp` the contract has seen.
+- `__call_success`, `__returndatasize` and `__returndataword`, in postconditions only: the latest
+  external call of the function body (a low-level or assembly call, a high-level call, a
+  creation, a transfer, a precompile): its success flag, the length of its return data, and the
+  first 32 bytes of that data as a word, with zero bytes past its end. The body must make exactly
+  one call on every path, outside loops, or the builtin is refused; a call to an internal
+  function verified with them counts as its one call. They are how a helper states the rule it
+  applies to return data, such as
+  `ok == (__call_success && (__returndatasize == 0 || __returndataword == 1))`. While they are
+  read, assembly's `returndatasize()` is that call's, and a call's output buffer in the scratch
+  space (at most 64 bytes at a constant offset) receives its first bytes. The Lean export refuses
+  them.
 - Calls to spec functions.
 
 ## Ghost code
@@ -294,8 +305,8 @@ named by `--lean-spec-compiler` and the runtime bytecode sha256 given by `--lean
 `--lean-spec-module` names the module. The export fails closed: a file with front-end errors, ghost
 code that is not erasable, imports, or a construct the Lean side has no meaning for yet (casts,
 computed shifts, `~`, `bytesN` mapping keys, `@custom:check`, assembly, arrays of structs,
-`keccak256` in specs) writes nothing and exits 1. Loop invariants are exported but have no meaning
-on the Lean side yet.
+`keccak256` and the return data builtins in specs) writes nothing and exits 1. Loop invariants
+are exported but have no meaning on the Lean side yet.
 
 ## Trusted base
 
