@@ -2701,13 +2701,25 @@ initial budgets per contract define the scope of the certificate.
 | Morpho `flashLoan` | 6,279 | Out of gas | Success with one log |
 | Morpho `flashLoan` | 500,000 | Success, 493,707 gas left | Same success and log, 493,721 gas left |
 
-The kernel proves `.refine` for the four executions from PC zero. On
+The kernel proves `.refine` for all four pairs of executions from PC zero. On
 funded runs it compares terminal status, returndata, committed accounts,
 logs, refund and the inequality on remaining gas. Independent Rust
 replay reproduces every observation and the ordered call inputs. The
 refinement theorems use `propext` and `Quot.sound`. The certificate covers
 these suffix-emitted images and selected worlds. General ABI inputs,
 initial budgets and gas-sensitive child code remain open.
+
+The reusable `CallRefinement` lemmas cover arbitrary paid child budgets.
+For a prepared zero-value Cancun call with stable child effects and a
+fixed debit, the parent pays that debit independently of how EIP-150
+split the balance left after access and memory charges. The `ECRECOVER`
+boundary instantiates this law with a 3,000-gas debit and the actual
+recovery result. The two FlashLoan child programs have checked debits
+of 16 and zero. Rust replay
+of the token code reports out of gas at 15 and the expected return word
+and residual gas at 16, 17 and 500,000. This checks the child boundary.
+Deriving the complete parent budget and path invariant symbolically
+remains open.
 
 ```sh
 PYTHONPATH=solar-tv LEAN_NUM_THREADS=1 uv run --project solar-tv python \
@@ -2724,6 +2736,7 @@ PYTHONPATH=solar-tv LEAN_NUM_THREADS=1 uv run --project solar-tv python \
 | Checker on Lean 4.34.1 | `62cbeb2fc00586800d3348138210894ef6a39123e7748f128b7b6cd87d9a5bc5` |
 | `target/tv-gas-refinement/solady-weth/refinement.json` | `37f0476499ca7e0c546312a66575fbaa0973f33dcf56e9d304dedb8c3c2c327d` |
 | `target/tv-gas-refinement/morpho-blue/refinement.json` | `71b328cf1992eaa4e23b06ab8251e140e950e5009939244541e59e13ad55280c` |
+| `target/tv-gas-refinement/child-budgets.json` | `1bbd92a20688ac51df59621639db814aa4433e2ec03a825740ad7d3b9e9f6dc6` |
 
 #### Authorization gas witnesses
 
@@ -3953,6 +3966,48 @@ and Rust replay
 | `cyclic-results.json` | `808d7e10905aa6d47cd2541f6afb36fe964f448118ad0bef05d49515d6f6026d` |
 | `phi-results.json` | `d8dc32069b6592354b82c1e32737bd8b206f02a4626ea18aeae0e42b26e08266` |
 | `remaining.json` | `6927ec11f0312910fa21a81b4e52a72b85b8ce680357235172d107c332b5044d` |
+
+### GAS-blocked MIR retries
+
+The 24 captures whose original diagnostic stopped at `GAS` were
+retried serially with `--interaction-trace` at 18 seconds per proof
+stage. These proofs quantify over typed arguments and shared replies.
+
+| Pass | Verified with shared replies | Unsupported | Timed out |
+| --- | ---: | ---: | ---: |
+| `check-elim` | 0 | 1 | 0 |
+| `cse` | 0 | 3 | 0 |
+| `integer-cleanup` | 3 | 3 | 6 |
+| `memory-dse` | 0 | 3 | 0 |
+| `sccp` | 1 | 0 | 0 |
+| `word-sequence` | 0 | 3 | 1 |
+| Total | 4 | 13 | 7 |
+
+The four shared-reply proofs cover both WETH `permit` captures, Morpho
+`flashLoan`, and Morpho `setAuthorizationWithSig`. The separate
+physical certificates for `permit` and `flashLoan` use the explicit
+call rules and selected budgets above. These scopes leave the ordinary
+saved count open for those IDs.
+
+The ordinary MIR checker now verifies Morpho `safeTransfer` and
+`safeTransferFrom` in `word-sequence`. The CFG certificate recognizes
+the two forms of the rounded allocation size when the intermediate
+SSA values are private. Lean proves the equality modulo 2^256 and
+checks the live allocation operands, guards and ordered `GAS` and
+message requests. Rust independently confirms that using 62 in place
+of 63 changes the result when the length is one. The proof retains
+shared effects and leaves final bytecode pricing open.
+
+The saved join reaches **2,174 of 2,228** with 54 open. Both new
+results match the original capture ID and before/after IR hashes.
+Twenty-two of the original GAS-blocked records remain open in the
+ordinary audit.
+
+| Artifact in `target/tv-gas-refinement/` | SHA-256 |
+| --- | --- |
+| `gas-interactions.json` | `06ebc15c3705c07467d7aa2669e15baf176c2d969a9c3f0b5721a7931921dd03` |
+| `rounded-results.json` | `17cdae482711020fd1bcf22835dec85071e30cbde5768dacc33ce596c15132ce` |
+| `remaining.json` | `32bfe902de2208c22697003e061bb3a16ec53c7519f9c8441989c5f399f36861` |
 
 ### MIR CFG checks after an import timeout
 
