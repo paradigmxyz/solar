@@ -3,9 +3,10 @@
 //@ run-call: body 3 => 8
 //@ run-call: pair 3 => 16
 //@ run-call: copy 3 => 8
+//@ run-call: earlier 3 => 4369
 
-// Assembly stores to fixed addresses between a promoted slot's initial store and its flush must
-// not reach the memory temporary that holds the slot.
+// Assembly that names the address of a promoted slot's memory temporary, before its initial store
+// or between that store and the flush, must neither reach the temporary nor lose its word to it.
 contract StoragePromotionAssemblyStoreAtTempWord {
     uint256 public x;
     uint256 public y;
@@ -31,6 +32,17 @@ contract StoragePromotionAssemblyStoreAtTempWord {
         assembly { calldatacopy(0x80, 0, calldatasize()) }
         for (uint256 i; i < n; ++i) x += 1;
         return x;
+    }
+
+    // The assembly's word at the temporary's address is read after the loop.
+    function earlier(uint256 n) external returns (uint256 r) {
+        assembly { mstore(0x80, 0x1111) }
+        x = 5;
+        for (uint256 i; i < n; ++i) x = x * 2 + 1;
+        assembly {
+            pop(staticcall(gas(), 4, 0x80, 0x20, 0x300, 0x20))
+            r := mload(0x300)
+        }
     }
 
     function pair(uint256 n) external returns (uint256) {

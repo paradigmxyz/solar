@@ -1083,10 +1083,14 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   initial pointer. The constructor's immutable staging words keep clear of
   those ranges too. Storage promotion's memory temporaries, which sit where the
   entry's frame ends, are not moved. The pass instead declines to promote a
-  slot when a write that may reach a temporary's word lies between the slot's
-  initial store and its flush. A copy to a constant address whose length is
+  slot when the function names a constant range over a temporary's word, or,
+  with assembly that does not promise memory safety, when a write between the
+  slot's initial store and its flush goes to an address the compiler cannot
+  place. A copy to a constant address whose length is
   not constant, as `codecopy(0xc0, 0, codesize())` in a constructor, names no
-  finite range, so it does not move the immutable staging words and can overwrite them.
+  finite range, and neither does a store to an address that code computes, as in
+  a Yul helper or loop, so none of them moves the immutable staging words and
+  each can overwrite them.
 
   A write whose destination the compiler cannot place on the heap, in a frame,
   or below the heap start, such as a copy to a computed destination of any

@@ -52,6 +52,9 @@ pub fn immutable_staging_base(module: &Module) -> u64 {
             .max(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE);
         let mut base = EvmMemoryLayout::align_word(fixed_end)
             .expect("constructor immutable staging address overflow");
+        if module.immutable_count() == 0 {
+            return base;
+        }
         // A range that ends above half of `MAX_HEAP_FLOOR` runs out of gas when executed, so it
         // leaves the base where it is.
         let ranges = module
