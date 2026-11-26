@@ -398,7 +398,7 @@ fn @wrappedArray(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) -> p
     v19 = phi [bb0: arg2], [bb3: v19]
     v20 = phi [bb0: arg3], [bb3: v20]
     v21 = phi [bb0: v16], [bb3: v21]
-    v22 = phi [bb0: 0], [bb3: v40]
+    v22 = phi [bb0: 0], [bb3: v39]
     v23 = lt v22, v20
     jumpi v23, bb4, bb5
   bb5:                                            ; preds = bb1
@@ -413,23 +413,21 @@ fn @wrappedArray(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) -> p
     icall panic_if<0x32>, v27
     v28 = extract_value slice<calldata>, v17, 0
     v29 = mul v24, 32
-    v30 = gt v24, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v30
-    v31 = ptrtoint ptr<calldata> v28 to i256
-    v32 = add v31, v29
-    v33 = calldataload v32
-    v34 = mload v21
-    v35 = lt v22, v34
-    v36 = eq v35, false
-    icall panic_if<0x32>, v36
-    v37 = shl v22, 5
-    v38 = ptradd v21, v37
-    v39 = ptradd v38, 32
-    mstore v39, v33
+    v30 = ptrtoint ptr<calldata> v28 to i256
+    v31 = add v30, v29
+    v32 = calldataload v31
+    v33 = mload v21
+    v34 = lt v22, v33
+    v35 = eq v34, false
+    icall panic_if<0x32>, v35
+    v36 = shl v22, 5
+    v37 = ptradd v21, v36
+    v38 = ptradd v37, 32
+    mstore v38, v32
     jump bb6
   bb6:                                            ; preds = bb4
     jump bb3
   bb3:                                            ; preds = bb6
-    v40 = checked_add uint256, v22, 1
+    v39 = checked_add uint256, v22, 1
     jump bb1
 }

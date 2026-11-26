@@ -80,12 +80,10 @@ fn @encUint256(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [se
     icall revert_if<empty>, v4
     v6 = sub arg2, arg1
     v7 = mul arg1, 32
-    v8 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v8
-    v9 = ptradd v0, v7
-    v10 = make_calldata_slice v9, v6
-    v11 = abi_encode [calldata_array<word>], object, args v10
-    ret v11
+    v8 = ptradd v0, v7
+    v9 = make_calldata_slice v8, v6
+    v10 = abi_encode [calldata_array<word>], object, args v9
+    ret v10
 }
 
 ; function encUint256Reference(uint256[] calldata data, uint256 start, uint256 end) external pure returns (bytes memory) [selector 0xea73d5ef]
@@ -100,12 +98,10 @@ fn @encUint256Reference(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<me
     icall revert_if<empty>, v4
     v6 = sub arg2, arg1
     v7 = mul arg1, 32
-    v8 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v8
-    v9 = ptradd v0, v7
-    v10 = make_calldata_slice v9, v6
-    v11 = abi_encode [calldata_array<word>], object, args v10
-    ret v11
+    v8 = ptradd v0, v7
+    v9 = make_calldata_slice v8, v6
+    v10 = abi_encode [calldata_array<word>], object, args v9
+    ret v10
 }
 
 ; function encPackedUint256(uint256[] calldata data, uint256 start, uint256 end) external pure returns (bytes memory) [selector 0x0d7d5d61]
@@ -120,12 +116,10 @@ fn @encPackedUint256(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memor
     icall revert_if<empty>, v4
     v6 = sub arg2, arg1
     v7 = mul arg1, 32
-    v8 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v8
-    v9 = ptradd v0, v7
-    v10 = make_calldata_slice v9, v6
-    v11 = abi_encode_packed (array<word> calldata v10)
-    ret v11
+    v8 = ptradd v0, v7
+    v9 = make_calldata_slice v8, v6
+    v10 = abi_encode_packed (array<word> calldata v9)
+    ret v10
 }
 
 ; function encPackedUint256Reference(uint256[] calldata data, uint256 start, uint256 end) external pure returns (bytes memory) [selector 0xf98ab314]
@@ -140,12 +134,10 @@ fn @encPackedUint256Reference(arg0: slice<calldata>, arg1: i256, arg2: i256) -> 
     icall revert_if<empty>, v4
     v6 = sub arg2, arg1
     v7 = mul arg1, 32
-    v8 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v8
-    v9 = ptradd v0, v7
-    v10 = make_calldata_slice v9, v6
-    v11 = abi_encode_packed (array<word> calldata v10)
-    ret v11
+    v8 = ptradd v0, v7
+    v9 = make_calldata_slice v8, v6
+    v10 = abi_encode_packed (array<word> calldata v9)
+    ret v10
 }
 
 ; function encPackedUint8(uint8[] calldata data, uint256 start, uint256 end) external pure returns (bytes memory) [selector 0x7ae711bd]
@@ -160,48 +152,46 @@ fn @encPackedUint8(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory>
     icall revert_if<empty>, v4
     v6 = sub arg2, arg1
     v7 = mul arg1, 32
-    v8 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v8
-    v9 = ptradd v0, v7
-    v10 = make_calldata_slice v9, v6
-    v11 = extract_value slice<calldata>, v10, 1
-    v12 = extract_value slice<calldata>, v10, 0
-    v13 = mul v11, 32
-    v14 = gt v11, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v14
-    v15 = calldatasize
-    v16 = ptrtoint ptr<calldata> v12 to i256
-    v17 = add v16, v13
-    v18 = lt v15, v17
-    icall revert_if<calldata_tail_too_short>, v18
-    v19 = mul v11, 32
-    v20 = gt v11, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v20
-    v21 = add v19, 32
-    v22 = lt v21, 32
-    icall panic_if<0x41>, v22
-    v23 = alloc v21
-    mstore v23, v11
+    v8 = ptradd v0, v7
+    v9 = make_calldata_slice v8, v6
+    v10 = extract_value slice<calldata>, v9, 1
+    v11 = extract_value slice<calldata>, v9, 0
+    v12 = mul v10, 32
+    v13 = gt v10, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v13
+    v14 = calldatasize
+    v15 = ptrtoint ptr<calldata> v11 to i256
+    v16 = add v15, v12
+    v17 = lt v14, v16
+    icall revert_if<calldata_tail_too_short>, v17
+    v18 = mul v10, 32
+    v19 = gt v10, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v19
+    v20 = add v18, 32
+    v21 = lt v20, 32
+    icall panic_if<0x41>, v21
+    v22 = alloc v20
+    mstore v22, v10
     jump bb1
   bb1:                                            ; preds = bb0, bb2
-    v24 = phi [bb0: 0], [bb2: v34]
-    v25 = lt v24, v11
-    jumpi v25, bb2, bb3
+    v23 = phi [bb0: 0], [bb2: v33]
+    v24 = lt v23, v10
+    jumpi v24, bb2, bb3
   bb3:                                            ; preds = bb1
-    v35 = abi_encode_packed (array<word<uint8>> memoryarray<1> v23)
-    ret v35
+    v34 = abi_encode_packed (array<word<uint8>> memoryarray<1> v22)
+    ret v34
   bb2:                                            ; preds = bb1
-    v26 = mul v24, 32
-    v27 = ptrtoint ptr<calldata> v12 to i256
-    v28 = add v27, v26
-    v29 = calldataload v28
-    v30 = gt v29, 255
-    icall revert_if<empty>, v30
-    v31 = shl v24, 5
-    v32 = ptradd v23, v31
-    v33 = ptradd v32, 32
-    mstore v33, v29
-    v34 = add v24, 1
+    v25 = mul v23, 32
+    v26 = ptrtoint ptr<calldata> v11 to i256
+    v27 = add v26, v25
+    v28 = calldataload v27
+    v29 = gt v28, 255
+    icall revert_if<empty>, v29
+    v30 = shl v23, 5
+    v31 = ptradd v22, v30
+    v32 = ptradd v31, 32
+    mstore v32, v28
+    v33 = add v23, 1
     jump bb1
 }
 
