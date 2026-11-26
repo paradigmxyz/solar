@@ -12,6 +12,7 @@ from . import (
     dead_ssa,
     entry_proof,
     heap_cursor,
+    mir_state,
     native,
     phase_carriers,
     prune,
@@ -198,7 +199,7 @@ def rounded_extent(block, position, uses, definitions):
     return RoundedExtent(length["index"], results, division, bool(guard))
 
 
-def import_graph(body, *, combine=True):
+def import_graph(body, *, combine=True, threaded=()):
     """Keep predecessor-selected phi inputs as one simultaneous action."""
     blocks = body["blocks"]
     uses = Counter(dead_ssa.reads(blocks, reject_undefined=False))
@@ -222,6 +223,18 @@ def import_graph(body, *, combine=True):
             pending.append(location)
         return points[location]
 
+    def branch_node(term, index):
+        edges = [point(term[k], index) for k in ("then", "else")]
+        (condition,) = term["args"]
+        if (
+            condition["kind"] == "constant"
+            and condition["type"] == FLAG
+            and condition["value"] in {"0", "1"}
+        ):
+            return "literal", condition["value"] == "1", edges
+        keys = {k: v for k, v in term.items() if k not in {"then", "else"}}
+        return "select", keys, edges
+
     while pending:
         index, predecessor, position = pending.popleft()
         block = blocks[index]
@@ -234,6 +247,11 @@ def import_graph(body, *, combine=True):
                 if len(choices) != 1:
                     raise Unsupported("MIR control flow has an unresolved phi input")
                 phis.append({**phi, "incoming": choices[0]})
+            if index in threaded:
+                (guard,) = phis
+                term = {**block["terminator"], "args": [guard["incoming"]]}
+                nodes.append(branch_node(term, index))
+                continue
             next = point(index, None, 0)
             nodes.append(
                 ("action", phis, [next]) if phis else ("forward", None, [next])
@@ -260,17 +278,7 @@ def import_graph(body, *, combine=True):
                 case "jump":
                     nodes.append(("forward", None, [point(term["target"], index)]))
                 case "branch":
-                    keys = {k: v for k, v in term.items() if k not in {"then", "else"}}
-                    edges = [point(term[k], index) for k in ("then", "else")]
-                    (condition,) = term["args"]
-                    if (
-                        condition["kind"] == "constant"
-                        and condition["type"] == FLAG
-                        and condition["value"] in {"0", "1"}
-                    ):
-                        nodes.append(("literal", condition["value"] == "1", edges))
-                    else:
-                        nodes.append(("select", keys, edges))
+                    nodes.append(branch_node(term, index))
                 case "switch":
                     keys = {**term, "cases": [key for key, _ in term["cases"]]}
                     del keys["default"]
@@ -282,6 +290,61 @@ def import_graph(body, *, combine=True):
                 case _:
                     nodes.append(("terminal", term, []))
     return nodes
+
+
+def threadable_guards(body):
+    reads = Counter(dead_ssa.reads(body["blocks"], reject_undefined=False))
+    guards = {}
+    for index, block in enumerate(body["blocks"]):
+        term = block["terminator"]
+        if len(block["phis"]) != 1 or block["instructions"] or term["kind"] != "branch":
+            continue
+        (phi,) = block["phis"]
+        result = phi["result"]
+        if (
+            phi["type"] == FLAG
+            and reads[result] == 1
+            and term["args"] == [{"kind": "local", "index": result, "type": FLAG}]
+            and all(
+                operand["type"] == FLAG and operand["kind"] != "undefined"
+                for _, operand in phi["incoming"]
+            )
+        ):
+            guards[index] = phi
+    return guards, reads
+
+
+def phi_guard_certificate(name, guards, reads):
+    source = ""
+    for index, phi in guards.items():
+        tag = f"{name}_{index}"
+        incoming = [
+            (pred, mir_state.operand(operand)) for pred, operand in phi["incoming"]
+        ]
+        edges = ",".join(f"({pred},{operand})" for pred, operand in incoming)
+        result = phi["result"]
+        kept_reads = reads.copy()
+        kept_reads[result] -= 1
+        other_reads = sorted(local for local, count in kept_reads.items() if count)
+        source += f"""
+def {tag} : MIR.State.Phi := ⟨{result}, .word 1, [{edges}]⟩
+theorem {tag}_unread (registers : Nat → MIR.State.Value) (value : MIR.State.Value) :
+    {other_reads}.map (fun id => if id = {result} then value else registers id) =
+      {other_reads}.map registers :=
+  MIR.PhiThread.untouched_reads registers {result} value {other_reads} (by decide +kernel)
+#print axioms {tag}_unread
+"""
+        for arm, (pred, operand) in enumerate(incoming):
+            theorem = f"{tag}_input{arm}"
+            source += f"""
+theorem {theorem} (frame : MIR.State.Frame) :
+    (do let next ← MIR.State.enter (some {pred}) [{tag}] frame
+        MIR.State.readBits 1 next ⟨.local {result}, .word 1⟩) =
+    MIR.State.readBits 1 frame ({operand}) :=
+  MIR.PhiThread.read_branch frame {pred} {tag} ({operand}) (by rfl) rfl rfl
+#print axioms {theorem}
+"""
+    return source
 
 
 def flat_insert(data):
@@ -1006,10 +1069,32 @@ theorem identical{i} : before{i} = after{i} := by rfl
             )
         else:
             scalar_stats, state_stats, heap_stats, width_stats = [], [], [], []
+            threaded_guards = []
             try:
-                points, edges, live, limit, word_rewrites, increment_rewrites = pairing(
-                    old, new
-                )
+                try:
+                    pairs = pairing(old, new)
+                except Unsupported:
+                    proposed = list(map(threadable_guards, (first, second)))
+                    if not any(guards for guards, _ in proposed):
+                        raise
+                    projected = [
+                        import_graph(body, threaded=guards)
+                        for body, (guards, _) in zip(
+                            (first, second), proposed, strict=True
+                        )
+                    ]
+                    pairs = pairing(*projected)
+                    old, new = projected
+                    threaded_guards = [len(guards) for guards, _ in proposed]
+                    literal_branches = [
+                        sum(node[0] == "literal" for node in graph)
+                        for graph in projected
+                    ]
+                    for side, (guards, reads) in enumerate(proposed):
+                        body_code += phi_guard_certificate(
+                            f"phiGuard{i}_{side}", guards, reads
+                        )
+                points, edges, live, limit, word_rewrites, increment_rewrites = pairs
             except Unsupported as error:
                 try:
                     proof, copies, offsets = phase_carriers.paired_proof(i, source, b)
@@ -1124,6 +1209,11 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 "increment_guard_rewrites": increment_rewrites,
                 "literal_branches": literal_branches,
                 **({"scalar_reuse": scalar_stats} if any(scalar_stats) else {}),
+                **(
+                    {"threaded_phi_guards": threaded_guards}
+                    if any(threaded_guards)
+                    else {}
+                ),
                 **({"state_read_reuse": state_stats} if any(state_stats) else {}),
                 **({"heap_cursor": heap_stats} if any(heap_stats) else {}),
                 **({"width_guards": width_stats} if width_stats else {}),

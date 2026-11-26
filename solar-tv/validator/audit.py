@@ -518,6 +518,13 @@ def record(
                 ]
             )
             if any(
+                check.get("threaded_phi_guards")
+                for check in program.import_evidence["correspondence"].values()
+            ):
+                assumptions.append(
+                    "one-bit phi guards retain the selected predecessor operand and both destinations; the kernel checks the typed condition read and lack of surviving reads of the removed local in the exported read inventory"
+                )
+            if any(
                 check.get("width_guards")
                 for check in program.import_evidence["correspondence"].values()
             ):

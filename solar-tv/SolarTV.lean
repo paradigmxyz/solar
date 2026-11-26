@@ -71,6 +71,7 @@ import SolarTV.EVMIR.Transforms.SampledCall
 import SolarTV.EVMIR.Transforms.HeapEntry
 import SolarTV.EVMIR.Transforms.CompactPushes
 import SolarTV.MIR.Transforms.CfgFlow
+import SolarTV.MIR.Transforms.PhiThread
 import SolarTV.MIR.Transforms.CallOperands
 import SolarTV.MIR.Transforms.RecursiveCalls
 import SolarTV.MIR.Transforms.DeadArguments

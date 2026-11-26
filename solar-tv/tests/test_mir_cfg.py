@@ -14,11 +14,94 @@ from unittest.mock import patch
 from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
-from validator import check, native, world
-from validator.common import Program
+from validator import check, mir_cfg, native, world
+from validator.common import Program, Unsupported
 
 
 class MirCfgTests(unittest.TestCase):
+    def test_threading_uses_the_selected_phi_input(self):
+        source = """@module ThreadPhi
+fn @f(arg0: i1, arg1: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: arg1], [bb2: false]
+    jumpi v0, bb4, bb5
+  bb4:
+    sstore 7, 21
+    ret 21
+  bb5:
+    sstore 7, 22
+    ret 22
+}
+"""
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            before, after = (folder / f"{side}.mir" for side in ("before", "after"))
+            before.write_text(source)
+            threaded = subprocess.check_output(
+                [
+                    SOLAR,
+                    before,
+                    "-j1",
+                    "-Ogas",
+                    "-Zmir-pipeline=jump-threading",
+                    "-Zvalidate-ir=true",
+                ],
+                text=True,
+                timeout=30,
+            )
+            after.write_text(threaded)
+            executable = native.default(SOLAR)
+            args = ((before, after), SOLAR, executable, "cancun", 30, "f")
+            result = mir_cfg.check(*args)
+            self.assertEqual(result.status, "verified")
+            evidence = result.program.import_evidence["correspondence"]["f"]
+            self.assertEqual(evidence["threaded_phi_guards"], [1, 0])
+
+            wrong, count = re.subn(
+                r"(jumpi arg1, )(bb\d+), (bb\d+)", r"\g<1>\g<3>, \g<2>", threaded
+            )
+            self.assertEqual(count, 1)
+            after.write_text(wrong)
+            with self.assertRaises(Unsupported):
+                mir_cfg.check(*args)
+
+            path = folder / "world.json"
+            path.write_text('{"version":1}')
+            initial = world.read(path, SOLAR, None, kind="mir")
+            programs = [
+                Program(
+                    ("world-entry", "mir"),
+                    ["arg0", "arg1"],
+                    "",
+                    "",
+                    world=initial,
+                    selector="f",
+                    canonical_ir=text,
+                )
+                for text in (source, threaded, wrong)
+            ]
+            for operands, expected in (([0, 1], "22"), ([1, 0], "22"), ([1, 1], "21")):
+                replay = native.replay(
+                    *programs[:2], operands, executable=executable, timeout=20
+                )
+                self.assertEqual(*replay["observations"])
+                self.assertEqual(
+                    json.loads(replay["observations"][0])["values"], [expected]
+                )
+            replay = native.replay(
+                programs[0], programs[2], [1, 1], executable=executable, timeout=20
+            )
+            self.assertEqual(
+                [json.loads(x)["values"] for x in replay["observations"]],
+                [["21"], ["22"]],
+            )
+
     def test_real_coalescing_with_phi_and_storage(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

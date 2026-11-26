@@ -3328,7 +3328,43 @@ eliminated phi result cannot be observed after the branch.
 | `target/tv-jump-threading-current/results.json` | `1dbd03b39fff365833d59056bd85ee9276fc03f69b2f5452d4aa5733b477985c` |
 | `target/tv-jump-threading-current/remaining-by-pass.json` | `dcf9603a109d9dcbb8177896a269f34474fadd1dbf85213b53f2274ccc29b6f8` |
 
-The saved join reaches 2,138 of 2,228 capture IDs, with 90 open.
+That join reaches 2,138 of 2,228 capture IDs, with 90 open.
+
+### Completed MIR jump-threading audit
+
+The phi-guard certificate covers a block containing one `i1` phi, no
+other instructions, and a branch that is the phi result's sole use. The
+kernel checks the selected predecessor input against `State.enter` and
+the ordinary typed branch read. The exported read inventory contains no
+other read of the removed local. The proof checks that writing that local
+cannot change any read in the inventory, and the typed CFG certificate
+matches the resulting conditional or literal selection against the target.
+
+These certificates preserve logical execution with shared state and
+interaction handlers. The source exporter, read inventory and mapping to
+the logical graph remain trusted. Physical gas and stack placement remain
+open. The live MIR regression exercises a literal false input and a
+runtime boolean input. Swapping the successors of the latter loses the
+certificate, and the pinned Rust interpreter confirms a change from 21 to
+22 for the same inputs.
+
+The six previously unsupported Morpho captures all verify with a
+25-second per-prover budget and the same before and after fingerprints.
+Joining them to the 42 verified full-census checks and four earlier
+retries covers **52 of 52** pinned `jump-threading` IDs. The join covers
+13 Solady WETH, 15 OpenZeppelin ERC20Mock and 24 Morpho Blue checks. The
+full-pass retry was stopped after the larger budget delayed already
+covered captures. The final six checks were rerun from the frozen IR,
+with the original compiler and independent replay executables preserved.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Checker on Lean 4.34.1 | `8e9c7d0337ba5ebf4ee7ab8231c7c4d67ac98b3a39c340c08e201c1522420f77` |
+| `target/tv-phi-thread-final/results.json` | `c40eaa52a1e1371f61f06aae32ebce29a38cd0b6b8547eb3221be0c1b4946155` |
+| `target/tv-phi-thread-final/jump-threading-complete.json` | `36ac67d903a1889d7225f63e99fe298b6031965cb81fe9cee4ab3aeeec4b17bf` |
+| `target/tv-phi-thread-final/remaining-by-pass.json` | `bb199a14e32872f8be65b1826ea496f6578997b8d9a328d361da79bbdbc183e8` |
+
+The saved corpus join reaches 2,144 of 2,228 capture IDs, with 84 open.
 
 ### MIR CFG checks after an import timeout
 
