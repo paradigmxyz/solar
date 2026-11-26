@@ -3083,6 +3083,64 @@ on the child. The local Lean window proof ends before the `GAS` instruction.
 The 17 default checks bring coverage across saved audits to 2,088 of
 2,228 capture IDs. The explicit paired results remain outside that count.
 
+### Physical entry audit for terminal deduplication
+
+The three-second census verifies 106 `terminal-dedup` regions. Four
+module-entry proofs at 120 seconds per Lean invocation cover the remaining
+18 regions. Each report's two raw IR hashes match the saved capture pair.
+Both checked reachable graphs contain each credited block label. The entry
+results join to the census by capture ID.
+
+| Contract | Captured | Region proof | Entry proof | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Solady WETH | 17 | 16 | 1 | 17 | 0 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 14 | 11 | 3 | 14 | 0 | 0 | 0 |
+| Morpho Blue | 93 | 79 | 14 | 93 | 0 | 0 | 0 |
+| Total | 124 | 106 | 18 | 124 | 0 | 0 | 0 |
+
+A fresh serial `evaluate --all --require-verified --pass terminal-dedup
+--timeout 120 --seed 0` run reproduces all 124 results through the normal
+evaluator. It recaptures the same 2,228 IDs and reproduces the full census's
+manifest, compiler and input fingerprints. Plain compilation and capture
+compilation agree on the ABI, creation bytecode and runtime bytecode for all
+three contracts, with the same output fingerprints as the full census.
+
+The kernel starts at the imported physical entry with an empty stack. It
+checks logical actions, continuation tags and reachable stack bounds along
+the changed transfers into the shared blocks. Stateful requests and terminal
+outcomes agree under shared preceding replies, position-independent handlers
+and shared immutable slots. The compiler parser and constructor binding
+remain trusted. Transfer costs, child behavior and forwarded gas remain
+separate obligations. The live hook tries the entry proof for this pass in
+unpriced mode. The evaluator uses it for regions without a local result.
+The live compiler regression checks the shared-revert EVM IR fixture and
+compares its ABI, creation bytecode and runtime bytecode with and without
+validation.
+
+Independent Rust replay assembles both saved Morpho `createMarket` pass
+snapshots with later passes disabled. Both images bind the same two immutable
+pushes to a fixed 32-byte fixture word. At 500,000 starting gas the calls
+send identical calldata to an IRM that writes slot 7 and reverts with
+`0xdeadbeef`. Replay reaches the failure branch at PC 9805 before the pass
+and PC 9084 after it, each with 346,917 gas. The latter jumps to the shared
+body at PC 174. Both images return the same revert bytes and leave the
+original parent storage, empty child storage and no logs. The two images
+end with 346,900 and 346,888 gas respectively.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Compiler executable | `f996616dcf2ebacf05fc5cc439f4814dc38fe953fad90b698754281c59ef139c` |
+| Serial compiler launcher | `4e5a4f6faa73f5d017a534afaa4d3f9a8c052abe1c2435f192108577b79239e9` |
+| Independent Rust replay | `857e527dae753105ba83cbf5e55d8632d5062699d3dbfecbc643d03879d24008` |
+| Entry checker on Lean 4.34.1 | `bab058ba6f7a7ac6cc457d3fcc6be9203c8116177d955ea4fd692da97770ca2d` |
+| Integrated checker on Lean 4.34.1 | `906ac4594d243a0921d0d59a27bf195190df76c444b73a0a7810a71e1bc54670` |
+| `target/tv-terminal-dedup-entry/progress.json` | `b41ac79041aa8368d56231fe941644c62c9d5a4f707d766e38c3bd61f857774b` |
+| `target/tv-terminal-dedup-final/results.json` | `e169bbec9f194a5f4f923be83a4025bf1a4ff0e2e7ed9e2907c88063298c94de` |
+| `target/tv-terminal-dedup-replay/result.json` | `2ac4f573750459f71e645f760718d2cd0fc8f425381918f4d3dd0a56c57ae886` |
+
+The join reaches 2,106 of 2,228 capture IDs across saved audits. The
+three-second full census retains the counts recorded above.
+
 ### MIR CFG checks after an import timeout
 
 The earlier three-second census timed out on 23 Morpho MIR `cfg-simplify`

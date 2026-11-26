@@ -239,6 +239,13 @@ def check_entry(solar, row, target, timeout, mode="--entry-trace"):
     return record
 
 
+def cached_entry(reports, solar, row, target, timeout):
+    key = (*row["paths"], row["target"])
+    if key not in reports:
+        reports[key] = (target, check_entry(solar, row, target, timeout))
+    return reports[key]
+
+
 def covers_region(record, region):
     if record["status"] == "counterexample":
         return True
@@ -334,14 +341,9 @@ def evaluate_case(
             in {"block-layout", "loop-layout", "compact-pushes", "cfg-simplify-early"}
             and region
         ):
-            key = (*row["paths"], row["target"])
-            if key not in entry_reports:
-                entry_path = folder / f"entry-{index:03}.json"
-                entry_reports[key] = (
-                    entry_path,
-                    check_entry(solar, row, entry_path, timeout),
-                )
-            candidate = entry_reports[key]
+            candidate = cached_entry(
+                entry_reports, solar, row, folder / f"entry-{index:03}.json", timeout
+            )
             if covers_region(candidate[1], region):
                 entry = candidate
         if entry is not None:
@@ -419,6 +421,17 @@ def evaluate_case(
                     "diagnostic": "checker wall-time budget",
                 }
                 audit.write(target, record)
+        if (
+            row["layer"] == "evmir"
+            and row["pass"] == "terminal-dedup"
+            and region
+            and record["status"] in {"unsupported", "timeout", "inconclusive"}
+        ):
+            candidate = cached_entry(
+                entry_reports, solar, row, folder / f"entry-{index:03}.json", timeout
+            )
+            if covers_region(candidate[1], region):
+                target, record = candidate
         if dispatch:
             dispatch_reports[dispatch_key] = (target, record)
         results.append(

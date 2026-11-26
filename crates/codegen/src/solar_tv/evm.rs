@@ -1,6 +1,7 @@
 //! EVM entry proofs, windows, contextual prefixes and acyclic regions.
 //!
-//! Unpriced layout passes first try a proof from physical entry, including helper continuations.
+//! Unpriced layout and terminal sharing passes first try a proof from physical entry, including
+//! helper continuations.
 //! This adapter never selects instruction slices. It checks a changed block only when its
 //! identity, shared declarations and entry height survive. Adjacent edits, changed successors
 //! and shared-tail changes use a complete reachable region through terminal outcomes instead.
@@ -44,8 +45,14 @@ impl<'a> EvmSnapshot<'a> {
             )?;
             return Ok(());
         }
-        if matches!(pass, "block-layout" | "loop-layout" | "compact-pushes" | "cfg-simplify-early")
-            && !gcx.sess.opts.unstable.solar_tv_capture
+        if matches!(
+            pass,
+            "block-layout"
+                | "loop-layout"
+                | "compact-pushes"
+                | "cfg-simplify-early"
+                | "terminal-dedup"
+        ) && !gcx.sess.opts.unstable.solar_tv_capture
             && std::env::var_os("SOLAR_TV_GAS").is_none()
         {
             let entry = Region { kind: "entry", name: String::new(), height: None };

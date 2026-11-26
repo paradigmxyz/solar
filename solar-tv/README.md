@@ -1233,6 +1233,13 @@ described below instead of assuming that stack positions correspond at the old
 window boundary. This allows shared revert code and stack reshuffles spanning
 several blocks.
 
+For unpriced `terminal-dedup` checks, the live hook tries a proof from the
+module entry before selecting individual regions. The corpus evaluator tries
+the region first and reuses an entry proof for unresolved regions whose labels
+it reaches in both snapshots. This proves the logical execution with shared
+effect handlers. Transfer gas, forwarded gas, and child behavior need separate
+proofs.
+
 You can select a region when replaying full snapshots:
 
 ```sh
@@ -2218,11 +2225,11 @@ including unsupported inputs and timeouts. The counts cover the captured
 corpus; a pass that never changes that corpus needs other inputs.
 
 The latest full serial audit checks all 2,228 pinned captures at three
-seconds per prover invocation. It verifies 1,398 and records
-510 unsupported checks, 320 timeouts and 0 failed checks.
+seconds per prover invocation. It verifies 1,492 and records
+502 unsupported checks, 234 timeouts and 0 failed checks.
 The normal and capture compilations agree on ABI, creation bytecode and
 runtime bytecode. The per-pass counts and fingerprints are in
-[CORRECTNESS.md](CORRECTNESS.md#full-corpus-after-the-morpho-irm-proofs).
+[CORRECTNESS.md](CORRECTNESS.md#full-corpus-after-guarded-mir-effect-proofs).
 
 All 368 pinned EVM IR `block-layout` captures have proofs. Eight
 module-entry certificates with a 120-second per-stage budget cover the
@@ -2235,6 +2242,11 @@ entry retries include a Morpho module whose continuation checks, recipe
 rows, address-fold facts and stack bounds are checked in batches. The
 recipe proof checks fork-specific charges under sufficient funding.
 [Compact PUSH audit](CORRECTNESS.md#physical-entry-audit-for-compact-pushes)
+
+The strict serial gate verifies all 124 pinned EVM IR `terminal-dedup`
+captures. Four physical-entry proofs cover the 18 regions left open by the
+three-second audit. Independent replay checks the shared revert and rollback
+on assembled Morpho bytecode. [Terminal deduplication audit](CORRECTNESS.md#physical-entry-audit-for-terminal-deduplication)
 
 The combined strict gate verifies all 178 pinned captures for MIR ABI
 encoding, checked arithmetic, conditional checks, integer lowering, storage

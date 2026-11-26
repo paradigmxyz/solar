@@ -1,12 +1,13 @@
 """Check CFG coalescing through live state and reject an unsafe jump contraction."""
 
 import json
+import os
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-from test_cli import CLI, SOLAR
+from test_cli import CLI, ROOT, SOLAR
 
 
 class CfgFlowTests(unittest.TestCase):
@@ -102,6 +103,46 @@ bb0 [stack=1]:
         result, report = self.check(["--region=bb0"])
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertEqual(report["status"], "unsupported")
+
+    def test_live_terminal_dedup_checks_shared_reverts_from_entry(self):
+        fixture = (
+            ROOT.parent / "tests/ui/codegen/evm-ir/late-structural/shared_reverts.evmir"
+        )
+        command = [
+            SOLAR,
+            fixture,
+            "-j1",
+            "-Ogas",
+            "--emit=abi,bin,bin-runtime",
+            "-Zevm-ir-pipeline=terminal-dedup",
+        ]
+        baseline = subprocess.run(
+            command, text=True, capture_output=True, timeout=30, check=False
+        )
+        audits = self.root / "audits"
+        verified = subprocess.run(
+            [*command, f"-Zsolar-tv={audits}"],
+            env={**os.environ, "SOLAR": SOLAR, "SOLAR_TV": CLI},
+            text=True,
+            capture_output=True,
+            timeout=60,
+            check=False,
+        )
+        self.assertEqual(baseline.returncode, 0, baseline.stderr)
+        self.assertEqual(verified.returncode, 0, verified.stderr)
+        self.assertEqual(verified.stdout, baseline.stdout)
+        (artifact,) = json.loads(verified.stdout.splitlines()[-1])["contracts"].values()
+        self.assertIn("abi", artifact)
+        self.assertTrue(artifact["bin"])
+        self.assertTrue(artifact["bin-runtime"])
+        (report,) = list((audits / "audits").glob("*.json"))
+        entry = json.loads(report.read_text())
+        self.assertEqual(entry["status"], "verified")
+        self.assertEqual(entry["region"]["proof"], "kernel-checked-entry-layout")
+        self.assertEqual(entry["region"]["kind"], "entry")
+        before, after = entry["import_correspondence"]
+        self.assertTrue(before["physical_entry"])
+        self.assertTrue(after["physical_entry"])
 
     def test_shared_tail_checks_both_incoming_edges(self):
         self.before.write_text("""@module SharedTail

@@ -151,7 +151,7 @@ impl<'a> Snapshot<'a> {
                     command.arg("--evm-version").arg(gcx.sess.opts.evm_version.to_string());
                     if entry {
                         command.arg("--entry-trace");
-                        if pass == "cfg-simplify-early" {
+                        if matches!(pass, "cfg-simplify-early" | "terminal-dedup") {
                             command.args(["--timeout", "120"]);
                         }
                     } else if prune {
