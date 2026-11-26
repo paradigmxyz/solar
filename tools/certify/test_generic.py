@@ -1821,7 +1821,10 @@ class ImportClosure(unittest.TestCase):
             (t / "aux" / "deep" / "d.sol").write_text('import "../a.sol";\n')
             (t / "base.sol").write_text("")
             (t / "ignored.sol").write_text("")
-            got = [p.relative_to(t.resolve()).as_posix() for p in generic.import_closure(t / "main.sol")]
+            got = [
+                p.relative_to(t.resolve()).as_posix()
+                for p in generic.import_closure(t / "main.sol")
+            ]
         self.assertEqual(got, ["main.sol", "aux/a.sol", "base.sol", "aux/deep/d.sol"])
 
 

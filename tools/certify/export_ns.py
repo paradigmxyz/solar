@@ -49,7 +49,7 @@ def of_gen(gen):
         manifest = json.loads((gen / "manifest.json").read_text())
         return manifest.get("namespace") or of_contract(manifest["contract"])
     for f in [gen / "Bytecode.lean", *sorted(gen.glob("*.lean"))]:
-        m = f.exists() and re.search(r"^namespace (\S+)$", f.read_text(), re.M)
+        m = f.exists() and re.search(r"^namespace (\S+)$", f.read_text(), re.MULTILINE)
         if m:
             return m.group(1)
     raise ValueError(f"{gen}: no manifest.json and no stage file with a namespace")

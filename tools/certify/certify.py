@@ -1041,7 +1041,10 @@ def main():
             executes, rec_exec = f"{label}_bytecode", True
             write(out / "Execution.lean", ex)
     elif cert is None:
-        print(f"assembly: decoded only; no certificate for the assembly checker: {why}", file=sys.stderr)
+        print(
+            f"assembly: decoded only; no certificate for the assembly checker: {why}",
+            file=sys.stderr,
+        )
     else:
         executes = f"{label}_bytecode"
         A, L = (

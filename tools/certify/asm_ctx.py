@@ -20,8 +20,8 @@ here = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(here))
 sys.path.insert(0, str(here.parents[1] / "solar-tv" / "milestone"))
 import asm_cert
-import export_ns
 import cutpoints
+import export_ns
 
 
 def infer_ctx(program_text, code):

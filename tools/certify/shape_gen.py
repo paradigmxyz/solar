@@ -298,7 +298,9 @@ def main():
         )
     X = export_ns.of_gen(gen)
     if X != export_ns.of_shape(shape, contract):
-        fail(f"shape.json: export_ns is not the namespace of the export under gen/ ({X})")
+        fail(
+            f"shape.json: export_ns is not the namespace of the export under gen/ ({X})"
+        )
     M = stages["ns"]
     ns = g["ns"]
     sns = g.get("source_ns", ns)

@@ -757,8 +757,13 @@ def main():
     # The namespace of the run's export: shape.json's export_ns (the driver's runs, exported under their
     # own namespace, tools/certify/export_ns.py), else solar's default for the contract.
     plain = re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", a.contract)
-    exported = shape.get("export_ns") or f"SolarTV.Export.{a.contract if plain else f'«{a.contract}»'}"
-    if not isinstance(exported, str) or not NAME.match(exported.replace("«", "").replace("»", "")):
+    exported = (
+        shape.get("export_ns")
+        or f"SolarTV.Export.{a.contract if plain else f'«{a.contract}»'}"
+    )
+    if not isinstance(exported, str) or not NAME.match(
+        exported.replace("«", "").replace("»", "")
+    ):
         fail("shape.json: export_ns is not a Lean name")
     export = f"_root_.{exported}"
     premises = "".join(f"({e}) →\n    " for e in env)

@@ -542,7 +542,9 @@ def envelope(
         for n in walk(ast)
         if n.get("nodeType") == "VariableDeclaration" and "id" in n
     }
-    free = [n for n in ast.get("nodes", []) if n.get("nodeType") == "FunctionDefinition"]
+    free = [
+        n for n in ast.get("nodes", []) if n.get("nodeType") == "FunctionDefinition"
+    ]
     cycles, values = recursion_cycles(cdef, variables, free)
     for names, call in cycles:
         fns = [
@@ -3749,7 +3751,7 @@ def run_name(src):
 
 
 IMPORT_PATH = re.compile(r"""\bimport\s+(?:[^;"']*?\bfrom\s+)?["']([^"']+)["']""")
-COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.S)
+COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
 
 
 def import_closure(src):

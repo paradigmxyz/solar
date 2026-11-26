@@ -46,9 +46,15 @@ def generate(
     asm_ctxl's or asm_cert's inference stops (they exit with the CLI's error line, such as a block
     entered in two contexts)."""
     try:
-        return _generate(gen, module_prefix, contract, final, skip, slice_from, selector)
+        return _generate(
+            gen, module_prefix, contract, final, skip, slice_from, selector
+        )
     except SystemExit as e:
-        why = e.code if isinstance(e.code, str) else f"error: the inference exits ({e.code})"
+        why = (
+            e.code
+            if isinstance(e.code, str)
+            else f"error: the inference exits ({e.code})"
+        )
         raise CtxGasError(why) from None
 
 
