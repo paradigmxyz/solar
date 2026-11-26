@@ -2254,11 +2254,11 @@ The normal and capture compilations agree on ABI, creation bytecode and
 runtime bytecode. The per-pass counts and fingerprints are in
 [CORRECTNESS.md](CORRECTNESS.md#full-corpus-after-guarded-mir-effect-proofs).
 
-Across saved audits and targeted retries, 2,146 of the same 2,228 capture
-IDs have proofs. The 82 open IDs include cases beyond the automatic
+Across saved audits and targeted retries, 2,151 of the same 2,228 capture
+IDs have proofs. The 77 open IDs include cases beyond the automatic
 checker's logical gas and state domains. The coverage join includes
 different checker revisions, proof budgets and proof scopes.
-[Cumulative audit](CORRECTNESS.md#physical-entry-retries-for-return-inlining)
+[Cumulative audit](CORRECTNESS.md#completed-physical-entry-audit-for-return-inlining)
 
 All 368 pinned EVM IR `block-layout` captures have proofs. Eight
 module-entry certificates with a 120-second per-stage budget cover the
@@ -2276,6 +2276,11 @@ The strict serial gate verifies all 124 pinned EVM IR `terminal-dedup`
 captures. Four physical-entry proofs cover the 18 regions left open by the
 three-second audit. Independent replay checks the shared revert and rollback
 on assembled Morpho bytecode. [Terminal deduplication audit](CORRECTNESS.md#physical-entry-audit-for-terminal-deduplication)
+
+All 14 pinned EVM IR `inline-returns` captures have proofs. The Morpho
+entry proof checks stack admission for the canceled swaps, and the pinned
+Rust replay reaches the affected return on the assembled runtime.
+[Return-inlining audit](CORRECTNESS.md#completed-physical-entry-audit-for-return-inlining)
 
 The combined strict gate verifies all 178 pinned captures for MIR ABI
 encoding, checked arithmetic, conditional checks, integer lowering, storage

@@ -3366,7 +3366,7 @@ with the original compiler and independent replay executables preserved.
 
 The saved corpus join reaches 2,144 of 2,228 capture IDs, with 84 open.
 
-### Physical-entry retries for return inlining
+### Completed physical-entry audit for return inlining
 
 The live hook tries physical entry for unpriced `inline-returns`. The
 evaluator reuses a module proof for an unresolved capture when that proof
@@ -3397,14 +3397,28 @@ both assembled `withdrawCollateral` paths. The runtime images fill the
 same immutable word at the original width. Both calls resume with the
 same stack, debit one unit from the recorded collateral position, and leave
 identical storage and logs. The token stub returns true. The rewrite consumes
-30 less gas on this fixture. The saved corpus join at this point records 9 of
-14 return-inlining captures and 2,146 of 2,228 total captures.
+30 less gas on this fixture.
+
+The serial check at 120 seconds per stage compares 14,481 logical actions
+in the Morpho module. The three canceled pairs have checked lower stack
+bounds of 8, 10, and 10. The entry proof reaches all five captured block
+labels in both snapshots and both raw fingerprints match for each capture.
+The join covers **14 of 14** pinned `inline-returns` capture IDs. It includes
+one Solady WETH, six OpenZeppelin ERC20Mock, and seven Morpho Blue checks.
+The saved corpus join reaches **2,151 of 2,228**, with 77 open IDs.
 
 | Artifact | SHA-256 |
 | --- | --- |
 | `target/tv-inline-returns-entry/results.json` | `06f09eab96fe3e78b52a607f14e7ff443fdd8d1a64efc390c5c8934454667be9` |
 | `target/tv-inline-returns-entry/remaining-by-pass.json` | `4819f627438fc447e2f65ec2e9b851202d706e6979ce9a25d91d2fe4f4d93d9d` |
 | `target/tv-inline-returns-entry/morpho-withdraw-replay.json` | `494963dd43a3e8f19e76d845a885aa82e0902479bc466d37771f16021c312e40` |
+| Pinned compiler | `f996616dcf2ebacf05fc5cc439f4814dc38fe953fad90b698754281c59ef139c` |
+| Serial launcher | `c935a2bf85933ee1790810177538c159d5a974d89f383b5efb73e88236f5d165` |
+| Pinned Rust replay | `1c08fa6d66c19b52b661c4db7c93fc1d257948cb592d9856d09a237c174bca0c` |
+| Checker on Lean 4.34.1 | `5053dee97569b4ba53ffe2f577798c0a8bbf609cf10e377402186462d63171af` |
+| `target/tv-inline-returns-entry/morpho-verified.json` | `09729dcb1aa36ff562b30f4eabf638f2152b13f99aeea9713a2962b791e8763b` |
+| `target/tv-inline-returns-entry/inline-returns-complete.json` | `e848c435e997132ea410c420f750f738153634f38594ec4e6d55de47faefc7d2` |
+| `target/tv-inline-returns-entry/remaining-after-morpho.json` | `69636f6feb72c87d19363bca4d288d2b2715f9d07034e89bc6b05456615ab49c` |
 
 ### MIR CFG checks after an import timeout
 
