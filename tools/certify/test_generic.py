@@ -3150,10 +3150,10 @@ class LifecycleEnvelope(unittest.TestCase):
                     )
                 self.assertEqual(opened, [], ex)
                 feats = [r["feature"] for r in e.exception.reasons]
+                # The base constructor is a creation root, so its loop blocks too.
+                self.assertIn("loop", feats)
                 if ex == "LoopBaseCtor":
-                    self.assertIn("inheritance", feats)
-                else:
-                    self.assertIn("loop", feats)
+                    self.assertIn("inheritance: base constructor arguments", feats)
 
     def test_creation_reach_unresolved_is_conservative(self):
         """A base-constructor invocation (or any call creation_reach cannot resolve) marks the
@@ -3163,6 +3163,13 @@ class LifecycleEnvelope(unittest.TestCase):
         cdef = next(n for n in ast["nodes"] if n.get("name") == "LoopBaseCtor")
         _, unresolved = generic.creation_reach(cdef)
         self.assertTrue(unresolved)
+        # With the linearization, the base constructor is a root and its loop is reached.
+        lin, _ = generic.linearization(ast, cdef)
+        reach, unresolved = generic.creation_reach(cdef, lin)
+        self.assertFalse(unresolved)
+        base = next(n for n in ast["nodes"] if n.get("name") == "LoopBase")
+        loop = next(n for n in generic.walk(base) if n.get("nodeType") == "ForStatement")
+        self.assertIn(id(loop), reach)
         src = LIFE / "LoopRuntime.sol"
         ast, _ = generic.solc_ast(str(SOLC), src)
         cdef = next(n for n in ast["nodes"] if n.get("name") == "LoopRuntime")
