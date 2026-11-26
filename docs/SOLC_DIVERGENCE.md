@@ -1080,24 +1080,16 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   gives it calldata, but a function's second and later results, which travel in
   memory, never carry it. Other entries keep their memory low unless they share
   those frames or a function that reads the heap floor, which gives them one
-  initial pointer. The constructor's immutable staging words keep clear of
-  those ranges too, except what a `revert` reads and a range that ends above
-  4 MiB, which costs more gas to expand to than a transaction can pay. Storage promotion's memory temporaries, which sit where the
-  entry's frame ends, are not moved. The pass instead declines to promote a
-  slot when the function, or one that it may call, that may call it, or that a
-  caller of it may call, names a constant range over a
-  temporary's word, or,
-  with assembly that does not promise memory safety, when a write between the
-  slot's initial store and its flush goes to an address the compiler cannot
-  place. An address that reaches a callee as an argument is not seen either, and
-  neither is a word that assembly writes through a computed address before the
-  slot's initial store and reads after the flush.
-  A copy to a constant address whose length is
-  not constant, as `codecopy(0xc0, 0, codesize())` in a constructor, names no
-  finite range, and neither does a store to an address that code computes, as in
-  a Yul helper or loop, or a constant that reaches a helper as an argument and
-  that the code does not inline, so none of them moves the immutable staging words and
-  each can overwrite them.
+  initial pointer.
+
+  The constructor's immutable staging words keep clear of the constant ranges
+  it names, except what a `revert` reads and ranges that end above 4 MiB, which
+  cost more gas to expand to than a transaction can pay. Storage promotion
+  declines when any function names a constant range over one of its memory
+  temporaries, or, with assembly that does not promise memory safety, when a
+  write between the slot's initial store and its flush goes to an address the
+  compiler cannot place. Neither sees a write at a computed address or a copy
+  of non-constant length, and either can overwrite what they protect.
 
   A write whose destination the compiler cannot place on the heap, in a frame,
   or below the heap start, such as a copy to a computed destination of any

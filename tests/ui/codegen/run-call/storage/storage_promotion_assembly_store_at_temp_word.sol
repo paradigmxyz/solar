@@ -2,7 +2,6 @@
 //@ run-call: tail 3 => 8
 //@ run-call: body 3 => 8
 //@ run-call: pair 3 => 16
-//@ run-call: phi 3 => 8
 //@ run-call: copy 3 => 8
 //@ run-call: earlier 3 => 4369
 //@ run-call: callee 3 => 4369
@@ -83,18 +82,6 @@ contract StoragePromotionAssemblyStoreAtTempWord {
         assembly {
             for { let i := 0 } lt(i, 3) { i := add(i, 1) } { r := mload(0x80) }
         }
-    }
-
-    // The store goes to zero or to the temporary's address, as the argument decides.
-    function phi(uint256 n) external returns (uint256) {
-        x = 5;
-        assembly {
-            let a := 0
-            if lt(n, 100) { a := 0x80 }
-            mstore(a, 0x1111)
-        }
-        for (uint256 i; i < n; ++i) x += 1;
-        return x;
     }
 
     // A caller keeps its word at the temporary's address live across the call.

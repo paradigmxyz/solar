@@ -14,9 +14,8 @@
 //!   so the unflushed slot is unobservable there; reads of the promoted slot on those paths are
 //!   rewritten to the memory temp so revert data still sees the current value
 //! - reject opaque storage accesses on rollback exits because the rewrite cannot update them.
-//! - reject a function that names a constant memory range over a temporary's word, in its own code
-//!   or in a function it calls, a function that calls it, or a function such a caller calls, since
-//!   the assembly's word and the temporary would share it
+//! - reject any function when some function in the module names a constant memory range over a
+//!   temporary's word, since the assembly's word and the temporary would share it
 //! - with assembly that does not promise memory safety, also reject a memory write between the
 //!   initial store and the flush, or in a rollback exit, whose destination is not derived from a
 //!   compiler-owned pointer
@@ -52,41 +51,22 @@ impl MirPass for StorageScalarPromotion {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let unsafe_assembly = module.has_unsafe_assembly();
-        // The ranges that the functions an entry may call, its callers, and what its callers call
-        // name, by selector. A caller's word stays live across the call.
-        let reach = module
-            .iter_functions()
-            .map(|(id, _)| module.functions_reachable_from(id))
-            .collect::<IndexVec<_, _>>();
-        let ranges =
-            module.iter_functions().map(|(_, func)| named_ranges(func)).collect::<IndexVec<_, _>>();
-        let mut callee_ranges = FxHashMap::<[u8; 4], Vec<(u64, u64)>>::default();
-        for (id, func) in module.iter_functions() {
-            if let Some(selector) = func.selector {
-                let mut related = reach[id].clone();
-                for (caller, callees) in reach.iter_enumerated() {
-                    if callees.contains(id) {
-                        related.insert(caller);
-                        related.union(callees);
-                    }
-                }
-                related.remove(id);
-                callee_ranges
-                    .entry(selector)
-                    .or_default()
-                    .extend(related.iter().flat_map(|other| ranges[other].iter().copied()));
-            }
-        }
+        // Constant ranges that any function names. The temporaries lie where an entry's frame
+        // ends, which another function that calls or is called can reach.
+        let named =
+            module.iter_functions().flat_map(|(_, func)| named_ranges(func)).collect::<Vec<_>>();
         run_function_pass(module, analyses, |func, analyses| {
             // The pass currently introduces absolute low-memory temporaries, so it
             // only handles externally callable runtime entries.
-            let Some(selector) = func.selector else { return false };
+            if func.selector.is_none() {
+                return false;
+            }
 
             // Annotating aliases changes metadata only, which is not reported as a change.
             if func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage) {
                 analyses.note_unreported_edit();
             }
-            promote_loops(func, unsafe_assembly, &callee_ranges[&selector])
+            promote_loops(func, unsafe_assembly, &named)
         })
     }
 }
@@ -104,7 +84,7 @@ struct Candidate {
 }
 
 /// Promotes loops until none qualifies; returns whether any was promoted.
-fn promote_loops(func: &mut Function, unsafe_assembly: bool, callee_ranges: &[(u64, u64)]) -> bool {
+fn promote_loops(func: &mut Function, unsafe_assembly: bool, module_ranges: &[(u64, u64)]) -> bool {
     let mut changed = false;
 
     // Promoting a loop can split its exit blocks and relocate the final
@@ -118,7 +98,7 @@ fn promote_loops(func: &mut Function, unsafe_assembly: bool, callee_ranges: &[(u
         let Some((loop_data, preheader, candidates)) =
             loop_info.all_loops().find_map(|loop_data| {
                 let (preheader, candidates) =
-                    find_candidates(func, loop_data, unsafe_assembly, callee_ranges)?;
+                    find_candidates(func, loop_data, unsafe_assembly, module_ranges)?;
                 Some((loop_data, preheader, candidates))
             })
         else {
@@ -133,7 +113,7 @@ fn find_candidates(
     func: &Function,
     loop_data: &Loop,
     unsafe_assembly: bool,
-    callee_ranges: &[(u64, u64)],
+    module_ranges: &[(u64, u64)],
 ) -> Option<(BlockId, Vec<Candidate>)> {
     let preheader = loop_data.preheader?;
     if loop_data.exit_blocks.is_empty()
@@ -213,7 +193,7 @@ fn find_candidates(
             &rewrite_blocks,
             &candidates,
             unsafe_assembly,
-            callee_ranges,
+            module_ranges,
         ))
     .then_some((preheader, candidates))
 }
@@ -239,30 +219,26 @@ fn named_ranges(func: &Function) -> Vec<(u64, u64)> {
 /// [`allocate_temp_addr`] places next: one per candidate, and the dirty flag of a lone slot
 /// without a preheader store.
 ///
-/// Code that names a constant range over a temporary's word, anywhere in the function or in a
-/// function that it may call, that may call it, or that a caller of it may call, owns that word. An
-/// address that reaches a callee as an argument is not seen, nor is a word that assembly writes
-/// through a computed address before the initial stores. In a module with assembly that does
-/// not promise memory safety, a write between the initial stores and the flushes through another
-/// address also counts unless its destination derives from a compiler-owned pointer. Without such
-/// assembly, the compiler places every write it makes at a computed address on the heap or in a
-/// frame, above the temporaries, which enlarge the frame that the heap and spill area start after.
+/// Code anywhere in the module that names a constant range over a temporary's word owns that
+/// word: the entries and the functions they call share the memory where the temporaries lie. In a
+/// module with assembly that does not promise memory safety, a write between the initial stores
+/// and the flushes also counts unless its destination derives from a compiler-owned pointer.
+/// Without such assembly, the compiler places every write it makes at a computed address on the
+/// heap or in a frame, above the temporaries. A write at a computed address or a copy of
+/// non-constant length elsewhere is not seen.
 fn temp_words_are_unclobbered(
     func: &Function,
     preheader: BlockId,
     blocks: &[BlockId],
     candidates: &[Candidate],
     unsafe_assembly: bool,
-    callee_ranges: &[(u64, u64)],
+    module_ranges: &[(u64, u64)],
 ) -> bool {
     let words = candidates.len() + usize::from(candidates[0].init_store.is_none());
     let start = temp_base(func);
     let end = start + words as u64 * EvmMemoryLayout::WORD_SIZE;
-    let named = named_ranges(func)
-        .iter()
-        .chain(callee_ranges)
-        .any(|&(range_start, range_end)| range_start < end && range_end > start);
-    if named {
+    if module_ranges.iter().any(|&(range_start, range_end)| range_start < end && range_end > start)
+    {
         return false;
     }
     if !unsafe_assembly {
@@ -279,34 +255,10 @@ fn temp_words_are_unclobbered(
             unplaced |= access != RawMemoryAccess::Read
                 && size.constant(func) != Some(0)
                 && func.value_u64(dest).is_none()
-                && (AliasAnalysis::pointer_lower_bound(func, dest).is_none()
-                    || may_be_constant_address(func, dest, 0));
+                && AliasAnalysis::pointer_lower_bound(func, dest).is_none();
         });
     }
     !unplaced
-}
-
-/// Returns whether `value` may be a constant address, or one that constant arithmetic moves, as a
-/// phi or select of constants is. Such a value has a lower bound, but the bound does not make it a
-/// compiler-owned pointer.
-fn may_be_constant_address(func: &Function, value: ValueId, depth: usize) -> bool {
-    if depth > 8 || func.value_u64(value).is_some() {
-        return true;
-    }
-    let Value::Inst(inst) = func.value(value) else { return false };
-    let next = |value| may_be_constant_address(func, value, depth + 1);
-    match &func.inst(*inst).kind {
-        InstKind::Phi(incoming) => incoming.iter().any(|&(_, value)| next(value)),
-        InstKind::Select(_, first, second) => next(*first) || next(*second),
-        InstKind::Add(first, second) => match (func.value_u64(*first), func.value_u64(*second)) {
-            (Some(_), _) => next(*second),
-            (_, Some(_)) => next(*first),
-            _ => next(*first) || next(*second),
-        },
-        InstKind::Sub(base, _) | InstKind::PtrAdd(base, _) => next(*base),
-        InstKind::PtrToInt(value, _) | InstKind::IntToPtr(value) => next(*value),
-        _ => false,
-    }
 }
 
 fn has_isolated_promotable_exits(func: &Function, loop_data: &Loop) -> bool {

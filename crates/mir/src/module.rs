@@ -693,12 +693,6 @@ impl Module {
         (looping, repeated)
     }
 
-    /// Returns `root` and every function it reaches through calls.
-    #[must_use]
-    pub fn functions_reachable_from(&self, root: FunctionId) -> DenseBitSet<FunctionId> {
-        self.reachable_from([root])
-    }
-
     /// Returns `roots` and every function they reach through calls.
     fn reachable_from(
         &self,
