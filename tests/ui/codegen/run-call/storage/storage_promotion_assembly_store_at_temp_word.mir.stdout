@@ -179,6 +179,125 @@ fn @get() -> i256 [pure] {
     ret v0
 }
 
+; function publicCallee(uint256 n) external returns (uint256 r) [selector 0x5a50ba50]
+fn @publicCallee(arg0: i256) -> i256 [selector=0x5a50ba50, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    icall @putPublic
+    sstore 0, 5 !metadata(storage=slot(0))
+    jump bb1
+  bb1:                                            ; preds = bb0, bb3
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v7]
+    v3 = lt v2, v0
+    jumpi v3, bb4, bb5
+  bb5:                                            ; preds = bb1
+    jump bb2
+  bb2:                                            ; preds = bb5
+    v8 = icall @getPublic
+    ret v8
+  bb4:                                            ; preds = bb1
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = checked_mul uint256, v4, 2
+    v6 = checked_add uint256, v5, 1
+    sstore 0, v6 !metadata(storage=slot(0))
+    jump bb6
+  bb6:                                            ; preds = bb4
+    jump bb3
+  bb3:                                            ; preds = bb6
+    v7 = checked_add uint256, v2, 1
+    jump bb1
+}
+
+; function putPublic() public pure [selector 0x5bd179eb]
+fn @putPublic() [selector=0x5bd179eb, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    jump bb1
+  bb1:                                            ; preds = bb0, bb3
+    v0 = phi [bb0: 0], [bb3: v4]
+    v1 = lt v0, 3
+    v2 = zext i1 v1 to i256
+    v3 = ne v2, 0
+    jumpi v3, bb4, bb5
+  bb5:                                            ; preds = bb1
+    jump bb2
+  bb2:                                            ; preds = bb5
+    ret
+  bb4:                                            ; preds = bb1
+    mstore 128, 0x1111
+    jump bb6
+  bb6:                                            ; preds = bb4
+    jump bb3
+  bb3:                                            ; preds = bb6
+    v4 = add v0, 1
+    jump bb1
+}
+
+; function getPublic() public pure returns (uint256 r) [selector 0x2c044779]
+fn @getPublic() -> i256 [selector=0x2c044779, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jump bb1
+  bb1:                                            ; preds = bb0, bb3
+    v0 = phi [bb0: 0], [bb3: v5]
+    v1 = phi [bb0: 0], [bb3: v6]
+    v2 = lt v1, 3
+    v3 = zext i1 v2 to i256
+    v4 = ne v3, 0
+    jumpi v4, bb4, bb5
+  bb5:                                            ; preds = bb1
+    jump bb2
+  bb2:                                            ; preds = bb5
+    ret v0
+  bb4:                                            ; preds = bb1
+    v5 = mload 128
+    jump bb6
+  bb6:                                            ; preds = bb4
+    jump bb3
+  bb3:                                            ; preds = bb6
+    v6 = add v1, 1
+    jump bb1
+}
+
+; function phi(uint256 n) external returns (uint256) [selector 0x4009d7aa]
+fn @phi(arg0: i256) -> i256 [selector=0x4009d7aa, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    sstore 0, 5 !metadata(storage=slot(0))
+    v0 = lt arg0, 100
+    v1 = zext i1 v0 to i256
+    v2 = ne v1, 0
+    jumpi v2, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v3 = phi [bb1: 128], [bb2: 0]
+    mstore v3, 0x1111
+    jump bb4
+  bb4:                                            ; preds = bb3, bb6
+    v4 = phi [bb3: arg0], [bb6: v4]
+    v5 = phi [bb3: 0], [bb6: v5]
+    v6 = phi [bb3: v3], [bb6: v6]
+    v7 = phi [bb3: 0], [bb6: v11]
+    v8 = lt v7, v4
+    jumpi v8, bb7, bb8
+  bb8:                                            ; preds = bb4
+    jump bb5
+  bb5:                                            ; preds = bb8
+    v12 = sload 0 !metadata(storage=slot(0))
+    ret v12
+  bb7:                                            ; preds = bb4
+    v9 = sload 0 !metadata(storage=slot(0))
+    v10 = checked_add uint256, v9, 1
+    sstore 0, v10 !metadata(storage=slot(0))
+    jump bb9
+  bb9:                                            ; preds = bb7
+    jump bb6
+  bb6:                                            ; preds = bb9
+    v11 = checked_add uint256, v7, 1
+    jump bb4
+}
+
 ; function pair(uint256 n) external returns (uint256) [selector 0x645751af]
 fn @pair(arg0: i256) -> i256 [selector=0x645751af, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:

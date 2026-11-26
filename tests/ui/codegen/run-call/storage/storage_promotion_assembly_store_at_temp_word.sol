@@ -2,9 +2,11 @@
 //@ run-call: tail 3 => 8
 //@ run-call: body 3 => 8
 //@ run-call: pair 3 => 16
+//@ run-call: phi 3 => 8
 //@ run-call: copy 3 => 8
 //@ run-call: earlier 3 => 4369
 //@ run-call: callee 3 => 4369
+//@ run-call: publicCallee 3 => 4369
 
 // Assembly that names the address of a promoted slot's memory temporary, before its initial store
 // or between that store and the flush, must neither reach the temporary nor lose its word to it.
@@ -60,6 +62,38 @@ contract StoragePromotionAssemblyStoreAtTempWord {
 
     function get() internal pure returns (uint256 r) {
         assembly { r := mload(0x80) }
+    }
+
+    // A public function that the entry calls owns the word too.
+    function publicCallee(uint256 n) external returns (uint256 r) {
+        putPublic();
+        x = 5;
+        for (uint256 i; i < n; ++i) x = x * 2 + 1;
+        return getPublic();
+    }
+
+    function putPublic() public pure {
+        assembly {
+            for { let i := 0 } lt(i, 3) { i := add(i, 1) } { mstore(0x80, 0x1111) }
+        }
+    }
+
+    function getPublic() public pure returns (uint256 r) {
+        assembly {
+            for { let i := 0 } lt(i, 3) { i := add(i, 1) } { r := mload(0x80) }
+        }
+    }
+
+    // The store goes to zero or to the temporary's address, as the argument decides.
+    function phi(uint256 n) external returns (uint256) {
+        x = 5;
+        assembly {
+            let a := 0
+            if lt(n, 100) { a := 0x80 }
+            mstore(a, 0x1111)
+        }
+        for (uint256 i; i < n; ++i) x += 1;
+        return x;
     }
 
     function pair(uint256 n) external returns (uint256) {

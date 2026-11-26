@@ -51,26 +51,29 @@ impl MirPass for StorageScalarPromotion {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let unsafe_assembly = module.has_unsafe_assembly();
-        // Functions that promoted code may call name constant ranges of their own.
-        let callee_ranges = module
-            .runtime_reachable_functions()
-            .iter()
-            .map(|id| module.function(id))
-            .filter(|func| func.selector.is_none())
-            .flat_map(named_ranges)
-            .collect::<Vec<_>>();
+        // The ranges that the functions an entry may call name, by selector.
+        let mut callee_ranges = FxHashMap::<[u8; 4], Vec<(u64, u64)>>::default();
+        for (id, func) in module.iter_functions() {
+            if let Some(selector) = func.selector {
+                callee_ranges.entry(selector).or_default().extend(
+                    module
+                        .functions_reachable_from(id)
+                        .iter()
+                        .filter(|&callee| callee != id)
+                        .flat_map(|callee| named_ranges(module.function(callee))),
+                );
+            }
+        }
         run_function_pass(module, analyses, |func, analyses| {
             // The pass currently introduces absolute low-memory temporaries, so it
             // only handles externally callable runtime entries.
-            if func.selector.is_none() {
-                return false;
-            }
+            let Some(selector) = func.selector else { return false };
 
             // Annotating aliases changes metadata only, which is not reported as a change.
             if func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage) {
                 analyses.note_unreported_edit();
             }
-            promote_loops(func, unsafe_assembly, &callee_ranges)
+            promote_loops(func, unsafe_assembly, &callee_ranges[&selector])
         })
     }
 }
@@ -262,10 +265,34 @@ fn temp_words_are_unclobbered(
             unplaced |= access != RawMemoryAccess::Read
                 && size.constant(func) != Some(0)
                 && func.value_u64(dest).is_none()
-                && AliasAnalysis::pointer_lower_bound(func, dest).is_none();
+                && (AliasAnalysis::pointer_lower_bound(func, dest).is_none()
+                    || may_be_constant_address(func, dest, 0));
         });
     }
     !unplaced
+}
+
+/// Returns whether `value` may be a constant address, or one that constant arithmetic moves, as a
+/// phi or select of constants is. Such a value has a lower bound, but the bound does not make it a
+/// compiler-owned pointer.
+fn may_be_constant_address(func: &Function, value: ValueId, depth: usize) -> bool {
+    if depth > 8 || func.value_u64(value).is_some() {
+        return true;
+    }
+    let Value::Inst(inst) = func.value(value) else { return false };
+    let next = |value| may_be_constant_address(func, value, depth + 1);
+    match &func.inst(*inst).kind {
+        InstKind::Phi(incoming) => incoming.iter().any(|&(_, value)| next(value)),
+        InstKind::Select(_, first, second) => next(*first) || next(*second),
+        InstKind::Add(first, second) => match (func.value_u64(*first), func.value_u64(*second)) {
+            (Some(_), _) => next(*second),
+            (_, Some(_)) => next(*first),
+            _ => next(*first) || next(*second),
+        },
+        InstKind::Sub(base, _) | InstKind::PtrAdd(base, _) => next(*base),
+        InstKind::PtrToInt(value, _) | InstKind::IntToPtr(value) => next(*value),
+        _ => false,
+    }
 }
 
 fn has_isolated_promotable_exits(func: &Function, loop_data: &Loop) -> bool {
