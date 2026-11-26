@@ -1130,50 +1130,50 @@ fn @copyWords() {
 ; function wordsFromCalldata(bytes32[] calldata a) external pure returns (bytes32[] memory h) [selector 0xd35cf802]
 fn @wordsFromCalldata() {
   bb0:
-    v47 = calldatasize
-    v48 = lt v47, 36
-    v49 = calldataload 4
-    v50 = add v49, 4
-    v52 = sub v47, 36
-    v53 = lt v52, v49
-    v81 = or v48, v53
-    v54 = calldataload v50
-    v55 = add v50, 32
-    v56 = sub v47, v55
-    v57 = shr v56, 5
-    v58 = lt v57, v54
-    v82 = or v81, v58
-    jumpi v82, bb4, bb5
+    v46 = calldatasize
+    v47 = lt v46, 36
+    v48 = calldataload 4
+    v49 = add v48, 4
+    v51 = sub v46, 36
+    v52 = lt v51, v48
+    v80 = or v47, v52
+    v53 = calldataload v49
+    v54 = add v49, 32
+    v55 = sub v46, v54
+    v56 = shr v55, 5
+    v57 = lt v56, v53
+    v81 = or v80, v57
+    jumpi v81, bb4, bb5
   bb5:                                            ; preds = bb0
-    v45 = add v54, 1
-    v9 = add v45, 1
+    v44 = add v53, 1
+    v9 = add v44, 1
     v11 = shl v9, 5
-    v84 = shr v9, 251
-    v74 = heap_floor !metadata(alloc_ptr)
-    v75 = add v74, v11 !metadata(alloc_ptr)
-    v86 = shr v75, 64
-    v76 = lt v75, v74
-    v88 = zext i1 v76 to i256
-    v89 = or v86, v88
-    v91 = or v84, v89
-    v83 = ne v91, 0
-    jumpi v83, bb3, bb6
+    v83 = shr v9, 251
+    v73 = heap_floor !metadata(alloc_ptr)
+    v74 = add v73, v11 !metadata(alloc_ptr)
+    v85 = shr v74, 64
+    v75 = lt v74, v73
+    v87 = zext i1 v75 to i256
+    v88 = or v85, v87
+    v90 = or v83, v88
+    v82 = ne v90, 0
+    jumpi v82, bb3, bb6
   bb6:                                            ; preds = bb5
-    calldatacopy v74, v47, v11
-    mstore v74, v45
-    v35 = eq v54, 0
-    jumpi v35, bb1, bb2
+    calldatacopy v73, v46, v11
+    mstore v73, v44
+    v34 = eq v53, 0
+    jumpi v34, bb1, bb2
   bb2:                                            ; preds = bb6
-    v36 = shl v54, 5
-    v72 = add v74, 32
-    calldatacopy v72, v55, v36
+    v35 = shl v53, 5
+    v71 = add v73, 32
+    calldatacopy v71, v54, v35
     jump bb1
   bb1:                                            ; preds = bb2, bb6
-    v65 = shl v45, 5
-    v70 = sub v74, 32
-    mstore v70, 32
-    v67 = add v65, 64
-    returndata v70, v67
+    v64 = shl v44, 5
+    v69 = sub v73, 32
+    mstore v69, 32
+    v66 = add v64, 64
+    returndata v69, v66
   bb3 [cold]:                                     ; preds = bb5
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
