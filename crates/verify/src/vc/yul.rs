@@ -192,6 +192,8 @@ const REGION_BASE: u64 = 1 << 32;
 /// model address of the free memory pointer's target (see Yc::fmp)
 const FREE_BASE: u64 = 1 << 36;
 const FREE_LEN: u64 = 1 << 20;
+/// The longest `mcopy` modelled, in bytes.
+const MCOPY_MAX: u64 = 1024;
 
 /// The env key of memory byte `off` (model address) in an assembly block.
 fn mkey(off: u64) -> String {
@@ -1363,6 +1365,114 @@ impl<'p, 'a> Vc<'p, 'a> {
             self.ranges.insert(t.clone(), (BigInt::zero(), BigInt::from(255)));
             self.env.insert(k, Var { ty: Ty::Uint(8), t, len: None });
         }
+    }
+
+    /// The Solidity memory variables whose block pointer (`Yc::ptrs`) address term `t` is
+    /// built from (`t` mentions it).
+    fn y_objects(cx: &Yc<'a>, t: &str) -> Vec<(String, String)> {
+        let mut out: Vec<(String, String)> = cx
+            .ptrs
+            .iter()
+            .filter(|(n, p)| !n.contains('.') && t.contains(p.as_str()))
+            .map(|(n, p)| (n.clone(), p.clone()))
+            .collect();
+        out.sort();
+        out
+    }
+
+    /// `mcopy(dst, src, len)` from a Solidity `bytes` or `string` variable into another, for a
+    /// constant `len`: the bytes `[s, s + len)` of the source's contents become bytes
+    /// `[d, d + len)` of the destination's, where `s` and `d` are the addresses' offsets past
+    /// the objects' length words, which may be symbolic. Each range must provably lie within its
+    /// object's contents (an obligation, never assumed), so the copy reads and writes only those
+    /// bytes. The destination gets a new value, as a Solidity write in place gives it
+    /// (`memalias::check` refuses the write when another name may share its memory). Copies
+    /// within one object, of a symbolic length, or between memory not of a Solidity variable
+    /// the block names are refused.
+    fn y_mcopy(&mut self, cx: &mut Yc<'a>, span: Span, a: &[String], named: &[String]) -> R<()> {
+        let Some(len) = self.y_konst(&a[2]) else {
+            return unsupported(span, "assembly `mcopy` of a non-constant length");
+        };
+        if len.is_zero() {
+            return Ok(());
+        }
+        if len.is_negative() || len > BigInt::from(MCOPY_MAX) {
+            return unsupported(
+                span,
+                format!("assembly `mcopy` of more than {MCOPY_MAX} bytes is not modelled"),
+            );
+        }
+        let mut ends = vec![];
+        for (t, what) in [(&a[0], "destination"), (&a[1], "source")] {
+            let objs = Self::y_objects(cx, t);
+            let [(n, p)] = &objs[..] else {
+                return unsupported(
+                    span,
+                    if objs.is_empty() {
+                        format!(
+                            "assembly `mcopy` {what} is not in a Solidity `bytes` or `string` variable"
+                        )
+                    } else {
+                        format!(
+                            "assembly `mcopy` {what} is built from more than one memory variable"
+                        )
+                    },
+                );
+            };
+            let Some(v) = self.env.get(n).cloned().filter(|v| v.ty == Ty::Opaque) else {
+                return unsupported(
+                    span,
+                    format!("assembly `mcopy` {what} `{n}` is not a memory `bytes` or `string`"),
+                );
+            };
+            if self.cd_params.contains(n) {
+                return unsupported(span, format!("assembly `mcopy` {what} `{n}` is in calldata"));
+            }
+            // the offset into its contents: the address past the pointer and its length word
+            let base = Lin::atom(p).add(&Lin::k(BigInt::from(32)), 1);
+            let off = self.y_lin(t).add(&base, -1).render();
+            ends.push((n.clone(), v, off));
+        }
+        let (src, dst) = (ends.pop().unwrap(), ends.pop().unwrap());
+        // `memalias::check` sees the write through the names the destination expression
+        // mentions: one reached through a block variable it would not see
+        if !named.contains(&dst.0) {
+            return unsupported(
+                span,
+                format!("assembly `mcopy` destination must name `{}` itself", dst.0),
+            );
+        }
+        if src.0 == dst.0 {
+            return unsupported(
+                span,
+                format!(
+                    "assembly `mcopy` within `{}`: copies inside one object are not modelled",
+                    dst.0
+                ),
+            );
+        }
+        for ((n, v, off), what) in [(&src, "read"), (&dst, "write")] {
+            let l = self.opaque_len(&v.t);
+            self.prove(
+                &format!("(and (<= 0 {off}) (<= (+ {off} {len}) {l}))"),
+                &format!("assembly `mcopy` may {what} outside the contents of `{n}`"),
+                span,
+                None,
+            );
+        }
+        let ((dn, dv, d), (_, sv, s)) = (dst, src);
+        let byte = self.bytes_byte_fn();
+        let k = self.decl("mcopy", &Ty::Opaque);
+        let (kl, dl) = (self.opaque_len(&k), self.opaque_len(&dv.t));
+        // byte i of the new value: the source's byte s + (i - d) inside the copied range, the
+        // old value's elsewhere
+        self.smt.send(&format!(
+            "(assert (= {kl} {dl}))\n(assert (forall ((sv_mi Int)) (! (= ({byte} {k} sv_mi) (ite (and (<= {d} sv_mi) (< sv_mi (+ {d} {len}))) ({byte} {} (+ {s} (- sv_mi {d}))) ({byte} {} sv_mi))) :pattern (({byte} {k} sv_mi)))))\n",
+            sv.t, dv.t
+        ));
+        self.creation_code.clear();
+        self.bind(&dn, Ty::Opaque, Var { ty: Ty::Opaque, t: k, len: None });
+        Ok(())
     }
 
     // ------------------------------------------------------------------ statements
@@ -2624,6 +2734,16 @@ impl<'p, 'a> Vc<'p, 'a> {
                 self.y_rd_record(&ok, out, true);
                 one(Self::y_flagt(&ok))
             }
+            "mcopy" => {
+                want(3)?;
+                if self.spec {
+                    return unsupported(span, "assembly `mcopy` inside a spec evaluation");
+                }
+                let mut named = vec![];
+                yul_roots(&c.arguments[0], &mut named);
+                self.y_mcopy(cx, span, &a, &named)?;
+                Ok(vec![])
+            }
             _ => unsupported(span, format!("assembly builtin `{name}` is not supported")),
         }
     }
@@ -2801,6 +2921,14 @@ pub(super) fn asm_effects(
                 // still open, whose writes the caller adds (modset_under_lock)
                 "call" if lock => {}
                 "call" | "callcode" | "delegatecall" | "selfdestruct" => *all = true,
+                // the Solidity variable whose memory it copies into (see `y_mcopy`)
+                "mcopy" => {
+                    if let Some(d) = c.arguments.first() {
+                        let mut named = vec![];
+                        yul_roots(d, &mut named);
+                        out.extend(named);
+                    }
+                }
                 _ => {}
             }
             for a in c.arguments.iter() {
@@ -3128,5 +3256,14 @@ fn slots_of(prog: &crate::prog::Program<'_>, ty: &Ty) -> BigInt {
             n.max(BigInt::one())
         }
         _ => BigInt::one(),
+    }
+}
+
+/// The names Yul expression `e` mentions: the first segment of each path in it.
+fn yul_roots(e: &yul::Expr<'_>, out: &mut Vec<String>) {
+    match &e.kind {
+        yul::ExprKind::Path(p) => out.push(p.segments()[0].as_str().to_string()),
+        yul::ExprKind::Call(c) => c.arguments.iter().for_each(|a| yul_roots(a, out)),
+        yul::ExprKind::Lit(_) => {}
     }
 }

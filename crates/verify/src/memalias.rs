@@ -345,7 +345,90 @@ impl<'p, 'a> Pass<'p, 'a> {
                 }
             }
             StmtKind::DeclMulti(_, e) => self.expr(e, false),
+            StmtKind::Assembly(a) => self.asm(&a.block, s.span),
             _ => crate::walk::stmt_exprs(s, &mut |e| self.expr(e, false)),
+        }
+    }
+
+    /// Inline assembly: `mcopy` writes in place through the memory references its destination
+    /// is built from, and an assignment to a memory reference may point it into another's
+    /// memory.
+    fn asm(&mut self, b: &'a ast::yul::Block<'a>, span: Span) {
+        use ast::yul::{ExprKind as E, StmtKind as K};
+        fn exprs<'a>(b: &'a ast::yul::Block<'a>, out: &mut Vec<&'a ast::yul::Expr<'a>>) {
+            for s in b.stmts.iter() {
+                match &s.kind {
+                    K::Block(b) | K::FunctionDef(ast::yul::Function { body: b, .. }) => {
+                        exprs(b, out)
+                    }
+                    K::AssignSingle(_, e) | K::AssignMulti(_, e) | K::Expr(e) => out.push(e),
+                    K::VarDecl(_, e) => out.extend(e.iter()),
+                    K::If(c, b) => {
+                        out.push(c);
+                        exprs(b, out);
+                    }
+                    K::Switch(sw) => {
+                        out.push(&sw.selector);
+                        sw.cases.iter().for_each(|c| exprs(&c.body, out));
+                    }
+                    K::For(f) => {
+                        out.push(&f.cond);
+                        [&f.init, &f.step, &f.body].into_iter().for_each(|b| exprs(b, out));
+                    }
+                    K::Leave | K::Break | K::Continue => {}
+                }
+            }
+        }
+        fn roots(e: &ast::yul::Expr<'_>, out: &mut Vec<String>) {
+            match &e.kind {
+                E::Path(p) => out.push(p.segments()[0].as_str().to_string()),
+                E::Call(c) => c.arguments.iter().for_each(|a| roots(a, out)),
+                E::Lit(_) => {}
+            }
+        }
+        fn targets(b: &ast::yul::Block<'_>, out: &mut Vec<String>) {
+            for s in b.stmts.iter() {
+                match &s.kind {
+                    K::Block(b) | K::If(_, b) => targets(b, out),
+                    K::FunctionDef(f) => targets(&f.body, out),
+                    K::Switch(sw) => sw.cases.iter().for_each(|c| targets(&c.body, out)),
+                    K::For(f) => {
+                        [&f.init, &f.step, &f.body].into_iter().for_each(|b| targets(b, out))
+                    }
+                    K::AssignSingle(p, _) => out.push(p.segments()[0].as_str().to_string()),
+                    K::AssignMulti(ps, _) => {
+                        out.extend(ps.iter().map(|p| p.segments()[0].as_str().to_string()))
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let mut es = vec![];
+        exprs(b, &mut es);
+        let mut written = vec![];
+        while let Some(e) = es.pop() {
+            if let E::Call(c) = &e.kind {
+                if c.name.as_str() == "mcopy"
+                    && let Some(d) = c.arguments.first()
+                {
+                    roots(d, &mut written);
+                }
+                es.extend(c.arguments.iter());
+            }
+        }
+        let at = if self.modifier { usize::MAX } else { self.pos };
+        for r in written {
+            if self.mem.contains_key(&r) {
+                self.writes.push((r, at, self.loops.clone(), span));
+            }
+        }
+        let mut assigned = vec![];
+        targets(b, &mut assigned);
+        for r in assigned {
+            if self.mem.contains_key(&r) {
+                self.aliased.insert(r.clone());
+                self.borrowed.insert(r);
+            }
         }
     }
 

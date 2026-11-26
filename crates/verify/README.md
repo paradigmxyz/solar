@@ -281,6 +281,11 @@ address and the value one whole word; a key outside the key type's range names a
 Any other address built from a `.slot` is not modelled. A raw `sstore` may write every variable
 whose `.slot` assembly reads anywhere, so a call summarized by its contract havocs them. An enum
 assigned in assembly must be shown to get one of its variants, and `byte` takes a symbolic index.
+`mcopy(dst, src, len)` of a constant `len` (at most 1024) copies from one Solidity `bytes` or
+`string` variable to another, at offsets that may be symbolic: each range must be proved to lie
+within its object's contents, and the destination, which must name its variable, gets a new value,
+as a write in place gives it. A copy within one object, of a symbolic length, or from or into
+other memory is not supported.
 
 Not supported: Yul `for` loops, memory at symbolic offsets, writes through a memory struct or array
 that may share its memory with another reference (one assigned from, passed as or stored into

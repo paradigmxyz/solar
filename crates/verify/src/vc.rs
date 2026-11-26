@@ -4798,11 +4798,20 @@ impl<'p, 'a> Vc<'p, 'a> {
                         Ok(vec![Var { t: ty.zero(), ty, len: Some(n.t) }])
                     }
                     ast::TypeKind::Elementary(_) => {
+                        let mut lens = vec![];
                         for a in &argv {
                             let n = self.eval(a)?;
                             self.alloc_limit(&n.t, 1);
+                            lens.push(n.t);
                         }
                         let t = self.decl("newbytes", &Ty::Opaque);
+                        // fresh bytes of the length asked for
+                        if let [n] = &lens[..]
+                            && self.bound.is_empty()
+                        {
+                            let len = self.opaque_len(&t);
+                            self.smt.send(&format!("(assert (= {len} {n}))\n"));
+                        }
                         Ok(vec![Self::val(Ty::Opaque, t)])
                     }
                     ast::TypeKind::Custom(p) => {

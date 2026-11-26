@@ -1577,3 +1577,8 @@ fn gap_packed_hash() {
 fn gap_returndata() {
     check("tests/cases/gap_returndata.sol")
 }
+
+#[test]
+fn gap_mcopy() {
+    check("tests/cases/gap_mcopy.sol")
+}
