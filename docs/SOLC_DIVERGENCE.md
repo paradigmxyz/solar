@@ -1496,13 +1496,16 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   empty data. For these expressions only the revert data differs. If a later
   argument ends the frame with `stop()` in assembly, as in
   `take(s, stopIfZero(x))` for `x == 0`, `solc` stops successfully and `solar`
-  reverts with empty data. CODEGEN-015 covers the opposite order, in ABI
-  decoding.
+  reverts with empty data. With valid calldata, a later argument that reads the
+  free memory pointer in assembly sees the memory the copy allocated, so a
+  successful call can return a different value than in `solc`. CODEGEN-015
+  covers the opposite order, in ABI decoding.
 - Rationale: only a forged or malformed slice fails the copy, both compilers
   revert, except when assembly in a later argument ends the frame, and
   deferring every conversion would complicate argument lowering. With valid
-  calldata the copy still runs before a later argument that panics, so a call
-  with a tight gas limit can run out of gas where `solc` panics.
+  calldata, only assembly sees the allocation, and the copy still runs before
+  a later argument that panics, so a call with a tight gas limit can run out
+  of gas where `solc` panics.
 - Coverage: `tests/ui/codegen/run-call/calldata/calldata_forged_slice_argument_order.sol`.
 
 ### TYPECK-026: `@inheritdoc` references
