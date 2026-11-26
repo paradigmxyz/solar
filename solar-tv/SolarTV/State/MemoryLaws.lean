@@ -91,6 +91,20 @@ theorem readBytes_writeBytes_same (memory bytes : List Byte) (offset : Nat)
     simp [readBytes, writeBytes_eq_spec, writeBytesSpec, List.getElem?_mapIdx, List.getElem?_eq_getElem hm,
       Nat.add_sub_cancel_left, List.getElem?_eq_getElem hj] <;> omega
 
+theorem readBytes_writeBytes_window (memory bytes : List Byte) (destination source count : Nat)
+    (start : destination ≤ source) (finish : source+count ≤ destination+bytes.length)
+    (covered : source+count ≤ memory.length) :
+    readBytes (writeBytes memory destination bytes) source count =
+      readBytes bytes (source-destination) count := by
+  unfold readBytes
+  apply List.map_congr_left
+  intro i hi
+  have localIndex := List.mem_range.mp hi
+  have active : source+i < memory.length := by omega
+  have inside : destination ≤ source+i ∧ source+i < destination+bytes.length := by omega
+  have shifted : source+i-destination = source-destination+i := by omega
+  simp [writeBytes_eq_spec, writeBytesSpec, active, inside, shifted]
+
 theorem writeBytes_existing (memory bytes : List Byte) (offset : Nat)
     (same : readBytes memory offset bytes.length = bytes) :
     writeBytes memory offset bytes = memory := by

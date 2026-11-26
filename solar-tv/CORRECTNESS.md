@@ -3755,13 +3755,83 @@ PYTHONPATH=solar-tv LEAN_NUM_THREADS=1 uv run --project solar-tv python \
 
 | Artifact | SHA-256 |
 | --- | --- |
-| `solar-tv/tools/check_flash_complete.py` | `81e7c54ccae548f91e14c06a67fdc387389bdaeb1e4f797044ae406a4fdb206c` |
+| `solar-tv/tools/check_flash_complete.py` | `a85d2c390e023e9e958ed482722c21d40d7f32bcccd1ae262fce2a85d85fa316` |
 | `target/tv-memory-dse-current/flash-complete-replay.json` | `4e9dda6420f8211924c572b089a7aebe5fffb075f6a2e75a77cf991d23e0272e` |
 
-The complete executions are specific to the supplied calldata, gas and
-child bytecode. General callback and repayment proofs, and the relation
-between the emitted path and the changed MIR bodies, remain open. The
-saved corpus join stays at 2,153 of 2,228.
+### FlashLoan correspondence with both MIR captures
+
+The FlashLoan `memory-dse` before and after captures now have a checked
+connection from their typed runtime entry to the emitted bytecode's
+public exit. The certificate compares status, returndata, committed
+accounts and logs in all three worlds above. The link uses 237 checked
+MIR trace segments and the 253 bytecode segments. Lean checks that the
+imported image matches the pinned runtime bytes, and that the relevant
+typed instructions in both captures are at the declared CALL sites.
+
+`MIR.CallHandoff.agrees` covers both the callback at PC 6477 and the
+repayment CALL at PC 3111. Given a related operand stack and SSA reads,
+staged equal input slices, matching parent context and journal, and
+Cancun parent depth below 1,024, the equation compares the physical CALL
+with the MIR external operation. It carries warm and cold access cost,
+unpaid access, EIP-150 forwarding, and the actual child's flag, work,
+returndata, journal and returned gas. It admits distinct private memory
+outside the input slice. The requested gas must fit MIR's 30-million cap.
+
+`MIR.FlashCallback.stagedBytes` proves the callback ABI payload for any
+payload and amount whose padded buffer fits active memory. Its proof
+includes the zeroing store, so the original padding bytes can be dirty.
+`MIR.TransferFromFrame.projectedInput` supplies the canonical
+`transferFrom` payload under the existing active-arena and heap bounds.
+The CALL certificates use the modeled Cancun child interpreter with
+available bytecode and admit failure and changes to state. The checked symbolic
+certificates use `propext`, `Classical.choice` and `Quot.sound`.
+
+Independent Rust replay parses both original MIR captures and runs each
+from its runtime entry. The replay matches the physical observations
+above and independently checks remaining gas at each child return.
+The six additional payload lengths 0, 1, 31, 32, 33 and 65 use a callback
+that writes the hash of its calldata. Replay compares that write across
+both captures and the emitted runtime, and checks the full callback and
+repayment payloads at the physical CALL sites.
+
+| Fixture | First transfer return | Callback return | Repayment return |
+| --- | ---: | ---: | ---: |
+| Successful callback and repayment | 472,883 | 450,257 | 449,767 |
+| Callback reverts | 472,883 | 450,246 | — |
+| Repayment returns false | 472,852 | 450,232 | 449,799 |
+
+The full-entry MIR traces use the physical GAS samples and message
+budgets. Symbolically deriving those samples and the entire callback and
+repayment continuation from arbitrary ABI input, including each memory
+expansion and whole-frame gas, remains open. The saved corpus join stays
+at 2,153 of 2,228.
+
+After the complete-fixture check, run the MIR and CALL-site certificate
+with the original capture pair.
+
+```sh
+capture=target/tv-full-post-guard-walk/morpho-blue/captures/mir37PqO9
+PYTHONPATH=solar-tv LEAN_NUM_THREADS=1 uv run --project solar-tv python \
+  solar-tv/tools/check_flash_mir.py \
+  --before "$capture/before.mir" --after "$capture/after.mir" \
+  --baseline target/tv-full-post-guard-walk/morpho-blue/baseline.json \
+  --world target/tv-integer-cleanup-bytecode-probe/morpho-blue/world.json \
+  --compiler target/tv-pinned-corpus.wa91PI/tv-serial-solar \
+  --replay target/tv-pinned-corpus.wa91PI/solar-tv-replay \
+  --output target/tv-memory-dse-current
+```
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Emitted runtime | `d2c1c3d7bb22df8c2e0e9853f10f2657af1c547028e7287b0452a9943a23cd2e` |
+| Original `before.mir` | `7781ca15dbaadcaa6a3a0b22ea47f6f93583c9a7354aa5f34fbc6be04ab7efe1` |
+| Original `after.mir` | `29956cf52d45c9a1d6603c6a95325fde8e4a29f57259ffe8eb785abe3cbf96aa` |
+| Pinned compiler | `c935a2bf85933ee1790810177538c159d5a974d89f383b5efb73e88236f5d165` |
+| Pinned Rust replay | `1c08fa6d66c19b52b661c4db7c93fc1d257948cb592d9856d09a237c174bca0c` |
+| Fixture world | `8851789b4be780ec480d67d0b3a95800d0de23f7bcfbbc5d0af25acad938ec2d` |
+| Checker semantics on Lean 4.34.1 | `7bfb6cdbe165b4b4073b7e616e807beeecee2a4b95a37214a5202995b0ac8394` |
+| `solar-tv/tools/check_flash_mir.py` | `07f5d2c13e50affe86d93176ed4e6d781f2f57481e4c3126bfb42362732271b2` |
+| `target/tv-memory-dse-current/flash-mir-correspondence.json` | `0cc1d208b49995a0976d57b076d98704475202541df1f3dd840537f4a174aa6e` |
 
 ### MIR CFG checks after an import timeout
 

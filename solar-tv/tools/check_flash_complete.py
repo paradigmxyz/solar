@@ -32,7 +32,7 @@ class Scenario:
     callback: str
     payload: bytes
     result: bytes | None
-    caller_slot: int
+    caller_slot: int | None
     token_slot: int
 
 
@@ -67,6 +67,10 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def padded(data):
+    return data.ljust((len(data) + 31) // 32 * 32, b"\0")
+
+
 def fixture_for(scenario, fixture):
     code = {CALLER: scenario.callback, TOKEN: scenario.token}
     accounts = [
@@ -79,9 +83,7 @@ def fixture_for(scenario, fixture):
     assert len(data) == 132 and not any(data[-32:])
     if scenario.payload:
         data = (
-            data[:-32]
-            + len(scenario.payload).to_bytes(32)
-            + scenario.payload.ljust(32, b"\0")
+            data[:-32] + len(scenario.payload).to_bytes(32) + padded(scenario.payload)
         )
     return {**fixture, "accounts": accounts, "calldata": list(data)}
 
@@ -106,13 +108,14 @@ def observe(image, state, replay, scenario):
     assert result[:2] == expected
     assert len(result[5]) == (0 if failed else 1)
     accounts = {int(account[0]): account for account in result[4]}
-    assert int(dict(accounts[CALLER][4]).get("0", 0)) == scenario.caller_slot
+    caller_slot = int(dict(accounts[CALLER][4]).get("0", 0))
+    if scenario.caller_slot is not None:
+        assert caller_slot == scenario.caller_slot
     assert int(dict(accounts[TOKEN][4]).get("0", 0)) == scenario.token_slot
 
     callback = heap_entry.observe(image, state, "cancun", replay, 30, pc=CALLBACK_CALL)
     data = payload("31f57072", 1, 64, len(scenario.payload))
-    if scenario.payload:
-        data += scenario.payload.ljust(32, b"\0")
+    data += padded(scenario.payload)
     callback = message(callback, data, CALLER)
     repayment = None
     if scenario.name != "CallbackRevert":
