@@ -3046,6 +3046,11 @@ the consumed calldata-size condition with zero changes a taken revert to a
 successful fallthrough for one byte of calldata. Lean and the Rust replay
 agree on both outcomes.
 
+The explicit prefix fallback applies the post-precompile admission check
+to a shared preamble that reads code or invokes messages. The two negative
+fixtures exercise a `CODESIZE` read and `STATICCALL` to an ordinary address.
+Both lack the correspondence needed for the explicit prefix certificate.
+
 This audit adds 23 verified capture IDs to the preceding saved coverage
 join, bringing it to 2,046 of 2,228. The paired-only result stays outside that
 total.

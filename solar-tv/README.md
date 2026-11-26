@@ -292,6 +292,9 @@ outgoing stack, static branch selection and remaining gas for every
 successful source window. The constructor case binds the ordinary code-tail
 length query to both assembled images. A gas-sensitive continuation requires
 exact gas or an explicit paired observation via `--interaction-trace`.
+For `--prefix`, the fallback also requires correspondence for shared code
+reads and message targets, using the same admission check as the dedicated
+post-precompile proof.
 [Pinned audit and proof assumptions](CORRECTNESS.md#pinned-evm-peephole-audit)
 
 For `late-word` low-mask replacements, the kernel checks both expanded

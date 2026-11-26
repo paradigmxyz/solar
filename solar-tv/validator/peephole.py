@@ -15,6 +15,7 @@ from . import (
     prefix,
     regions,
     source_identity,
+    suffix,
 )
 from .common import Program, Unsupported
 
@@ -204,6 +205,13 @@ def check(
     if len(common) + max(map(len, middles)) + len(tail) > 256:
         raise Unsupported("peephole context exceeds 256 instructions")
     catalog = {row["name"]: row for row in native.catalog(replay, timeout)["evmir"]}
+    if preserve_stack_faults and any(
+        catalog.get(line.split()[0], {}).get(key)
+        for line in common
+        for key in ("observes_code", "sets_returndata")
+    ):
+        # An explicit prefix proof must bind the shared preamble across images.
+        suffix.admit_common(common, catalog, version)
     edits = low_mask_edits(*middles)
     if edits is not None:
         include, tail = low_mask_tail(tail, catalog)
