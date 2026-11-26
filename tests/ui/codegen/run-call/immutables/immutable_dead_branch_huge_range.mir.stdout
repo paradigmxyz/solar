@@ -1,0 +1,26 @@
+; === ROOT/tests/ui/codegen/run-call/immutables/immutable_dead_branch_huge_range.sol:C ===
+@module C
+@immutables
+  x: uint256
+
+; constructor() payable [creation entry]
+fn @constructor() [constructor, payable] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb2
+    storeimmutable x, 7
+    ret
+  bb1:                                            ; preds = bb0
+    revert 0, 0x100000000
+}
+
+; getter for `uint256 public immutable x` [selector 0x0c55699c]
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = loadimmutable x
+    ret v0
+}

@@ -203,12 +203,15 @@ fn find_candidates(
 }
 
 /// Returns the start and end of each memory range the function names at a constant address,
-/// which ends at `u64::MAX` when its length is not constant.
+/// which ends at `u64::MAX` when its length is not constant. A range of unknown length that
+/// starts below the heap, as the compiler's own copy of revert data to scratch space does, does
+/// not count.
 fn named_ranges(func: &Function) -> Vec<(u64, u64)> {
     let mut ranges = Vec::new();
     func.for_each_memory_range(|offset, size| {
         if size != Some(0)
             && let Some(start) = func.value_u64(offset)
+            && (size.is_some() || start >= EvmMemoryLayout::HEAP_START)
         {
             ranges.push((start, size.and_then(|size| start.checked_add(size)).unwrap_or(u64::MAX)));
         }

@@ -7,6 +7,10 @@
 use crate::{ImmutableEncoding, ImmutableId, Module, TypeSize, memory::EvmMemoryLayout};
 use solar_config::OptimizationMode;
 
+/// The highest end of a constant range that moves the immutable staging words: expanding memory
+/// to 4 MiB costs about 34 million gas.
+const MAX_STAGING_RANGE_END: u64 = 1 << 22;
+
 /// Returns the immediate width used to load an immutable at runtime.
 pub fn immutable_push_type_size(
     encoding: ImmutableEncoding,
@@ -55,13 +59,15 @@ pub fn immutable_staging_base(module: &Module) -> u64 {
         if module.immutable_count() == 0 {
             return base;
         }
-        // A range that ends above half of `MAX_HEAP_FLOOR` runs out of gas when executed, so it
-        // leaves the base where it is.
+        // A range that ends above `MAX_STAGING_RANGE_END` costs more gas to expand than a
+        // transaction can pay, so it runs out of gas when executed and leaves the base where it
+        // is. Raising the base to it would make every deployment pay, even when a branch that
+        // never runs names the range.
         let ranges = module
             .constructor_reachable_functions()
             .iter()
             .flat_map(|func| module.function(func).constant_memory_ranges())
-            .filter(|&(_, end)| end <= EvmMemoryLayout::MAX_HEAP_FLOOR / 2)
+            .filter(|&(_, end)| end <= MAX_STAGING_RANGE_END)
             .collect::<Vec<_>>();
         loop {
             let end = immutable_staging_end(base, module.immutable_count());

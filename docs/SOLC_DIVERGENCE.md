@@ -1081,7 +1081,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   memory, never carry it. Other entries keep their memory low unless they share
   those frames or a function that reads the heap floor, which gives them one
   initial pointer. The constructor's immutable staging words keep clear of
-  those ranges too. Storage promotion's memory temporaries, which sit where the
+  those ranges too, except a range that ends above 4 MiB, which costs more gas
+  to expand to than a transaction can pay. Storage promotion's memory temporaries, which sit where the
   entry's frame ends, are not moved. The pass instead declines to promote a
   slot when the function, or one it may call, names a constant range over a
   temporary's word, or,
@@ -1142,6 +1143,7 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/run-call/assembly/assembly_low_memory_places_nothing.sol`,
   `tests/ui/codegen/run-call/assembly/assembly_low_memory_places_something.sol`,
   `tests/ui/codegen/run-call/immutables/immutable_assembly_store_at_staging_word.sol`,
+  `tests/ui/codegen/run-call/immutables/immutable_dead_branch_huge_range.sol`,
   `tests/ui/codegen/run-call/storage/storage_promotion_assembly_store_at_temp_word.sol`,
   `tests/ui/codegen/lowering/evm-ir/spills/constructor_constant_write_spills.sol`,
   `tests/ui/codegen/lowering/evm-ir/spills/folded_guard_spills.sol`,
