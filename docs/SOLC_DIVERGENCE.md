@@ -1490,10 +1490,14 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `take(s, x - 1)` with an internal `take(bytes memory, uint256)`, and
   `(bytes memory m, uint256 y) = (s, x - 1)` revert with empty data in `solar`
   and with `Panic(0x11)` in `solc` for `x == 0`. For `x == 1` both revert with
-  empty data. Only the revert data differs. CODEGEN-015 covers the opposite
-  order, in ABI decoding.
+  empty data. For these expressions only the revert data differs. If a later
+  argument ends the frame with `stop()` in assembly, as in
+  `take(s, stopIfZero(x))` for `x == 0`, `solc` stops successfully and `solar`
+  reverts with empty data. CODEGEN-015 covers the opposite order, in ABI
+  decoding.
 - Rationale: only a forged or malformed slice fails the copy, both compilers
-  revert, and deferring every conversion would complicate argument lowering.
+  revert, except when assembly in a later argument ends the frame, and
+  deferring every conversion would complicate argument lowering.
 - Coverage: `tests/ui/codegen/run-call/calldata/calldata_forged_slice_argument_order.sol`.
 
 ### TYPECK-026: `@inheritdoc` references

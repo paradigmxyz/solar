@@ -7,7 +7,7 @@
 //@ run-call: bytesCopyDirtyTail() => 0xaa00000000000000000000000000000000000000000000000000000000000000
 //@ run-call: arrayDirtyHighByte() => 0
 //@ run-call: structDirtyHighByte() => 0
-//@ run-call: structCopyDirtyHighByte() => 0
+//@ run-call: structCopyDirtyHighByte() => 0, 1, 2
 
 // Assigning a storage value to itself loads it and writes it back, so assembly-forged storage is
 // checked and cleaned: an invalid short `bytes` header panics with `Panic(0x22)` and dirty bits
@@ -87,7 +87,7 @@ contract C {
         }
     }
 
-    function structCopyDirtyHighByte() external returns (uint256 r) {
+    function structCopyDirtyHighByte() external returns (uint256 r, uint256 a, uint256 b) {
         s.a = 1;
         s.b = 2;
         assembly {
@@ -97,6 +97,8 @@ contract C {
         assembly {
             r := shr(248, sload(t.slot))
         }
+        a = t.a;
+        b = t.b;
     }
 
     function _value() private pure returns (bytes memory m) {
