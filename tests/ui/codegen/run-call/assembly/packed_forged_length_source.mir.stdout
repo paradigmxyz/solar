@@ -82,3 +82,25 @@ fn @concatString() -> struct0 [selector=0x5637a44f, pure, abi_params=[], abi_ret
     v15 = insert_value struct0, v14, 1, v13
     ret v15
 }
+
+; function encoded() external pure returns (uint256, uint256) [selector 0x247eff5f]
+fn @encoded() -> struct0 [selector=0x247eff5f, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = icall @source
+    v1 = abi_encode [memory_bytes], object, args v0
+    v2 = mload v1
+    v3 = mload v1
+    v4 = gt v3, 127
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = ptradd v1, 159
+    v7 = mload v6
+    v8 = byte 0, v7
+    v9 = shl v8, 248
+    v10 = shr v9, 248
+    v11 = trunc i256 v10 to i8
+    v12 = zext i8 v11 to i256
+    v13 = insert_value struct0, undef struct0, 0, v2
+    v14 = insert_value struct0, v13, 1, v12
+    ret v14
+}

@@ -1454,14 +1454,15 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `solc` copies first and stores the length last. When inline assembly gives a
   memory `bytes` a length that reaches past the free memory pointer, the result's
   length word lies inside the source's declared bytes and `solar` copies it into
-  the result. With a source of length 77 whose memory ends at the free memory
-  pointer, byte 63 of the result is `0x4d` in `solar` and `0x00` in `solc`.
+  the result. With a source of length 77 whose allocation ends at the free
+  memory pointer, byte 63 of the result is `0x4d` in `solar` and `0x00` in `solc`.
   `abi.encode` of the same source matches `solc`.
-- Rationale: the source claims memory the allocator treats as free, which the
-  Solidity documentation says any allocation may overwrite. In `solc` too, a
-  `new bytes(1)` between the assembly and the use writes into byte 63 of the
-  source. Storing the length last would move the difference of this one builtin,
-  because every fresh allocation assumes that it overlaps no live object.
+- Rationale: the source claims memory past the free memory pointer, which the
+  Solidity documentation does not reserve for it, so any allocation may
+  overwrite it. In `solc` too, a `new bytes(1)` between the assembly and the use
+  writes into byte 63 of the source. Storing the length last would fix only
+  this builtin, because every other fresh allocation assumes that it overlaps
+  no live object.
 - Coverage: `tests/ui/codegen/run-call/assembly/packed_forged_length_source.sol`.
 
 ### CODEGEN-033: `abi.encodeWithSelector` stores a clean selector
