@@ -3308,6 +3308,28 @@ with empty data and no stores when an address word sets bit 160.
 
 The saved join reaches 2,134 of 2,228 capture IDs, with 94 open.
 
+### Retrying MIR jump threading
+
+The serial retry of the ten open `jump-threading` captures matches both raw
+IR hashes for every saved ID. Four checks verify at a 20-second budget per
+prover invocation. The kernel checks path agreement, matched reads and
+writes and simultaneous phi assignments with shared logical handlers.
+Six captures remain unsupported, bringing this pass to 46 of 52 verified.
+
+The six remaining IDs share Morpho's `mircHmUK4` pair. The ordinary typed
+CFG comparison reaches a source phi whose result is used only by its
+following branch. The target branches on the selected incoming operand
+or skips directly to the arm for a literal boolean. The remaining proof
+needs to bind that predecessor-specific read and establish that the
+eliminated phi result cannot be observed after the branch.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `target/tv-jump-threading-current/results.json` | `1dbd03b39fff365833d59056bd85ee9276fc03f69b2f5452d4aa5733b477985c` |
+| `target/tv-jump-threading-current/remaining-by-pass.json` | `dcf9603a109d9dcbb8177896a269f34474fadd1dbf85213b53f2274ccc29b6f8` |
+
+The saved join reaches 2,138 of 2,228 capture IDs, with 90 open.
+
 ### MIR CFG checks after an import timeout
 
 The earlier three-second census timed out on 23 Morpho MIR `cfg-simplify`
