@@ -241,7 +241,8 @@ fn named_ranges(func: &Function) -> Vec<(u64, u64)> {
 ///
 /// Code that names a constant range over a temporary's word, anywhere in the function or in a
 /// function that it may call, that may call it, or that a caller of it may call, owns that word. An
-/// address that reaches a callee as an argument is not seen. In a module with assembly that does
+/// address that reaches a callee as an argument is not seen, nor is a word that assembly writes
+/// through a computed address before the initial stores. In a module with assembly that does
 /// not promise memory safety, a write between the initial stores and the flushes through another
 /// address also counts unless its destination derives from a compiler-owned pointer. Without such
 /// assembly, the compiler places every write it makes at a computed address on the heap or in a
