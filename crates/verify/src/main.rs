@@ -384,7 +384,20 @@ fn run_parallel(cli: &Cli) -> ! {
     std::process::exit(if err_n == 0 { 0 } else { 1 });
 }
 
+/// Stack for the verifier's thread: lowering, inlining and term building recurse on the
+/// program's nesting, which real libraries (RLP and Merkle trie decoders) make deep.
+const STACK_SIZE: usize = 1 << 30;
+
 fn main() {
+    let run =
+        std::thread::Builder::new().stack_size(STACK_SIZE).spawn(run).expect("spawn verifier");
+    // A panic was already reported on stderr; exit as an uncaught one would.
+    if run.join().is_err() {
+        std::process::exit(101);
+    }
+}
+
+fn run() {
     let mut args = std::env::args().skip(1).peekable();
     if args.peek().is_some_and(|a| a == "mutate") {
         mutate::main(args.skip(1));
