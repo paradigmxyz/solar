@@ -1041,6 +1041,7 @@ impl<'a> Eliminator<'a> {
         target: BlockId,
         first_inst: InstId,
         key: LoadKey,
+        result_ty: MirType,
     ) -> Vec<(InstId, ValueId)> {
         let mut loads = Vec::new();
         let mut past_first = false;
@@ -1065,6 +1066,7 @@ impl<'a> Eliminator<'a> {
 
             if let Some((load_key, GenSource::LoadResult)) = self.gen_key_value(func, inst_id)
                 && load_key == key
+                && func.inst(inst_id).result_ty == Some(result_ty)
                 && let Some(value) = func.inst_result_value(inst_id)
             {
                 loads.push((inst_id, value));
@@ -1088,7 +1090,7 @@ impl<'a> Eliminator<'a> {
         let result = func.inst_result_value(inst)?;
         let result_ty = instruction.result_ty?;
         let key = cx.analysis.keys[key_idx];
-        let loads = self.same_key_loads_in_target(func, load_block, inst, key);
+        let loads = self.same_key_loads_in_target(func, load_block, inst, key, result_ty);
         if loads.is_empty() {
             return None;
         }
@@ -1098,6 +1100,9 @@ impl<'a> Eliminator<'a> {
         for &pred in predecessors {
             if cx.analysis.availability.outs[pred].as_ref().is_some_and(|out| out.contains(key_idx))
                 && let Some(value) = self.locate_value(func, cx, pred, key_idx)
+                // A word of another type, such as an `i256` read for an `fmp` pointer, cannot
+                // replace the read: casts are explicit and a pointer is never an integer.
+                && func.value_ty(value) == Some(result_ty)
             {
                 incoming.push((pred, value));
                 continue;
