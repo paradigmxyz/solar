@@ -1470,11 +1470,11 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - ID: CODEGEN-033
 - Status: intentional
 - Difference: `abi.encodeWithSelector` cleans a `bytes4` to its type before it
-  stores the selector word, and `solc` stores the raw word. After
-  `bytes4 sel; assembly { sel := not(0) }`, `abi.encodeWithSelector(sel)` has
-  length 4 and starts with `0xffffffff` in both compilers. The word that
+  stores the selector word, and `solc` with `--via-ir` stores the raw word.
+  After `bytes4 sel; assembly { sel := not(0) }`, `abi.encodeWithSelector(sel)`
+  has length 4 and starts with `0xffffffff` in both compilers. The word that
   `mload(add(r, 0x20))` reads is `0xffffffff` followed by 28 zero bytes in
-  `solar` and all `0xff` in `solc`.
+  `solar` and all `0xff` in `solc` with `--via-ir`.
 - Rationale: only assembly that forges the selector and reads past the length of
   the result sees it. Calldata validation, storage reads and conversions all
   clean a `bytes4`, so ordinary Solidity cannot produce a dirty one, and any
