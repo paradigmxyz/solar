@@ -1,6 +1,6 @@
 //! EVM entry proofs, windows, contextual prefixes and acyclic regions.
 //!
-//! Unpriced layout and terminal sharing passes first try a proof from physical entry, including
+//! Unpriced layout and terminal rewrite passes first try a proof from physical entry, including
 //! helper continuations.
 //! This adapter never selects instruction slices. It checks a changed block only when its
 //! identity, shared declarations and entry height survive. Adjacent edits, changed successors
@@ -52,6 +52,7 @@ impl<'a> EvmSnapshot<'a> {
                 | "compact-pushes"
                 | "cfg-simplify-early"
                 | "terminal-dedup"
+                | "inline-returns"
         ) && !gcx.sess.opts.unstable.solar_tv_capture
             && std::env::var_os("SOLAR_TV_GAS").is_none()
         {

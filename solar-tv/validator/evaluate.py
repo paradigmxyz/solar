@@ -423,7 +423,7 @@ def evaluate_case(
                 audit.write(target, record)
         if (
             row["layer"] == "evmir"
-            and row["pass"] == "terminal-dedup"
+            and row["pass"] in {"terminal-dedup", "inline-returns"}
             and region
             and record["status"] in {"unsupported", "timeout", "inconclusive"}
         ):

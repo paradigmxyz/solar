@@ -3366,6 +3366,32 @@ with the original compiler and independent replay executables preserved.
 
 The saved corpus join reaches 2,144 of 2,228 capture IDs, with 84 open.
 
+### Physical-entry retries for return inlining
+
+The live hook tries physical entry for unpriced `inline-returns`. The
+evaluator reuses a module proof for an unresolved capture when that proof
+visits the captured block label in both snapshots.
+
+Serial retries at 90 seconds per stage verify the open WETH and ERC20Mock
+captures. The checker matches copied terminal bodies and resolves stack-carried
+returns from physical entry. Both raw input fingerprints match the pinned
+capture records. A live EVM IR regression compiles a copied revert with and
+without validation. The ABI and creation and runtime bytecode are identical.
+The kernel checks logical effects and transfer admission, with physical gas
+and the opcode-handler correspondence outside this proof. The pinned Rust
+tool supplies the source graphs used for the retries.
+
+The five open Morpho captures share one module pair. Its entry proof still
+rejects a changed action. That pair includes a return tail whose inlining
+cancels two `SWAP1` operations across a static jump. The return-inlining
+coverage is 9 of 14. The saved corpus join reaches 2,146 of 2,228 capture
+IDs, with 82 open.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `target/tv-inline-returns-entry/results.json` | `06f09eab96fe3e78b52a607f14e7ff443fdd8d1a64efc390c5c8934454667be9` |
+| `target/tv-inline-returns-entry/remaining-by-pass.json` | `4819f627438fc447e2f65ec2e9b851202d706e6979ce9a25d91d2fe4f4d93d9d` |
+
 ### MIR CFG checks after an import timeout
 
 The earlier three-second census timed out on 23 Morpho MIR `cfg-simplify`

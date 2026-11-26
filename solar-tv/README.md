@@ -1236,12 +1236,12 @@ described below instead of assuming that stack positions correspond at the old
 window boundary. This allows shared revert code and stack reshuffles spanning
 several blocks.
 
-For unpriced `terminal-dedup` checks, the live hook tries a proof from the
-module entry before selecting individual regions. The corpus evaluator tries
-the region first and reuses an entry proof for unresolved regions whose labels
-it reaches in both snapshots. This proves the logical execution with shared
-effect handlers. Transfer gas, forwarded gas, and child behavior need separate
-proofs.
+For unpriced `terminal-dedup` and `inline-returns` checks, the live hook tries
+a proof from the module entry before selecting individual regions. The corpus
+evaluator tries the region first and reuses an entry proof for unresolved
+regions whose labels it reaches in both snapshots. This proves the logical
+execution with shared effect handlers. Transfer gas, forwarded gas, and child
+behavior need separate proofs.
 
 You can select a region when replaying full snapshots:
 
@@ -2254,11 +2254,11 @@ The normal and capture compilations agree on ABI, creation bytecode and
 runtime bytecode. The per-pass counts and fingerprints are in
 [CORRECTNESS.md](CORRECTNESS.md#full-corpus-after-guarded-mir-effect-proofs).
 
-Across saved audits and targeted retries, 2,144 of the same 2,228 capture
-IDs have proofs. The 84 open IDs include cases beyond the automatic
+Across saved audits and targeted retries, 2,146 of the same 2,228 capture
+IDs have proofs. The 82 open IDs include cases beyond the automatic
 checker's logical gas and state domains. The coverage join includes
 different checker revisions, proof budgets and proof scopes.
-[Cumulative audit](CORRECTNESS.md#completed-mir-jump-threading-audit)
+[Cumulative audit](CORRECTNESS.md#physical-entry-retries-for-return-inlining)
 
 All 368 pinned EVM IR `block-layout` captures have proofs. Eight
 module-entry certificates with a 120-second per-stage budget cover the

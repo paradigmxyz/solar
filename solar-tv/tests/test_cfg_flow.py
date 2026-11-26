@@ -108,13 +108,35 @@ bb0 [stack=1]:
         fixture = (
             ROOT.parent / "tests/ui/codegen/evm-ir/late-structural/shared_reverts.evmir"
         )
+        self.check_live_entry(fixture, "terminal-dedup")
+
+    def test_live_inline_returns_checks_copied_reverts_from_entry(self):
+        self.before.write_text("""@module InlineReturns
+bb0 [stack=0]:
+  push 0
+  calldataload
+  jumpi bb1, bb2
+bb1:
+  jump bb4
+bb2:
+  jump bb4
+bb3:
+  invalid
+bb4:
+  push 0
+  push 0
+  revert
+""")
+        self.check_live_entry(self.before, "inline-returns")
+
+    def check_live_entry(self, fixture, pass_name):
         command = [
             SOLAR,
             fixture,
             "-j1",
             "-Ogas",
             "--emit=abi,bin,bin-runtime",
-            "-Zevm-ir-pipeline=terminal-dedup",
+            f"-Zevm-ir-pipeline={pass_name}",
         ]
         baseline = subprocess.run(
             command, text=True, capture_output=True, timeout=30, check=False
