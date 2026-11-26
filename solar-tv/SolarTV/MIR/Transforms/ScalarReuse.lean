@@ -137,6 +137,17 @@ theorem below_one {width : Nat} (word : BitVec width) (fits : 0 < width) :
   have zero : word.toNat < 1 ↔ word.toNat = 0 := by omega
   simp [MIR.compare, BitVec.ult, BitVec.toNat_eq, Nat.mod_eq_of_lt bound, zero]
 
+theorem nonmax_tests {width : Nat} (word : BitVec width) :
+    MIR.compare .lt word (BitVec.allOnes width) = MIR.compare .ne word (BitVec.allOnes width) ∧
+      MIR.compare .ne (MIR.unary .not word) 0 = MIR.compare .ne word (BitVec.allOnes width) := by
+  have below : word.ult (BitVec.allOnes width) = (word != BitVec.allOnes width) := by
+    rw [Bool.eq_iff_iff, BitVec.ult_iff_lt, bne_iff_ne, BitVec.lt_allOnes_iff]
+  have inverse : (~~~word = 0#width) ↔ word = BitVec.allOnes width := by
+    calc
+      (~~~word = 0#width) ↔ (~~~word = ~~~(BitVec.allOnes width)) := by rw [BitVec.not_allOnes]
+      _ ↔ _ := BitVec.not_inj
+  simp [MIR.compare, Word.unary, below, inverse]
+
 theorem widened_zero_test {width : Nat} (flag : BitVec 1) (fits : 1 ≤ width) :
     MIR.compare .ne (flag.setWidth width) 0 = flag ∧
       MIR.compare .eq (flag.setWidth width) 0 = MIR.compare .eq flag 0 := by

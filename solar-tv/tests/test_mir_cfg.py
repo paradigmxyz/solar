@@ -19,6 +19,64 @@ from validator.common import Program, Unsupported
 
 
 class MirCfgTests(unittest.TestCase):
+    def test_word_sequence_preserves_the_maximum_word_guard(self):
+        maximum = 2**256 - 1
+        guard = f"v0 = lt arg0, {maximum}"
+        original = f"""@module MaxGuard
+fn @f(arg0: i256) -> i256 {{
+  bb0:
+    {guard}
+    jumpi v0, bb1, bb2
+  bb1:
+    sstore 7, 21
+    ret 21
+  bb2:
+    sstore 7, 22
+    ret 22
+}}
+"""
+        lowered = original.replace(guard, "v1 = not arg0\n    v0 = ne v1, 0")
+        changed = original.replace(guard, f"v0 = lt arg0, {maximum - 1}")
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            before, after = (folder / f"{side}.mir" for side in ("before", "after"))
+            before.write_text(original)
+            after.write_text(lowered)
+            executable = native.default(SOLAR)
+            args = ((before, after), SOLAR, executable, "cancun", 30, "f")
+            result = mir_cfg.check(*args)
+            self.assertEqual(result.status, "verified")
+            evidence = result.program.import_evidence["correspondence"]["f"]
+            self.assertEqual(
+                [side["nonmax_tests"] for side in evidence["scalar_reuse"]], [1, 1]
+            )
+            after.write_text(changed)
+            with self.assertRaises(Unsupported):
+                mir_cfg.check(*args)
+
+            path = folder / "world.json"
+            path.write_text('{"version":1}')
+            initial = world.read(path, SOLAR, None, kind="mir")
+            programs = [
+                Program(
+                    ("world-entry", "mir"),
+                    ["arg0"],
+                    "",
+                    "",
+                    world=initial,
+                    selector="f",
+                    canonical_ir=text,
+                )
+                for text in (lowered, changed)
+            ]
+            result = native.replay(
+                *programs, [maximum - 1], executable=executable, timeout=10
+            )
+            self.assertEqual(
+                [json.loads(row)["values"] for row in result["observations"]],
+                [["21"], ["22"]],
+            )
+
     def test_threading_uses_the_selected_phi_input(self):
         source = """@module ThreadPhi
 fn @f(arg0: i1, arg1: i1) -> i256 {

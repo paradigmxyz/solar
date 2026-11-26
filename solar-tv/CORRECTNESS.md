@@ -3833,6 +3833,43 @@ PYTHONPATH=solar-tv LEAN_NUM_THREADS=1 uv run --project solar-tv python \
 | `solar-tv/tools/check_flash_mir.py` | `07f5d2c13e50affe86d93176ed4e6d781f2f57481e4c3126bfb42362732271b2` |
 | `target/tv-memory-dse-current/flash-mir-correspondence.json` | `0cc1d208b49995a0976d57b076d98704475202541df1f3dd840537f4a174aa6e` |
 
+### Frozen corpus retries after the return proofs
+
+The serial 60-second retries close six of the ten previously timed-out
+captures. Lean checks the rooted function tables for two WETH
+`function-dce` captures, a terminal-pop deletion and an effect-prefix
+rewrite in Morpho EVM IR, and the resolved phase rewrite and typed
+jump-chain for Morpho's `lower-evm-shaped` and `place-reads`. The
+other four checks return unsupported at that budget.
+
+The maximum-word guard normalization closes ERC20Mock's
+`word-sequence` capture for `transferFrom`. The proof equates an
+unsigned comparison below the maximum word with inequality against that
+word, including the emitted form that tests whether the bitwise
+complement is nonzero. The typed graph comparison retains storage
+effects and the reachable helpers under shared logical handlers. A
+regression changes the bound by one. That pair loses the proof, and
+independent Rust replay takes the other branch at the separating input.
+
+The 90-second whole-entry `loop-layout` proof visits the two pending
+ERC20Mock labels on each side. It checks logical actions, control flow
+and physical-entry stack admission. Physical transfer pricing stays
+outside the certificate.
+
+The saved join reaches **2,162 of 2,228**, with 66 unsupported captures.
+Each new result matches both raw capture hashes for the original ID.
+The retries use the pinned compiler launcher
+`c935a2bf85933ee1790810177538c159d5a974d89f383b5efb73e88236f5d165`
+and Rust replay
+`1c08fa6d66c19b52b661c4db7c93fc1d257948cb592d9856d09a237c174bca0c`.
+
+| Artifact under `target/tv-close-coverage/` | SHA-256 |
+| --- | --- |
+| `timeouts.json` | `9521f21693004a1070a6a2af89919a49deb54bb84078b0041f2c70ec54b6ac19` |
+| `nonmax-report.json` | `fd7dc0b559e056261e59c96de8924104140264555b0a82f1078b29b595a70405` |
+| `loop-layout-results.json` | `7b84586ffe8991d1bc8565921297404990b86147fadb59543abfd1d37041369c` |
+| `remaining.json` | `2763a89cfd1fcef0df40269fd74390823bcbb030887100c76a80794e00a320b2` |
+
 ### MIR CFG checks after an import timeout
 
 The earlier three-second census timed out on 23 Morpho MIR `cfg-simplify`

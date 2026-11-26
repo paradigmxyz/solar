@@ -38,6 +38,7 @@ AXIOMS = """
 #print axioms MIR.ScalarReuse.closed_comparison
 #print axioms MIR.ScalarReuse.bit_test
 #print axioms MIR.ScalarReuse.below_one
+#print axioms MIR.ScalarReuse.nonmax_tests
 #print axioms MIR.ScalarReuse.widened_zero_test
 #print axioms MIR.ScalarReuse.negate_equality
 #print axioms MIR.ScalarReuse.negate_cut
@@ -300,6 +301,13 @@ def unsigned_test(op, retained):
     lower, higher = op["args"] if name == "lt" else op["args"][::-1]
     if lower == literal(0, higher["type"]):
         return {"kind": "ne", "args": [higher, lower]}, "nonzero_tests"
+    ty = higher["type"]
+    if (
+        ty == lower["type"]
+        and ty["kind"] == "word"
+        and higher == literal(2 ** ty["bits"] - 1, ty)
+    ):
+        return {"kind": "ne", "args": [lower, higher]}, "nonmax_tests"
     source = definition(lower, retained)
     one = literal(1, WORD)
     if (
@@ -344,6 +352,14 @@ def zero_test(op, retained):
         left, right = narrowed, literal(0, FLAG)
     producer = definition(left, retained)
     kind, opcode = producer.get("kind"), producer.get("name")
+    if name == "ne" and opcode == "not":
+        (word,) = producer["args"]
+        ty = left["type"]
+        if word["type"] == ty:
+            return {
+                "kind": "ne",
+                "args": [word, literal(2 ** ty["bits"] - 1, ty)],
+            }, "nonmax_tests"
     if name == "eq" and left["type"] == FLAG:
         args = producer.get("args", [])
         if kind == "ne":
