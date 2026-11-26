@@ -3,12 +3,11 @@
 //@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call-fail: overlap() => 0x
 //@ run-call-fail: disjoint() => 0x
-// ported-from: test/libsolidity/semanticTests/structs/copy_recursive_struct_overlap_length_mul_overflow_reverts.sol
 
 // A recursive copy whose target contains its source, after assembly forged the target array's
-// length, runs out of gas in `overlap()` as it clears the old elements one by one. solc doubles the
-// length in its overlap check and reverts with `Panic(0x11)`. A disjoint copy runs out of gas in
-// both compilers. See CODEGEN-031 in docs/SOLC_DIVERGENCE.md.
+// length, runs out of gas in `overlap()` as it clears the old elements one by one. solc reverts
+// with `Panic(0x11)` from the checked `2 * length` at that clearing. A disjoint copy runs out of
+// gas in both compilers. See CODEGEN-031 in docs/SOLC_DIVERGENCE.md.
 contract C {
     struct Node {
         Node[] children;

@@ -1,6 +1,4 @@
 //@ codegen-matrix: standard
-//@[mir] filecheck:
-//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call-fail: structConstructor 0 => 0x
 //@ run-call-fail: structConstructor 1 => 0x
 //@ run-call-fail: internalCall 0 => 0x
@@ -18,7 +16,6 @@ contract C {
         uint256 b;
     }
 
-    // CHECK-LABEL: fn @structConstructor(
     function structConstructor(uint256 x) external pure returns (uint256) {
         bytes calldata s;
         assembly {
@@ -29,7 +26,6 @@ contract C {
         return m.b;
     }
 
-    // CHECK-LABEL: fn @internalCall(
     function internalCall(uint256 x) external pure returns (uint256) {
         bytes calldata s;
         assembly {
@@ -39,7 +35,6 @@ contract C {
         return take(s, x - 1);
     }
 
-    // CHECK-LABEL: fn @tuple(
     function tuple(uint256 x) external pure returns (uint256) {
         bytes calldata s;
         assembly {

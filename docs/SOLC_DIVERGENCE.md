@@ -1435,8 +1435,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   - A recursive copy whose target contains its source, after assembly forged
     the length of the target array, runs out of gas in `solar`: the copy has no
     overlap check and clears the old target elements one by one up to the
-    forged length. `solc` computes `length * 2` in its overlap check, sees it
-    overflow and reverts with `Panic(0x11)`; its test
+    forged length. `solc` reverts with `Panic(0x11)` from the checked
+    `2 * length` when it clears those elements; its test
     `copy_recursive_struct_overlap_length_mul_overflow_reverts.sol` expects the
     panic. A disjoint copy with the same forged length runs out of gas in both.
 - Rationale: reading the source before writing makes every overlap safe,
@@ -1469,8 +1469,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   the padding in the last data word of a long `bytes`, such as `0xaaff..ff`
   becoming `0xaa00..00` for a 65-byte value, the high byte of a slot that holds
   `uint8[]` elements, and the high byte of the slot of a struct
-  `{uint8 a; uint256 b}`. A copy between distinct slots matches `solc`: both
-  panic on the invalid header and both clear the padding. A dirty enum panics
+  `{uint8 a; uint256 b}`. A copy between distinct slots matches `solc` for the
+  invalid header and for the padding of a long `bytes`: both panic, and both
+  write `0xaa00..00`. A dirty enum panics
   as CODEGEN-022 describes.
 - Rationale: only assembly-forged storage reaches it, and a slot equality check
   would add a branch to every storage-to-storage copy.
