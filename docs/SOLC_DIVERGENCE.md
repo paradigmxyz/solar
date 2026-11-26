@@ -1080,7 +1080,11 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   gives it calldata, but a function's second and later results, which travel in
   memory, never carry it. Other entries keep their memory low unless they share
   those frames or a function that reads the heap floor, which gives them one
-  initial pointer.
+  initial pointer. The constructor's immutable staging words keep clear of
+  those ranges too. Storage promotion's memory temporaries, which sit where the
+  entry's frame ends, are not moved. The pass instead declines to promote a
+  slot when a write that may reach a temporary's word lies between the slot's
+  initial store and its flush.
 
   A write whose destination the compiler cannot place on the heap, in a frame,
   or below the heap start, such as a copy to a computed destination of any
@@ -1128,6 +1132,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/run-call/assembly/assembly_low_memory_recursive_routes.sol`,
   `tests/ui/codegen/run-call/assembly/assembly_low_memory_places_nothing.sol`,
   `tests/ui/codegen/run-call/assembly/assembly_low_memory_places_something.sol`,
+  `tests/ui/codegen/run-call/immutables/immutable_assembly_store_at_staging_word.sol`,
+  `tests/ui/codegen/run-call/storage/storage_promotion_assembly_store_at_temp_word.sol`,
   `tests/ui/codegen/lowering/evm-ir/spills/constructor_constant_write_spills.sol`,
   `tests/ui/codegen/lowering/evm-ir/spills/folded_guard_spills.sol`,
   `tests/ui/codegen/lowering/evm-ir/spills/folded_hazard_spills.sol`,

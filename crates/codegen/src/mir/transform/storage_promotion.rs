@@ -14,12 +14,20 @@
 //!   so the unflushed slot is unobservable there; reads of the promoted slot on those paths are
 //!   rewritten to the memory temp so revert data still sees the current value
 //! - reject opaque storage accesses on rollback exits because the rewrite cannot update them.
+//! - reject memory writes that may overlap a temporary's word between its initial store and its
+//!   flush: those in the preheader after the first initial store, the loop, and rollback exits.
+//!   Alias analysis separates heap, frame, and ABI buffer writes, which lie above the temporaries,
+//!   from writes at constant addresses; a write at an address it cannot place, such as an assembly
+//!   store through a computed pointer, blocks promotion.
 //! - leave loop-variant mapping/array slots in storage
 
 use crate::mir::{
     BlockId, Callee, EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType,
     Module, PtrLocation, StorageAlias, Terminator, Value, ValueId,
-    analysis::{AddressSpace, AliasAnalysis, Loop, LoopAnalyzer},
+    analysis::{
+        AddressSpace, AliasAnalysis, Location, LocationSize, Loop, LoopAnalyzer, MemoryAddress,
+        MemoryLocation,
+    },
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
     transform::utils::redirect_successor_predecessors,
@@ -170,7 +178,31 @@ fn find_candidates(func: &Function, loop_data: &Loop) -> Option<(BlockId, Vec<Ca
     // A lone uninitialized slot has no preheader store, so its tail is unconstrained.
     let tail_is_safe =
         candidates[0].init_store.is_none() || preheader_tail_is_safe(func, preheader, &candidates);
-    tail_is_safe.then_some((preheader, candidates))
+    (tail_is_safe && temp_words_are_unclobbered(func, preheader, &rewrite_blocks, &candidates))
+        .then_some((preheader, candidates))
+}
+
+/// Returns whether no memory write between the initial stores and the flushes may overlap the
+/// words that [`allocate_temp_addr`] places next: one per candidate, and the dirty flag of a
+/// lone slot without a preheader store.
+fn temp_words_are_unclobbered(
+    func: &Function,
+    preheader: BlockId,
+    blocks: &[BlockId],
+    candidates: &[Candidate],
+) -> bool {
+    let alias = AliasAnalysis::new(func);
+    let words = candidates.len() + usize::from(candidates[0].init_store.is_none());
+    let temps = Location::Memory(MemoryLocation::new(
+        MemoryAddress::absolute(temp_base(func)),
+        LocationSize::Const(words as u64 * EvmMemoryLayout::WORD_SIZE),
+    ));
+    // The lone slot without an initial store has no preheader tail to check.
+    let tail = first_init_pos(func, preheader, candidates)
+        .map_or(&[][..], |first_init| &func.blocks[preheader].instructions[first_init + 1..]);
+    tail.iter()
+        .chain(blocks.iter().flat_map(|&block_id| &func.blocks[block_id].instructions))
+        .all(|&inst_id| !alias.instruction_mod_ref(func, inst_id).may_write(&alias, temps))
 }
 
 fn has_isolated_promotable_exits(func: &Function, loop_data: &Loop) -> bool {
@@ -299,15 +331,19 @@ fn find_preheader_init_store(
     })
 }
 
-fn preheader_tail_is_safe(func: &Function, preheader: BlockId, candidates: &[Candidate]) -> bool {
-    let Some(first_init) = candidates
+/// Returns the position in the preheader of the first initial store.
+fn first_init_pos(func: &Function, preheader: BlockId, candidates: &[Candidate]) -> Option<usize> {
+    candidates
         .iter()
         .filter_map(|candidate| candidate.init_store)
         .filter_map(|inst_id| {
             func.blocks[preheader].instructions.iter().position(|&candidate| candidate == inst_id)
         })
         .min()
-    else {
+}
+
+fn preheader_tail_is_safe(func: &Function, preheader: BlockId, candidates: &[Candidate]) -> bool {
+    let Some(first_init) = first_init_pos(func, preheader, candidates) else {
         return false;
     };
 
@@ -542,10 +578,15 @@ fn insert_conditional_final_store(
 //   a single block, which a promoted loop never is. So the address never moves into a caller whose
 //   frame rebasing, which rewrites only `internal_frame_addr`, would miss it.
 fn allocate_temp_addr(func: &mut Function) -> ValueId {
-    let frame_offset = func.internal_frame_size.max(func.external_static_return_size);
-    let temp_addr = EvmMemoryLayout::HEAP_START + frame_offset;
-    func.internal_frame_size = func.internal_frame_size.max(frame_offset + 32);
+    let temp_addr = temp_base(func);
+    func.internal_frame_size =
+        func.internal_frame_size.max(temp_addr - EvmMemoryLayout::HEAP_START + 32);
     func.alloc_value(Value::Immediate(Immediate::I256(U256::from(temp_addr))))
+}
+
+/// Returns the address of the next temporary word.
+fn temp_base(func: &Function) -> u64 {
+    EvmMemoryLayout::HEAP_START + func.internal_frame_size.max(func.external_static_return_size)
 }
 
 fn value_defined_in_loop(
