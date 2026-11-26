@@ -293,15 +293,16 @@ def param_of(p, enums):
     return None
 
 
-def creation_reach(cdef):
+def creation_reach(cdef, extra=()):
     """The AST nodes creation can run in CDEF: the constructor (with its modifiers and base
     constructor invocations), every state variable's initializer, and, through internal calls and
-    modifier invocations, every function and modifier they reach. Returns (the ids of those nodes,
-    whether some call or invocation could not be resolved to a function or modifier of CDEF, in
-    which case nothing counts as runtime-only)."""
+    modifier invocations, every function and modifier they reach, those of CDEF and the inlined
+    sibling code EXTRA (sibling_code's library and free functions). Returns (the ids of those nodes,
+    whether some call or invocation could not be resolved to a function or modifier of CDEF or
+    EXTRA, in which case nothing counts as runtime-only)."""
     defs = {
         n["id"]: n
-        for n in walk(cdef)
+        for n in [*walk(cdef), *extra]
         if n.get("nodeType") in ("FunctionDefinition", "ModifierDefinition")
         and "id" in n
     }
@@ -347,6 +348,83 @@ def creation_reach(cdef):
     return reach, unresolved
 
 
+def sibling_code(ast, cdef):
+    """The code of the source's other units that CDEF runs inline, and the calls that would run a
+    sibling's deployed code instead. A source may hold other contracts, interfaces and libraries
+    beside CDEF: only what CDEF reaches is part of it. CDEF reaches a library's internal (or
+    private) function and a free function by naming it (a call, a function value, a bound
+    `using` function, or a user-defined operator): solar inlines that code, as it compiles
+    CDEF's own internal functions, so the envelope checks it as CDEF's code. Nothing else of a
+    sibling is compiled into CDEF's runtime bytecode. Returns (the reached function and modifier
+    definitions, closed under what they reach in turn, each with the unit that declares it, None for
+    a free function; the call sites that run a public or external library function, by DELEGATECALL
+    into the deployed library, each as (call node, library name, function name))."""
+    owner = {}
+    for unit in ast.get("nodes", []):
+        if unit.get("nodeType") == "ContractDefinition":
+            for n in walk(unit):
+                if n.get("nodeType") in ("FunctionDefinition", "ModifierDefinition"):
+                    owner[n["id"]] = (n, unit)
+        elif unit.get("nodeType") == "FunctionDefinition":
+            owner[unit["id"]] = (unit, None)
+    own = {n["id"] for n in walk(cdef) if "id" in n}
+
+    def inlined(ref, here, expr):
+        """Whether REF (a declaration a node in unit HERE names, through EXPR when it is a callee)
+        is sibling code CDEF runs inline."""
+        if ref not in owner or ref in own:
+            return False
+        node, unit = owner[ref]
+        if unit is None:
+            return True
+        if unit.get("contractKind") != "library":
+            return False  # a function of another contract or interface: an external call, or a base
+        if node.get("visibility") in ("internal", "private") or node.get(
+            "nodeType"
+        ) == "ModifierDefinition":
+            return True
+        # A library's public function runs inline only when the library itself calls it by name.
+        return unit is here and (expr or {}).get("nodeType") == "Identifier"
+
+    reached, delegate, seen = [], [], set()
+    todo = [(cdef, cdef)]
+    while todo:
+        root, here = todo.pop()
+        for n in walk(root):
+            t = n.get("nodeType")
+            refs = []
+            if t == "FunctionCall" and n.get("kind") == "functionCall":
+                e = n.get("expression") or {}
+                ref = e.get("referencedDeclaration")
+                if ref in owner and ref not in own:
+                    node, unit = owner[ref]
+                    if (
+                        unit is not None
+                        and unit.get("contractKind") == "library"
+                        and node.get("visibility") in ("public", "external")
+                        and not inlined(ref, here, e)
+                    ):
+                        delegate.append((n, unit.get("name"), node.get("name")))
+            elif t in ("BinaryOperation", "UnaryOperation") and isinstance(
+                n.get("function"), int
+            ):
+                refs.append((n["function"], None))
+            if isinstance(n.get("referencedDeclaration"), int) and t in (
+                "Identifier",
+                "MemberAccess",
+                "IdentifierPath",
+            ):
+                refs.append((n["referencedDeclaration"], n))
+            for ref, expr in refs:
+                if ref in seen or not inlined(ref, here, expr):
+                    continue
+                seen.add(ref)
+                node, unit = owner[ref]
+                reached.append((node, unit))
+                todo.append((node, unit))
+    return reached, delegate
+
+
 def envelope(
     text,
     ast,
@@ -382,19 +460,6 @@ def envelope(
     defs = [
         n for n in ast.get("nodes", []) if n.get("nodeType") == "ContractDefinition"
     ]
-    for d in defs:
-        if d.get("contractKind") != "contract" or d.get("abstract"):
-            block(
-                "several contracts",
-                d,
-                f"{d.get('contractKind')} {d.get('name')}: only one concrete contract per file",
-            )
-        if d.get("baseContracts"):
-            block(
-                "inheritance",
-                d,
-                f"{d.get('name')} inherits; only one contract with no bases",
-            )
     concrete = [
         d for d in defs if d.get("contractKind") == "contract" and not d.get("abstract")
     ]
@@ -411,19 +476,46 @@ def envelope(
     if not cdefs:
         raise Failed(f"no contract {contract} in the source")
     cdef = cdefs[0]
+    # Only the named contract is certified: its siblings (other contracts, interfaces, libraries)
+    # are compiled into its bytecode only as the library and free functions it runs inline
+    # (sibling_code), which are checked below as its own code. Its bases are part of it.
+    if cdef.get("baseContracts"):
+        block(
+            "inheritance",
+            cdef,
+            f"{cdef.get('name')} inherits; only a contract with no bases",
+        )
+    inline, delegate = sibling_code(ast, cdef)
+    for call, lib, fname in delegate:
+        block(
+            "external call",
+            call,
+            f"{lib}.{fname} is a public library function: the call runs the deployed library {lib} "
+            "by DELEGATECALL, a sibling's code outside the certified contract",
+        )
+    inline_defs = [node for node, _ in inline]
     own = {n["id"] for n in walk(cdef) if "id" in n}
     import loop_cuts
 
     # Each loop's function and why the source erasure (eraseLoopStmt) certainly does not cover it,
     # or None, by node.
     loop_why = {id(n): (fname, why) for n, fname, why in loop_cuts.loop_shapes(cdef)}
-    creation, creation_unresolved = creation_reach(cdef)
+    for node, unit in inline:
+        where = f"{unit.get('name')}." if unit is not None else ""
+        for n in walk(node):
+            if n.get("nodeType") in ("ForStatement", "WhileStatement", "DoWhileStatement"):
+                loop_why[id(n)] = (
+                    f"{where}{node.get('name')}",
+                    "a loop in inlined library or free function code, which the loop cut hook "
+                    "does not read",
+                )
+    creation, creation_unresolved = creation_reach(cdef, inline_defs)
     enums = {}
     for n in walk(ast):
         if n.get("nodeType") == "EnumDefinition":
             enums[n["name"]] = len(n.get("members", []))
             enums[n.get("canonicalName", n["name"])] = len(n.get("members", []))
-    for n in walk(cdef):
+    for n in [*walk(cdef), *(m for node in inline_defs for m in walk(node))]:
         t = n.get("nodeType")
         if t == "InlineAssembly":
             block(
@@ -495,6 +587,15 @@ def envelope(
                     f"{n.get('kind')} function: calls outside the ABI's functions",
                 )
         elif t == "MemberAccess" and n.get("memberName") in (
+            "creationCode",
+            "runtimeCode",
+        ):
+            block(
+                "contract creation",
+                n,
+                f"type(...).{n['memberName']} embeds another contract's bytecode",
+            )
+        elif t == "MemberAccess" and n.get("memberName") in (
             "call",
             "delegatecall",
             "staticcall",
@@ -543,10 +644,7 @@ def envelope(
         for n in walk(ast)
         if n.get("nodeType") == "VariableDeclaration" and "id" in n
     }
-    free = [
-        n for n in ast.get("nodes", []) if n.get("nodeType") == "FunctionDefinition"
-    ]
-    cycles, values = recursion_cycles(cdef, variables, free)
+    cycles, values = recursion_cycles(cdef, variables, inline_defs)
     for names, call in cycles:
         fns = [
             n
@@ -864,15 +962,16 @@ def natspec_checks(ast, contract):
     return None, invs
 
 
-def recursion_cycles(cdef, variables, free=()):
+def recursion_cycles(cdef, variables, extra=()):
     """The contract's recursion: each strongly connected component of its internal call graph that
     has a cycle (functions or modifiers that can reach themselves) and that the contract's own
     functions and modifiers reach, as (names, first call site), and the calls through internal
     function values, whose callee the source does not name. The graph's nodes are the contract's
-    functions and modifiers and FREE, the source unit's free functions (a contract calls them
-    internally, so a cycle through them is recursion too); an edge is an internal call naming one of
-    them (an Identifier, or a MemberAccess such as C.f) or a modifier invocation. VARIABLES holds
-    the ids of the source's variable declarations (struct members included)."""
+    functions and modifiers and EXTRA, the sibling library and free functions CDEF runs inline
+    (sibling_code; a contract calls them internally, so a cycle through them is recursion too); an
+    edge is an internal call naming one of them (an Identifier, or a MemberAccess such as C.f) or a
+    modifier invocation. VARIABLES holds the ids of the source's variable declarations (struct
+    members included)."""
     own = {
         n["id"]: n
         for n in walk(cdef)
@@ -880,7 +979,7 @@ def recursion_cycles(cdef, variables, free=()):
         and "id" in n
     }
     callables = dict(own)
-    for f in free:
+    for f in extra:
         for n in walk(f):
             if n.get("nodeType") == "FunctionDefinition" and "id" in n:
                 callables.setdefault(n["id"], n)
