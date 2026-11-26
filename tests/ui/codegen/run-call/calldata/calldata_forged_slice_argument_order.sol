@@ -8,8 +8,8 @@
 //@ run-call-fail: stopInArgument 0 => 0x
 //@ run-call: allocationSeenByArgument => 0x40
 
-// A calldata slice that assembly moved out of range reverts with empty data when it is copied to
-// memory. The copy happens as soon as the argument is evaluated, before `x - 1`, so `x == 0`
+// A calldata slice that assembly moved past the end of calldata reverts with empty data when it is
+// copied to memory. The copy happens as soon as the argument is evaluated, before `x - 1`, so `x == 0`
 // reverts empty here; solc evaluates every argument first and reverts with `Panic(0x11)`. In
 // `stopInArgument(0)` a later argument ends the frame with `stop()`: solc stops successfully and
 // we revert empty. In `allocationSeenByArgument()` a later argument reads the free memory pointer

@@ -1491,8 +1491,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   argument, before the later ones. `solc` evaluates every argument first, then
   converts. A copy that follows a storage reference waiting for a later
   state-writing argument waits as well, as in `solc`, and matches it. In the
-  other cases, if assembly moved the calldata slice out of range, such as
-  `s.offset := 0xffffff` with `s.length := 0`, then `S({a: s, b: x - 1})`,
+  other cases, if assembly moved the calldata slice past the end of calldata,
+  such as `s.offset := 0xffffff` with `s.length := 0`, then `S({a: s, b: x - 1})`,
   `take(s, x - 1)` with an internal `take(bytes memory, uint256)`, and
   `(bytes memory m, uint256 y) = (s, x - 1)` revert with empty data in `solar`
   and with `Panic(0x11)` in `solc` for `x == 0`. For `x == 1` both revert with
