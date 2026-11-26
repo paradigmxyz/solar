@@ -15,9 +15,8 @@
 //! header branches on `i < n` into the body and otherwise leaves the loop,
 //! where `i` is a header phi with a literal start that every back edge
 //! advances by the same literal positive step, `n` is defined outside the
-//! loop, and some instruction of the loop reads `i + k < n`. The header's other
-//! instructions must be free of effects, because the original header repeats
-//! them for the iteration the main loop declined.
+//! loop, some instruction of the loop reads `i + k < n`, and the header's other
+//! instructions are free of effects.
 //!
 //! Safety: `i` starts at a literal and grows by a literal step, so within
 //! the target's trip-count bound `i + K` cannot wrap and `i + K < n` implies
@@ -224,7 +223,7 @@ fn plan(func: &Function, loops: &LoopInfo, l: &Loop) -> Option<Split> {
 }
 
 /// Whether the header's non-phi instructions can run twice for one iteration: the original
-/// header repeats them for the iteration a main loop or a peeled copy declined.
+/// header repeats them for the iteration a main loop or a copy's header declined.
 pub(super) fn header_repeats_safely(func: &Function, header: BlockId) -> bool {
     func.blocks[header].instructions.iter().all(|&inst| {
         let kind = &func.inst(inst).kind;
