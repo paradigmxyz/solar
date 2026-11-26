@@ -148,16 +148,16 @@ fn @pairInternal(arg0: i256) -> struct1 [pure] {
 ; function fill(uint256 length) external pure returns (uint256[4] memory values) [selector 0x3fda5389]
 fn @fill(arg0: i256) -> ptr<memory> [selector=0x3fda5389, pure, abi_params=[uint256], abi_returns=[array<4, word>], abi_return_params=[array<4, uint256>]] {
   bb0:
-    v0 = gt arg0, 4
-    v1 = eq v0, false
+    v0 = alloc 128 !metadata(preserves_fmp)
+    memory_zero v0, 128
+    v1 = gt arg0, 4
     v2 = eq v1, false
-    icall revert_if<empty>, v2
-    v3 = alloc 128 !metadata(preserves_fmp)
-    memory_zero v3, 128
+    v3 = eq v2, false
+    icall revert_if<empty>, v3
     jump bb1
   bb1:                                            ; preds = bb0, bb3
     v4 = phi [bb0: arg0], [bb3: v4]
-    v5 = phi [bb0: v3], [bb3: v5]
+    v5 = phi [bb0: v0], [bb3: v5]
     v6 = phi [bb0: 0], [bb3: v12]
     v7 = lt v6, v4
     jumpi v7, bb4, bb5

@@ -58,20 +58,26 @@ fn @swapped() -> struct0 [selector=0x817ba96a, pure, abi_params=[], abi_returns=
 ; function aliasedArrays() external pure returns (uint256[1] memory p, uint256[1] memory q) [selector 0xf54f1c28]
 fn @aliasedArrays() -> struct2 [selector=0xf54f1c28, pure, abi_params=[], abi_returns=[array<1, word>, array<1, word>], abi_return_params=[array<1, uint256>, array<1, uint256>]] {
   bb0:
+    v0 = alloc 32 !metadata(preserves_fmp)
+    memory_zero v0, 32
+    v1 = alloc 32 !metadata(preserves_fmp)
+    memory_zero v1, 32
     mstore 0, 1 !metadata(memory=scratch)
     mstore 32, 2 !metadata(memory=scratch)
-    v0 = insert_value struct2, undef struct2, 0, ptr<memory> 32
-    v1 = insert_value struct2, v0, 1, ptr<memory> 0
-    ret v1
+    v2 = insert_value struct2, undef struct2, 0, ptr<memory> 32
+    v3 = insert_value struct2, v2, 1, ptr<memory> 0
+    ret v3
 }
 
 ; function scalarThenAlias() external pure returns (uint256 x, uint256[1] memory q) [selector 0x69021083]
 fn @scalarThenAlias() -> struct3 [selector=0x69021083, pure, abi_params=[], abi_returns=[word, array<1, word>], abi_return_params=[uint256, array<1, uint256>]] {
   bb0:
+    v0 = alloc 32 !metadata(preserves_fmp)
+    memory_zero v0, 32
     mstore 0, 7 !metadata(memory=scratch)
-    v0 = insert_value struct3, undef struct3, 0, 5
-    v1 = insert_value struct3, v0, 1, ptr<memory> 0
-    ret v1
+    v1 = insert_value struct3, undef struct3, 0, 5
+    v2 = insert_value struct3, v1, 1, ptr<memory> 0
+    ret v2
 }
 
 ; function four(uint256 x) external pure returns (uint256, uint256, uint256, uint256) [selector 0xe2595336]
