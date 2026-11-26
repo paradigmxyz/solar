@@ -1504,19 +1504,21 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `(bytes memory m, uint256 y) = (s, x - 1)` revert with empty data in `solar`
   and with `Panic(0x11)` in `solc` for `x == 0`. For `x == 1` both revert with
   empty data. For these expressions only the revert data differs. If a later
-  argument ends the frame with `stop()` in assembly, as in
-  `take(s, stopIfZero(x))` for `x == 0`, `solc` stops successfully and `solar`
-  reverts with empty data. With valid calldata, a later argument that reads the
-  free memory pointer in assembly sees the memory the copy allocated, so a
-  successful call can return a different value than in `solc`. A huge forged
+  argument ends the frame, with `stop()` in assembly as in
+  `take(s, stopIfZero(x))` for `x == 0`, or with `selfdestruct`, `solc` stops
+  successfully and `solar` reverts with empty data, so the effects of the
+  later argument, such as a `selfdestruct` transfer, happen only in `solc`.
+  With valid calldata, a later argument that reads the free memory pointer in
+  assembly sees the memory the copy allocated, so a successful call can return
+  a different value than in `solc`. A huge forged
   length fails the copy for another reason, which CODEGEN-014 covers.
   CODEGEN-015 covers the opposite order, in ABI decoding.
 - Rationale: only a forged or malformed slice fails the copy, both compilers
-  revert, except when assembly in a later argument ends the frame, and
-  deferring every conversion would complicate argument lowering. With valid
-  calldata, only assembly sees the allocation, and the copy still runs before
-  a later argument that panics, so a call with a tight gas limit can run out
-  of gas where `solc` panics.
+  revert, except when a later argument ends the frame, and deferring every
+  conversion would complicate argument lowering. With valid calldata, only
+  assembly sees the allocation, and the copy still runs before a later
+  argument that panics, so a call with a tight gas limit can run out of gas
+  where `solc` panics.
 - Coverage: `tests/ui/codegen/run-call/calldata/calldata_forged_slice_argument_order.sol`.
 
 ### TYPECK-026: `@inheritdoc` references
