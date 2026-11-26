@@ -4572,6 +4572,26 @@ impl<'p, 'a> Vc<'p, 'a> {
                             "old() is only allowed in postconditions and loop invariants"
                                 .to_string(),
                         ))?;
+                        // A return variable has no value of the caller's before the call: old(r)
+                        // would read its zero initial value, which is never what is meant.
+                        let mut ret = None;
+                        walk::sub_exprs(argv[0], &mut |x| {
+                            if let ExprKind::Ident(i) = &x.kind
+                                && ret.is_none()
+                                && self.rets.iter().any(|r| r == i.as_str())
+                                && !self.bound.iter().any(|b| b == i.as_str())
+                            {
+                                ret = Some((x.span, i.as_str().to_string()));
+                            }
+                        });
+                        if let Some((sp, r)) = ret {
+                            return Err((
+                                sp,
+                                format!(
+                                    "`old()` of return variable `{r}`, which has no value before the call: write `{r}` for its value on return"
+                                ),
+                            ));
+                        }
                         for b in &self.bound {
                             if let Some(v) = self.env.get(b) {
                                 oldenv.insert(b.clone(), v.clone());
