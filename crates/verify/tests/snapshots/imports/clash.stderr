@@ -1,0 +1,12 @@
+error: `IERC20` is declared twice where `tests/snapshots/imports/clash.sol` sees it
+  ╭▸ tests/snapshots/imports/auxiliary/TokenB.sol:3:11
+  │
+3 │ interface IERC20 {
+  │           ━━━━━━
+  ╰╴
+note: also declared here
+  ╭▸ tests/snapshots/imports/auxiliary/TokenA.sol:3:11
+  │
+3 │ interface IERC20 {
+  │           ━━━━━━
+  ╰ note: solc rejects a file that imports two declarations of one name

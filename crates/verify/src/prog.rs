@@ -184,6 +184,9 @@ pub(crate) struct Program<'a> {
     /// Each spec's expression, which is parsed as a file of its own, with the NatSpec tag it
     /// was written in.
     pub spec_sites: Vec<(Span, Span)>,
+    /// Interfaces several files declare alike (see `sources::same_interface`): one interface
+    /// here, with the members of each.
+    pub shared_interfaces: FxHashSet<String>,
 }
 
 impl<'a> Program<'a> {
@@ -777,6 +780,8 @@ pub(crate) fn build<'a>(
         const_sizes: FxHashMap::default(),
         seen_docs: vec![],
     };
+    // The later declarations of each interface several files declare alike.
+    let mut shared_ifaces: FxHashMap<String, Vec<&'a ast::ItemContract<'a>>> = FxHashMap::default();
     let mut items: FxHashMap<String, (&'a ast::Item<'a>, &'a ast::ItemContract<'a>)> =
         FxHashMap::default();
     // file-level constants, visible in every contract
@@ -883,6 +888,15 @@ pub(crate) fn build<'a>(
         }
         if let ItemKind::Contract(c) = &it.kind {
             let n = c.name.as_str().to_string();
+            // An interface another file declares alike (see `sources::same_interface`): one
+            // interface with the members of both.
+            if let Some(&(first, _)) = items.get(&n)
+                && first.span != it.span
+                && crate::sources::same_interface(sess, first, it)
+            {
+                shared_ifaces.entry(n).or_default().push(c);
+                continue;
+            }
             b.type_spans.entry(n.clone()).or_default().insert(c.name.span);
             b.contract_names.push(n.clone());
             items.insert(n.clone(), (it, c));
@@ -1240,7 +1254,17 @@ pub(crate) fn build<'a>(
                     con.base_args.insert(base_name(&base.name), &base.arguments);
                 }
             }
-            for sub in c.body.iter() {
+            // An interface several files declare alike has the members of every declaration,
+            // each once.
+            let copies = shared_ifaces.get(cn.as_str()).map_or(&[][..], |v| &v[..]);
+            let mut shapes = FxHashSet::default();
+            for sub in std::iter::once(c).chain(copies.iter().copied()).flat_map(|c| c.body.iter())
+            {
+                if !copies.is_empty()
+                    && !shapes.insert(crate::sources::iface_member_shape(sess, sub))
+                {
+                    continue;
+                }
                 match &sub.kind {
                     ItemKind::Variable(v) => {
                         let ty = b.ty(&v.ty);
@@ -1656,6 +1680,7 @@ pub(crate) fn build<'a>(
         import_aliases: b.import_aliases.clone(),
         qualified_structs: b.qualified_structs.clone(),
         spec_sites: std::mem::take(&mut b.spec_sites),
+        shared_interfaces: shared_ifaces.keys().cloned().collect(),
     };
     let (ghost_errors, lemmas) = crate::ghost::check(&program);
     for c in &mut program.contracts {

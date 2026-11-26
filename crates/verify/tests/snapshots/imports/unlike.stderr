@@ -1,0 +1,12 @@
+error: `IERC20` is defined in more than one file
+  ╭▸ tests/snapshots/imports/auxiliary/TokenC.sol:4:11
+  │
+4 │ interface IERC20 {
+  │           ━━━━━━
+  ╰╴
+note: also defined here
+  ╭▸ tests/snapshots/imports/auxiliary/TokenA.sol:3:11
+  │
+3 │ interface IERC20 {
+  │           ━━━━━━
+  ╰ note: solar-verify resolves names as if the files were flattened

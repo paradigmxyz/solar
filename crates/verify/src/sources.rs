@@ -5,7 +5,11 @@
 //! compiler's file resolver (remappings, base path and include paths, as `solar` and solc take
 //! them), and returns the parsed files with every file after the files it imports. Two readings
 //! cannot be flattened, so they are errors that stop the file from being verified: an import
-//! that renames or namespaces what it imports (`as`, `* as`), and a name that two files define.
+//! that namespaces what it imports (`* as`, `import "a.sol" as A`), and a name that two files
+//! define. Two exceptions: structs that contracts or interfaces declare, which `prog::build`
+//! keys by their qualified names, and an interface that several files declare alike (see
+//! [`same_interface`]), which the program reads as one. Like solc, an interface of one name
+//! that two files declare is still an error where one file's scope sees both.
 
 use solar_parse::{
     Parser,
@@ -115,11 +119,23 @@ impl<'s, 'a> Loader<'s, 'a> {
         let root = root.map_err(|error| {
             self.sess.dcx.err(format!("cannot read `{}`: {error}", file.display())).emit();
         })?;
-        let mut load = Load { loader: self, seen: FxHashSet::default(), units: vec![], ok: true };
+        let mut load = Load {
+            loader: self,
+            seen: FxHashSet::default(),
+            units: vec![],
+            imports: vec![],
+            ok: true,
+        };
         load.visit(root.clone());
-        let Load { units, ok, .. } = load;
-        let units: Vec<_> = units.into_iter().map(|(_, unit)| unit).collect();
-        let unique = self.check_unique_names(&units);
+        let Load { units, imports, ok, .. } = load;
+        let index: FxHashMap<Arc<SourceFile>, usize> =
+            units.iter().enumerate().map(|(i, (file, _))| (file.clone(), i)).collect();
+        let imports: Vec<_> = imports
+            .into_iter()
+            .filter_map(|(from, import, to)| Some((*index.get(&from)?, import, *index.get(&to)?)))
+            .collect();
+        let (files, units): (Vec<_>, Vec<_>) = units.into_iter().unzip();
+        let unique = self.check_unique_names(&files, &units, &imports);
         if !ok {
             return Err(());
         }
@@ -128,19 +144,28 @@ impl<'s, 'a> Loader<'s, 'a> {
     }
 
     /// Reports names that two files define: resolving names globally would pick one of them.
-    fn check_unique_names(&self, units: &[&'a SourceUnit<'a>]) -> Result<(), ()> {
-        let mut defined: FxHashMap<String, (usize, Span, Option<String>)> = FxHashMap::default();
+    /// `imports` holds each file's imports, with the files they import, by index in `units`.
+    fn check_unique_names(
+        &self,
+        files: &[Arc<SourceFile>],
+        units: &[&'a SourceUnit<'a>],
+        imports: &[(usize, &'a ast::ImportDirective<'a>, usize)],
+    ) -> Result<(), ()> {
+        let mut defined: FxHashMap<String, (usize, Span, Option<String>, &'a ast::Item<'a>)> =
+            FxHashMap::default();
+        // Interfaces two files declare alike, with their later declarations.
+        let mut shared: FxHashMap<String, Vec<Span>> = FxHashMap::default();
         let mut ok = true;
         for (index, unit) in units.iter().enumerate() {
-            // File-level names, and the types contracts declare, which are looked up by bare name
-            // too.
+            // File-level names, and the enums and user-defined value types contracts declare,
+            // which are looked up by bare name too. A contract's structs are keyed by their
+            // qualified names (`prog::build`).
             let nested = unit.items.iter().flat_map(|item| match &item.kind {
                 ItemKind::Contract(contract) => &contract.body[..],
                 _ => &[],
             });
-            let types = nested.filter(|item| {
-                matches!(item.kind, ItemKind::Struct(_) | ItemKind::Enum(_) | ItemKind::Udvt(_))
-            });
+            let types =
+                nested.filter(|item| matches!(item.kind, ItemKind::Enum(_) | ItemKind::Udvt(_)));
             for item in unit.items.iter().chain(types) {
                 let Some(name) = item.name() else { continue };
                 let defines = matches!(
@@ -164,6 +189,12 @@ impl<'s, 'a> Loader<'s, 'a> {
                     std::collections::hash_map::Entry::Occupied(first)
                         if constant.is_some() && first.get().2 == constant => {}
                     std::collections::hash_map::Entry::Occupied(first)
+                        if first.get().0 != index
+                            && same_interface(self.sess, first.get().3, item) =>
+                    {
+                        shared.entry(name.as_str().to_string()).or_default().push(name.span);
+                    }
+                    std::collections::hash_map::Entry::Occupied(first)
                         if first.get().0 != index =>
                     {
                         self.sess
@@ -177,8 +208,34 @@ impl<'s, 'a> Loader<'s, 'a> {
                     }
                     std::collections::hash_map::Entry::Occupied(_) => {}
                     std::collections::hash_map::Entry::Vacant(entry) => {
-                        entry.insert((index, name.span, constant));
+                        entry.insert((index, name.span, constant, item));
                     }
+                }
+            }
+        }
+        // An interface declared in two files is one only where no file sees both: solc rejects
+        // a scope that sees two declarations of a name (`Identifier already declared`).
+        if !shared.is_empty() {
+            let scopes = scopes(units, imports);
+            for (name, later) in &shared {
+                let mut decls = vec![defined[name].1];
+                decls.extend(later.iter().copied());
+                for (file, scope) in files.iter().zip(&scopes) {
+                    let Some(seen) = scope.get(name) else { continue };
+                    let both: Vec<Span> =
+                        decls.iter().copied().filter(|sp| seen.contains(sp)).collect();
+                    let [also, at, ..] = both[..] else { continue };
+                    self.sess
+                        .dcx
+                        .err(format!(
+                            "`{name}` is declared twice where `{}` sees it",
+                            file.name.display()
+                        ))
+                        .span(at)
+                        .span_note(also, "also declared here")
+                        .note("solc rejects a file that imports two declarations of one name")
+                        .emit();
+                    ok = false;
                 }
             }
         }
@@ -205,6 +262,8 @@ struct Load<'l, 's, 'a> {
     seen: FxHashSet<Arc<SourceFile>>,
     /// The parsed files, each after the files it imports.
     units: Vec<(Arc<SourceFile>, &'a SourceUnit<'a>)>,
+    /// Each import: the file it is in, the directive, and the file it imports.
+    imports: Vec<(Arc<SourceFile>, &'a ast::ImportDirective<'a>, Arc<SourceFile>)>,
     ok: bool,
 }
 
@@ -233,6 +292,7 @@ impl<'s, 'a> Load<'_, 's, 'a> {
                 continue;
             }
             if let Some(imported) = self.resolve(import, parent) {
+                self.imports.push((file.clone(), import, imported.clone()));
                 self.visit(imported);
             }
         }
@@ -286,6 +346,126 @@ impl<'s, 'a> Load<'_, 's, 'a> {
                 self.ok = false;
                 None
             }
+        }
+    }
+}
+
+/// What a member of an interface (a function, event or error) declares to the code that uses
+/// it: its kind, name, parameter and return types with their data locations, visibility and
+/// state mutability, without parameter names or comments. None for any other member.
+pub(crate) fn iface_member_shape(sess: &Session, item: &ast::Item<'_>) -> Option<String> {
+    let map = sess.source_map();
+    let var = |v: &ast::VariableDefinition<'_>| {
+        let ty: String =
+            map.span_to_snippet(v.ty.span).unwrap_or_default().split_whitespace().collect();
+        format!("{ty} {:?} {}", v.data_location, v.indexed)
+    };
+    let list =
+        |vs: &[ast::VariableDefinition<'_>]| vs.iter().map(var).collect::<Vec<_>>().join(",");
+    match &item.kind {
+        ItemKind::Function(f) => Some(format!(
+            "{:?} {}({}) {:?} {:?} returns ({})",
+            f.kind,
+            f.header.name.map(|n| n.as_str().to_string()).unwrap_or_default(),
+            list(&f.header.parameters),
+            f.header.visibility(),
+            f.header.state_mutability(),
+            list(f.header.returns()),
+        )),
+        ItemKind::Event(e) => {
+            Some(format!("event {}({}) {}", e.name.as_str(), list(&e.parameters), e.anonymous))
+        }
+        ItemKind::Error(e) => Some(format!("error {}({})", e.name.as_str(), list(&e.parameters))),
+        _ => None,
+    }
+}
+
+/// Whether `a` and `b` are interfaces of one name that read alike to the code that uses either:
+/// neither has specs (`@custom:` tags) or members other than functions, events and errors, they
+/// have the same bases, and every member name both declare has the same declarations in each
+/// (`iface_member_shape`). Code compiled against either reaches only members it declares, so
+/// the program can stand for both with the members of both: a member only one declares is never
+/// reached through the other.
+pub(crate) fn same_interface(sess: &Session, a: &ast::Item<'_>, b: &ast::Item<'_>) -> bool {
+    let (ItemKind::Contract(ca), ItemKind::Contract(cb)) = (&a.kind, &b.kind) else {
+        return false;
+    };
+    if !ca.kind.is_interface() || !cb.kind.is_interface() || ca.name.name != cb.name.name {
+        return false;
+    }
+    let specs =
+        |docs: &ast::DocComments<'_>| docs.iter().any(|d| d.symbol.as_str().contains("@custom:"));
+    let bases = |c: &ast::ItemContract<'_>| -> Vec<String> {
+        c.bases
+            .iter()
+            .map(|b| b.name.segments().iter().map(|s| s.as_str()).collect::<Vec<_>>().join("."))
+            .collect()
+    };
+    // Each member name with its declarations; None when a member cannot be shared.
+    let members = |it: &ast::Item<'_>, c: &ast::ItemContract<'_>| {
+        if specs(&it.docs) {
+            return None;
+        }
+        let mut out: FxHashMap<String, Vec<String>> = FxHashMap::default();
+        for sub in c.body.iter() {
+            let shape = iface_member_shape(sess, sub).filter(|_| !specs(&sub.docs))?;
+            let name = sub.name().map(|n| n.as_str().to_string()).unwrap_or_default();
+            out.entry(name).or_default().push(shape);
+        }
+        for shapes in out.values_mut() {
+            shapes.sort();
+        }
+        Some(out)
+    };
+    let (Some(ma), Some(mb)) = (members(a, ca), members(b, cb)) else { return false };
+    bases(ca) == bases(cb) && ma.iter().all(|(n, s)| mb.get(n).is_none_or(|t| s == t))
+}
+
+/// The names each file's scope sees, with the declarations (by name span) each stands for: its
+/// own file-level declarations and what it imports, which for `import "a.sol"` is all that
+/// `a.sol` sees.
+fn scopes(
+    units: &[&SourceUnit<'_>],
+    imports: &[(usize, &ast::ImportDirective<'_>, usize)],
+) -> Vec<FxHashMap<String, FxHashSet<Span>>> {
+    let mut scopes: Vec<FxHashMap<String, FxHashSet<Span>>> = units
+        .iter()
+        .map(|u| {
+            let mut own: FxHashMap<String, FxHashSet<Span>> = FxHashMap::default();
+            for it in u.items.iter() {
+                if let Some(n) = it.name() {
+                    own.entry(n.as_str().to_string()).or_default().insert(n.span);
+                }
+            }
+            own
+        })
+        .collect();
+    // Imports may be circular: grow the scopes until none changes.
+    loop {
+        let mut grew = false;
+        for &(from, import, to) in imports {
+            let brought: Vec<(String, FxHashSet<Span>)> = match &import.items {
+                ImportItems::Plain(None) => {
+                    scopes[to].iter().map(|(n, s)| (n.clone(), s.clone())).collect()
+                }
+                ImportItems::Aliases(list) => list
+                    .iter()
+                    .filter_map(|(orig, alias)| {
+                        let seen = scopes[to].get(orig.as_str())?;
+                        Some((alias.unwrap_or(*orig).as_str().to_string(), seen.clone()))
+                    })
+                    .collect(),
+                _ => vec![],
+            };
+            for (n, spans) in brought {
+                let set = scopes[from].entry(n).or_default();
+                let before = set.len();
+                set.extend(spans);
+                grew |= set.len() > before;
+            }
+        }
+        if !grew {
+            return scopes;
         }
     }
 }
