@@ -404,7 +404,7 @@
       "severity": "warning",
       "errorCode": "3628",
       "message": "contract has a payable fallback function, but no receive ether function",
-      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C01.sol:LL:CC\n   │\nLL │ contract C01 is Base {\n   │          ━━━\n   ‡\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
+      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C01.sol:LL:CC\n   │\nLL │ contract C01 is Base {\n   │          ━━━\n   ┆\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
     },
     {
       "sourceLocation": {
@@ -418,7 +418,7 @@
       "severity": "warning",
       "errorCode": "3628",
       "message": "contract has a payable fallback function, but no receive ether function",
-      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C02.sol:LL:CC\n   │\nLL │ contract C02 is Base {\n   │          ━━━\n   ‡\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
+      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C02.sol:LL:CC\n   │\nLL │ contract C02 is Base {\n   │          ━━━\n   ┆\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
     },
     {
       "sourceLocation": {
@@ -432,7 +432,7 @@
       "severity": "warning",
       "errorCode": "3628",
       "message": "contract has a payable fallback function, but no receive ether function",
-      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C03.sol:LL:CC\n   │\nLL │ contract C03 is Base {\n   │          ━━━\n   ‡\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
+      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C03.sol:LL:CC\n   │\nLL │ contract C03 is Base {\n   │          ━━━\n   ┆\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
     },
     {
       "sourceLocation": {
@@ -446,7 +446,7 @@
       "severity": "warning",
       "errorCode": "3628",
       "message": "contract has a payable fallback function, but no receive ether function",
-      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C04.sol:LL:CC\n   │\nLL │ contract C04 is Base {\n   │          ━━━\n   ‡\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
+      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C04.sol:LL:CC\n   │\nLL │ contract C04 is Base {\n   │          ━━━\n   ┆\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
     },
     {
       "sourceLocation": {
@@ -460,7 +460,7 @@
       "severity": "warning",
       "errorCode": "3628",
       "message": "contract has a payable fallback function, but no receive ether function",
-      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C05.sol:LL:CC\n   │\nLL │ contract C05 is Base {\n   │          ━━━\n   ‡\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
+      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C05.sol:LL:CC\n   │\nLL │ contract C05 is Base {\n   │          ━━━\n   ┆\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
     },
     {
       "sourceLocation": {
@@ -474,7 +474,7 @@
       "severity": "warning",
       "errorCode": "3628",
       "message": "contract has a payable fallback function, but no receive ether function",
-      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C06.sol:LL:CC\n   │\nLL │ contract C06 is Base {\n   │          ━━━\n   ‡\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
+      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C06.sol:LL:CC\n   │\nLL │ contract C06 is Base {\n   │          ━━━\n   ┆\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
     },
     {
       "sourceLocation": {
@@ -488,7 +488,7 @@
       "severity": "warning",
       "errorCode": "3628",
       "message": "contract has a payable fallback function, but no receive ether function",
-      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C07.sol:LL:CC\n   │\nLL │ contract C07 is Base {\n   │          ━━━\n   ‡\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
+      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C07.sol:LL:CC\n   │\nLL │ contract C07 is Base {\n   │          ━━━\n   ┆\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
     },
     {
       "sourceLocation": {
@@ -502,7 +502,7 @@
       "severity": "warning",
       "errorCode": "3628",
       "message": "contract has a payable fallback function, but no receive ether function",
-      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C08.sol:LL:CC\n   │\nLL │ contract C08 is Base {\n   │          ━━━\n   ‡\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
+      "formattedMessage": "warning[3628]: contract has a payable fallback function, but no receive ether function\n   ╭▸ C08.sol:LL:CC\n   │\nLL │ contract C08 is Base {\n   │          ━━━\n   ┆\nLL │     fallback() external payable {}\n   ╰╴    ──────── help: consider changing to: `receive`\n\n"
     },
     {
       "sourceLocation": null,
@@ -566,7 +566,7 @@
       "severity": "warning",
       "errorCode": "5574",
       "message": "contract code size is 25203 bytes and exceeds 24576 bytes",
-      "formattedMessage": "warning[5574]: contract code size is 25203 bytes and exceeds 24576 bytes\n   ╭▸ C01.sol:LL:CC\n   │\nLL │ ┏ contract C01 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ‡ ┃\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
+      "formattedMessage": "warning[5574]: contract code size is 25203 bytes and exceeds 24576 bytes\n   ╭▸ C01.sol:LL:CC\n   │\nLL │ ┏ contract C01 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ┆ ┇\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
     },
     {
       "sourceLocation": {
@@ -620,7 +620,7 @@
       "severity": "warning",
       "errorCode": "5574",
       "message": "contract code size is 25203 bytes and exceeds 24576 bytes",
-      "formattedMessage": "warning[5574]: contract code size is 25203 bytes and exceeds 24576 bytes\n   ╭▸ C02.sol:LL:CC\n   │\nLL │ ┏ contract C02 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ‡ ┃\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
+      "formattedMessage": "warning[5574]: contract code size is 25203 bytes and exceeds 24576 bytes\n   ╭▸ C02.sol:LL:CC\n   │\nLL │ ┏ contract C02 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ┆ ┇\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
     },
     {
       "sourceLocation": {
@@ -674,7 +674,7 @@
       "severity": "warning",
       "errorCode": "5574",
       "message": "contract code size is 25203 bytes and exceeds 24576 bytes",
-      "formattedMessage": "warning[5574]: contract code size is 25203 bytes and exceeds 24576 bytes\n   ╭▸ C03.sol:LL:CC\n   │\nLL │ ┏ contract C03 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ‡ ┃\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
+      "formattedMessage": "warning[5574]: contract code size is 25203 bytes and exceeds 24576 bytes\n   ╭▸ C03.sol:LL:CC\n   │\nLL │ ┏ contract C03 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ┆ ┇\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
     },
     {
       "sourceLocation": {
@@ -728,7 +728,7 @@
       "severity": "warning",
       "errorCode": "5574",
       "message": "contract code size is 25203 bytes and exceeds 24576 bytes",
-      "formattedMessage": "warning[5574]: contract code size is 25203 bytes and exceeds 24576 bytes\n   ╭▸ C04.sol:LL:CC\n   │\nLL │ ┏ contract C04 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ‡ ┃\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
+      "formattedMessage": "warning[5574]: contract code size is 25203 bytes and exceeds 24576 bytes\n   ╭▸ C04.sol:LL:CC\n   │\nLL │ ┏ contract C04 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ┆ ┇\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
     },
     {
       "sourceLocation": {
@@ -782,7 +782,7 @@
       "severity": "warning",
       "errorCode": "5574",
       "message": "contract code size is 25203 bytes and exceeds 24576 bytes",
-      "formattedMessage": "warning[5574]: contract code size is 25203 bytes and exceeds 24576 bytes\n   ╭▸ C05.sol:LL:CC\n   │\nLL │ ┏ contract C05 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ‡ ┃\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
+      "formattedMessage": "warning[5574]: contract code size is 25203 bytes and exceeds 24576 bytes\n   ╭▸ C05.sol:LL:CC\n   │\nLL │ ┏ contract C05 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ┆ ┇\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
     },
     {
       "sourceLocation": {
@@ -836,7 +836,7 @@
       "severity": "warning",
       "errorCode": "5574",
       "message": "contract code size is 25203 bytes and exceeds 24576 bytes",
-      "formattedMessage": "warning[5574]: contract code size is 25203 bytes and exceeds 24576 bytes\n   ╭▸ C06.sol:LL:CC\n   │\nLL │ ┏ contract C06 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ‡ ┃\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
+      "formattedMessage": "warning[5574]: contract code size is 25203 bytes and exceeds 24576 bytes\n   ╭▸ C06.sol:LL:CC\n   │\nLL │ ┏ contract C06 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ┆ ┇\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
     },
     {
       "sourceLocation": {
@@ -890,7 +890,7 @@
       "severity": "warning",
       "errorCode": "5574",
       "message": "contract code size is 25203 bytes and exceeds 24576 bytes",
-      "formattedMessage": "warning[5574]: contract code size is 25203 bytes and exceeds 24576 bytes\n   ╭▸ C07.sol:LL:CC\n   │\nLL │ ┏ contract C07 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ‡ ┃\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
+      "formattedMessage": "warning[5574]: contract code size is 25203 bytes and exceeds 24576 bytes\n   ╭▸ C07.sol:LL:CC\n   │\nLL │ ┏ contract C07 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ┆ ┇\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
     },
     {
       "sourceLocation": {
@@ -944,7 +944,7 @@
       "severity": "warning",
       "errorCode": "5574",
       "message": "contract code size is 25203 bytes and exceeds 24576 bytes",
-      "formattedMessage": "warning[5574]: contract code size is 25203 bytes and exceeds 24576 bytes\n   ╭▸ C08.sol:LL:CC\n   │\nLL │ ┏ contract C08 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ‡ ┃\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
+      "formattedMessage": "warning[5574]: contract code size is 25203 bytes and exceeds 24576 bytes\n   ╭▸ C08.sol:LL:CC\n   │\nLL │ ┏ contract C08 is Base {\nLL │ ┃     constructor() public {}\nLL │ ┃\nLL │ ┃     fallback() external payable {}\n   ┆ ┇\nLL │ ┃ }\n   │ ┗━┛\n   │\n   ├ note: the limit was introduced in spuriousDragon\n   ├ note: this contract may not be deployable on Mainnet\n   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries\n\n"
     }
   ],
   "sources": {

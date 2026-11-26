@@ -4,7 +4,7 @@ warning[5776]: contract code size is <SIZE> bytes and exceeds 65536 bytes
 LL │ ┏ contract Big {
 LL │ ┃
 LL │ ┃     bytes public stored;
-   ‡ ┃
+   ┆ ┇
 LL │ ┃ }
    │ ┗━┛
    │
@@ -18,7 +18,7 @@ warning[7868]: contract initcode size is <SIZE> bytes and exceeds 131072 bytes
 LL │ ┏ contract Big {
 LL │ ┃
 LL │ ┃     bytes public stored;
-   ‡ ┃
+   ┆ ┇
 LL │ ┃ }
    │ ┗━┛
    │

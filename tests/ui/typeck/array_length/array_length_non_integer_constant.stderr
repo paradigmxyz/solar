@@ -3,7 +3,7 @@ error[5462]: failed to evaluate constant: unsupported expression
    │
 LL │     bool constant T = true;
    │                       ──── evaluation of constant value failed here
-   ‡
+   ┆
 LL │     uint256[T] t;
    │             ━
    │
@@ -22,7 +22,7 @@ error[5462]: failed to evaluate constant: unsupported expression
    │
 LL │     bytes1 constant S = "a";
    │     ────── evaluation of constant value failed here
-   ‡
+   ┆
 LL │     uint256[S] s;
    │             ━
    │
@@ -33,7 +33,7 @@ error[5462]: failed to evaluate constant: unsupported expression
    │
 LL │     bytes1 constant S = "a";
    │     ────── evaluation of constant value failed here
-   ‡
+   ┆
 LL │         abi.decode("", (uint256[S]));
    │                                 ━
    │

@@ -53,7 +53,7 @@ error[5210]: failed to evaluate constant: constants are nested too deeply
    │
 LL │ uint constant C8 = C7 + 1;
    │ ───────────────────────── evaluation of constant value failed here
-   ‡
+   ┆
 LL │         uint[C40] memory g;
    ╰╴             ━━━
 

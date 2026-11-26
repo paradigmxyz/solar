@@ -178,6 +178,10 @@ fn @dirtyUnusedStructField() -> i8 [selector=0xc1226a60, view, abi_params=[], ab
 ; function dirtyUnusedStructFieldTarget() external pure returns (Pair memory) [selector 0x38a62c01]
 fn @dirtyUnusedStructFieldTarget() -> ptr<memory> [selector=0x38a62c01, pure, abi_params=[], abi_returns=[tuple<word<uint8>, word<bool>>], abi_return_params=[tuple<uint8, bool>]] {
   bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = ptradd v0, 32
+    mstore v1, 0
     mstore 0, 1 !metadata(memory=scratch)
     mstore 32, 2 !metadata(memory=scratch)
     returndata 0, 64

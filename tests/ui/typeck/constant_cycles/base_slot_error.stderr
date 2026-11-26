@@ -9,7 +9,7 @@ error[5210]: failed to evaluate constant: constants are nested too deeply
    │
 LL │ uint constant C0 = 1;
    │ ──────────────────── evaluation of constant value failed here
-   ‡
+   ┆
 LL │ contract X layout at C32 {}
    ╰╴                     ━━━
 

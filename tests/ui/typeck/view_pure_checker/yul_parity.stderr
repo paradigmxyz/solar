@@ -5,7 +5,7 @@ LL │ ┏     function uncalledRead() public {
 LL │ ┃
 LL │ ┃         assembly {
 LL │ ┃             function read() {
-   ‡ ┃
+   ┆ ┇
 LL │ ┃     }
    ╰╴┗━━━━━┛
 

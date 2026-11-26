@@ -3,7 +3,7 @@ error[5462]: failed to evaluate constant: unsupported expression
    │
 LL │     uint256[B] values;
    │             ━
-   ‡
+   ┆
 LL │ uint256 constant A = uint256(keccak256(abi.encode(new S[](1)))) % 4 + 1;
    │                      ────────────────────────────────────────── evaluation of constant value failed here
    │
@@ -14,7 +14,7 @@ error[5462]: failed to evaluate constant: unsupported expression
    │
 LL │ uint256 constant Y = X.length;
    │                      ──────── evaluation of constant value failed here
-   ‡
+   ┆
 LL │     uint256[Y] values;
    │             ━
    │

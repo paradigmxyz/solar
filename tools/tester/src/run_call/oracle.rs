@@ -157,8 +157,8 @@ fn describe(outcome: &Outcome, stop: Option<InstrStop>) -> String {
 
 /// Accept only the explicit invalid instruction or REVERT before its activation.
 fn expected_halt(stop: InstrStop, opcode: Option<u8>, version: EvmVersion) -> bool {
-    (stop == InstrStop::InvalidOpcode && opcode == Some(op::INVALID))
-        || (matches!(stop, InstrStop::NotActivated | InstrStop::InvalidOpcode)
+    (stop == InstrStop::InvalidFEOpcode && opcode == Some(op::INVALID))
+        || (matches!(stop, InstrStop::NotActivated | InstrStop::OpcodeNotFound)
             && opcode == Some(op::REVERT)
             && version < EvmVersion::Byzantium)
 }
@@ -169,12 +169,13 @@ mod tests {
 
     #[test]
     fn rejects_unexpected_halts() {
-        assert!(expected_halt(InstrStop::InvalidOpcode, Some(op::INVALID), EvmVersion::Osaka));
+        assert!(expected_halt(InstrStop::InvalidFEOpcode, Some(op::INVALID), EvmVersion::Osaka));
         assert!(expected_halt(InstrStop::NotActivated, Some(op::REVERT), EvmVersion::Homestead));
         for stop in [
             InstrStop::InvalidJump,
             InstrStop::StackUnderflow,
-            InstrStop::InvalidOpcode,
+            InstrStop::OpcodeNotFound,
+            InstrStop::InvalidFEOpcode,
             InstrStop::NotActivated,
         ] {
             assert!(!expected_halt(stop, Some(op::JUMP), EvmVersion::Osaka));

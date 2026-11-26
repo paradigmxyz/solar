@@ -3,7 +3,7 @@ error[5462]: failed to evaluate constant: unsupported expression
    │
 LL │     bytes1 constant B = 0x02;
    │     ────── evaluation of constant value failed here
-   ‡
+   ┆
 LL │     uint256[B] a;
    │             ━
    │
@@ -14,7 +14,7 @@ error[5462]: failed to evaluate constant: unsupported expression
    │
 LL │     bytes1 constant S = "a";
    │     ────── evaluation of constant value failed here
-   ‡
+   ┆
 LL │     uint256[S] s;
    │             ━
    │
@@ -25,7 +25,7 @@ error[5462]: failed to evaluate constant: unsupported expression
    │
 LL │     bytes1 constant B = 0x02;
    │     ────── evaluation of constant value failed here
-   ‡
+   ┆
 LL │         uint256[B] memory b;
    │                 ━
    │
@@ -36,7 +36,7 @@ error[5462]: failed to evaluate constant: unsupported expression
    │
 LL │     bytes1 constant B = 0x02;
    │     ────── evaluation of constant value failed here
-   ‡
+   ┆
 LL │         abi.decode("", (uint256[B]));
    │                                 ━
    │
