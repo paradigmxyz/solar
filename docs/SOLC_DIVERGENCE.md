@@ -1445,9 +1445,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `copy_recursive_struct_overlap_push_self_parent`, and
   `copy_recursive_struct_disjoint_copy_memory_growth` expects no growth.
 
-### CODEGEN-032: Inline assembly cannot read scratch word `0x20` after a multi-return internal call
+### CODEGEN-034: Inline assembly cannot read scratch word `0x20` after a multi-return internal call
 
-- ID: CODEGEN-032
+- ID: CODEGEN-034
 - Status: intentional
 - Difference: MIR models an internal call that returns several words as a write of
   the pointer to its result buffer to scratch word `0x20`

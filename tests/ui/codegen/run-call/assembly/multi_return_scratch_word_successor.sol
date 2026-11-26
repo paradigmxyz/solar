@@ -9,7 +9,7 @@
 
 // The read is in a later block than the call, so the planner does not take it for the protocol's
 // pointer read and the call publishes the pointer to scratch word 0x20. The read returns the
-// pointer where solc and `-O none` return the callee's word (CODEGEN-032).
+// pointer where solc and `-O none` return the callee's word (CODEGEN-034).
 contract C {
     function g(uint256 v) internal pure returns (uint256 a, uint256 b) {
         assembly ("memory-safe") {
