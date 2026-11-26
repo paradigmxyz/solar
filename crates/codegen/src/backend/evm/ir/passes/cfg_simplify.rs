@@ -569,12 +569,14 @@ fn redirect_jump_thunks(
                     // e98b16a2710b), unless it ends the function: `MergeBlockIntoPredecessor` keeps
                     // the successor's terminator, so the transfer that takes the exit takes the
                     // jump's origin.
+                    // NOTE: The exit of a thunk that enters a function stays with it: the
+                    // transfer calls that function and does not leave its own.
                     // NOTE: The thunk's entry never moves onto an incoming jump: the callee starts
                     // at its first instruction, which the chain's destination label holds, as the
                     // ethdebug format places `invoke` on the callee's entry `JUMPDEST`. Without an
                     // exclusive destination label the entry is unknown: another edge into the
                     // label, such as a loop's back edge, would run it more than once per call.
-                    if !conditional {
+                    if !conditional && thunk.entered.is_none() {
                         take_thunk_exit(&mut block.instructions[at].metadata, &thunk.exit);
                     }
                 }
@@ -603,7 +605,7 @@ fn redirect_jump_thunks(
                     }
                     // A bypassed thunk's exit moves only onto an unconditional transfer; see the
                     // NOTE above.
-                    if !conditional {
+                    if !conditional && thunk.entered.is_none() {
                         take_thunk_exit(&mut term.metadata, &thunk.exit);
                     }
                 }

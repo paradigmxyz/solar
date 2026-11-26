@@ -183,7 +183,8 @@
 //! cloned tests the copies no longer read.
 
 use super::loop_split::{
-    LoopCopy, add_exit_inputs, branch, clone_loop, jump, redirect, side_exits,
+    LoopCopy, add_exit_inputs, branch, clone_loop, header_repeats_safely, jump, redirect,
+    side_exits,
 };
 use crate::{
     backend::evm::op,
@@ -485,15 +486,7 @@ fn shape(
             return None;
         }
     }
-    // The original header repeats its instructions for the iteration the main loop declined,
-    // or for the one a peeled iteration's header declined, so they must give the same results
-    // again: a read of remaining gas or memory size could see a new value and branch the other
-    // way.
-    if func.blocks[l.header].instructions.iter().any(|&inst| {
-        let kind = &func.inst(inst).kind;
-        !matches!(kind, InstKind::Phi(_))
-            && (kind.has_side_effects() || kind.effects().observes_execution())
-    }) {
+    if !header_repeats_safely(func, l.header) {
         return None;
     }
     Some(Shape { preheader, latch, body, exit, enters_on_true, condition, loop_insts })

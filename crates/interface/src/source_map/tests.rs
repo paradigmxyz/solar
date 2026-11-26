@@ -29,6 +29,38 @@ fn source_unit_name_order_is_raw_bytes() {
 }
 
 #[test]
+fn source_unit_name_key_matches_cmp() {
+    let names = [
+        FileName::Real(PathBuf::from("a-b/x.sol")),
+        FileName::Real(PathBuf::from("a/y.sol")),
+        FileName::Real(PathBuf::from("a//b.sol")),
+        FileName::Real(PathBuf::from("a/b.sol")),
+        FileName::Real(PathBuf::from("a//b/x.sol")),
+        FileName::Real(PathBuf::from("a/b-y/y.sol")),
+        FileName::Real(PathBuf::from("<stdin>")),
+        FileName::Real(PathBuf::from("<x>")),
+        FileName::Stdin,
+        FileName::Custom("x".into()),
+        FileName::Custom("stdin".into()),
+    ];
+    for a in &names {
+        for b in &names {
+            assert_eq!(
+                a.source_unit_name_key().cmp(&b.source_unit_name_key()),
+                a.cmp_source_unit_name(b),
+                "{a:?} vs {b:?}"
+            );
+        }
+    }
+
+    let mut by_cmp = (0..names.len()).collect::<Vec<_>>();
+    by_cmp.sort_by(|&a, &b| names[a].cmp_source_unit_name(&names[b]));
+    let mut by_key = (0..names.len()).rev().collect::<Vec<_>>();
+    by_key.sort_by_cached_key(|&i| names[i].source_unit_name_key());
+    assert_eq!(by_key, by_cmp);
+}
+
+#[test]
 fn new_source_file_shrinks_unique_source_allocation() {
     let sm = SourceMap::empty();
     let mut src = String::with_capacity(128);
