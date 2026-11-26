@@ -484,19 +484,30 @@ impl<'a> Stage<'a> {
     }
 }
 
-/// The Lean namespace of a contract's definitions.
-fn namespace(contract: &str) -> String {
+/// The Lean namespace of a contract's definitions: `-Zlean-stages-namespace`, by default
+/// `SolarTV.Export`, then the contract's name.
+fn namespace(gcx: Gcx<'_>, contract: &str) -> Result<String> {
+    let prefix =
+        gcx.sess.opts.unstable.lean_stages_namespace.as_deref().unwrap_or("SolarTV.Export");
+    let ident = |s: &str| {
+        s.bytes().next().is_some_and(|b| b.is_ascii_alphabetic() || b == b'_')
+            && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+    };
+    if !prefix.split('.').all(ident) {
+        return Err(error(
+            gcx,
+            format_args!(
+                "`-Zlean-stages-namespace` must be dot-separated identifiers, not `{prefix}`"
+            ),
+        ));
+    }
     let plain = contract.bytes().next().is_some_and(|b| b.is_ascii_alphabetic())
         && contract.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_');
-    if plain {
-        format!("SolarTV.Export.{contract}")
-    } else {
-        format!("SolarTV.Export.«{contract}»")
-    }
+    Ok(if plain { format!("{prefix}.{contract}") } else { format!("{prefix}.«{contract}»") })
 }
 
 fn write_stage(gcx: Gcx<'_>, dir: &Path, stage: Stage<'_>, contract: &str, body: &str) -> Result {
-    let ns = namespace(contract);
+    let ns = namespace(gcx, contract)?;
     let text = format!(
         "{HEADER} kind={kind} index={index} pass={pass}\n\
          import {import}\n\
@@ -579,7 +590,7 @@ fn numbered(dir: &Path, prefix: &str) -> Vec<usize> {
 /// The body of a stage file: its definition's term.
 fn body_of(text: &str) -> Option<&str> {
     let (_, rest) = text.split_once(" :=\n")?;
-    let (body, _) = rest.rsplit_once("\n\nend SolarTV.Export.")?;
+    let (body, _) = rest.rsplit_once("\n\nend ")?;
     Some(body)
 }
 
@@ -1590,7 +1601,7 @@ pub fn write_manifest(
         ));
     }
     let code_end = program_data(gcx, &dir, contract, runtime.len(), data)?;
-    let ns = namespace(contract);
+    let ns = namespace(gcx, contract)?;
     let hex: String = runtime.iter().map(|b| format!("{b:02x}")).collect();
     let bytes = runtime[..code_end].iter().map(|b| format!("0x{b:02x}")).collect::<Vec<_>>();
     let mut bytecode = format!(
@@ -1758,6 +1769,7 @@ pub fn write_manifest(
         format!("{opts:?}").replacen(&threads, &format!("language: {:?},", opts.language), 1);
     let mut json = serde_json::json!({
         "contract": contract,
+        "namespace": ns,
         "sources": info.sources.iter().map(|(path, bytes)| serde_json::json!({
             "path": path,
             "sha256": sha256(bytes),
