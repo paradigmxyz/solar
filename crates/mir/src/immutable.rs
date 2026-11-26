@@ -52,21 +52,14 @@ pub fn immutable_staging_base(module: &Module) -> u64 {
             .max(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE);
         let mut base = EvmMemoryLayout::align_word(fixed_end)
             .expect("constructor immutable staging address overflow");
-        let mut ranges = Vec::new();
-        for func in module.constructor_reachable_functions().iter() {
-            let func = module.function(func);
-            func.for_each_memory_range(|offset, size| {
-                if let Some(start) = func.value_u64(offset)
-                    && let Some(size) = size.filter(|&size| size != 0)
-                    && let Some(end) = start.checked_add(size)
-                    // A range this high runs out of gas when executed, so it leaves the base
-                    // where it is.
-                    && end <= EvmMemoryLayout::MAX_HEAP_FLOOR / 2
-                {
-                    ranges.push((start, end));
-                }
-            });
-        }
+        // A range that ends above half of `MAX_HEAP_FLOOR` runs out of gas when executed, so it
+        // leaves the base where it is.
+        let ranges = module
+            .constructor_reachable_functions()
+            .iter()
+            .flat_map(|func| module.function(func).constant_memory_ranges())
+            .filter(|&(_, end)| end <= EvmMemoryLayout::MAX_HEAP_FLOOR / 2)
+            .collect::<Vec<_>>();
         loop {
             let end = immutable_staging_end(base, module.immutable_count());
             let Some(raised) = ranges
@@ -77,8 +70,7 @@ pub fn immutable_staging_base(module: &Module) -> u64 {
             else {
                 return base;
             };
-            base = EvmMemoryLayout::align_word(raised)
-                .expect("constructor immutable staging address overflow");
+            base = raised.next_multiple_of(EvmMemoryLayout::WORD_SIZE);
         }
     })
 }

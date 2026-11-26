@@ -10,7 +10,7 @@ fn @constructor() [constructor] {
     storeimmutable x, 7
     storeimmutable y, 9
     mstore 192, 0x3333
-    mstore 224, 0x4444
+    codecopy 224, 0, 32
     ret
 }
 

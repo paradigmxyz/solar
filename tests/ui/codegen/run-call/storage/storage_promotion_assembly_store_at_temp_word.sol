@@ -2,6 +2,7 @@
 //@ run-call: tail 3 => 8
 //@ run-call: body 3 => 8
 //@ run-call: pair 3 => 16
+//@ run-call: copy 3 => 8
 
 // Assembly stores to fixed addresses between a promoted slot's initial store and its flush must
 // not reach the memory temporary that holds the slot.
@@ -22,6 +23,13 @@ contract StoragePromotionAssemblyStoreAtTempWord {
             x += 1;
             assembly { mstore(0x80, 0x1111) }
         }
+        return x;
+    }
+
+    function copy(uint256 n) external returns (uint256) {
+        x = 5;
+        assembly { calldatacopy(0x80, 0, calldatasize()) }
+        for (uint256 i; i < n; ++i) x += 1;
         return x;
     }
 

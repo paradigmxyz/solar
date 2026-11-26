@@ -480,6 +480,25 @@ impl Function {
         }
     }
 
+    /// Returns the ranges of the function's memory accesses whose offset and size are both
+    /// compile-time constants, as start and end addresses.
+    ///
+    /// Reads count as well as writes. The compiler's own absolute accesses, such as an external
+    /// function's return buffer, lie below the base their entry places its spill area at.
+    #[must_use]
+    pub fn constant_memory_ranges(&self) -> Vec<(u64, u64)> {
+        let mut ranges = Vec::new();
+        self.for_each_memory_range(|offset, size| {
+            if let Some(start) = self.value_u64(offset)
+                && let Some(size) = size.filter(|&size| size != 0)
+                && let Some(end) = start.checked_add(size)
+            {
+                ranges.push((start, end));
+            }
+        });
+        ranges
+    }
+
     /// Returns where the local region ends, `HEAP_START` up to `internal_frame_size`, if the
     /// function accesses it at absolute addresses: a constant range with a non-zero size starts
     /// inside it. A frame the function reaches through `internal_frame_addr` does not count.

@@ -1084,7 +1084,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   those ranges too. Storage promotion's memory temporaries, which sit where the
   entry's frame ends, are not moved. The pass instead declines to promote a
   slot when a write that may reach a temporary's word lies between the slot's
-  initial store and its flush.
+  initial store and its flush. A copy to a constant address whose length is
+  not constant, as `codecopy(0xc0, 0, codesize())` in a constructor, names no
+  finite range, so it does not move the immutable staging words and can overwrite them.
 
   A write whose destination the compiler cannot place on the heap, in a frame,
   or below the heap start, such as a copy to a computed destination of any

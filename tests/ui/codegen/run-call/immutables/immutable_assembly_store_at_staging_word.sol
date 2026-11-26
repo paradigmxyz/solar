@@ -11,7 +11,7 @@ contract C {
         y = 9;
         assembly {
             mstore(0xc0, 0x3333)
-            mstore(0xe0, 0x4444)
+            codecopy(0xe0, 0, 0x20)
         }
     }
 }

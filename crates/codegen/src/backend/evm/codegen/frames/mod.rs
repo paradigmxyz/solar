@@ -936,14 +936,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut owns_low_memory = index_vec![None; module.functions.len()];
         let mut address_inputs = None;
         let mut local_ends = FxHashMap::default();
+        let constant_ranges =
+            |func_id: FunctionId| module.functions[func_id].constant_memory_ranges();
         let ranges = entries
             .iter()
             .map(|&entry| {
                 let mut ranges = Vec::new();
                 for func_id in self.runtime_entry_reachability[&entry].iter() {
-                    ranges.extend_from_slice(function_ranges[func_id].get_or_insert_with(|| {
-                        Self::constant_memory_ranges(&module.functions[func_id])
-                    }));
+                    ranges.extend_from_slice(
+                        function_ranges[func_id].get_or_insert_with(|| constant_ranges(func_id)),
+                    );
                 }
                 // An entry that runs code writing memory at an address calldata computes owns
                 // the low memory it names until control passes to another entry. The
@@ -1526,24 +1528,6 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn unknown_unless_both(first: Option<Reach>, second: Option<Reach>) -> Option<Reach> {
         let both = first.is_some() && second.is_some();
         Reach::join(first, second).map(|reach| if both { reach } else { Reach::bound(reach.back) })
-    }
-
-    /// Returns the ranges of `func`'s memory accesses whose offset and size are both
-    /// compile-time constants, as start and end addresses.
-    ///
-    /// Reads count as well as writes. The compiler's own absolute accesses, such as an external
-    /// function's return buffer, lie below the base their entry places its spill area at.
-    fn constant_memory_ranges(func: &Function) -> Vec<(u64, u64)> {
-        let mut ranges = Vec::new();
-        func.for_each_memory_range(|offset, size| {
-            if let Some(start) = func.value_u64(offset)
-                && let Some(size) = size.filter(|&size| size != 0)
-                && let Some(end) = start.checked_add(size)
-            {
-                ranges.push((start, end));
-            }
-        });
-        ranges
     }
 
     /// Returns whether `func` may write memory at an address that calldata computes, as Seaport
