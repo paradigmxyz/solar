@@ -261,6 +261,19 @@ theorem phi_read (frame : Frame) (predecessor result : Nat) (operand : Operand)
         return {frame with locals := put frame.locals result word}) := by
   simp [enter, same]
 
+/-- A self edge copies the typed value already held by the phi. The
+caller proves that a seed edge ran before the first self edge. -/
+theorem phi_carry (frame : Frame) (predecessor result : Nat) (ty : ValueType) (seed : Value)
+    (same : ty.same ty = true) (fits : seed.fits 34 ty = true)
+    (initialized : readValue frame ⟨.local result, ty⟩ = .ok seed) :
+    let after := {frame with locals := put frame.locals result seed}
+    enter (some predecessor) [⟨result, ty, [(predecessor, ⟨.local result, ty⟩)]⟩] frame = .ok after ∧
+      readValue after ⟨.local result, ty⟩ = .ok seed := by
+  constructor
+  · rw [phi_read frame predecessor result ⟨.local result, ty⟩ same, initialized]
+    rfl
+  · simp [readValue, put, required, fits, Bind.bind, Except.bind, Pure.pure, Except.pure]
+
 abbrev Edges := List (Nat × Nat)
 
 inductive Avoids (edges : Edges) (producer : Nat) : Nat → Prop where

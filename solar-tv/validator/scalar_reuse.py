@@ -52,6 +52,7 @@ AXIOMS = """
 #print axioms MIR.ScalarReuse.timestamp_value
 #print axioms MIR.ScalarReuse.returndata_guard
 #print axioms MIR.ScalarReuse.phi_read
+#print axioms MIR.ScalarReuse.phi_carry
 #print axioms MIR.LowerSlices.fields
 #print axioms MIR.CallOperands.target_width
 #print axioms MIR.CallOperands.call_ranges_with_value
@@ -408,20 +409,30 @@ def complemented_branch(term, retained):
     return {**term, "args": [condition], "then": term["else"], "else": term["then"]}
 
 
-def phi_source(phi, predecessors, aliases):
+def phi_source(phi, predecessors, aliases, initialized):
     incoming = phi["incoming"]
     if not incoming or len(incoming) != len(predecessors):
         return None
     if {pred for pred, _ in incoming} != predecessors:
         return None
-    values = [substitute(arg, aliases) for _, arg in incoming]
+    carried, values = [], []
+    for pred, arg in incoming:
+        if arg == local(phi["result"], phi["type"]):
+            # A first visit to the phi must have come through another arm.
+            if pred not in initialized:
+                return None
+            carried.append(pred)
+        else:
+            values.append(substitute(arg, aliases))
+    if not values:
+        return None
     operand = values[0]
     if (
         operand["kind"] in {"arg", "constant", "local"}
         and operand["type"] == phi["type"]
         and all(value == operand for value in values)
     ):
-        return operand
+        return operand, carried
     return None
 
 
@@ -619,11 +630,15 @@ def normalize(body, definitions, fork, *, empty_targets=None):
             and call_output_word(blocks[next(iter(parents[index]))], definitions, fork)
         )
         phis, instructions = [], []
+        initialized = {pred for pred in parents[index] if index in dom[pred]}
         for phi in block["phis"]:
-            operand = phi_source(phi, parents[index], aliases) if index else None
-            if operand is None:
+            source = (
+                phi_source(phi, parents[index], aliases, initialized) if index else None
+            )
+            if source is None:
                 phis.append(phi)
                 continue
+            operand, carried = source
             if operand["kind"] == "local":
                 owner = owners[operand["index"]]
                 if owner not in dom[index] or owner == index:
@@ -631,7 +646,8 @@ def normalize(body, definitions, fork, *, empty_targets=None):
                     continue
                 sites.add((owner, index))
             aliases[phi["result"]] = operand
-            stats["uniform_phis"] += 1
+            stats["carried_phis" if carried else "uniform_phis"] += 1
+            sites.update((index, pred) for pred in carried)
 
         for original in block["instructions"]:
             inst = substitute(original, aliases)

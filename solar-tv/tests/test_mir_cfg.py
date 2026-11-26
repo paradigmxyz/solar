@@ -1509,6 +1509,45 @@ fn @choose(arg0: slice<calldata>) -> i256 {
             witness = record["witness"]
             self.assertEqual(witness["observations"], witness["native_observations"])
 
+    def test_simplify_phis_preserves_a_loop_carried_seed(self):
+        carry = "    v0 = phi [bb0: arg1], [bb2: v0]\n"
+        original = f"""@module CarriedPhi
+fn @choose(arg0: i256, arg1: i256) -> i256 {{
+  bb0:
+    jump bb1
+  bb1:
+{carry}    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = lt v1, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add v1, 1
+    jump bb1
+  bb3:
+    ret v0
+}}
+"""
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{side}.mir" for side in ("before", "after"))
+            before.write_text(original)
+            optimized = original.replace(carry, "").replace("ret v0", "ret arg1")
+            after.write_text(optimized)
+            record = self.check_loop(root, 0)
+            reuse = record["import_correspondence"][0]["correspondence"]["choose"][
+                "scalar_reuse"
+            ]
+            self.assertEqual([side.get("carried_phis", 0) for side in reuse], [1, 0])
+            self.assertEqual(
+                self.replay_loop(root, original, optimized, [3, 7]), [["7"], ["7"]]
+            )
+
+            changed = original.replace("[bb2: v0]", "[bb2: arg0]")
+            before.write_text(changed)
+            self.check_loop(root, 2)
+            self.assertEqual(
+                self.replay_loop(root, changed, optimized, [3, 7]), [["3"], ["7"]]
+            )
+
     def test_sccp_removes_a_folded_inactive_loop_guard(self):
         guard = "    v0 = eq 2, 0\n    icall panic_if<0x41>, v0\n"
         original = f"""@module FoldedGuard
