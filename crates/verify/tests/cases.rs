@@ -902,6 +902,25 @@ fn emit_lean_spec() {
     let _ = std::fs::remove_file(&out);
 }
 
+/// An enum member in a spec, such as `Color.Blue`, is exported as its index, the value an enum
+/// of that many members reads as from storage and from an argument.
+#[test]
+fn emit_lean_spec_enum() {
+    let out =
+        std::env::temp_dir().join(format!("solar-verify-lean-enum-{}.lean", std::process::id()));
+    let run = run_verifier(&[
+        "--emit-lean-spec",
+        out.to_str().unwrap(),
+        "--lean-spec-module",
+        "SolidCore.Spec.Export.Enum",
+        "tests/snapshots/lean_export_enum.sol",
+    ]);
+    assert!(run.stderr.is_empty(), "{}", run.stderr);
+    let lean = std::fs::read_to_string(&out).unwrap();
+    assert_data_eq!(tidy(&lean), file!["snapshots/lean_export_enum.lean"]);
+    let _ = std::fs::remove_file(&out);
+}
+
 /// Every construct `--emit-lean-spec` does not translate is an error that names it, and nothing is
 /// written: each file of `snapshots/lean_unsupported` pins the message in its `// expect:` line.
 #[test]

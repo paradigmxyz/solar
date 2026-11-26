@@ -307,6 +307,16 @@ impl<'p, 'a> Cx<'p, 'a> {
         Err((sp, format!("unknown name `{n}` in a spec")))
     }
 
+    /// Whether `n` names a bound variable, a parameter, a return value or a state variable, which
+    /// a member access on `n` then reads rather than a global or an enum.
+    fn shadowed(&self, n: &str) -> bool {
+        self.bound.iter().any(|b| b == n)
+            || self.f.is_some_and(|f| {
+                f.params.iter().any(|p| p.0 == n) || f.rets.iter().any(|r| r.0 == n)
+            })
+            || self.c.state.iter().any(|s| s.name == n)
+    }
+
     fn index(&mut self, b: Val, key: String, sp: Span) -> R<Val> {
         Ok(match b {
             Val::Ghost { name, mut keys, ty: Ty::Map(_, v) } => {
@@ -434,7 +444,17 @@ impl<'p, 'a> Cx<'p, 'a> {
                         ("msg", "sender") => return Ok(Val::Term(".env .sender".into())),
                         ("msg", "value") => return Ok(Val::Term(".env .value".into())),
                         ("block", "timestamp") => return Ok(Val::Term(".env .timestamp".into())),
+                        ("msg" | "block" | "tx", _) if !self.shadowed(b.as_str()) => {
+                            return Err((sp, format!("`{b}.{m}` not exported")));
+                        }
                         _ => {}
+                    }
+                    // An enum member, such as `Color.Blue`, is its index: the value `(.enum k)`
+                    // reads from storage.
+                    if !self.shadowed(b.as_str())
+                        && let Some(&i) = self.p.enum_variants.get(&format!("{b}.{m}"))
+                    {
+                        return Ok(Val::Term(format!(".lit {i}")));
                     }
                 }
                 match self.expr(base)? {
