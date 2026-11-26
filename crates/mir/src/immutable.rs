@@ -66,7 +66,7 @@ pub fn immutable_staging_base(module: &Module) -> u64 {
         let ranges = module
             .constructor_reachable_functions()
             .iter()
-            .flat_map(|func| module.function(func).constant_memory_ranges())
+            .flat_map(|func| module.function(func).constant_memory_ranges_outside_reverts())
             .filter(|&(_, end)| end <= MAX_STAGING_RANGE_END)
             .collect::<Vec<_>>();
         loop {

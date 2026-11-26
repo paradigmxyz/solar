@@ -1081,8 +1081,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   memory, never carry it. Other entries keep their memory low unless they share
   those frames or a function that reads the heap floor, which gives them one
   initial pointer. The constructor's immutable staging words keep clear of
-  those ranges too, except a range that ends above 4 MiB, which costs more gas
-  to expand to than a transaction can pay. Storage promotion's memory temporaries, which sit where the
+  those ranges too, except what a `revert` reads and a range that ends above
+  4 MiB, which costs more gas to expand to than a transaction can pay. Storage promotion's memory temporaries, which sit where the
   entry's frame ends, are not moved. The pass instead declines to promote a
   slot when the function, or one it may call, names a constant range over a
   temporary's word, or,
