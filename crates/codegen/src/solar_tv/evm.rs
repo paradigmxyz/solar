@@ -77,6 +77,9 @@ impl<'a> EvmSnapshot<'a> {
             .collect::<BTreeMap<_, _>>();
         let structural =
             self.before.blocks.iter().map(|b| b.label).ne(module.blocks.iter().map(|b| b.label));
+        let schedule = pass == "stack-reschedule"
+            && !gcx.sess.opts.unstable.solar_tv_capture
+            && std::env::var_os("SOLAR_TV_GAS").is_none();
         let mut checked = false;
         for (old_id, before) in self.before.blocks.iter_enumerated() {
             let Some(&id) = labels.get(&before.label) else { continue };
@@ -105,6 +108,23 @@ impl<'a> EvmSnapshot<'a> {
                 name: format!("bb{}", before.label),
                 height,
             };
+            if schedule
+                && matches!(rejection, None | Some("incoming EVM stack height is unknown"))
+                && before.metadata.call_effect == module.blocks[id].metadata.call_effect
+            {
+                let scheduled =
+                    Region { kind: "stack-schedule", name: region.name.clone(), height };
+                if self.snapshot.check(
+                    gcx,
+                    "evmir",
+                    pass,
+                    module.name(),
+                    &after,
+                    (Some(&scheduled), None),
+                )? {
+                    continue;
+                }
+            }
             self.snapshot.check(
                 gcx,
                 "evmir",

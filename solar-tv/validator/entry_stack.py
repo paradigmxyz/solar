@@ -47,7 +47,7 @@ def ranges(start, count, check="check"):
     return f"(joinRanges {ranges(start, middle, check)} {ranges(start + middle, count - middle, check)})"
 
 
-def certificate(namespace, proposal, catalog, limit, *, indexed=False):
+def certificate(namespace, proposal, catalog, limit, *, indexed=False, chunked=False):
     witness, signatures, bounds = proposal.witness, proposal.signatures, proposal.bounds
     shapes = {}
     points = []
@@ -55,8 +55,7 @@ def certificate(namespace, proposal, catalog, limit, *, indexed=False):
         index = shapes.setdefault(shape, len(shapes))
         points.append(f"({pc},{index})")
     code = (
-        f"\nnamespace {namespace}\n"
-        + cfg_flow.table(
+        cfg_flow.table(
             "rootNodes", "EVM.ContinuationFlow.Node", witness["source"], lookup=False
         )
         + cfg_flow.table("rootPoints", "(Nat × Nat)", points, lookup=False)
@@ -72,7 +71,6 @@ def certificate(namespace, proposal, catalog, limit, *, indexed=False):
         + cfg_flow.table("boundRows", "Nat", list(map(str, bounds)), lookup=False)
         + cfg_flow.signatures_declaration(signatures, catalog)
         + f"""
-open EVM.StackReachability
 def points := EVM.ContinuationFlow.internedPoints rootPoints.view rootShapes.view
 def graph := project rootNodes.view points rootEdges.view
 def ceilingAt (i : Nat) : Nat := (boundRows.get? i).getD 0
@@ -81,14 +79,23 @@ theorem trees :
     rootNodes.checked && rootPoints.checked && rootShapes.checked &&
       rootEdges.checked && boundRows.checked = true :=
   by decide +kernel
+"""
+    )
+    if chunked:
+        code += cfg_flow.ROW_STAGE_BREAK + cfg_flow.check_rows(
+            "closedRows", "check", len(bounds)
+        )
+        range_proof = "closedRows"
+    else:
+        range_proof = ranges(0, len(bounds))
+    code += f"""
 theorem checked : CheckedRange check 0 rootPoints.size :=
-  {ranges(0, len(bounds))}
+  {range_proof}
 theorem entryFits {{pc height : Nat}}
     (reaches : Reaches graph signatures pc height) : height ≤ {limit} :=
   projected_cap (source := {witness["entry"]}) (by decide +kernel) (by decide +kernel)
     (fun point inside => checked point (Nat.zero_le _) inside) reaches
 """
-    )
     if indexed:
         code += f"""
 def checkTables := indexedRoomAt rootNodes.view points ceilingAt
@@ -104,7 +111,11 @@ theorem indexedFits {{pc height growth : Nat}} {{selector : EvmRules.Word}}
     (fun i inside => checked i (Nat.zero_le _) inside)
     (fun i inside => tablesChecked i (Nat.zero_le _) inside) reaches here term
 """
-    return code + f"end {namespace}\n"
+    return cfg_flow.ROW_STAGE_BREAK.join(
+        f"\nnamespace {namespace}\nopen EVM.StackReachability\n{part}\nend {namespace}\n"
+        for part in code.split(cfg_flow.ROW_STAGE_BREAK)
+        if part.strip()
+    )
 
 
 def evidence(proposal):

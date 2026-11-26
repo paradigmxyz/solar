@@ -794,6 +794,9 @@ def main() -> int:
         "--prefix", help="prove a block prefix for every incoming stack"
     )
     selection.add_argument(
+        "--stack-schedule", help="check an unpriced EVM stack schedule by block label"
+    )
+    selection.add_argument(
         "--return-path",
         metavar="SELECTOR",
         help="check a relocated EVM ABI return path",
@@ -845,6 +848,7 @@ def main() -> int:
         stack_height=args.stack_height,
         world=args.world,
         prefix=args.prefix,
+        stack_schedule=args.stack_schedule,
         return_path=args.return_path,
         erc20_layout=args.erc20_layout,
         prune=args.prune,
@@ -887,6 +891,7 @@ def main() -> int:
             stack_height=args.stack_height,
             world=args.world,
             prefix=args.prefix,
+            stack_schedule=args.stack_schedule,
             return_path=args.return_path,
             erc20_layout=args.erc20_layout,
             prune=args.prune,
@@ -896,7 +901,7 @@ def main() -> int:
             entry_stack=args.entry_stack,
             valid_heap=args.valid_heap,
         )
-        if args.entry_stack:
+        if args.entry_stack and not args.stack_schedule:
             if (
                 args.ir != "evmir"
                 or not args.region
@@ -1141,6 +1146,31 @@ def main() -> int:
                 args.world,
                 replay,
             )
+            programs = list(result.pair)
+        elif args.stack_schedule:
+            if args.ir != "evmir" or args.world or args.gas or args.interaction_trace:
+                raise Unsupported("--stack-schedule requires an unpriced EVM IR pair")
+            if args.entry_stack and args.stack_height is not None:
+                raise Unsupported(
+                    "--entry-stack and --stack-height select different stack domains"
+                )
+            from . import evm_schedule
+
+            inputs = (
+                (args.before, args.after),
+                solar,
+                rust_replay,
+                version,
+                args.timeout,
+                args.stack_schedule,
+                args.stack_height,
+            )
+            try:
+                result = evm_schedule.check(*inputs, from_entry=args.entry_stack)
+            except evm_schedule.ScheduleMismatch:
+                if args.entry_stack or args.stack_height is not None:
+                    raise
+                result = evm_schedule.check(*inputs, from_entry=True)
             programs = list(result.pair)
         elif args.prefix:
             if args.ir != "evmir" or args.world or args.stack_height is not None:
@@ -1557,6 +1587,18 @@ def main() -> int:
                 **record.get("region", {}),
                 "kind": "loop-region",
                 "name": args.storage_loop,
+            }
+        if args.stack_schedule:
+            record["whole_pass"] = False
+            record["region"] = {
+                "kind": "window",
+                "name": args.stack_schedule,
+                "stack_height": args.stack_height,
+                **(
+                    {"proof": "kernel-checked-stack-schedule"}
+                    if result.status == "verified"
+                    else {}
+                ),
             }
         if args.function or args.window or args.region or args.prefix:
             record["region"] = {

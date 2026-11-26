@@ -205,6 +205,7 @@ def replay_command(
     stack_height: int | None = None,
     world: Path | None = None,
     prefix: str | None = None,
+    stack_schedule: str | None = None,
     return_path: str | None = None,
     erc20_layout: str | None = None,
     prune: bool = False,
@@ -227,6 +228,8 @@ def replay_command(
     ]
     if prefix is not None:
         argv.extend(["--prefix", prefix])
+    if stack_schedule is not None:
+        argv.extend(["--stack-schedule", stack_schedule])
     if return_path is not None:
         argv.extend(["--return-path", return_path])
     if erc20_layout:

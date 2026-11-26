@@ -212,11 +212,11 @@ def checked_status(process, record):
     return status
 
 
-def check_entry(solar, row, target, timeout, mode="--entry-trace"):
+def check_entry(solar, row, target, timeout, mode="--entry-trace", *arguments):
     log = target.with_suffix(".log")
     try:
         process = run(
-            [*audit_command(solar, row, target, timeout), mode],
+            [*audit_command(solar, row, target, timeout), mode, *arguments],
             ROOT,
             timeout * 16,
         )
@@ -432,6 +432,26 @@ def evaluate_case(
             )
             if covers_region(candidate[1], region):
                 target, record = candidate
+        if (
+            row["layer"] == "evmir"
+            and row["pass"] == "stack-reschedule"
+            and region
+            and record["status"] in {"unsupported", "timeout", "inconclusive"}
+        ):
+            target = folder / f"schedule-{index:03}.json"
+            flags = (
+                ()
+                if region["stack_height"] is None
+                else ("--stack-height", str(region["stack_height"]))
+            )
+            record = check_entry(
+                solar,
+                row,
+                target,
+                timeout,
+                f"--stack-schedule={region['name']}",
+                *flags,
+            )
         if dispatch:
             dispatch_reports[dispatch_key] = (target, record)
         results.append(

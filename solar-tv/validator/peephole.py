@@ -23,7 +23,7 @@ class UnpairedContinuation(Unsupported):
     """A changed charge reaches a resource-sensitive continuation."""
 
 
-def partition(models):
+def partition(models, *, retain_code_prefix=False):
     if any(models[0][key] != models[1][key] for key in ("terminal", "following")):
         raise Unsupported("peephole continuation changed")
     left, right = (model["instructions"] for model in models)
@@ -36,7 +36,7 @@ def partition(models):
     # stays in the shared context with its untouched successor.
     while start and re.fullmatch(r"(?:push|dup) \d+", left[start - 1]):
         start -= 1
-    if "size-init-tail" in left[:start]:
+    if not retain_code_prefix and "size-init-tail" in left[:start]:
         start = 0
     suffix = left[len(left) - end :]
     # A shared POP can discard slots reordered differently on the two sides.

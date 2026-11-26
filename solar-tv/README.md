@@ -1580,6 +1580,24 @@ broken-store example has a kernel-confirmed counterexample matched by Rust
 replay. The full storage/log fixture is also replayed independently, including
 static violations and out-of-gas before the island.
 
+### Checking EVM stack schedules
+
+`--stack-schedule bbN` checks the reordered window of a compiler-validated
+block. The proof preserves the complete live stack and ordered memory and
+storage requests under shared effect handlers. A guard into a shared direct
+revert chain executes that chain before comparing the revert operands.
+The report records the shared prefix and continuation and any code reads
+resolved against the assembled constructor images.
+
+The unpriced live `stack-reschedule` hook and corpus evaluator use this
+certificate. A compiler-supplied `--stack-height` can bind a fixed entry.
+For unknown-height blocks, the checker tries a universal stack proof and
+can retry with a cap proved from the source's physical entry. `--entry-stack`
+selects that admission directly. The proof retains original live outcomes
+and modeled reverts with sufficient gas. Shared external responses, physical
+gas and placement of the rest of the block remain separate obligations.
+[Stack rescheduling audit](CORRECTNESS.md#pinned-evm-stack-rescheduling-audit)
+
 ### Terminal regions with unknown incoming stacks
 
 Complete acyclic terminal regions can also quantify every incoming stack:

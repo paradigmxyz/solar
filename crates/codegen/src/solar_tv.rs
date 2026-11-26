@@ -57,6 +57,7 @@ impl<'a> Snapshot<'a> {
             return Ok(false);
         }
         let entry = region.is_some_and(|r| r.kind == "entry");
+        let schedule = region.is_some_and(|r| r.kind == "stack-schedule");
         let rooted_inline = layer == "mir"
             && pass == "inline"
             && region.is_none()
@@ -160,6 +161,9 @@ impl<'a> Snapshot<'a> {
                             command.arg("--debug-reverts");
                         }
                     } else if let Some(region) = region {
+                        if schedule {
+                            command.args(["--timeout", "120"]);
+                        }
                         command
                             .arg(if prefix {
                                 "--prefix".into()
@@ -248,7 +252,7 @@ impl<'a> Snapshot<'a> {
             }
         };
         let inconclusive = matches!(outcome, "unsupported" | "timeout" | "inconclusive");
-        if (entry || rooted_inline) && inconclusive {
+        if (entry || rooted_inline || schedule) && inconclusive {
             // The regional checks will report their own results and retain replay pairs.
             return Ok(false);
         }
@@ -263,6 +267,7 @@ impl<'a> Snapshot<'a> {
         if let Some(region) = region
             && !entry
             && !prune
+            && !schedule
         {
             if !record["region"].is_object() {
                 record["region"] = serde_json::json!({});

@@ -3141,6 +3141,74 @@ end with 346,900 and 346,888 gas respectively.
 The join reaches 2,106 of 2,228 capture IDs across saved audits. The
 three-second full census retains the counts recorded above.
 
+### Pinned EVM stack rescheduling audit
+
+The serial `evaluate --all --require-verified --pass stack-reschedule
+--timeout 120 --seed 0` gate verifies all 17 captures. It reproduces all
+2,228 capture IDs and the pinned manifest, compiler and input fingerprints.
+Plain compilation and capture compilation reproduce the same ABI, creation
+bytecode and runtime bytecode for all three cases.
+
+| Contract | All heights | Fixed height | Source stack cap | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Solady WETH | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 1 | 3 | 1 | 5 | 0 | 0 | 0 |
+| Morpho Blue | 5 | 4 | 3 | 12 | 0 | 0 | 0 |
+| Total | 6 | 7 | 4 | 17 | 0 | 0 | 0 |
+
+The stack schedule certificate keeps both sides' changed instruction
+window from the independently exported block. It checks the matched prefix,
+terminal and successor. The kernel compares every ordered stateful request
+and its operands under arbitrary shared replies. A live continuation keeps
+the entire outgoing stack. For a taken guard into a matched direct chain of
+revert blocks, the proof interprets that chain, checks its temporary stack
+slots and compares the two operands of `REVERT`. The revert then discards
+the remaining private stack.
+
+The sufficient-gas proof preserves original live exits and modeled reverts.
+Original stack faults are unconstrained. A fixed compiler entry height and
+the shared prefix's stack signatures can supply the admissible height at
+the changed window. When a universal stack check fails, the prover can
+derive a cap on source stack heights from the physical entry. The kernel
+checks the cap on the exported continuation graph and uses the shared
+prefix's stack effect to bind it to the window. It checks a source cap of
+13 words for ERC20Mock and 30 words for the three Morpho retries. The parser,
+opcode schema and mapping to the actual entering frame remain trusted. Any preceding
+message effects and gas observations are supplied by the shared prefix
+executor. Physical gas and child behavior require separate proofs.
+
+The constructor window retains the normalized code reads from the independent
+Rust exporter. Each assembly supplies byte positions for the recognized
+argument and data copies. The checker compares the declared data and checks
+the read operands in both assembled images. Independent replay executes the
+saved Morpho constructor images with later passes disabled. At 1,000,000
+starting gas, appending the same 32-byte owner argument yields the same
+8,463-byte initialized runtime, owner storage word and event. The two frames
+end with 974,731 gas. Omitting the argument yields an empty revert with no
+logs on both sides, with 999,898 gas remaining.
+
+The live regression checks both a direct revert and a chain through a shared
+abort block, and compares ABI, creation bytecode and runtime bytecode with
+and without validation. Redirecting the first guard to a different revert
+body makes its schedule certificate fail. Independent Rust replay enters
+the original, scheduled and redirected bodies with concrete stacks. The
+original and scheduled versions both stop when the guard is untaken and
+revert with empty data when it is taken. The redirected version reverts
+with 36 zero bytes. The scheduled pair spends six and three fewer gas units
+respectively on the untaken and taken paths in this fixture.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Compiler executable | `f996616dcf2ebacf05fc5cc439f4814dc38fe953fad90b698754281c59ef139c` |
+| Serial compiler launcher | `4e5a4f6faa73f5d017a534afaa4d3f9a8c052abe1c2435f192108577b79239e9` |
+| Independent Rust replay | `1c08fa6d66c19b52b661c4db7c93fc1d257948cb592d9856d09a237c174bca0c` |
+| Checker on Lean 4.34.1 | `8681de8e79a4afdb4f967f05a25f7c352ccdfc8ac30113e24301fe2e80c36a4f` |
+| `target/tv-stack-reschedule-strict/results.json` | `bd6cafdaf567dce3fdf939e3d10ea72f70d5cded7987c9cc49ca9c47a35c5977` |
+| `target/tv-stack-reschedule-pilot/constructor-replay.json` | `06fce2efa7e4e30861e71a6b11625788228f219d01975ef26d5365e3a3b24f0c` |
+| `target/tv-stack-reschedule-pilot/guard-replay.json` | `851bcf9ac6e4c282a0714f83b8ea0991563a5a923cbd9fd25cf545a90a5d897a` |
+
+The join reaches 2,123 of 2,228 capture IDs across saved audits.
+
 ### MIR CFG checks after an import timeout
 
 The earlier three-second census timed out on 23 Morpho MIR `cfg-simplify`

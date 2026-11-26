@@ -92,6 +92,41 @@ class EffectPrefixTests(unittest.TestCase):
         self.assertEqual(record["status"], "unsupported")
         self.assertIn("no reachable counterexample established", result.stderr)
 
+    def test_live_stack_reschedule_keeps_shared_abort_paths(self):
+        source = (
+            ROOT.parent / "tests/ui/codegen/evm-ir/stack-reschedule/abort_targets.evmir"
+        )
+        command = [SOLAR, source, "-j1", "-Ogas", "-Zevm-ir-pipeline=stack-reschedule"]
+        compiled = subprocess.check_output(command, text=True, timeout=30)
+        after = self.directory / "after.evmir"
+        after.write_text(compiled)
+        flags = ["--emit=abi,bin,bin-runtime"]
+        baseline = subprocess.check_output([*command, *flags], text=True, timeout=30)
+        audits = self.directory / "audits"
+        live = subprocess.check_output(
+            [*command, *flags, f"-Zsolar-tv={audits}"],
+            env={**os.environ, "SOLAR": SOLAR, "SOLAR_TV": CLI},
+            text=True,
+            timeout=90,
+        )
+        self.assertEqual(live, baseline)
+        records = [
+            json.loads(path.read_text()) for path in (audits / "audits").glob("*.json")
+        ]
+        self.assertEqual({row["region"]["name"] for row in records}, {"bb0", "bb7"})
+        for record in records:
+            self.assertEqual(record["status"], "verified")
+            self.assertEqual(record["region"]["proof"], "kernel-checked-stack-schedule")
+        relocated = next(row for row in records if row["region"]["name"] == "bb7")
+        self.assertEqual(relocated["import_correspondence"][1]["abort_targets"], [8])
+
+        after.write_text(compiled.replace("push bb3", "push bb9", 1))
+        result, record = self.cli(
+            [source, after], "--stack-schedule", "bb0", "--stack-height", "2"
+        )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(record["status"], "unsupported")
+
     def entry(self, path, *, broken=False):
         text = path.read_text().replace("[stack=6]", "[stack=0]")
         # Concrete safe memory pointers propose a witness, never a proof precondition.

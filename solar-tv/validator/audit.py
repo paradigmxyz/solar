@@ -703,6 +703,25 @@ def record(
                     "universally quantified shared per-label PUSH/JUMPI charges; identical terminal and physical successor; logical relocation context, no physical code-placement or whole-contract claim",
                 ]
             )
+        elif program and program.scope == "stack-schedule":
+            assumptions.extend(
+                [
+                    "identical shared prefix executor, terminal, successor and continuation under the logical entry correspondence",
+                    "the kernel checks ordered effect arguments and arbitrary shared replies, full live stacks or the actual memory range at a paired revert",
+                    "original stack faults are unconstrained",
+                    "sufficient funding and shared context including any surrounding GAS reads, message outcomes, code-image observations and logical label bindings",
+                    "shared prefix execution, parser/schema binding, physical addresses, forwarded gas and bytecode placement remain environment obligations",
+                ]
+            )
+            height = program.import_evidence.get("entry_height")
+            if height is not None:
+                assumptions.append(
+                    f"the incoming block height is {height}. The shared prefix's resumed height comes from the compiler stack signatures"
+                )
+            if bound := program.import_evidence.get("source_stack_bound"):
+                assumptions.append(
+                    f"the kernel proves a source stack cap of {bound['max_height']} from the physical entry. Compiler stack signatures relate the cap to the resumed shared prefix"
+                )
         elif program and program.scope == "effectful-prefix":
             assumptions.extend(
                 [
@@ -1030,6 +1049,7 @@ def record(
             or program.scope
             not in {
                 "prefix-window",
+                "stack-schedule",
                 "effectful-prefix",
                 "shared-prefix-suffix",
                 "module-inline",
@@ -1148,6 +1168,7 @@ def record(
             and program.scope
             in {
                 "prefix-window",
+                "stack-schedule",
                 "effectful-prefix",
                 "shared-prefix-suffix",
                 "interior-window",

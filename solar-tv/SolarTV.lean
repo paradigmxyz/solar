@@ -48,6 +48,7 @@ import SolarTV.EVMIR.MemoryPrefix
 import SolarTV.EVMIR.StackReachability
 import SolarTV.EVMIR.CodeRelocations
 import SolarTV.EVMIR.Suffix
+import SolarTV.EVMIR.Transforms.StackSchedule
 import SolarTV.EVMIR.Transforms.TailMerge
 import SolarTV.EVMIR.ContextSafety
 import SolarTV.EVMIR.State.Observe

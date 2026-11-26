@@ -298,9 +298,7 @@ fn window(module: &Module, entry: BlockId, code_tail: bool) -> Result<Value, Str
     let mut instructions = Vec::new();
     let mut reads_code_tail = false;
     while let Some((inst, rest)) = body.split_first() {
-        if let Some(read) = suffix.and_then(|suffix| relocations::recognize(body, suffix.len()))
-            && read.name == "size-init-tail"
-        {
+        if let Some(read) = suffix.and_then(|suffix| relocations::recognize(body, suffix.len())) {
             instructions.push(read.name);
             body = &body[read.count..];
             reads_code_tail = true;
@@ -320,6 +318,9 @@ fn window(module: &Module, entry: BlockId, code_tail: bool) -> Result<Value, Str
         "terminal": format!("{terminal:?}"),
         "following": module.next_block(entry).map(|id| module.blocks[id].label),
     });
+    if let TerminatorKind::Jump(target) = terminal {
+        window["jump_target"] = module.blocks[*target].label.into();
+    }
     if reads_code_tail {
         window["data_suffix"] = alloy_primitives::hex::encode(suffix.unwrap()).into();
     }
