@@ -89,6 +89,8 @@ import json
 import re
 import sys
 
+import succeeds_witness
+
 NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_.?'!]*$")
 # A statement input: a term without tactics, commands or type ascriptions (no newline, colon,
 # semicolon, backtick or tactic keyword); its meaning is checked by the kernel like the rest.
@@ -301,6 +303,13 @@ def expected_mode(
         )
         witnesses.append((e["sel"], e["arity"]))
     G = "_root_.SolidCore.Verify.Generic"
+    sw_doc = (
+        ""
+        if "succeeds_witness" not in shape
+        else " (the allowed statuses and the\npostcondition each with the driver's witness clause: the call \u0060"
+        + shape["succeeds_witness"]["function"]
+        + "\u0060 on zero words with no value, from the\nconstructor's slots written with 0, from a pre-state meeting a function spec's precondition, succeeds)"
+    )
     # The caller route "any": the same bytes and source in every real context (generic.caller any).
     # The fixed route adds nothing, so its text is the fixed-frame statement byte for byte.
     any_doc = any_stmt = any_import = any_proof = ""
@@ -365,7 +374,7 @@ def code : ByteArray := ⟨({export}.bytecode.map UInt8.ofNat).toArray⟩
 def src : {G}.Source := ⟨{unit}, {json.dumps(sname)}, {expr(shape, "fuel")}⟩
 
 /-- The specification: the default context; one entry per external function; the valid calls,
-allowed statuses and postcondition solar-verify exported in this run; the gas bound. -/
+allowed statuses and postcondition solar-verify exported in this run{sw_doc}; the gas bound. -/
 def spec : {G}.Spec where
   Contexts ctx := ctx = {G}.Context.default
   entries := [{", ".join(ent_terms)}]
@@ -727,6 +736,32 @@ def main():
                 f"shape.json: kind {kind} needs nonvacuous (a proof that the specification and the "
                 "allowed statuses reject something) or vacuity (why that is not shown)"
             )
+        if "succeeds_witness" in shape:
+            # A spec without succeeds-if conditions: the export's allowed statuses and postcondition,
+            # each with the driver's witness clause (succeeds_witness.py), which only strengthens them.
+            if not (bound_spec and bound_allowed and nonvac is not None) or opened:
+                fail(
+                    "shape.json: succeeds_witness needs spec_export, allowed_export and nonvacuous"
+                )
+            if shape.get("statement") != "expected":
+                fail("shape.json: succeeds_witness is for statement expected only")
+            try:
+                ws = [
+                    succeeds_witness.strengthen(
+                        t,
+                        shape["succeeds_witness"],
+                        expr(shape, "storage"),
+                        f"{export_ns}.{a.contract}",
+                        expr(shape["spec_export"], "ctx"),
+                    )
+                    for t in (allowed, post)
+                ]
+            except ValueError as e:
+                fail(f"shape.json: {e}")
+            allowed, post = ws
+            for t in ws:
+                if not EXPR.match(t):
+                    fail("shape.json: succeeds_witness makes a term with a colon or newline")
         spec_args = f" ({allowed}) ({post})"
         if opened:
             spec_args = (
@@ -944,6 +979,16 @@ theorem {ns}.final : _root_.{ns}.Statement :=
         kind == "certified" and bound_spec and vacuity is None and allowed_vac is None
     )
     st_rec = statuses(kind, shape.get("spec"), bound_spec, vacuity)
+    sw = shape.get("succeeds_witness")
+    if sw is not None:
+        st_rec["spec"] += (
+            "; the exported allowed statuses and postcondition are each strengthened by the "
+            "witness clause (succeeds_witness.py): " + succeeds_witness.describe(sw)
+        )
+        st_rec["vacuity"] = (
+            "proved non-vacuous (NonVacuous in the statement) by the driver's succeeds witness, "
+            "the spec having no succeeds-if conditions: " + succeeds_witness.describe(sw)
+        )
     if allowed_vac is not None:
         st_rec["termination"] += (
             f" (the allowed statuses reject nothing: {allowed_vac})"
@@ -976,6 +1021,7 @@ theorem {ns}.final : _root_.{ns}.Statement :=
                     f"{export_ns}.{a.contract}" if bound_spec else None
                 ),
                 "allowed_bound_to_export": bound_allowed,
+                "succeeds_witness": sw,
                 "assumptions": env,
                 "excluded": shape.get("excluded", []),
                 "spec": shape.get("spec"),

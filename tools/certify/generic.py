@@ -1318,6 +1318,22 @@ def probe_lean(name, contract, fns):
         f'      | some a, some b => if Generic.Tree.agree a b then "agree" else ("trees differ: source " ++ (reprStr a.canon).replace "\\n" " " ++ " MIR " ++ (reprStr b.canon).replace "\\n" " ")))'
         for f in fns
     )
+    # The succeeds-witness search (synth_witness): SolidCore's run of every function on the zero
+    # call (zero words, no value, the constructor's slots written with 0). Untrusted: the Shape
+    # module re-proves the chosen witness by the kernel's evaluation.
+    runs = (
+        "  let st0 : List (Nat × Nat) := match TypeCheck.CheckedContract.constructWithContext? fuel c\n"
+        "      (Wide.ctxOf c) State.empty SolidCore.Refinement.selfAddress 0 [] with\n"
+        "    | some (CallResult.returned d _) => d.storage.toList.map fun kv => (kv.1, 0)\n"
+        "    | _ => []\n"
+        + "\n".join(
+            f'  IO.println ("PROBE run fn {f["sig"]}: " ++ (match SolidCore.Refinement.Source.run fuel c\n'
+            f"      ⟨SolidCore.Refinement.Abi.calldata {f['sel']} (List.replicate {len(f['params'])} 0), 0, st0⟩ with\n"
+            f'    | some o => if o.success then "success" else "revert"\n'
+            f'    | none => "none"))'
+            for f in fns
+        )
+    )
     return f"""import SolidCore.Refinement.Generic.Value
 import SolidCore.Refinement.Generic.StageFrom
 import {name}.Source
@@ -1349,6 +1365,7 @@ def main : IO Unit := do
   | some _ => IO.println "PROBE constructor: does not return (reverts or fails) with no arguments"
   | none => IO.println "PROBE constructor: undefined with no arguments"
 {checks}
+{runs}
 
 end Certified.{name}.Probe
 
@@ -1569,6 +1586,57 @@ def ctx_route(tmp, contract):
     if info["F"]:
         return None, f"the checker with contexts leaves blocks {info['F']} unchecked"
     return gen_ctxgas.gas_bound(info, stages["fuel"]), None
+
+
+# The spec witness generic.py and the scoreboard name when no function has succeeds-if conditions:
+# the succeeds witness is chosen after the probe (synth_witness).
+SYNTH_WITNESS = "<succeeds witness>"
+
+
+def spec_witness(fns):
+    """The non-vacuity witness of a spec run: the first function with succeeds-if conditions
+    (mutating first), else SYNTH_WITNESS when some function has a spec (requires or ensures), whose
+    concrete succeeds witness synth_witness picks after the probe. Fails when no function has a spec."""
+    w = next(
+        (f["name"] for f in fns if f.get("mutates") and f.get("succeeds")), None
+    ) or next((f["name"] for f in fns if f.get("succeeds")), None)
+    if w is not None:
+        return w
+    if any(f.get("specified") for f in fns):
+        return SYNTH_WITNESS
+    raise Failed(
+        "spec: no function has @custom:succeeds-if, so the spec's allowed statuses reject nothing and "
+        "the certified statement's non-vacuity (a revert the spec rejects) cannot hold; add succeeds-if "
+        "conditions, or run with SPEC none"
+    )
+
+
+def synth_witness(res, fns):
+    """The succeeds witness (succeeds_witness.py) of a spec without succeeds-if conditions: the first
+    function with a spec (mutating first) whose zero call (zero words, no value, the constructor's
+    slots written with 0) SolidCore's probe runs successfully. Untrusted: the Shape module proves
+    that it succeeds by the kernel's evaluation and that it meets its precondition (pre_sat), and
+    fails otherwise. Fails, naming every verdict, when no zero call succeeds: the proofs support
+    only the zero call, so the run is refused rather than the spec weakened."""
+    cands = sorted(
+        (f for f in fns if f.get("specified")), key=lambda f: not f.get("mutates")
+    )
+    for f in cands:
+        if res.get(f"run fn {f['sig']}") == "success":
+            return {
+                "function": f["name"],
+                "sel": f["sel"],
+                "arity": len(f["params"]),
+                "args": [0] * len(f["params"]),
+                "storage": [],
+            }
+    seen = ", ".join(f"{f['sig']}: {res.get('run fn ' + f['sig'], 'not run')}" for f in cands)
+    raise Failed(
+        "spec: no succeeds witness: no function has @custom:succeeds-if, and no spec'd function's zero "
+        "call (zero words, no value, the constructor's slots written with 0) succeeds in SolidCore "
+        f"({seen}); the spec may be vacuous there (the witness proofs support only the zero call); "
+        "add succeeds-if conditions, or run with SPEC none"
+    )
 
 
 def decide_route(res, fns, reasons, witness, probe_dir, contract):
@@ -3248,7 +3316,15 @@ def source_lean(body):
 
 
 def shape_json(
-    name, contract, fns, gas, spec_desc, spec_witness=None, events=(), any_gas=None
+    name,
+    contract,
+    fns,
+    gas,
+    spec_desc,
+    spec_witness=None,
+    events=(),
+    any_gas=None,
+    succeeds_witness=None,
 ):
     ns = f"Certified.{name}.Lowering"
     valid = f"SolidCore.Refinement.Shapes.genericValid ({ns}.fns) ({ns}.storageLit)"
@@ -3312,6 +3388,17 @@ def shape_json(
         shape["excluded"].append(
             "spec: solar-verify's export of the source's NatSpec, with its succeeds-if conditions; events are covered by equivalence"
         )
+        if succeeds_witness is not None:
+            if succeeds_witness["function"] != spec_witness:
+                raise Failed("the succeeds witness must be the spec witness")
+            shape["succeeds_witness"] = succeeds_witness
+            shape["excluded"].append(
+                "spec without succeeds-if conditions: the statement's allowed statuses and postcondition "
+                "are the export's, each with the driver's witness clause (tools/certify/succeeds_witness.py): "
+                f"{succeeds_witness['function']} on zero words with no value, from the constructor's slots "
+                "written with 0, from a pre-state meeting its precondition, succeeds; no other call is "
+                "required to succeed"
+            )
         # The published statement: the driver-fixed Generic.Expected (tools/certify/final.py).
         shape.update(
             {
@@ -5246,15 +5333,7 @@ def main():
             # The statement's non-vacuity needs a call the spec requires to succeed: a function with
             # @custom:succeeds-if. Without one the allowed statuses reject nothing, and the certified
             # tier cannot be stated non-vacuously: the run is refused before any proof.
-            witness = next(
-                (f["name"] for f in fns if f.get("mutates") and f.get("succeeds")), None
-            ) or next((f["name"] for f in fns if f.get("succeeds")), None)
-            if witness is None:
-                raise Failed(
-                    "spec: no function has @custom:succeeds-if, so the spec's allowed statuses reject nothing and "
-                    "the certified statement's non-vacuity (a revert the spec rejects) cannot hold; add succeeds-if "
-                    "conditions, or run with SPEC none"
-                )
+            witness = spec_witness(fns)
         log("== generic: build solar")
         solar = build_solar()
         # The binary must be this checkout's compiler, and the expected one when the runner names
@@ -5351,6 +5430,12 @@ def main():
         if reasons:
             raise Blocked(reasons)
         log(note)
+        succ = None
+        if witness == SYNTH_WITNESS:
+            succ = synth_witness(res, fns)
+            witness = succ["function"]
+            record["succeeds_witness"] = succ
+            log(f"succeeds witness (no succeeds-if): {witness} on the zero call")
         if caller == "any":
             # Only on the any route: the fixed route's record is the fixed-frame record.
             record["caller"] = caller
@@ -5399,7 +5484,15 @@ def main():
         (d / "shape.json").write_text(
             json.dumps(
                 shape_json(
-                    name, contract, fns, need, spec_desc, witness, events, any_gas
+                    name,
+                    contract,
+                    fns,
+                    need,
+                    spec_desc,
+                    witness,
+                    events,
+                    any_gas,
+                    succeeds_witness=succ,
                 ),
                 indent=2,
             )

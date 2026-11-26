@@ -39,6 +39,7 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import asm_cert
 import export_ns
+import succeeds_witness
 import gen_ctxgas
 
 
@@ -521,7 +522,100 @@ theorem pre_sat_{fid} :
 #print axioms pre_sat_{fid}
 """.replace("§", "\u0060")
         # The witness's precondition is its pre_sat theorem above.
-        nonvac += nonvac_main
+        sw = shape.get("succeeds_witness")
+        if sw is None:
+            nonvac += nonvac_main
+        else:
+            # No function has succeeds-if conditions: the driver's succeeds witness instead
+            # (succeeds_witness.py). The statement's allowed statuses and postcondition are the
+            # export's, each with the witness clause; that the witness succeeds is the kernel's
+            # evaluation of SolidCore on it (kernel_rfl), and its precondition is its pre_sat.
+            try:
+                wf, wsel, wn, _, _ = succeeds_witness.check(sw)
+                W = succeeds_witness.call_term(sw, g["storage"])
+            except ValueError as e:
+                fail(f"shape.json: {e}")
+            if wf != wit or fnd.get(wit) != (wsel, wn):
+                fail(
+                    "shape.json: succeeds_witness must be generic.spec_connect.witness, with its selector and arity"
+                )
+            D = succeeds_witness.domain_term(B, f"{S}.ctxOfCall")
+            allowed_w = succeeds_witness.strengthen(allowed_t, sw, g["storage"], B, f"{S}.ctxOfCall")
+            post_w = succeeds_witness.strengthen(post_t, sw, g["storage"], B, f"{S}.ctxOfCall")
+            shape_t = f"{S}.Certified (solidCore {sns}.fuel) c code ({valid}) ({allowed_w}) ({post_w}) ({gas})"
+            usings = " ".join(
+                [f"{sns}.selector_eq", "SolidCore.Verify.VC.mkIdx_eq", *g["spec_connect"].get("using", [])]
+            )
+            body = (
+                holds_proof
+                + f"  exact ⟨c, hc, certified_witness (W := {W}) (D := fun call => {D})\n"
+                f"    ((({comp}).mono_gas (fun _ => gas_le) (fun _ => by decide)).certified_of_holds\n"
+                f"      (fun _ h => h) hholds) (wit_run hc)⟩\n"
+            )
+            okdef += f"""
+/-- A certified contract stays certified when its allowed statuses and postcondition both gain the
+clause that a call §W§ from a pre-state in §D§ succeeds, given a successful source run of §W§. -/
+theorem certified_witness {{S' : SolarTV.Sem}} {{p : S'.Prog}} {{code' : ByteArray}}
+    {{Valid : SolarTV.Call → Prop}} {{A P : SolarTV.Call → SolarTV.Observable → Prop}}
+    {{G : SolarTV.Call → Nat}} {{W : SolarTV.Call}} {{D : SolarTV.Call → Prop}}
+    (h : {S}.Certified S' p code' Valid A P G)
+    (hw : ∃ obs, S'.run p W = some obs ∧ obs.success = true) :
+    {S}.Certified S' p code' Valid
+      (fun call obs => A call obs ∧ (call = W → D call → obs.success = true))
+      (fun call obs => P call obs ∧ (call = W → D call → obs.success = true)) G := by
+  have key : ∀ obs, S'.run p W = some obs → obs.success = true := by
+    intro obs hr
+    obtain ⟨o, ho, hs⟩ := hw
+    rw [ho] at hr
+    exact Option.some.inj hr ▸ hs
+  refine ⟨h.inhabited, h.equiv, fun call hc => ?_, fun call hc obs hr => ?_, h.resources⟩
+  · obtain ⟨obs, hr, ha⟩ := h.terminates call hc
+    exact ⟨obs, hr, ha, fun hW _ => key obs (hW ▸ hr)⟩
+  · exact ⟨h.meets call hc obs hr, fun hW _ => key obs (hW ▸ hr)⟩
+
+/-- Whether SolidCore's run of the witness call §{wit}§ succeeds: evaluated by the kernel below. -/
+def wit_ok? : Bool :=
+  match {sns}.contract? with
+  | .ok c => (SolidCore.Refinement.Source.run {sns}.fuel c {W}).any (·.success)
+  | .error _ => false
+
+set_option maxRecDepth 100000 in
+kernel_rfl wit_ok_eq wit_ok? true using {usings}
+
+/-- **The witness succeeds**: SolidCore's run of §{wit}§ on zero words with no value, from the
+constructor's slots written with 0, returns successfully. -/
+theorem wit_run {{c : SolidCore.Solidity.TypeCheck.CheckedContract}} (hc : {sns}.contract? = .ok c) :
+    ∃ obs, (solidCore {sns}.fuel).run c {W} = some obs ∧ obs.success = true := by
+  have h := wit_ok_eq
+  simp only [wit_ok?, hc] at h
+  cases hr : SolidCore.Refinement.Source.run {sns}.fuel c {W} with
+  | none => rw [hr] at h; simp [Option.any] at h
+  | some o => rw [hr] at h; exact ⟨o, hr, h⟩
+""".replace("§", chr(96))
+            nonvac += f"""
+/-- **Non-vacuity**: the witness §{wit}§ on zero words with no value, from the constructor's slots
+written with 0, is a valid call meeting its function spec's precondition (§pre_sat_{wit}§), so the
+witness clause requires it to succeed: the same call reverting is rejected by the statement's
+postcondition and by its allowed statuses. -/
+theorem nonvacuous :
+    (∃ (call : SolarTV.Call) (obs : SolarTV.Observable), ({valid}) call ∧ ¬ ({post_w}) call obs) ∧
+      (∃ (call : SolarTV.Call) (obs : SolarTV.Observable), ({valid}) call ∧ obs.success = false ∧
+        ¬ ({allowed_w}) call obs) := by
+  have hv : ({valid}) {W} :=
+    {S}.valid{"" if value else "0"}_of_find (sel := {wsel}) (n := {wn}) ({S}.covers_zeros _) (by decide)
+  have hd : (fun call => {D}) {W} := ⟨_, List.getElem_mem _, _, _, pre_sat_{wit}⟩
+  refine ⟨⟨{W}, ⟨false, [], [], fun _ => 0⟩, hv, fun h => ?_⟩,
+    ⟨{W}, ⟨false, [], [], fun _ => 0⟩, hv, rfl, fun h => ?_⟩⟩ <;>
+    exact Bool.false_ne_true (h.2 rfl hd)
+
+/-- info: 'Certified.{a.name}.Shape.nonvacuous' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms nonvacuous
+
+/-- info: 'Certified.{a.name}.Shape.wit_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms wit_run
+""".replace("§", chr(96))
         g["imports"] = [
             *g["imports"],
             "Verify.ShapeSpecExport",
