@@ -3,7 +3,6 @@
 import hashlib
 import json
 import tempfile
-from collections import deque
 from pathlib import Path
 
 from . import (
@@ -18,36 +17,6 @@ from . import (
 from .common import Program, Unsupported
 
 
-def lower_bounds(projected, signatures):
-    """Propose a conservative bound for every reachable provenance point."""
-    bounds = [1025] * len(projected["nodes"])
-    bounds[0] = 0
-    pending = deque([0])
-    updates = 0
-    while pending:
-        pc = pending.popleft()
-        floor = bounds[pc]
-        node = projected["nodes"][pc]["node"]
-        match node["kind"]:
-            case "operation":
-                inputs, outputs = signatures[node["operation"]]
-                edges = [(node["next"], max(floor, inputs) - inputs + outputs)]
-            case "jump":
-                edges = [(node["next"], floor)]
-            case "branch":
-                edges = [(node[edge], max(floor, 1) - 1) for edge in ("yes", "no")]
-            case _:
-                edges = []
-        for target, incoming in edges:
-            if incoming < bounds[target]:
-                bounds[target] = incoming
-                pending.append(target)
-                updates += 1
-                if updates > 65536:
-                    raise Unsupported("stack floor analysis exceeds 65536 updates")
-    return bounds
-
-
 def source_data(text, block, count, replay, catalog, version, timeout):
     source = correspondence.export(text, None, version, replay, timeout, labels=True)
     local = [row for row in source["nodes"] if row["label"] == int(block[2:])]
@@ -58,7 +27,7 @@ def source_data(text, block, count, replay, catalog, version, timeout):
         source, catalog, version, interactions=True, from_entry=True
     )
     signatures = stack_layout.signatures(projected, catalog)
-    floors = lower_bounds(projected, signatures)
+    floors = stack_layout.lower_bounds(projected, signatures)
     incoming = [
         floor
         for (pc, _), floor in zip(witness["point_data"], floors, strict=True)

@@ -47,6 +47,37 @@ def signatures(model, catalog):
     return table
 
 
+def lower_bounds(projected, signatures):
+    """Propose a conservative bound for every reachable provenance point."""
+    bounds = [1025] * len(projected["nodes"])
+    entry = projected["entry"]
+    bounds[entry] = 0
+    pending = deque([entry])
+    updates = 0
+    while pending:
+        pc = pending.popleft()
+        floor = bounds[pc]
+        node = projected["nodes"][pc]["node"]
+        match node["kind"]:
+            case "operation":
+                inputs, outputs = signatures[node["operation"]]
+                edges = [(node["next"], max(floor, inputs) - inputs + outputs)]
+            case "jump":
+                edges = [(node["next"], floor)]
+            case "branch":
+                edges = [(node[edge], max(floor, 1) - 1) for edge in ("yes", "no")]
+            case _:
+                edges = []
+        for target, incoming in edges:
+            if incoming < bounds[target]:
+                bounds[target] = incoming
+                pending.append(target)
+                updates += 1
+                if updates > 65536:
+                    raise Unsupported("stack floor analysis exceeds 65536 updates")
+    return bounds
+
+
 def certificate(before, after, table, *, entry_bound=1024):
     def keys(model):
         counts, result = {}, []

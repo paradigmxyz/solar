@@ -70,6 +70,7 @@ import SolarTV.EVMIR.InteractionTrace
 import SolarTV.EVMIR.Transforms.SampledCall
 import SolarTV.EVMIR.Transforms.HeapEntry
 import SolarTV.EVMIR.Transforms.CompactPushes
+import SolarTV.EVMIR.Transforms.SwapPairs
 import SolarTV.MIR.Transforms.CfgFlow
 import SolarTV.MIR.Transforms.PhiThread
 import SolarTV.MIR.Transforms.CallOperands

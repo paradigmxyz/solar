@@ -3381,16 +3381,30 @@ The kernel checks logical effects and transfer admission, with physical gas
 and the opcode-handler correspondence outside this proof. The pinned Rust
 tool supplies the source graphs used for the retries.
 
-The five open Morpho captures share one module pair. Its entry proof still
-rejects a changed action. That pair includes a return tail whose inlining
-cancels two `SWAP1` operations across a static jump. The return-inlining
-coverage is 9 of 14. The saved corpus join reaches 2,146 of 2,228 capture
-IDs, with 82 open.
+The initial entry check for the five open Morpho captures rejected a changed
+action. The captures share a module pair with a return tail whose inlining
+cancels two `SWAP1` operations across a static jump. The checker now checks
+the two swaps on the imported graph, proves a minimum height of two from
+physical entry, and keeps the original transfer's temporary stack demand.
+The pure stack actions restore every word before the return. Other paths
+into the shared tail keep its swap. On focused fixtures the checker accepts
+the original rewrite, rejects a changed return value, and rejects a path
+with one word at the first swap. Independent Rust replay observes the
+changed return value and the exception on the short stack.
+
+The pinned Rust replay also reaches the affected Morpho Blue return in
+both assembled `withdrawCollateral` paths. The runtime images fill the
+same immutable word at the original width. Both calls resume with the
+same stack, debit one unit from the recorded collateral position, and leave
+identical storage and logs. The token stub returns true. The rewrite consumes
+30 less gas on this fixture. The saved corpus join at this point records 9 of
+14 return-inlining captures and 2,146 of 2,228 total captures.
 
 | Artifact | SHA-256 |
 | --- | --- |
 | `target/tv-inline-returns-entry/results.json` | `06f09eab96fe3e78b52a607f14e7ff443fdd8d1a64efc390c5c8934454667be9` |
 | `target/tv-inline-returns-entry/remaining-by-pass.json` | `4819f627438fc447e2f65ec2e9b851202d706e6979ce9a25d91d2fe4f4d93d9d` |
+| `target/tv-inline-returns-entry/morpho-withdraw-replay.json` | `494963dd43a3e8f19e76d845a885aa82e0902479bc466d37771f16021c312e40` |
 
 ### MIR CFG checks after an import timeout
 

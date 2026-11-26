@@ -129,6 +129,93 @@ bb4:
 """)
         self.check_live_entry(self.before, "inline-returns")
 
+    def test_canceled_return_swaps_preserve_the_live_operand(self):
+        self.before.write_text("""@module SwapReturn
+bb0 [stack=0]:
+  push 7
+  push bb5
+  jump bb1
+bb1:
+  swap 1
+  jump bb4
+bb2:
+  invalid
+bb4:
+  swap 1
+  jump
+bb5:
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+""")
+        self.after.write_text(
+            self.before.read_text().replace("  swap 1\n  jump bb4", "  jump")
+        )
+        result, report = self.check(["--entry-trace"])
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(report["region"]["proof"], "kernel-checked-entry-layout")
+        self.assertEqual(
+            len(report["import_correspondence"][0]["canceled_swap_pairs"]), 1
+        )
+
+        self.after.write_text(self.after.read_text().replace("  push 7", "  push 8"))
+        result, report = self.check(["--entry-trace"])
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(report["status"], "unsupported")
+        fixture = self.root / "world.json"
+        fixture.write_text('{"version":1}')
+        result, report = self.check(["--world", fixture])
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(report["status"], "counterexample")
+        witness = report["witness"]
+        self.assertEqual(witness["observations"], witness["native_observations"])
+        self.assertEqual(
+            [
+                (side[0], int.from_bytes(bytes(side[1]), "big"))
+                for side in witness["observations"]
+            ],
+            [("success", 7), ("success", 8)],
+        )
+
+    def test_canceled_return_swaps_require_two_words(self):
+        self.before.write_text("""@module ShortReturn
+bb0 [stack=0]:
+  push bb1
+  jump bb3
+bb1:
+  push bb5
+  swap 1
+  jump bb4
+bb2:
+  invalid
+bb3:
+  jump
+bb4:
+  swap 1
+  jump
+bb5:
+  stop
+""")
+        self.after.write_text(
+            self.before.read_text().replace("  swap 1\n  jump bb4", "  jump")
+        )
+        result, report = self.check(["--entry-trace"])
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(report["status"], "unsupported")
+
+        fixture = self.root / "world.json"
+        fixture.write_text('{"version":1}')
+        result, report = self.check(["--world", fixture])
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        witness = report["witness"]
+        self.assertEqual(witness["observations"], witness["native_observations"])
+        self.assertEqual(
+            [side[0] for side in witness["native_observations"]],
+            ["exception", "success"],
+        )
+
     def check_live_entry(self, fixture, pass_name):
         command = [
             SOLAR,

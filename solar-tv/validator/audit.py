@@ -478,6 +478,12 @@ def record(
                 assumptions.append(
                     "constructor reads use the checked sole data suffix and identical appended arguments"
                 )
+            if result.pair and any(
+                side.import_evidence.get("canceled_swap_pairs") for side in result.pair
+            ):
+                assumptions.append(
+                    "canceled SWAP1 pairs use the architectural word permutation. The kernel checks a reachable height of at least two and retains the transfer's temporary stack demand"
+                )
         elif program and program.scope in {
             "cfg-flow",
             "continuation-flow",

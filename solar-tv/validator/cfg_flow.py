@@ -281,7 +281,7 @@ theorem {name}Provenance :
     )
 
 
-def signatures_declaration(signature_table, catalog):
+def signatures_declaration(signature_table, catalog, *, name="signatures"):
     # Keep literal operands in the graph without searching through them for arities.
     push = catalog["push1"]["stack"]
     rows = ",".join(
@@ -290,7 +290,7 @@ def signatures_declaration(signature_table, catalog):
         if not name.startswith("push ")
     )
     return f"""
-def signatures (name : String) : Option (Nat × Nat) :=
+def {name} (name : String) : Option (Nat × Nat) :=
   if name.startsWith "push " then some ({push[0]},{push[1]}) else
     ([{rows}] : List (String × (Nat × Nat))).lookup name
 """
@@ -311,14 +311,33 @@ def check(
     callers=None,
     mask=(),
 ):
-    from . import entry_stack
+    from . import entry_stack, swap_pairs
     from .check import PRELUDE, ROOT, build_model, run
     from .source_identity import INTERACTION_OPS, render_nodes
 
-    points, normalized, edges, jump_limit = projections(
-        models, limit=16384 if from_entry else 2048
+    sources = models
+    swaps = (None, None)
+    limit = 16384 if from_entry else 2048
+    try:
+        points, normalized, edges, jump_limit = projections(models, limit=limit)
+    except Unsupported:
+        if not from_entry:
+            raise
+        sources, swaps = zip(
+            *(swap_pairs.propose(model, catalog) for model in models), strict=True
+        )
+        if not any(swaps):
+            raise
+        points, normalized, edges, jump_limit = projections(sources, limit=limit)
+    chunked = len(points[0]) > 2048 or any(
+        swap and len(model["nodes"]) > 2048
+        for swap, model in zip(swaps, models, strict=True)
     )
-    chunked = len(points[0]) > 2048
+    source_programs = tuple(
+        f"{name}Swaps" if swap else name
+        for name, swap in zip(("before", "after"), swaps, strict=True)
+    )
+    left_source, right_source = source_programs
     signature_table = stack_layout.signatures(normalized[0], catalog)
     entry_bound = (
         0
@@ -342,9 +361,14 @@ def check(
             *normalized, signature_table, entry_bound=entry_bound
         )
     programs_code = []
-    for name, model in zip(
-        ("before", "after", "old", "new"), (*models, *normalized), strict=True
-    ):
+    model_programs = [("before", models[0]), ("after", models[1])]
+    model_programs.extend(
+        (name, model)
+        for name, model, swap in zip(source_programs, sources, swaps, strict=True)
+        if swap
+    )
+    model_programs.extend(zip(("old", "new"), normalized, strict=True))
+    for name, model in model_programs:
         if name == "new" and identical:
             declaration = "def new : Program := old\n"
             if chunked:
@@ -426,7 +450,9 @@ theorem newNodesLookup : newNodes.view = EVM.ProofTable.ofArray new.nodes := old
             theorem = f"SolarTV.EVM.ContinuationFlow.{lemma}"
             provenance += f"#print axioms {theorem}\n"
             provenance_theorems.append(theorem)
-        for name, (_, witness) in zip(("before", "after"), continuations, strict=True):
+        for name, (_, witness), swap in zip(
+            ("before", "after"), continuations, swaps, strict=True
+        ):
             theorem = f"{name}Provenance"
             provenance_theorems.append(theorem)
             proof = continuation_proof(
@@ -452,11 +478,33 @@ theorem {name}Import : {imported} = some {name} :=
   (Option.bind_eq_some_iff (x := {source}) (f := {project}) (b := {name})).mpr
     ⟨{name}Source, {name}Comparisons, {theorem}⟩
 """)
-                imports.append(imported)
-                import_theorems.append(f"{name}Import")
+                imported_theorem = f"{name}Import"
             else:
-                imports.append(f"({projection.format(source=f'{name}Source')})")
-                import_theorems.append(theorem)
+                imported = f"({projection.format(source=f'{name}Source')})"
+                imported_theorem = theorem
+            if swap:
+                import_code.append(
+                    swap_pairs.certificate(name, swap, catalog, chunked=chunked)
+                )
+                normalize = f"(fun p => EVM.SwapPairs.normalize p {name}SwapFloors)"
+                import_code.append(f"""
+theorem {name}SwapImport : ({imported}.bind {normalize}) = some {name}Swaps :=
+  (Option.bind_eq_some_iff (x := {imported}) (f := {normalize}) (b := {name}Swaps)).mpr
+    ⟨{name}, {imported_theorem}, {name}SwapNormalization⟩
+""")
+                imported = f"({imported}.bind {normalize})"
+                imported_theorem = f"{name}SwapImport"
+                provenance_theorems.extend(
+                    f"{name}Swap{lemma}"
+                    for lemma in ("Arity", "Admission", "Normalization", "Execution")
+                )
+            imports.append(imported)
+            import_theorems.append(imported_theorem)
+        if any(swaps):
+            for lemma in ("execute_window", "swap_words"):
+                theorem = f"SolarTV.EVM.SwapPairs.{lemma}"
+                provenance += f"#print axioms {theorem}\n"
+                provenance_theorems.append(theorem)
         before_import, after_import = imports
         before_theorem, after_theorem = import_theorems
         if any(witness.get("comparison") for _, witness in continuations):
@@ -529,8 +577,8 @@ theorem matchingRequests {{Payload Halt : Type}} (view : Payload → EVM.Interac
             size=len(points[0]) if chunked else None,
         )
         for name, source, point_table in (
-            ("old", "before", "sourcePoints"),
-            ("new", "after", "targetPoints"),
+            ("old", left_source, "sourcePoints"),
+            ("new", right_source, "targetPoints"),
         )
     ]
     if identical:
@@ -563,7 +611,7 @@ theorem valid : Valid old new id bounds signatures {entry_bound} :=
 """
         lemma = "contextual_bounded" if bounded else "contextual"
         admission = " (Nat.le_refl 0)" if from_entry else " fits" if callers else ""
-        match_proof = f"""EVM.ControlFlow.{lemma} before after old new sources targets edges {jump_limit}
+        match_proof = f"""EVM.ControlFlow.{lemma} {left_source} {right_source} old new sources targets edges {jump_limit}
     signatures bounds oldProjection newProjection valid handlers work {state_value}{admission}"""
     prelude = (
         PRELUDE
@@ -585,9 +633,9 @@ def edges : Array Edges := transferEdges.rows.toArray
     final = f"""
 theorem matched {{World Observation : Type}} (handlers : Handlers World Observation)
     (work : Nat) {state_argument} :
-    (project before sources edges {jump_limit}).map
+    (project {left_source} sources edges {jump_limit}).map
         (fun p => execute p signatures handlers work p.entry {state_value}) =
-      (project after targets edges {jump_limit}).map
+      (project {right_source} targets edges {jump_limit}).map
         (fun p => execute p signatures handlers work p.entry {state_value}) :=
   {match_proof}
 #print axioms matched
@@ -720,6 +768,11 @@ theorem matchedAtCaller {{World Observation : Type}} (handlers : Handlers World 
                     "reused_points": len(paired) - len(set(paired)),
                     "stack_height_bounds": bounds,
                     "changed_growth_checks": changed,
+                    **(
+                        {"canceled_swap_pairs": sorted(swaps[index][2])}
+                        if swaps[index]
+                        else {}
+                    ),
                     "boundary": "compiler source graph and schema; position-independent opcode handlers; all logical steps with temporary stack growth; no physical gas claim",
                     **(witness["evidence"] if witness else {}),
                     **(
