@@ -440,6 +440,7 @@ def envelope(
     obligations for it (the fixed-fuel resource obligation among them) are recorded OPEN, never
     discharged; a loop in the constructor still blocks."""
     reasons = []
+    ctor_ps, ctor_node = None, None
 
     def block(feature, node, detail):
         reasons.append(
@@ -575,11 +576,11 @@ def envelope(
                 and n.get("parameters", {}).get("parameters")
                 and not lifecycle
             ):
-                block(
-                    "constructor parameters",
-                    n,
-                    "the generic stage runs the constructor with no arguments (Wide.DeployedAt), so its storage is unknown; --tier lifecycle with --constructor-args takes static word arguments",
-                )
+                ctor_ps, ctor_why = ctor_word_params(n)
+                for why in ctor_why:
+                    block("constructor parameters", n, why)
+                if not ctor_why:
+                    ctor_node = n
             if n.get("kind") in ("receive", "fallback"):
                 block(
                     "fallback",
@@ -743,6 +744,27 @@ def envelope(
             )
     if not fns:
         block("no functions", None, "the contract has no external functions")
+    fns = Fns(fns)
+    if ctor_node is not None:
+        # A constructor with static word parameters: the statement is for every argument list
+        # (Verify/Generic/CtorWords.lean), on the compiled tier only, and the runtime bytes must
+        # not depend on the arguments.
+        if natspec:
+            block(
+                "constructor parameters",
+                ctor_node,
+                "with a specification: the spec connection (SpecConnect) and the Expected statement run "
+                "the constructor with no arguments; constructor arguments are stated for every word "
+                "on the compiled tier (no specification) only",
+            )
+        for v in immutables(ast, contract):
+            block(
+                "constructor parameters",
+                ctor_node,
+                f"immutable {v} with constructor arguments: the runtime bytes the constructor deploys "
+                "depend on the arguments, and the statement binds one runtime bytecode",
+            )
+        fns.ctor = {"params": ctor_ps}
     if reasons:
         raise Blocked(reasons)
     return contract, fns, events
@@ -1087,6 +1109,80 @@ def constructor_params(ast, contract):
     return []
 
 
+class Fns(list):
+    """The external functions of the contract (a list), and in `ctor` its constructor's static word
+    parameters ({"params": [{"name", "type", "width"}]}) when it takes arguments, else None: every
+    generator of the run receives the functions, so the constructor rides with them."""
+
+    ctor = None
+
+
+# A constructor parameter bound for every argument word (Verify/Generic/CtorWords.lean,
+# bindArgs_words): a uint256-typed word (narrow uintN with its cleanup) or an address.
+CTOR_UINT = re.compile(r"uint(8|16|24|32|40|48|56|64|72|80|88|96|104|112|120|128|136|144|152|160|168|176|184|192|200|208|216|224|232|240|248|256)?")
+
+
+def ctor_word_params(n):
+    """The constructor N's parameters as static words ([{"name", "type", "width"}], []) or, for
+    parameters outside them, ([], why) with one reason per parameter, each refused precisely:
+    dynamic ABI types (bytes, string, arrays, structs), multi-word static types and the word types
+    not bound yet (bool, intN, bytesN, enums, contracts, function types)."""
+    ps, why = [], []
+    for q in n.get("parameters", {}).get("parameters", []):
+        name = q.get("name") or "_"
+        t = (q.get("typeDescriptions") or {}).get("typeString", "")
+        tn = q.get("typeName") or {}
+        if tn.get("nodeType") == "ElementaryTypeName" and q.get("storageLocation") in (
+            None,
+            "default",
+        ):
+            base = tn.get("name", "")
+            m = CTOR_UINT.fullmatch(base)
+            if m:
+                ps.append({"name": name, "type": t, "width": int(m.group(1) or 256)})
+                continue
+            if base in ("address", "address payable"):
+                ps.append({"name": name, "type": t, "width": 160})
+                continue
+            if base in ("bytes", "string"):
+                why.append(
+                    f"parameter {name} of type {t}: a dynamic constructor argument; the deployment "
+                    "is stated for static word arguments only"
+                )
+                continue
+            why.append(
+                f"parameter {name} of type {t}: only uintN and address words are bound for every "
+                "argument (Verify/Generic/CtorWords.lean, bindArgs_words); bool, intN and bytesN "
+                "are not yet"
+            )
+            continue
+        kind = tn.get("nodeType", "")
+        if kind == "ArrayTypeName" and tn.get("length") is not None:
+            why.append(
+                f"parameter {name} of type {t}: a static array, not one static word (only uintN and "
+                "address words are bound for every argument)"
+            )
+        elif kind == "ArrayTypeName" or (
+            kind == "ElementaryTypeName" and tn.get("name") in ("bytes", "string")
+        ):
+            why.append(
+                f"parameter {name} of type {t}: a dynamic constructor argument; the deployment "
+                "is stated for static word arguments only"
+            )
+        elif t.startswith("struct "):
+            why.append(
+                f"parameter {name} of type {t}: a struct argument, not one static word (only uintN "
+                "and address words are bound for every argument)"
+            )
+        else:
+            why.append(
+                f"parameter {name} of type {t}: only uintN and address words are bound for every "
+                "argument (Verify/Generic/CtorWords.lean, bindArgs_words); enums, contract and "
+                "function types are not yet"
+            )
+    return (ps, []) if not why else ([], why)
+
+
 def immutables(ast, contract):
     """The names of CONTRACT's immutable state variables."""
     for d in ast.get("nodes", []):
@@ -1273,6 +1369,100 @@ def lowering_lean(name, contract, fns, events, core_lit, storage_lit, sym=False)
     # The run's stages are exported under its own namespace (export_ns.py).
     X = export_ns.of_run(name, contract)
     ns = f"Certified.{name}.Lowering"
+    ctor = getattr(fns, "ctor", None)
+    if ctor is not None:
+        # The probe's storage line for a constructor with word parameters: "ctorArgs WIDTHS WRITES",
+        # the parameters' widths and the writes of its body's one normal leaf (ctorShapeOf).
+        m = re.fullmatch(
+            r"ctorArgs \[([0-9, ]*)\] ;; (.+) ;; (\[.*\]) ;; \[([0-9, ]*)\]",
+            str(storage_lit).strip(),
+            re.S,
+        )
+        if m is None:
+            raise Failed(
+                "constructor parameters: the probe did not print the constructor's writes for every argument"
+            )
+        widths = [int(x) for x in m.group(1).split(",") if x.strip()]
+        want = [p["width"] for p in ctor["params"]]
+        if widths != want:
+            raise Failed(
+                f"constructor parameters: SolidCore's widths {widths} are not the ABI's {want}"
+            )
+        if sym:
+            raise Failed(
+                "constructor parameters: the caller route any is not stated for constructor arguments"
+            )
+        tree, writes = m.group(2), m.group(3)
+        witness = [int(x) for x in m.group(4).split(",") if x.strip()]
+        # A tree that branches reverts for some arguments: the statement then covers the argument
+        # lists on which the constructor returns (CtorReturns), with a witness that one does.
+        branches = not tree.lstrip("(").startswith("SolidCore.Refinement.Generic.Br.leaf")
+        ctor["branches"] = branches
+        ctor["witness"] = witness
+        storage_defs = f"""/-- The widths of the constructor's parameters (§uint256§-typed words their width, addresses
+160), as SolidCore's check reads them (checked by §shape_eq§). -/
+def ctorWidths : List Nat := {widths}
+
+/-- The erasure of the constructor's body over the argument words (§WExpr.arg i§), as the probe
+printed it (checked by §shape_eq§): its leaves are normal with §ctorWrites§ and no logs, or revert. -/
+def ctorTree : Generic.Br :=
+  {tree}
+
+/-- The writes of the constructor's normal leaves (checked by §shape_eq§): slot words and value
+words over the argument words. -/
+def ctorWrites : Generic.Writes :=
+  {writes}
+
+/-- What the constructor leaves in storage on the argument words §ws§: each slot it writes, with its
+word. -/
+def storageOf (ws : List Nat) : List (Nat × Nat) := Generic.storageOf ctorWrites ws"""
+        shape_def = f"""/-- SolidCore's checked core, and whether the constructor's body erases, with §ctorWidths§, to one
+normal leaf with the writes §ctorWrites§ and no logs. -/
+def shape? : Option (Contract × Bool) := Generic.ctorShapeOf fuel contract? ctorWidths ctorTree ctorWrites"""
+        deployed_def = """/-- The deployment on every argument list of the parameters' count, each word below §2 ^ 256§ and
+clean for its width, on which the constructor returns: it leaves a state with no logs, and a storage
+that writes every slot of §storageOf ws§ writes every slot it leaves nonzero; and the constructor
+returns wherever §ctorTree§'s leaf is normal. -/
+theorem deployed_of {c : TypeCheck.CheckedContract} (hc : contract? = .ok c) :
+    c.core = coreLit ∧
+      (∀ ws, ws.length = ctorWidths.length → (∀ a ∈ ws, a < 2 ^ 256) →
+        Generic.argsClean ctorWidths ws = true → Generic.CtorReturns fuel contract? ws →
+        ∃ d, Generic.Loop.LoadDeployed fuel c ws d ∧
+          ∀ σ, Generic.Covers (storageOf ws) σ → Generic.Loop.CoversLoad d σ) ∧
+      (∀ ws, ws.length = ctorWidths.length → (∀ a ∈ ws, a < 2 ^ 256) →
+        Generic.argsClean ctorWidths ws = true → Generic.normalAt ctorTree ws = true →
+        Generic.CtorReturns fuel contract? ws) :=
+  Generic.deployed_of_ctorShapeOf shape_eq hc
+
+/-- The constructor returns on the witness words """ + str(witness) + """ (its erasure's leaf there is normal). -/
+theorem ctorReturns_witness : Generic.CtorReturns fuel contract? """ + str(witness) + """ := by
+  have h := shape_eq
+  unfold shape? Generic.ctorShapeOf at h
+  split at h
+  · next c hc =>
+    exact (deployed_of hc).2.2 """ + str(witness) + """ rfl (by decide) (by decide +kernel) (by decide +kernel)
+  · simp at h"""
+        ctor_import = "import Verify.Generic.CtorWords\n"
+        intro_doc = (
+            "§coreLit§ is SolidCore's own evaluation of the checked contract, and §ctorWidths§ and\n"
+            "§ctorWrites§ the erasure of its constructor's body for every argument list, printed by the\n"
+            "driver's probe and read back; §shape_eq§ proves in the kernel that they are what §contract?§\n"
+            "gives, so the probe is not trusted."
+        )
+    else:
+        storage_defs = f"""/-- What the constructor leaves in storage, as SolidCore's evaluation printed it (checked by §shape_eq§). -/
+def storageLit : List (Nat × Nat) := {storage_lit}"""
+        shape_def = """/-- SolidCore's checked core, and whether the constructor leaves exactly §storageLit§ and no logs. -/
+def shape? : Option (Contract × Bool) := Generic.shapeOf fuel contract? storageLit"""
+        deployed_def = """theorem deployed_of {c : TypeCheck.CheckedContract} (hc : contract? = .ok c) :
+    c.core = coreLit ∧ ∃ d, Wide.DeployedAt fuel c d storageLit :=
+  Generic.deployed_of_shapeOf shape_eq hc"""
+        ctor_import = ""
+        intro_doc = (
+            "§coreLit§ and §storageLit§ are SolidCore's own evaluation of the checked contract and of its\n"
+            "constructor, printed by the driver's probe and read back; §shape_eq§ proves in the kernel that\n"
+            "they are what §contract?§ gives, so the probe is not trusted."
+        )
     sels = "\n".join(
         f"/-- The selector of §{f['sig']}§. -/\nabbrev sel{i} : Nat := {hex(f['sel'])}\n"
         for i, f in enumerate(fns)
@@ -1317,7 +1507,7 @@ theorem checkValueSym_stage0 :
     )
     return f"""import SolidCore.Refinement.Generic.Value
 import SolidCore.Refinement.Generic.Shape
-{sym_import}import SolidCore.Refinement.KernelCopies
+{ctor_import}{sym_import}import SolidCore.Refinement.KernelCopies
 import SolidCore.Refinement.KernelRfl
 import SolidCore.Refinement.KernelTable
 import {name}.Source
@@ -1329,10 +1519,8 @@ import {name}.gen.{contract}.Stage0
 /-!
 # {contract}: the generic source check, generated
 
-§coreLit§ and §storageLit§ are SolidCore's own evaluation of the checked contract and of its
-constructor, printed by the driver's probe and read back; §shape_eq§ proves in the kernel that
-they are what §contract?§ gives, so the probe is not trusted. §check_stage0§ and §checkValue_stage0§
-are the generic check on solar's first lowered MIR, by the kernel's evaluation.
+{intro_doc} §check_stage0§ and
+§checkValue_stage0§ are the generic check on solar's first lowered MIR, by the kernel's evaluation.
 -/
 
 namespace {ns}
@@ -1358,14 +1546,12 @@ def fns : List Fn := [{fnlist}]
 def coreLit : Contract :=
   {core_lit}
 
-/-- What the constructor leaves in storage, as SolidCore's evaluation printed it (checked by §shape_eq§). -/
-def storageLit : List (Nat × Nat) := {storage_lit}
+{storage_defs}
 
 /-! ## Selectors and topics, each by Keccak-256 once, then by table -/
 
 {table}
-{digest}/-- SolidCore's checked core, and whether the constructor leaves exactly §storageLit§ and no logs. -/
-def shape? : Option (Contract × Bool) := Generic.shapeOf fuel contract? storageLit
+{digest}{shape_def}
 
 kernel_rfl shape_eq shape? (some (coreLit, true)) using {using}
 
@@ -1381,9 +1567,7 @@ theorem checkValue_stage0 :
     Generic.checkValue mirFuel coreLit {X}.stage0 fns .all = true := by
   decide +kernel
 {sym_thms}
-theorem deployed_of {{c : TypeCheck.CheckedContract}} (hc : contract? = .ok c) :
-    c.core = coreLit ∧ ∃ d, Wide.DeployedAt fuel c d storageLit :=
-  Generic.deployed_of_shapeOf shape_eq hc
+{deployed_def}
 
 end {ns}
 """.replace("§§", "§§").replace("§", "\u0060")
@@ -1433,9 +1617,61 @@ def probe_lean(name, contract, fns):
             for f in fns
         )
     )
+    ctor_import = ""
+    ctor_helper = ""
+    ctor_run = """  match TypeCheck.CheckedContract.constructWithContext? fuel c (Wide.ctxOf c) State.empty
+      SolidCore.Refinement.selfAddress 0 [] with
+  | some (CallResult.returned d _) =>
+    IO.println ("PROBE constructor: returns" ++ (if d.events.isEmpty then "" else ", with logs"))
+    IO.println ("PROBE storage: " ++ reprStr d.storage.toList)
+  | some _ => IO.println "PROBE constructor: does not return (reverts or fails) with no arguments"
+  | none => IO.println "PROBE constructor: undefined with no arguments\""""
+    if getattr(fns, "ctor", None):
+        # A constructor with static word parameters: its body's erasure with the parameters' width
+        # facts (Verify/Generic/CtorWords.lean, ctorShapeOf), for every argument list at once. The
+        # storage line carries the widths and the writes (Lowering reads them back as literals).
+        ctor_import = "import Verify.Generic.CtorWords\n"
+        ctor_run = """  match TypeCheck.CheckedProgram.constructorFunctionFor? c.program c.decl with
+  | none => IO.println "PROBE constructor: no constructor function"
+  | some fn =>
+  match Generic.widthsOf fn.params fn.paramAbiCleanups with
+  | none => IO.println "PROBE constructor: the parameters' widths are undefined"
+  | some wds =>
+  if !Generic.wordParams fn.params then
+    IO.println "PROBE constructor: a parameter is not a uint256-typed or address word"
+  else if !fn.returns.isEmpty then IO.println "PROBE constructor: returns values"
+  else
+  match Generic.eraseStmt { Generic.envOf core with facts := Generic.argFacts wds 0 } fuel fn.body
+      { Generic.initState fn with caller := .lit SolidCore.Refinement.selfAddress } with
+  | none =>
+    let bad := (core.storageFields.filter fun f => !Generic.fieldOk f && !Generic.mapOk f).map (·.name)
+    IO.println ("PROBE constructor: the constructor's body is outside the erasure (eraseStmt)" ++
+      (if bad.isEmpty then "" else "; storage fields outside its unsigned scalars and mappings: " ++ ", ".intercalate bad))
+  | some b =>
+  match firstNormal b with
+  | none => IO.println "PROBE constructor: no normal leaf (it reverts on every argument list)"
+  | some S =>
+  if !Generic.normalsOnly S.writes b then
+    IO.println "PROBE constructor: the erasure's normal leaves differ, log or return; the statement for every argument needs one normal leaf shape"
+  else
+  let zeros := wds.map fun _ => 0
+  let ones := wds.map fun _ => 1
+  match (if Generic.normalAt b zeros then some zeros else if Generic.normalAt b ones then some ones else none) with
+  | none => IO.println "PROBE constructor: returns on no argument list tried (all zeros, all ones): no witness"
+  | some w =>
+    IO.println ("PROBE constructor: returns" ++ (match b with | .leaf _ => " for every argument list" | _ => " where its erasure does not revert"))
+    IO.println ("PROBE storage: ctorArgs " ++ reprStr wds ++ " ;; " ++ ((repr b).pretty 100000000).replace "\\n" " " ++
+      " ;; " ++ ((repr S.writes).pretty 100000000).replace "\\n" " " ++ " ;; " ++ reprStr w)"""
+        ctor_helper = """
+/-- The first normal leaf of an erasure tree. -/
+def firstNormal : Generic.Br → Option Generic.SymState
+  | .leaf (.normal S) => some S
+  | .leaf _ => none
+  | .ite _ t e => (firstNormal t).orElse fun _ => firstNormal e
+"""
     return f"""import SolidCore.Refinement.Generic.Value
 import SolidCore.Refinement.Generic.StageFrom
-import {name}.Source
+{ctor_import}import {name}.Source
 import {name}.gen.{contract}.Stage0
 
 namespace Certified.{name}.Probe
@@ -1448,7 +1684,7 @@ def mirFuel : Nat := 4096
 
 def contract? : Except TypeCheck.TypeError TypeCheck.CheckedContract :=
   TypeCheck.CheckedInput.contract Certified.{name}.Src.importedSourceUnit {lean_str(contract)}
-
+{ctor_helper}
 def main : IO Unit := do
   match contract? with
   | .error _ => IO.println "PROBE typecheck: error"
@@ -1456,13 +1692,7 @@ def main : IO Unit := do
   let core := c.core
   IO.println "PROBE typecheck: ok"
   IO.println ("PROBE core: " ++ ((repr core).pretty 100000000).replace "\\n" " ")
-  match TypeCheck.CheckedContract.constructWithContext? fuel c (Wide.ctxOf c) State.empty
-      SolidCore.Refinement.selfAddress 0 [] with
-  | some (CallResult.returned d _) =>
-    IO.println ("PROBE constructor: returns" ++ (if d.events.isEmpty then "" else ", with logs"))
-    IO.println ("PROBE storage: " ++ reprStr d.storage.toList)
-  | some _ => IO.println "PROBE constructor: does not return (reverts or fails) with no arguments"
-  | none => IO.println "PROBE constructor: undefined with no arguments"
+{ctor_run}
 {checks}
 {runs}
 
@@ -1754,6 +1984,13 @@ def decide_route(res, fns, reasons, witness, probe_dir, contract):
     caller, creasons = caller_route(res, fns)
     if creasons:
         return "0x2000", None, creasons, "caller route: BLOCKED (msg.sender)"
+    if getattr(fns, "ctor", None):
+        return (
+            "0x2000",
+            None,
+            [],
+            "caller route: the fixed caller 0x2000 (constructor arguments are stated on the fixed caller)",
+        )
     if caller != "any":
         return (
             "0x2000",
@@ -3426,7 +3663,19 @@ def shape_json(
     succeeds_witness=None,
 ):
     ns = f"Certified.{name}.Lowering"
-    valid = f"SolidCore.Refinement.Shapes.genericValid ({ns}.fns) ({ns}.storageLit)"
+    ctor = getattr(fns, "ctor", None)
+    storage = f"{ns}.storageLit"
+    if ctor is not None:
+        # Every argument list: the statement quantifies the words A0, A1, ... each below 2 ^ width,
+        # against the source deployed with them (final.py's ctor_args), from any storage covering
+        # the slots that deployment writes.
+        if spec_witness is not None or any_gas is not None:
+            raise Failed(
+                "constructor parameters: stated on the compiled tier with the fixed caller only"
+            )
+        args = [f"A{i}" for i in range(len(ctor["params"]))]
+        storage = f"{ns}.storageOf [{', '.join(args)}]"
+    valid = f"SolidCore.Refinement.Shapes.genericValid ({ns}.fns) ({storage})"
     sigs = ", ".join(f["sig"] for f in fns)
     shape = {
         "kind": "compiled",
@@ -3447,7 +3696,7 @@ def shape_json(
             "check": "check_stage0",
             "check_value": "checkValue_stage0",
             "fns": f"{ns}.fns",
-            "storage": f"{ns}.storageLit",
+            "storage": storage,
         },
         "excluded": [
             "deployment: the init code is not covered; the statement is about the runtime bytecode from any storage that holds the slots the constructor writes, as SolidCore's constructor run with no arguments leaves them",
@@ -3462,6 +3711,39 @@ def shape_json(
             "contract": contract,
         },
     }
+    if ctor is not None:
+        shape["ctor_args"] = [
+            {"var": v, "lt": f"2 ^ {p['width']}"} for v, p in zip(args, ctor["params"])
+        ]
+        shape["generic"]["ctor"] = {
+            "args": args,
+            "widths": [p["width"] for p in ctor["params"]],
+            "branches": bool(ctor.get("branches")),
+        }
+        if ctor.get("branches"):
+            # The constructor may revert (its erasure branches to reverts): the statement covers
+            # the argument lists on which SolidCore's constructor returns, and states one.
+            shape["ctor_returns"] = {"witness": ctor["witness"]}
+            shape["excluded"].insert(
+                1,
+                "creations that revert: the statement covers the argument lists on which SolidCore's "
+                "constructor returns (CtorReturns, a premise; the witness "
+                + str(ctor["witness"])
+                + " is one); on the others the source deploys nothing",
+            )
+        shape["excluded"][0] = (
+            "deployment: the init code is not covered; the statement is about the runtime bytecode, "
+            "for every constructor argument list ("
+            + ", ".join(
+                f"{v} for {p['name']} : {p['type']}, below 2^{p['width']}"
+                for v, p in zip(args, ctor["params"])
+            )
+            + "), against SolidCore's contract deployed by its constructor on those words "
+            "(solidCoreFromArgs), from any storage that holds the slots that constructor writes"
+        )
+        shape["excluded"][-1] = shape["excluded"][-1].replace(
+            "the constructor's slots", "the slots the constructor writes on the arguments"
+        )
     if spec_witness is not None:
         # The specification is solar-verify's export of this run's source, proved of SolidCore's
         # contract by tools/certify/spec_connect.py and composed with the bytecode by shape_gen.py:

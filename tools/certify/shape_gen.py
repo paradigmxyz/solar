@@ -48,9 +48,10 @@ def fail(msg):
     sys.exit(1)
 
 
-def contract_ok_lean(ns):
+def contract_ok_lean(ns, shape_fn="shapeOf"):
     """`contract_ok`: SolidCore type checks the contract, read off the Lowering module's `shape_eq`.
-    A Lowering module defines `shape?` either through `Generic.shapeOf` (the current template) or
+    A Lowering module defines `shape?` either through `Generic.shapeOf` (the current template;
+    `Generic.ctorShapeOf`, SHAPE_FN, for constructor arguments) or
     as the same match inline (archived records, such as Certified/record/acc4-flag, which do not
     import it): `shapeOf` is unfolded only when it is there (`unfold` fails on a name it cannot
     resolve or a hypothesis it does not change), and either way the match on `contract?` is what
@@ -60,7 +61,7 @@ def contract_ok_lean(ns):
         f"theorem contract_ok : ∃ c, {ns}.contract? = .ok c := by\n"
         f"  have h := {ns}.shape_eq\n"
         f"  unfold {ns}.shape? at h\n"
-        f"  try unfold SolidCore.Refinement.Generic.shapeOf at h\n"
+        f"  try unfold SolidCore.Refinement.Generic.{shape_fn} at h\n"
         f"  split at h\n  · next c hc => exact ⟨c, hc⟩\n  · simp at h\n"
     )
 
@@ -333,7 +334,44 @@ def main():
         fail(f"shape.json: valid must be {valid!r} for this generic block")
     env = shape.get("env", [])
     binders = " ".join(f"_h{i}" for i in range(len(env)))
-    if g["style"] == "core":
+    ctor = g.get("ctor")
+    if ctor is not None and (g["style"] != "core" or not value or kind != "compiled"):
+        fail("generic.ctor needs style core, check_value and kind compiled")
+    if g["style"] == "core" and ctor is not None:
+        # Every constructor argument list (Verify/Generic/CtorWords.lean): the deployment on the
+        # statement's words A0, A1, ..., each below 2 ^ its width, from the Lowering module's one
+        # evaluation of the constructor's erasure.
+        args, widths = ctor["args"], ctor["widths"]
+        if [b.get("var") for b in shape.get("ctor_args", [])] != args or [
+            b.get("lt") for b in shape.get("ctor_args", [])
+        ] != [f"2 ^ {w}" for w in widths]:
+            fail("shape.json: ctor_args must be generic.ctor's words and widths")
+        alts = " | ".join("rfl" for _ in args)
+        lifts = "".join(
+            f"  · exact Nat.lt_of_lt_of_le h{i} (Nat.pow_le_pow_right (by decide) (by decide))\n"
+            for i in range(len(args))
+        )
+        start = (
+            f"  obtain ⟨hk, hdep, hnorm⟩ := {ns}.deployed_of hc\n"
+            f"  have hall : ∀ a ∈ [{', '.join(args)}], a < 2 ^ 256 := by\n"
+            f"    intro a ha\n"
+            f"    simp only [List.mem_cons, List.not_mem_nil, or_false] at ha\n"
+            f"    rcases ha with {alts}\n"
+            + "".join("  " + l + "\n" for l in lifts.splitlines())
+            + f"  have hcl : Generic.argsClean {ns}.ctorWidths [{', '.join(args)}] = true := by\n"
+            f"    simp only [Generic.argsClean, {ns}.ctorWidths, {', '.join(f'decide_eq_true h{i}' for i in range(len(args)))}, Bool.and_self, Bool.and_true]\n"
+            + (
+                "  have hret := hR\n"
+                if ctor.get("branches")
+                else f"  have hret := hnorm [{', '.join(args)}] rfl hall hcl rfl\n"
+            )
+            + f"  obtain ⟨d, hd, hcov⟩ := hdep [{', '.join(args)}] rfl hall hcl hret\n"
+            f"  have hchk := hk ▸ {ns}.{g['check']}\n"
+            f"  have hval := hk ▸ {ns}.{g['check_value']}\n"
+        )
+        okthm = "contract_ok"
+        okdef = contract_ok_lean(ns, "ctorShapeOf") + "\n"
+    elif g["style"] == "core":
         # The Lowering module's checks are about its literal core; `hk` is that it is `c.core`.
         start = (
             f"  obtain ⟨hk, d, hd⟩ := {ns}.deployed_of hc\n"
@@ -365,7 +403,18 @@ def main():
         f"      ({M}.{stages['compose']} {S}.oracle) (fun _ _ => trivial) ends check_ok\n"
         f"      (Nat.lt_of_le_of_lt gas_le (by decide))"
     )
-    if kind == "compiled":
+    if ctor is not None:
+        comp = (
+            f"{S}.compiledArgs hd hcov hchk hval ({S}.genericValid_inhabited _ _ _)\n"
+            f"      ({M}.{stages['compose']} {S}.oracle) (fun _ _ => trivial) ends check_ok\n"
+            f"      (Nat.lt_of_le_of_lt gas_le (by decide))"
+        )
+        shape_t = (
+            f"{S}.Compiled (solidCoreFromArgs callerAddress {sns}.fuel [{', '.join(ctor['args'])}]) c code "
+            f"({valid}) ({gas})"
+        )
+        body = f"  exact ⟨c, hc, ({comp}).mono_gas (fun _ => gas_le) (fun _ => by decide)⟩\n"
+    elif kind == "compiled":
         shape_t = f"{S}.Compiled (solidCore {sns}.fuel) c code ({valid}) ({gas})"
         body = f"  exact ⟨c, hc, ({comp}).mono_gas (fun _ => gas_le) (fun _ => by decide)⟩\n"
     elif kind == "certified" and not g.get("spec_connect"):
@@ -667,8 +716,37 @@ theorem nonvacuous :
     )
     premises = "".join(f"({e}) →\n    " for e in env)
     intro = f"  intro {binders}\n" if env else ""
+    if ctor is not None:
+        if env:
+            fail("generic.ctor states no env premises")
+        args = ctor["args"]
+        branches = bool(ctor.get("branches"))
+        wit = (shape.get("ctor_returns") or {}).get("witness")
+        if branches != (wit is not None):
+            fail("shape.json: ctor_returns must be present exactly when the constructor's erasure branches")
+        premises = (
+            f"∀ ({' '.join(args)} : Nat), "
+            + "".join(f"{v} < 2 ^ {w} → " for v, w in zip(args, ctor["widths"]))
+            + (f"Generic.CtorReturns {sns}.fuel {sns}.contract? [{', '.join(args)}] → " if branches else "")
+            + "\n    "
+        )
+        intro = (
+            f"  intro {' '.join(args)} {' '.join(f'h{i}' for i in range(len(args)))}"
+            + (" hR" if branches else "")
+            + "\n"
+        )
+    wit_conj = ""
+    if ctor is not None and ctor.get("branches"):
+        w = ", ".join(str(x) for x in shape["ctor_returns"]["witness"])
+        wit_conj = (
+            f"\n/-- The claim, and one argument list on which the constructor returns. -/\n"
+            f"theorem published : ({premises}∃ c, {sns}.contract? = .ok c ∧\n      {shape_t}) ∧\n"
+            f"    Generic.CtorReturns {sns}.fuel {sns}.contract? [{w}] :=\n"
+            f"  ⟨claim, {ns}.ctorReturns_witness⟩\n"
+        )
     mods = [
         "Verify.ShapeGeneric",
+        *(["Verify.Generic.CtorWords"] if ctor is not None else []),
         "SolidCore.Refinement.Solar.AssembleCheckFast",
         g["lowering"],
         f"{a.name}.Proofs.Stages",
@@ -725,10 +803,10 @@ def mutant (i b : Nat) : ByteArray := ⟨(({X}.bytecode.set i b).map UInt8.ofNat
 
 {okdef}
 /-- **What the published statement asks of this module.** -/
-theorem published : {premises}∃ c, {sns}.contract? = .ok c ∧
+theorem {"claim" if wit_conj else "published"} : {premises}∃ c, {sns}.contract? = .ok c ∧
       {shape_t} := by
 {intro}  obtain ⟨c, hc⟩ := {okthm}
-{start}{body}
+{start}{body}{wit_conj}
 /-- info: 'Certified.{a.name}.Shape.published' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms published

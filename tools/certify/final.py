@@ -73,6 +73,18 @@ shape.json keys (Lean terms without tactics or commands):
             `code`, the run's bytes themselves; the proof module's term is carried over by
             `code_eq`. A pinned artifact that is stale or substituted (any byte other than this run's)
             fails the binding.
+  ctor_args  [{"var": "A0", "lt": "2 ^ W"}, ...] (kind compiled, on a checked source): the statement
+            holds for every constructor argument list: `∀ (A0 A1 … : Nat), A0 < 2 ^ W0 → … →`, the
+            source semantics is `solidCoreFromArgs callerAddress fuel [A0, A1, …]` (the contract
+            deployed by SolidCore's constructor on those words, then called) and valid may name the
+            words; W is a width 8..256 (a multiple of 8; 160 for an address). The proof is a term of
+            type `∀ (A0 … : Nat), A0 < 2 ^ W0 → … → ∃ c, contract = .ok c ∧ Shape`
+  ctor_returns  {"witness": [w0, w1, …]} (with ctor_args): the constructor may revert for some
+            arguments, so the claim has the premise `Generic.CtorReturns fuel contract [A0, …]` (the
+            checked contract's constructor returns on those words) after the bounds, and the statement
+            adds `∧ Generic.CtorReturns fuel contract [w0, …]` (literal words): one argument list on which
+            it returns, so the premise is not vacuous. The proof is then a term of the claim and that
+            conjunct together (`claim ∧ CtorReturns fuel contract [w0, …]`)
   iteration_bound  {"var": V, "max": N} (kinds certified, functional and compiled): the statement
             holds for every iteration bound `V ≤ N` (N a literal), the terms valid, allowed, post and
             gas may name V, and the proof is a term of type
@@ -452,6 +464,69 @@ theorem {ns}.final : _root_.{ns}.Statement := by
     return stmt_text, final_text
 
 
+def ctor_binders(shape, kind):
+    """shape.json's ctor_args, checked: ([(var, bound)], the claim's binders and premises) or
+    (None, "")."""
+    if "ctor_args" not in shape:
+        return None, ""
+    b = shape["ctor_args"]
+    if kind != "compiled" or "sem" in shape or "source_sem" in shape:
+        fail(
+            "shape.json: ctor_args is for kind compiled on a checked source with SolidCore's semantics"
+        )
+    if not (isinstance(b, list) and b):
+        fail("shape.json: ctor_args must be a non-empty list")
+    out = []
+    if "ctor_returns" in shape:
+        r = shape["ctor_returns"]
+        w = r.get("witness") if isinstance(r, dict) and set(r) == {"witness"} else None
+        if not (
+            isinstance(w, list)
+            and len(w) == len(b)
+            and all(isinstance(x, int) and not isinstance(x, bool) and x >= 0 for x in w)
+        ):
+            fail('shape.json: ctor_returns must be {"witness": [one natural number per argument]}')
+    for i, x in enumerate(b):
+        if not (isinstance(x, dict) and set(x) == {"var", "lt"}):
+            fail('shape.json: each ctor_args entry must be {"var": ..., "lt": ...}')
+        m = re.fullmatch(r"2 \^ (\d+)", x["lt"]) if isinstance(x["lt"], str) else None
+        if x["var"] != f"A{i}":
+            fail(f"shape.json: ctor_args entry {i} must name A{i}")
+        if m is None or not (8 <= int(m.group(1)) <= 256 and int(m.group(1)) % 8 == 0):
+            fail(
+                "shape.json: a ctor_args bound must be 2 ^ W, W a multiple of 8 from 8 to 256"
+            )
+        out.append((x["var"], x["lt"]))
+    contract, fuel = expr(shape, "contract"), expr(shape, "fuel")
+    returns = ""
+    if "ctor_returns" in shape:
+        for x, (_, lt) in zip(shape["ctor_returns"]["witness"], out):
+            if x >= 2 ** int(lt.split("^")[1]):
+                fail(f"shape.json: the witness word {x} is not below {lt}")
+        returns = (
+            f"_root_.SolidCore.Refinement.Generic.CtorReturns ({fuel}) ({contract}) "
+            f"[{', '.join(v for v, _ in out)}] → "
+        )
+    claim = (
+        f"∀ ({' '.join(v for v, _ in out)} : Nat), "
+        + "".join(f"{v} < {lt} → " for v, lt in out)
+        + returns
+        + "\n      "
+    )
+    return out, claim
+
+
+def ctor_witness(shape):
+    """The statement's last conjunct for ctor_returns: the constructor returns on the witness words."""
+    if "ctor_returns" not in shape:
+        return ""
+    w = shape["ctor_returns"]["witness"]
+    return (
+        f" ∧\n    _root_.SolidCore.Refinement.Generic.CtorReturns ({expr(shape, 'fuel')}) "
+        f"({expr(shape, 'contract')}) [{', '.join(str(x) for x in w)}]"
+    )
+
+
 def pinned_and_bound(shape, kind, proof_mod, spec_mods, nonvac):
     """shape.json's pinned_bytes/pinned_module (the byte list the proof's code is built from and its
     data module, or None) and iteration_bound (the bound's variable and its literal maximum, or
@@ -664,6 +739,12 @@ def main():
             fail("shape.json: source_sem must be a Lean name")
         source = f"({fuel}) c" if opened else f"(_root_.{sem_fn} ({fuel})) c"
         exists = f"∃ c, {contract} = .ok c ∧\n      "
+    ctor_args, ctor_claim = ctor_binders(shape, kind)
+    if ctor_args is not None:
+        source = (
+            "(_root_.SolidCore.Refinement.solidCoreFromArgs _root_.SolidCore.Refinement.callerAddress "
+            f"({fuel}) [{', '.join(v for v, _ in ctor_args)}]) c"
+        )
     valid = expr(shape, "valid")
     ns = f"Certified.{a.name}.Final"
     export_ns = f"Certified.{a.name}.gen.{a.contract}.Spec"
@@ -816,6 +897,7 @@ def main():
     imports = [
         "Verify.Shapes",
         *(["Verify.ShapeGeneric"] if kind == "compiled" else []),
+        *(["SolidCore.Refinement.Generic.StageFrom"] if ctor_args is not None else []),
         *(["Verify.ShapeOpen"] if opened else []),
         *(
             ["Verify.ShapeBundle", f"{a.name}.gen.{a.contract}.Spec"]
@@ -898,8 +980,8 @@ def code : ByteArray := ⟨({export}.bytecode.map UInt8.ofNat).toArray⟩
 /-- **The published statement.** -/
 def Statement : Prop :=
   _root_.{ns}.code.data.toList.map (·.toNat) = _root_.{ns}.runtimeBytes ∧
-    {nonvac_conj}({premises}{exists}{shape_t} {source} _root_.{ns}.code
-        {"" if opened else "(" + valid + ")"}{spec_args}{gas})
+    {nonvac_conj}({premises}{ctor_claim}{exists}{shape_t} {source} _root_.{ns}.code
+        {"" if opened else "(" + valid + ")"}{spec_args}{gas}){ctor_witness(shape)}
 
 set_option maxRecDepth 100000 in
 theorem bound : _root_.{ns}.code.data.toList.map (·.toNat) = _root_.{ns}.runtimeBytes :=
@@ -925,6 +1007,12 @@ theorem {ns}.final : _root_.{ns}.Statement :=
 
 #print axioms {ns}.final
 """
+    if ctor_args is not None and (
+        pinned is not None or ib is not None or env or "statement" in shape
+    ):
+        fail(
+            "shape.json: ctor_args is stated alone (no pinned_bytes, iteration_bound, env or statement)"
+        )
     if pinned is not None or ib is not None:
         stmt_text, final_text = bound_mode(
             a,
@@ -1012,6 +1100,10 @@ theorem {ns}.final : _root_.{ns}.Statement :=
         }
     if ib is not None:
         extra["iteration_bound"] = {"var": ib[0], "max": ib[1]}
+    if ctor_args is not None:
+        extra["ctor_args"] = [{"var": v, "lt": lt} for v, lt in ctor_args]
+        if "ctor_returns" in shape:
+            extra["ctor_returns"] = shape["ctor_returns"]
     if a.record:
         json.dump(
             {

@@ -3033,27 +3033,66 @@ class LifecycleKernel(unittest.TestCase):
 
 @unittest.skipUnless(SOLC.exists(), "needs the pinned solc")
 class LifecycleEnvelope(unittest.TestCase):
-    """The examples through solc: constructor parameters stay outside the other tiers' envelope,
-    and the lifecycle tier reads their types and the immutables."""
+    """The examples through solc: static word constructor parameters enter the other tiers'
+    envelope (every argument list, Verify/Generic/CtorWords.lean) without a specification and
+    without immutables, and the lifecycle tier reads their types and the immutables."""
 
     def test_examples(self):
         want = {
-            "NoArgCtor": ([], []),
-            "ArgCtor": (["uint256", "address"], []),
-            "ImmutableCtor": (["uint256"], ["limit"]),
+            "NoArgCtor": ([], [], None),
+            "ArgCtor": (["uint256", "address"], [], [256, 160]),
+            "PairCtor": (["uint256", "uint256"], [], [256, 256]),
+            "ImmutableCtor": (["uint256"], ["limit"], "immutable limit"),
         }
-        for ex, (types, imm) in want.items():
+        for ex, (types, imm, ctor) in want.items():
             src = LIFE / f"{ex}.sol"
             ast, contracts = generic.solc_ast(str(SOLC), src)
             self.assertEqual(generic.constructor_params(ast, ex), types, ex)
             self.assertEqual(generic.immutables(ast, ex), imm, ex)
             generic.envelope(src.read_text(), ast, contracts, None, None, False, True)
-            if types:
+            if isinstance(ctor, str):
                 with self.assertRaises(generic.Blocked) as e:
                     generic.envelope(
                         src.read_text(), ast, contracts, None, None, False, False
                     )
-                self.assertIn("--tier lifecycle", str(e.exception.reasons))
+                self.assertIn(ctor, str(e.exception.reasons))
+                continue
+            _, fns, _ = generic.envelope(
+                src.read_text(), ast, contracts, None, None, False, False
+            )
+            got = fns.ctor and [q["width"] for q in fns.ctor["params"]]
+            self.assertEqual(got, ctor, ex)
+            if ctor:
+                # With a specification, constructor arguments stay refused.
+                with self.assertRaises(generic.Blocked) as e:
+                    generic.envelope(
+                        src.read_text(), ast, contracts, None, None, True, False
+                    )
+                self.assertIn("with a specification", str(e.exception.reasons))
+
+    def test_ctor_param_refusals(self):
+        """Constructor parameters outside the static words are refused, each with its type."""
+        cases = {
+            "string memory s": "a dynamic constructor argument",
+            "bytes memory b": "a dynamic constructor argument",
+            "uint256[] memory xs": "a dynamic constructor argument",
+            "bool f": "only uintN and address words",
+            "int256 i": "only uintN and address words",
+            "bytes32 h": "only uintN and address words",
+            "uint256[2] memory p": "a static array, not one static word",
+        }
+        with tempfile.TemporaryDirectory() as d:
+            for decl, why in cases.items():
+                src = pathlib.Path(d) / "C.sol"
+                src.write_text(
+                    "pragma solidity ^0.8.0;\ncontract C {\n    uint256 public x;\n"
+                    f"    constructor({decl}) {{ x = 1; }}\n"
+                    "    function get() external view returns (uint256) { return x; }\n}\n"
+                )
+                ast, contracts = generic.solc_ast(str(SOLC), src)
+                with self.assertRaises(generic.Blocked) as e:
+                    generic.envelope(src.read_text(), ast, contracts, None, None, False, False)
+                self.assertIn(why, str(e.exception.reasons), decl)
 
     def test_runtime_loop_is_open_not_rejected(self):
         """A runtime loop (LoopRuntime: Counter's shape) does not stop the lifecycle tier: it is
