@@ -1084,7 +1084,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   those ranges too, except what a `revert` reads and a range that ends above
   4 MiB, which costs more gas to expand to than a transaction can pay. Storage promotion's memory temporaries, which sit where the
   entry's frame ends, are not moved. The pass instead declines to promote a
-  slot when the function, or one it may call, names a constant range over a
+  slot when the function, or one that may call it or that it may call, names a
+  constant range over a
   temporary's word, or,
   with assembly that does not promise memory safety, when a write between the
   slot's initial store and its flush goes to an address the compiler cannot

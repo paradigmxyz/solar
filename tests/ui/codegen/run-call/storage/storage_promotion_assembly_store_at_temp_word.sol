@@ -7,6 +7,7 @@
 //@ run-call: earlier 3 => 4369
 //@ run-call: callee 3 => 4369
 //@ run-call: publicCallee 3 => 4369
+//@ run-call: caller 3 => 4369
 
 // Assembly that names the address of a promoted slot's memory temporary, before its initial store
 // or between that store and the flush, must neither reach the temporary nor lose its word to it.
@@ -92,6 +93,19 @@ contract StoragePromotionAssemblyStoreAtTempWord {
             if lt(n, 100) { a := 0x80 }
             mstore(a, 0x1111)
         }
+        for (uint256 i; i < n; ++i) x += 1;
+        return x;
+    }
+
+    // A caller keeps its word at the temporary's address live across the call.
+    function caller(uint256 n) external returns (uint256 r) {
+        assembly { mstore(0x80, 0x1111) }
+        bump(n);
+        assembly { r := mload(0x80) }
+    }
+
+    function bump(uint256 n) public returns (uint256) {
+        x = 5;
         for (uint256 i; i < n; ++i) x += 1;
         return x;
     }

@@ -14,8 +14,9 @@
 //!   so the unflushed slot is unobservable there; reads of the promoted slot on those paths are
 //!   rewritten to the memory temp so revert data still sees the current value
 //! - reject opaque storage accesses on rollback exits because the rewrite cannot update them.
-//! - reject a function that names, itself or in a function it may call, a constant memory range
-//!   over a temporary's word, since the assembly's word and the temporary would share it
+//! - reject a function that names, itself or in a function that calls it or that it calls, a
+//!   constant memory range over a temporary's word, since the assembly's word and the temporary
+//!   would share it
 //! - with assembly that does not promise memory safety, also reject a memory write between the
 //!   initial store and the flush, or in a rollback exit, whose destination is not derived from a
 //!   compiler-owned pointer
@@ -51,16 +52,22 @@ impl MirPass for StorageScalarPromotion {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let unsafe_assembly = module.has_unsafe_assembly();
-        // The ranges that the functions an entry may call name, by selector.
+        // The ranges that the functions an entry may call, and the ones that may call it, name, by
+        // selector. A caller's word stays live across the call.
+        let reach = module
+            .iter_functions()
+            .map(|(id, _)| module.functions_reachable_from(id))
+            .collect::<IndexVec<_, _>>();
         let mut callee_ranges = FxHashMap::<[u8; 4], Vec<(u64, u64)>>::default();
         for (id, func) in module.iter_functions() {
             if let Some(selector) = func.selector {
                 callee_ranges.entry(selector).or_default().extend(
                     module
-                        .functions_reachable_from(id)
-                        .iter()
-                        .filter(|&callee| callee != id)
-                        .flat_map(|callee| named_ranges(module.function(callee))),
+                        .iter_functions()
+                        .filter(|&(other, _)| {
+                            other != id && (reach[id].contains(other) || reach[other].contains(id))
+                        })
+                        .flat_map(|(_, other)| named_ranges(other)),
                 );
             }
         }
@@ -227,12 +234,12 @@ fn named_ranges(func: &Function) -> Vec<(u64, u64)> {
 /// without a preheader store.
 ///
 /// Code that names a constant range over a temporary's word, anywhere in the function or in a
-/// function it may call, owns that word. An address that reaches a callee as an argument is not
-/// seen. In a module with assembly that does not promise memory safety, a write between the
-/// initial stores and the flushes through another address also counts unless its destination
-/// derives from a compiler-owned pointer. Without such assembly, the compiler places every write
-/// it makes at a computed address on the heap or in a frame, above the temporaries, which
-/// enlarge the frame that the heap and spill area start after.
+/// function that may call it or that it may call, owns that word. An address that reaches a callee
+/// as an argument is not seen. In a module with assembly that does not promise memory safety, a
+/// write between the initial stores and the flushes through another address also counts unless its
+/// destination derives from a compiler-owned pointer. Without such assembly, the compiler places
+/// every write it makes at a computed address on the heap or in a frame, above the temporaries,
+/// which enlarge the frame that the heap and spill area start after.
 fn temp_words_are_unclobbered(
     func: &Function,
     preheader: BlockId,
