@@ -899,6 +899,7 @@ def shape(name, contract, fname, sig, facts, spec=None, nonvac=False):
         "spec_modules": [f"{name}.Source", f"{name}.LoopValid"],
         "proof_module": f"{name}.LoopJoin",
         "proof": f"Certified.{name}.LoopJoin.join",
+        "export_ns": export_ns.of_run(name, contract),
         "excluded": [
             (
                 "runtime only: the statement is about the runtime bytecode run from any storage "

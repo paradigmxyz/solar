@@ -41,9 +41,18 @@ def of_run(name, contract):
 
 
 def of_gen(gen):
-    """The namespace an export directory's manifest.json records."""
-    manifest = json.loads((pathlib.Path(gen) / "manifest.json").read_text())
-    return manifest.get("namespace") or of_contract(manifest["contract"])
+    """The namespace of an export directory: the one its manifest.json records, else (an export
+    without a manifest, such as a test's copy of some stages) the namespace its Bytecode.lean or
+    first stage file opens."""
+    gen = pathlib.Path(gen)
+    if (gen / "manifest.json").exists():
+        manifest = json.loads((gen / "manifest.json").read_text())
+        return manifest.get("namespace") or of_contract(manifest["contract"])
+    for f in [gen / "Bytecode.lean", *sorted(gen.glob("*.lean"))]:
+        m = f.exists() and re.search(r"^namespace (\S+)$", f.read_text(), re.M)
+        if m:
+            return m.group(1)
+    raise ValueError(f"{gen}: no manifest.json and no stage file with a namespace")
 
 
 def of_shape(shape, contract):

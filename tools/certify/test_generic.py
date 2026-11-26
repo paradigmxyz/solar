@@ -1772,6 +1772,58 @@ class RecursionBoundary(unittest.TestCase):
         self.assertNotIn("recursion", line)
         self.assertNotIn("BLOCKED", line)
 
+    def test_recursion_through_a_free_function(self):
+        with tempfile.TemporaryDirectory() as t:
+            code, line = run_driver(
+                HEAD
+                + "function e(uint256 n) pure returns (uint256) { return n == 0 ? 1 : e(n - 1); }\n"
+                + "contract C {\n    function f(uint256 n) external pure returns (uint256) { return e(n); }\n}\n",
+                "none",
+                pathlib.Path(t),
+            )
+        self.assertEqual(code, 3, line)
+        self.assertIn("unsupported: e can call itself", line)
+
+    def test_unreached_free_function_recursion_passes(self):
+        with tempfile.TemporaryDirectory() as t:
+            _code, line = run_driver(
+                HEAD
+                + "function e(uint256 n) pure returns (uint256) { return n == 0 ? 1 : e(n - 1); }\n"
+                + "contract C {\n    function f(uint256 n) external pure returns (uint256) { return n + 1; }\n}\n",
+                "none",
+                pathlib.Path(t),
+            )
+        self.assertNotIn("recursion", line)
+
+
+class BytecodeScan(unittest.TestCase):
+    def test_unlinked_library_placeholder(self):
+        # PUSH20 <placeholder> DELEGATECALL: the placeholder is no code, the scan goes on after it.
+        hexcode = "73" + "__$" + "ab" * 17 + "$__" + "f4"
+        self.assertEqual(
+            generic.scan_bytecode(hexcode), {"unlinked library": 1, "DELEGATECALL": 21}
+        )
+
+    def test_plain_code(self):
+        self.assertEqual(generic.scan_bytecode("6001600201f1"), {"CALL": 5})
+
+
+class ImportClosure(unittest.TestCase):
+    def test_relative_and_base_imports(self):
+        with tempfile.TemporaryDirectory() as t:
+            t = pathlib.Path(t)
+            (t / "aux" / "deep").mkdir(parents=True)
+            (t / "main.sol").write_text(
+                '// import "./ignored.sol";\nimport {A as B} from "./aux/a.sol";\nimport "base.sol";\n'
+                'import "./missing.sol";\ncontract C {}\n'
+            )
+            (t / "aux" / "a.sol").write_text('import * as D from "./deep/d.sol";\n')
+            (t / "aux" / "deep" / "d.sol").write_text('import "../a.sol";\n')
+            (t / "base.sol").write_text("")
+            (t / "ignored.sol").write_text("")
+            got = [p.relative_to(t.resolve()).as_posix() for p in generic.import_closure(t / "main.sol")]
+        self.assertEqual(got, ["main.sol", "aux/a.sol", "base.sol", "aux/deep/d.sol"])
+
 
 def final_py(shape, root, hexcode="6001"):
     sp = root / "shape.json"

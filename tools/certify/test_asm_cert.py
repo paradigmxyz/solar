@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Tests of the assembly certificate's heads for a recursive function (tools/certify/asm_cert.py,
 certify.rec_heads).
 
@@ -10,8 +11,17 @@ heights from the run; these tests pin that the inference fixes them there, and t
 refuses the program, naming the jump whose entry types no static type covers. The checker with frames
 (AssembleRec.checkF) types those words by the frame relation instead: these tests pin the frames
 infer_frames gives RecSum and its refusals.
+
+The Returns tests: asm_cert.py's inference of the assembly checker's certificate (untrusted: the kernel checks
+whatever it infers). testdata/asm_cert_returns/ is a final EVM IR whose internal function is called
+twice, the second time with a word of the first call's result still on the stack: the checker sends
+every dynamic return to every return label (Assemble.Cert.rets), so the second return also reaches
+the first call's return site, higher, and no highest heights bound that cycle. The inference names
+the cycle instead of looping.
+Run under the Python generic.py needs (3.14): python3.14 tools/certify/test_asm_cert.py
 """
 
+import json
 import pathlib
 import sys
 import unittest
@@ -45,7 +55,7 @@ class Heads(unittest.TestCase):
     def test_without_heads_the_heights_do_not_settle(self):
         with self.assertRaises(SystemExit) as e:
             asm_cert.infer((DATA / "Evm6.lean").read_text(), CODE)
-        self.assertIn("do not settle", str(e.exception))
+        self.assertIn("have no bound the assembly checker accepts", str(e.exception))
 
     def test_with_heads_the_resume_types_refuse(self):
         with self.assertRaises(SystemExit) as e:
@@ -116,6 +126,37 @@ class Frames(unittest.TestCase):
             "[.op (.stack (.swap 0)),\n     .op (.stack (.push 0)),\n     .op .store,\n     .op (.stack .pop),",
         )
         self.assertIn("block 5 of the recursive function runs ('store',)", self.refuse(text))
+
+
+D = HERE / "testdata" / "asm_cert_returns"
+
+
+class Returns(unittest.TestCase):
+    def program(self):
+        m = json.loads((D / "manifest.json").read_text())
+        return (D / "Evm5.lean").read_text(), bytes.fromhex(m["bytecode"])
+
+    def test_names_the_cycle_through_the_return(self):
+        text, code = self.program()
+        with self.assertRaises(SystemExit) as e:
+            asm_cert.infer(text, code)
+        msg = str(e.exception.code)
+        self.assertIn("have no bound the assembly checker accepts", msg)
+        self.assertIn("the cycle bb3 -> bb4 -> bb3 gains stack words", msg)
+        self.assertIn("bb3 returns by a dynamic jump", msg)
+
+    def test_the_cycle_gains_on_the_checkers_own_edges(self):
+        # bb4 calls bb3 four words above its entry and bb3 returns three below its own, to every
+        # return label: one word per round, so no maxs satisfies checkL's jumpOkL on both edges.
+        text, code = self.program()
+        blocks = asm_cert.parse_program(text)
+        turned, _, _ = asm_cert.layout(blocks, code)
+        rets = sorted({i[1] for bl in blocks for i in bl if i[0] == "pushLabel"})
+        out = {}
+        for b in (3, 4):
+            edges, _, _ = asm_cert.run_block(blocks, turned, rets, b, 50, [None] * 50)
+            out[b] = {t: h - 50 for t, h, _ in edges}
+        self.assertEqual(out[4][3] + out[3][4], 1)
 
 
 if __name__ == "__main__":

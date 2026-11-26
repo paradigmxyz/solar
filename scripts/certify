@@ -447,8 +447,21 @@ print(v)
 plain="$(bin_runtime "solar's output" <<<"$json")" || die "$source has no contract $contract with runtime bytecode (above)"
 check_hex "the runtime bytecode solar emits for $contract" "$plain"
 rm -rf "$dir/gen"
+# A run whose shape.json names its export's namespace (export_ns: the driver's runs, under
+# SolarTV.Export.NAME) is exported under it, so its modules never meet another export of a contract
+# with the same name in one Lean environment.
+nsopt=()
+if [[ -f "$dir/shape.json" ]]; then
+    export_ns="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("export_ns", ""))' "$dir/shape.json")" ||
+        die "cannot read $dir/shape.json"
+    if [[ -n "$export_ns" ]]; then
+        [[ "${export_ns##*.}" == "$contract" || "${export_ns##*.}" == "«$contract»" ]] ||
+            die "shape.json: export_ns $export_ns is not a namespace of $contract"
+        nsopt=("-Zlean-stages-namespace=${export_ns%.*}")
+    fi
+fi
 status=0
-exported_json="$(compile "-Zemit-lean-stages=$dir/gen" 2>"$dir/.export.log")" || status=$?
+exported_json="$(compile "-Zemit-lean-stages=$dir/gen" ${nsopt[@]+"${nsopt[@]}"} 2>"$dir/.export.log")" || status=$?
 if [[ $status -ne 0 ]]; then
     grep -E '^error' -A3 "$dir/.export.log" >&2 || cat "$dir/.export.log" >&2
     rm -f "$dir/.export.log"

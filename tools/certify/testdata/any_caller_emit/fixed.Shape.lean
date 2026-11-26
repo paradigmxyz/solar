@@ -25,7 +25,7 @@ namespace Certified.simplestorage_928cc159.Shape
 open SolidCore.Refinement SolidCore.Refinement.Solar SolarTV
 
 /-- The exported runtime bytecode. -/
-def code : ByteArray := ⟨(SolarTV.Export.SimpleStorage.bytecode.map UInt8.ofNat).toArray⟩
+def code : ByteArray := ⟨(SolarTV.Export.simplestorage_928cc159.SimpleStorage.bytecode.map UInt8.ofNat).toArray⟩
 
 /-- The loop checker's certificate (tools/certify/asm_cert.py). -/
 def cert : SolidCore.Refinement.Solar.Assemble.Cert :=
@@ -48,21 +48,21 @@ def maxs : List Nat := [0, 1, 1, 1]
 set_option maxRecDepth 100000 in
 /-- The checker of code with loops accepts the exact bytecode for the final EVM IR: one kernel
 evaluation of its fast form (the walk on the code's suffixes, which implies the labels' check). -/
-theorem check_ok : SolidCore.Refinement.Solar.AssembleLoop.checkL SolarTV.Export.SimpleStorage.evm6 code cert maxs = true :=
+theorem check_ok : SolidCore.Refinement.Solar.AssembleLoop.checkL SolarTV.Export.simplestorage_928cc159.SimpleStorage.evm6 code cert maxs = true :=
   SolidCore.Refinement.Solar.AssembleLoop.checkL_of_checkLS (by decide +kernel)
 
 /-- The final EVM IR ends within 4 blocks on every call, under the bytecode's oracle. -/
-theorem ends (call : Call) : (EVM.Program.run SolidCore.Refinement.Shapes.oracle SolarTV.Export.SimpleStorage.evm6 call 4).isSome = true :=
+theorem ends (call : Call) : (EVM.Program.run SolidCore.Refinement.Shapes.oracle SolarTV.Export.simplestorage_928cc159.SimpleStorage.evm6 call 4).isSome = true :=
   SolarTV.Milestone.W1.ends_of_runs (A := EVM.Program.layer) (B := EVM.Program.layer)
-    (o := SolidCore.Refinement.Shapes.oracle) (p := SolarTV.Export.SimpleStorage.evm5) (q := SolarTV.Export.SimpleStorage.evm6) (n := 4) (m := 4)
+    (o := SolidCore.Refinement.Shapes.oracle) (p := SolarTV.Export.simplestorage_928cc159.SimpleStorage.evm5) (q := SolarTV.Export.simplestorage_928cc159.SimpleStorage.evm6) (n := 4) (m := 4)
     (SolarTV.Milestone.Simplestorage928cc159.evm5_ends SolidCore.Refinement.Shapes.oracle) (fun call _ => SolarTV.Milestone.Simplestorage928cc159.evm6_run SolidCore.Refinement.Shapes.oracle call) call trivial
 
 /-- The bytecode with byte `i` replaced by `b`. -/
-def mutant (i b : Nat) : ByteArray := ⟨((SolarTV.Export.SimpleStorage.bytecode.set i b).map UInt8.ofNat).toArray⟩
+def mutant (i b : Nat) : ByteArray := ⟨((SolarTV.Export.simplestorage_928cc159.SimpleStorage.bytecode.set i b).map UInt8.ofNat).toArray⟩
 
 set_option maxRecDepth 100000 in
 /-- The checker rejects the bytecode with one byte changed: a jump target moved (byte 2); an SSTORE dropped (as POP) (byte 64); an opcode outside the fragment (CREATE) for an SSTORE (byte 64). -/
-theorem rejects : [(2, 49), (64, 80), (64, 240)].all fun (i, b) => !SolidCore.Refinement.Solar.AssembleLoop.checkL SolarTV.Export.SimpleStorage.evm6 (mutant i b) cert maxs := by
+theorem rejects : [(2, 49), (64, 80), (64, 240)].all fun (i, b) => !SolidCore.Refinement.Solar.AssembleLoop.checkL SolarTV.Export.simplestorage_928cc159.SimpleStorage.evm6 (mutant i b) cert maxs := by
   decide +kernel
 
 theorem gas_le : SolidCore.Refinement.Solar.AssembleLoop.gasBoundL cert 4 ≤ 1944803 := by decide +kernel
@@ -70,8 +70,10 @@ theorem gas_le : SolidCore.Refinement.Solar.AssembleLoop.gasBoundL cert 4 ≤ 19
 /-- SolidCore type checks the contract. -/
 theorem contract_ok : ∃ c, Certified.simplestorage_928cc159.Lowering.contract? = .ok c := by
   have h := Certified.simplestorage_928cc159.Lowering.shape_eq
-  unfold Certified.simplestorage_928cc159.Lowering.shape? at h
-  split at h <;> simp_all
+  unfold Certified.simplestorage_928cc159.Lowering.shape? SolidCore.Refinement.Generic.shapeOf at h
+  split at h
+  · next c hc => exact ⟨c, hc⟩
+  · simp at h
 
 
 /-- **What the published statement asks of this module.** -/

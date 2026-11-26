@@ -89,8 +89,6 @@ import json
 import re
 import sys
 
-import export_ns
-
 NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_.?'!]*$")
 # A statement input: a term without tactics, commands or type ascriptions (no newline, colon,
 # semicolon, backtick or tactic keyword); its meaning is checked by the kernel like the rest.
@@ -756,7 +754,13 @@ def main():
         "open_functional": "_root_.SolidCore.Refinement.Shapes.OpenFunctional",
     }[kind]
     gas = f" ({expr(shape, 'gas')})" if kind in ("certified", "compiled") else ""
-    export = f"_root_.{export_ns.of_shape(shape, a.contract)}"
+    # The namespace of the run's export: shape.json's export_ns (the driver's runs, exported under their
+    # own namespace, tools/certify/export_ns.py), else solar's default for the contract.
+    plain = re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", a.contract)
+    exported = shape.get("export_ns") or f"SolarTV.Export.{a.contract if plain else f'«{a.contract}»'}"
+    if not isinstance(exported, str) or not NAME.match(exported.replace("«", "").replace("»", "")):
+        fail("shape.json: export_ns is not a Lean name")
+    export = f"_root_.{exported}"
     premises = "".join(f"({e}) →\n    " for e in env)
     binders = " ".join(f"_h{i}" for i in range(len(env)))
     term = f"{proof} {binders}".strip()

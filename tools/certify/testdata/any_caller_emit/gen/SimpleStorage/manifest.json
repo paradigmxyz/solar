@@ -5,15 +5,17 @@
     "--evm-version",
     "osaka",
     "--emit=bin-runtime",
-    "-Zemit-lean-stages=Certified/simplestorage_928cc159/gen"
+    "-Zemit-lean-stages=Certified/simplestorage_928cc159/gen",
+    "-Zlean-stages-namespace=SolarTV.Export.simplestorage_928cc159"
   ],
   "bytecode": "346030575f3560e01c80634e70b1dc14602757806360fe47b11460345780636d4ce63c036030575b5f545f5260205ff35b5f5ffd5b602436106030576004355f55",
   "bytecode_sha256": "6e95f821ecc2c71682bb59cd089429e0ab967f2cb33da8a32ffbce7135e9d402",
   "compiler": "0.8.38+commit.0479b90a.solar.0.3.0-dev",
   "contract": "SimpleStorage",
   "evm_version": "osaka",
+  "namespace": "SolarTV.Export.simplestorage_928cc159.SimpleStorage",
   "optimization": "Gas",
-  "options": "CompileOpts { input: [\"Certified/simplestorage_928cc159/simplestorage_928cc159.sol\"], import_remappings: [], base_path: None, include_paths: [], allow_paths: [], no_import_callback: false, language: Solidity, threads: 4, evm_version: Osaka, stop_after: None, optimization: Gas, optimizer_runs: None, revert_strings: Default, libraries: [], out_dir: None, emit: [BinRuntime], standard_json: false, color: Auto, verbose: false, pretty_json: false, pretty_json_err: false, error_format: Human, error_format_human: Unicode, diagnostic_width: None, no_warnings: false, allow: [], _unstable: [\"emit-lean-stages=Certified/simplestorage_928cc159/gen\"], unstable: UnstableOpts { ui_testing: false, track_diagnostics: false, parse_yul: false, no_resolve_imports: false, recover_incomplete_input: false, dump: None, ast_stats: false, hir_stats: false, standard_json_stats: false, span_visitor: false, print_max_storage_sizes: false, print_natspec: false, mir_pipeline: None, evm_ir_pipeline: None, print_after_each: false, pass_diff: false, debugify: None, debugify_output: None, solar_tv: None, validate_ir: None, time_passes: false, codegen_all_functions: false, switch_lowering: Auto, switch_max_gas_code_growth: None, switch_max_bit_slice_gas_code_growth: None, tune: None, pack_wide_jump_tables: false, check_analyses: None, prove_analyses: None, validate_passes: None, validate_passes_fault: None, validate_backend: None, validate_backend_fault: None, validate_evm_ir_passes: None, validate_assembly: false, validate_assembly_fault: None, emit_lean_stages: Some(\"Certified/simplestorage_928cc159/gen\"), keep_asts: false, forget_gcx: true, help: (), _non_exhaustive: () }, _non_exhaustive: () }",
+  "options": "CompileOpts { input: [\"Certified/simplestorage_928cc159/simplestorage_928cc159.sol\"], import_remappings: [], base_path: None, include_paths: [], allow_paths: [], no_import_callback: false, language: Solidity, threads: 4, evm_version: Osaka, stop_after: None, optimization: Gas, optimizer_runs: None, revert_strings: Default, libraries: [], out_dir: None, emit: [BinRuntime], standard_json: false, color: Auto, verbose: false, pretty_json: false, pretty_json_err: false, error_format: Human, error_format_human: Unicode, diagnostic_width: None, no_warnings: false, allow: [], _unstable: [\"emit-lean-stages=Certified/simplestorage_928cc159/gen\", \"lean-stages-namespace=SolarTV.Export.simplestorage_928cc159\"], unstable: UnstableOpts { ui_testing: false, track_diagnostics: false, parse_yul: false, no_resolve_imports: false, recover_incomplete_input: false, dump: None, ast_stats: false, hir_stats: false, standard_json_stats: false, span_visitor: false, print_max_storage_sizes: false, print_natspec: false, mir_pipeline: None, evm_ir_pipeline: None, print_after_each: false, pass_diff: false, debugify: None, debugify_output: None, solar_tv: None, validate_ir: None, time_passes: false, codegen_all_functions: false, switch_lowering: Auto, switch_max_gas_code_growth: None, switch_max_bit_slice_gas_code_growth: None, tune: None, pack_wide_jump_tables: false, check_analyses: None, prove_analyses: None, validate_passes: None, validate_passes_fault: None, validate_backend: None, validate_backend_fault: None, validate_evm_ir_passes: None, validate_assembly: false, validate_assembly_fault: None, emit_lean_stages: Some(\"Certified/simplestorage_928cc159/gen\"), lean_stages_namespace: Some(\"SolarTV.Export.simplestorage_928cc159\"), keep_asts: false, forget_gcx: true, help: (), _non_exhaustive: () }, _non_exhaustive: () }",
   "sources": [
     {
       "path": "Certified/simplestorage_928cc159/simplestorage_928cc159.sol",
@@ -75,7 +77,7 @@
       "index": 5,
       "kind": "evm",
       "pass": "share-reverts",
-      "sha256": "4143110cd2e9fcf87d59ecb8b1f44273c1853bb2ad8fc2d8bd26407952680d29"
+      "sha256": "6db74450e838ebe6692745b6348a924406aac49b8a282b23427e3a48f838966d"
     },
     {
       "definition": "evm6",
@@ -83,7 +85,7 @@
       "index": 6,
       "kind": "evm",
       "pass": "block-layout",
-      "sha256": "e24382088347866307050ce6a1697e4d781a638aa5405f2771f2a7fb9f5053d6"
+      "sha256": "6ea66037dfcf46d108fc687155dff031a2a98a271af19f4dc323733b4519d027"
     },
     {
       "definition": "bytecode",
@@ -91,7 +93,7 @@
       "index": 0,
       "kind": "bytecode",
       "pass": "assemble",
-      "sha256": "4c948143177bcffe1c843a81c2273db62a0d608db3c83ac722f74a23e7a19f0b"
+      "sha256": "3eaf16881d006e6e71b70fc70dfa454e321d570d682718d5792d94627e610962"
     }
   ]
 }

@@ -14,7 +14,7 @@ import SolarTV.Composition
 
 namespace SolarTV.Milestone.Simplestorage928cc159
 
-open Machine SolarTV.Export.SimpleStorage SolarTV.Milestone.W1
+open Machine SolarTV.Export.simplestorage_928cc159.SimpleStorage SolarTV.Milestone.W1
 
 /-- `stack-schedule`: stage0 to sched. -/
 theorem stage_sched (o : Oracle) : Stage (mirSem o) (evmirSem o) stage0 sched anyCall :=

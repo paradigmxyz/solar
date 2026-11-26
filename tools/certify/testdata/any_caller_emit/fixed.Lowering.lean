@@ -96,13 +96,13 @@ kernel_rfl shape_eq shape? (some (coreLit, true)) using selector_eq
 set_option maxRecDepth 100000 in
 /-- The kernel's evaluation: the generic check accepts stage0 for every function. -/
 theorem check_stage0 :
-    Generic.check fuel mirFuel coreLit SolarTV.Export.SimpleStorage.stage0 fns .all = true := by
+    Generic.check fuel mirFuel coreLit SolarTV.Export.simplestorage_928cc159.SimpleStorage.stage0 fns .all = true := by
   decide +kernel
 
 set_option maxRecDepth 100000 in
 /-- The kernel's evaluation: no function is payable, and stage0 reverts on a call with a value. -/
 theorem checkValue_stage0 :
-    Generic.checkValue mirFuel coreLit SolarTV.Export.SimpleStorage.stage0 fns .all = true := by
+    Generic.checkValue mirFuel coreLit SolarTV.Export.simplestorage_928cc159.SimpleStorage.stage0 fns .all = true := by
   decide +kernel
 
 theorem deployed_of {c : TypeCheck.CheckedContract} (hc : contract? = .ok c) :

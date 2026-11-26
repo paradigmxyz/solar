@@ -14,6 +14,7 @@
   ],
   "proof_module": "simplestorage_928cc159.Shape",
   "proof": "Certified.simplestorage_928cc159.Shape.published",
+  "export_ns": "SolarTV.Export.simplestorage_928cc159.SimpleStorage",
   "generic": {
     "lowering": "simplestorage_928cc159.Lowering",
     "ns": "Certified.simplestorage_928cc159.Lowering",
