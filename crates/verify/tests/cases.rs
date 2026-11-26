@@ -1527,3 +1527,8 @@ fn gap_keccak_quantified() {
 fn gap_old_return() {
     check("tests/cases/gap_old_return.sol")
 }
+
+#[test]
+fn gap_lowlevel_helper() {
+    check("tests/cases/gap_lowlevel_helper.sol")
+}
