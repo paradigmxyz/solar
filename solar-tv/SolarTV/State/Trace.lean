@@ -106,4 +106,31 @@ theorem finish_run {step : Step S R} (width fuel : Nat) (state : S) (result : R)
     run step fuel state = .ok result :=
   run_segment width fuel state (.inl result) checked
 
+/-- Successful checked execution follows the original step relation exactly. -/
+theorem forget_check {checked original : Step S R}
+    (sound : ∀ fuel state signal, checked fuel state = .ok signal →
+      original fuel state = .ok signal)
+    {fuel : Nat} {state : S} {result : R}
+    (ran : run checked fuel state = .ok result) : run original fuel state = .ok result := by
+  induction fuel generalizing state with
+  | zero =>
+    rw [run] at ran ⊢
+    cases found : checked 0 state with
+    | error reason => simp [found, Bind.bind, Except.bind] at ran
+    | ok signal =>
+      rw [sound 0 state signal found]
+      simpa only [found] using ran
+  | succ fuel ih =>
+    rw [run] at ran ⊢
+    simp only [Nat.succ_sub_one] at ran ⊢
+    cases found : checked fuel state with
+    | error reason => simp [found, Bind.bind, Except.bind] at ran
+    | ok signal =>
+      rw [sound fuel state signal found]
+      cases signal with
+      | inl result => simpa only [found, Bind.bind, Except.bind] using ran
+      | inr next =>
+        simp only [found, Bind.bind, Except.bind] at ran
+        simpa only [Bind.bind, Except.bind] using ih ran
+
 end SolarTV.Execution.Trace

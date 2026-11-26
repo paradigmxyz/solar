@@ -2676,6 +2676,57 @@ tv-integer-cleanup-bytecode-probe/sha256.txt` from `target` to check them.
 | Morpho after runtime | `d2c1c3d7bb22df8c2e0e9853f10f2657af1c547028e7287b0452a9943a23cd2e` |
 | Evidence manifest | `e174d1a66b8866b77ce39d004588109886b446b349944b1c6bed2be7caf4688a` |
 
+#### Gas refinement with an explicit root call schedule
+
+The pinned compiler emits both `integer-cleanup` snapshots again from
+the frozen capture hashes. For WETH and Morpho, the after creation and
+runtime bytes match the original compilation. Lean checks a schedule of
+exact call kind, destination, value, input bytes and resolved child code.
+The schedule admits a prefix at exhaustion and requires every planned
+call at the funded exit. Delegation, unexpected calls and creation are
+excluded. The ordinary EVM computes admission, EIP-150 forwarding,
+child effects, returned gas and rollback for each admitted call.
+
+The WETH fixture supplies a zero `r` signature and permits a single
+zero-value `STATICCALL` to Cancun `ECRECOVER`. The FlashLoan fixture
+admits three zero-value calls in order, to a token returning true, a
+borrower executing `STOP`, then the same token for repayment. The rule
+matches the full calldata at each call. These worlds, calldata and two
+initial budgets per contract define the scope of the certificate.
+
+| Function | Initial gas | Before | After |
+| --- | ---: | --- | --- |
+| WETH `permit` | 6,226 | Out of gas | Revert `0xddafbaef` |
+| WETH `permit` | 500,000 | Same revert, 493,742 gas left | Same revert, 493,774 gas left |
+| Morpho `flashLoan` | 6,279 | Out of gas | Success with one log |
+| Morpho `flashLoan` | 500,000 | Success, 493,707 gas left | Same success and log, 493,721 gas left |
+
+The kernel proves `.refine` for the four executions from PC zero. On
+funded runs it compares terminal status, returndata, committed accounts,
+logs, refund and the inequality on remaining gas. Independent Rust
+replay reproduces every observation and the ordered call inputs. The
+refinement theorems use `propext` and `Quot.sound`. The certificate covers
+these suffix-emitted images and selected worlds. General ABI inputs,
+initial budgets and gas-sensitive child code remain open.
+
+```sh
+PYTHONPATH=solar-tv LEAN_NUM_THREADS=1 uv run --project solar-tv python \
+  solar-tv/tools/check_gas_refinement.py \
+  --audit target/tv-full-post-guard-walk \
+  --worlds target/tv-integer-cleanup-bytecode-probe \
+  --compiler target/tv-pinned-corpus.wa91PI/tv-serial-solar \
+  --replay target/tv-pinned-corpus.wa91PI/solar-tv-replay \
+  --output target/tv-gas-refinement
+```
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Checker on Lean 4.34.1 | `62cbeb2fc00586800d3348138210894ef6a39123e7748f128b7b6cd87d9a5bc5` |
+| `target/tv-gas-refinement/solady-weth/refinement.json` | `37f0476499ca7e0c546312a66575fbaa0973f33dcf56e9d304dedb8c3c2c327d` |
+| `target/tv-gas-refinement/morpho-blue/refinement.json` | `71b328cf1992eaa4e23b06ab8251e140e950e5009939244541e59e13ad55280c` |
+
+#### Authorization gas witnesses
+
 The Morpho authorization fixture independently runs each suffix-emitted
 constructor with the same owner, preserves its storage, and uses its
 returned runtime and domain separator. At 2,000,000 initial gas, the Rust

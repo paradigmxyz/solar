@@ -154,6 +154,55 @@ theorem chunkedByteExitStep_eq (cfg : EVM.State.Config) (code : EVM.State.CodeCh
   simp only [EVM.State.CodeChunks.get_eq, immediate,
     EVM.State.CodeChunks.jump_eq, ← EVM.State.CodeChunks.size_eq]
 
+/-- An exact call request and its resolved code, independent of requested
+gas and the caller's private output location. -/
+structure CallRule where
+  message : Calls.Message
+  code : List Byte
+
+/-- Check the next admitted root call. A trace may stop before consuming the
+schedule, including when the caller cannot pay the access charge. Child
+execution still uses the ordinary VM, including its gas and effects. -/
+def allowsCall (cfg : EVM.State.Config) (code : EVM.State.CodeChunks)
+    (policy : List CallRule) (hash : List Byte → Word) (state : ByteCut) : Bool :=
+  let pc := state.frame.pc
+  let opcode := (code.get? pc).getD 0
+  if [0xf0, 0xf1, 0xf2, 0xf4, 0xf5, 0xfa].contains opcode then
+    match EVM.State.instructionWithImage cfg state.world
+        {state.frame with code := code.bytes} code.size opcode (code.immediate pc)
+        (fun target => (code.jumps 0).contains target.toNat) hash with
+    | .ok (.call message _ _ _ resolved _ _) =>
+      match policy[state.budgets.length]? with
+      | some rule => message == rule.message && resolved.address == message.destination &&
+          !resolved.delegated && resolved.bytes == rule.code
+      | none => false
+    | .ok (.create ..) | .error _ => false
+    | _ => true
+  else true
+
+def checkedByteExitStep (cfg : EVM.State.Config) (code : EVM.State.CodeChunks)
+    (policy : List CallRule) (hash : List Byte → Word) : Trace.Step ByteCut ByteExit :=
+  fun fuel state =>
+    if allowsCall cfg code policy hash state then chunkedByteExitStep cfg code hash fuel state
+    else .error "root call outside policy"
+
+theorem checkedByteExitStep_sound (cfg : EVM.State.Config) (code : EVM.State.CodeChunks)
+    (policy : List CallRule) (hash : List Byte → Word) (fuel : Nat) (state : ByteCut)
+    (signal : ByteExit ⊕ ByteCut)
+    (checked : checkedByteExitStep cfg code policy hash fuel state = .ok signal) :
+    chunkedByteExitStep cfg code hash fuel state = .ok signal := by
+  simp only [checkedByteExitStep] at checked
+  split at checked
+  · exact checked
+  · contradiction
+
+theorem checkedByteExit_sound (cfg : EVM.State.Config) (code : EVM.State.CodeChunks)
+    (policy : List CallRule) (fuel : Nat) (state : ByteCut) (exit : ByteExit)
+    (checked : Trace.run (checkedByteExitStep cfg code policy Keccak.hash) fuel state = .ok exit) :
+    Trace.run (byteExitStep cfg code.bytes) fuel state = .ok exit := by
+  rw [← chunkedByteExitStep_eq]
+  exact Trace.forget_check (checkedByteExitStep_sound cfg code policy Keccak.hash) checked
+
 structure MirCut where
   args : List Word
   returns : List Word
