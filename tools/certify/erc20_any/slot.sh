@@ -40,6 +40,14 @@ trap 'kill $sampler 2>/dev/null' EXIT
 cd $w/solidity-lean && git fetch -q origin "$LEAN_COMMIT" && git checkout -q --detach "$LEAN_COMMIT" || exit 1
 echo "slot $slot solar $(git -C $w/solar rev-parse HEAD) lean $(git rev-parse HEAD) deadline $deadline" | tee "$o/identity"
 export SOLC=$HOME/.cache/solc/solc-0.8.35
+# Build once, ship oleans (pack.sh): a slot with PRIOR_SHIP (pack.sh's SHIP_DIR from the earlier slot)
+# and PRIOR_SHIP_SHA256 (its ship.tar) builds nothing; it unpacks the earlier slot's closure and
+# replays it, after checking every planned olean against PRIOR_REPLAY's plan.
+if [[ -n ${PRIOR_SHIP:-} ]]; then
+  [[ -n $prior ]] || { echo "PRIOR_SHIP needs PRIOR_REPLAY" | tee -a "$o/steps"; exit 1; }
+  : "${PRIOR_SHIP_SHA256:?pin the ship.tar of the earlier slot}"
+  step unpack bash "$here/unpack.sh" "$PRIOR_SHIP" "$PRIOR_SHIP_SHA256" "$prior/plan" "$o/out" || exit 1
+else
 step port bash scripts/verify/uniswap_v2_gen.sh || exit 1
 # The candidate is the pinned binary itself (CANDIDATE_BIN, copied here): a release build embeds its
 # build time, so a rebuild on this machine has another sha256 and is refused.
@@ -56,6 +64,8 @@ LAKE_BUILD_FLAGS="-v -KleanMemory=6000" SOLAR_DIR=$v SOLAR_VERIFY=$v/target/rele
 export EXPECT_SOLAR_SHA256=$CANDIDATE_SHA256 EXPECT_SOLAR_COMMIT=$CANDIDATE_COMMIT
 step prep bash "$here/prep.sh" $w/solidity-lean "$cbin" $w/solar "$o/prep" || exit 1
 step run bash "$here/run.sh" $w/solidity-lean "$cbin" "$o/out" || exit 1
+[[ -n ${SHIP_OUT:-} ]] && { step pack bash "$here/pack.sh" $w/solidity-lean "$o/out" "$SHIP_OUT" || exit 1; }
+fi
 git status --short > "$o/tree-status"; git diff > "$o/tree.diff"
 export REPLAY_STOP_AT=$(( deadline - ${REPLAY_MARGIN:-50} * 60 )) REPLAY_KILL_AT=$(( deadline - 12 * 60 ))
 [[ -n $prior ]] && export PRIOR_REPLAY=$prior

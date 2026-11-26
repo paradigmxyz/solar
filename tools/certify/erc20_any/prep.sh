@@ -13,6 +13,7 @@
 # CtxNeg.lean, then OUT/producer (path, sha256, commit, version, flags, tools commit),
 # OUT/inputs.sha256 (every generated or regenerated file the build reads) and OUT/prep-steps.
 set -uo pipefail
+here=$(cd "$(dirname "$0")" && pwd)
 lean=$(realpath "$1"); solar=$(realpath "$2"); tools=$(realpath "$3"); out=$(realpath -m "$4")
 : "${EXPECT_SOLAR_SHA256:?pin the candidate binary}" "${EXPECT_SOLAR_COMMIT:?pin the candidate commit}"
 mkdir -p "$out"
@@ -33,6 +34,9 @@ mapfile -t opts < Certified/uv2_erc20/options
 od=Certified/uv2_erc20; gen=$od/gen/UniswapV2ERC20
 rm -rf "$od/gen" "$od/ProofsT" "$od/ProofsT.lean" "$od/Ctx.lean" "$od/CtxNeg.lean" "$od/CtxGas.lean"
 step gas env SOLAR_DIR="$tools" SOLAR="$solar" scripts/verify/uniswap_v2_gas.sh || exit 1
+# The export names its mktemp directory in its manifest; without this every run's Manifest olean
+# differs and two slots' replay plans cannot be byte-identical (normalize_export.py).
+step normalize python3 "$here/normalize_export.py" "$gen" || exit 1
 excluded=(06fdde03='name()' 95d89b41='symbol()' 313ce567='decimals()' 18160ddd='totalSupply()'
   70a08231='balanceOf(address)' dd62ed3e='allowance(address,address)' 3644e515='DOMAIN_SEPARATOR()'
   30adf81f='PERMIT_TYPEHASH()' 7ecebe00='nonces(address)'
