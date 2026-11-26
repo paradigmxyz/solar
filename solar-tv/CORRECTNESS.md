@@ -3541,12 +3541,10 @@ below the exact charge.
 | `supply` | 2494 | 374 |
 | `liquidate` | 5220 | 418 |
 
-Composing these prefixes with the two conditional MIR certificates still
-requires the rest of each caller path, including FlashLoan decoding, and a
-binding from each emitted helper entry to its MIR activation. Separately,
-direct typed MIR execution and pinned Rust replay agree on the `extSloads`
-return for an explicit two-slot world. These remain prefix and scenario
-checks. The corpus count stays at 2,153 verified captures.
+The seven market routes still need the path from each decoder return to
+the relevant transfer helper and a binding to its MIR activation.
+Separately, direct typed MIR execution and pinned Rust replay agree on the
+`extSloads` return for an explicit two-slot world.
 
 | Artifact | SHA-256 |
 | --- | --- |
@@ -3556,6 +3554,52 @@ checks. The corpus count stays at 2,153 verified captures.
 | `target/tv-memory-dse-current/shared-decoder-kernel.json` | `bb8e1bd2293a442f184aba5b100302a0cf8eb6de678b13a806effd39d1c15dba` |
 | `target/tv-memory-dse-current/shared-decoder-rust.json` | `5fef4fc3913cc0e0b114d4fc1437d443625e69de03769def63a0dda66f9dfd97` |
 | `target/tv-memory-dse-current/extSloads-world-proof.json` | `29523962304188265e7a0ac83d9059b62100ef076e21ecb4b5a5d18f2a04088d` |
+
+### FlashLoan entry to the first transfer helper
+
+Lean composes the 188-gas heap prologue, the 152-gas decoder suffix, and
+the amount guard, scratch write, event log and internal jump. The metered
+prefix starts at PC zero and reaches `safeTransfer` at PC 3540 after
+111 instructions and 2,164 gas. Its stack starts with continuation PC
+6396, token, caller and amount. The first three memory words contain the
+amount, zero and the free-memory cursor 128. The joint theorem starts both
+typed MIR helper captures with these arguments, the initialized cursor and
+the journal after the log. It also checks the bytecode prefix's rollback
+for every smaller gas budget.
+
+The entry proof assumes Cancun, a writable zero-value call, selector
+`0xe0232b42`, a word-representable calldata length of at least 132 bytes,
+a canonical dynamic offset of 96, a bounded bytes slice, a clean 160-bit
+token address and a nonzero amount. It quantifies the initial journal and
+remaining gas. The checked theorems depend on `propext`, `Classical.choice`
+and `Quot.sound`.
+
+Pinned Rust replay independently reaches the same entry at the exact
+charge and rolls back the log one gas below. It checks the token address
+and 68-byte `transfer(address,uint256)` payload at CALL PC 3599. Changing
+`DUP3` to `DUP2` at PC 6388 changes the helper's token argument from 13107
+to 1 in the fixture, and Lean rejects the original proof at that byte.
+
+The proof boundary is the first helper's entry. Relating its MIR body to
+the emitted helper, resuming through the callback and second transfer,
+and departing from the canonical offset still require proofs. The saved
+corpus join stays at 2,153 of 2,228, including 5 of 10 `memory-dse` checks.
+
+From the repository root, the retained audit script regenerates both Lean
+sources and reruns the kernel and Rust checks serially.
+
+```sh
+PYTHONPATH=solar-tv LEAN_NUM_THREADS=1 uv run --project solar-tv python \
+  target/tv-memory-dse-current/check-flash-heap.py
+```
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Checker on Lean 4.34.1 | `9b8edb186d08da58466ac57cc1d489e734bd190a054059e7864ac5cb25d53793` |
+| Pinned Rust replay | `1c08fa6d66c19b52b661c4db7c93fc1d257948cb592d9856d09a237c174bca0c` |
+| `target/tv-memory-dse-current/FlashLoanTransferEntry.lean` | `843442a5cfae697a5c21ceaf3e735253a1fe8aa60986ff8364b8a4179c3d1790` |
+| `target/tv-memory-dse-current/FlashLoanTransferEntryWrongArg.lean` | `1fc82920c673eed253a34b554d0e5deb1a9baeb143a768a57f6ac56a7b5620bd` |
+| `target/tv-memory-dse-current/flash-first-helper.json` | `196bcf0e1a2c11048a2e1b81bf4000b042c12e51b1f3b1483c0370e6e30a4634` |
 
 ### MIR CFG checks after an import timeout
 

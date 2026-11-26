@@ -1,6 +1,6 @@
 """Propose the canonical-calldata path through each emitted ABI decoder."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from itertools import pairwise
 
 from . import metered_prefix
@@ -54,6 +54,18 @@ class Decoder:
             [str(resolve(value)) for value in self.stack],
             list(b"".join(resolve(value).to_bytes(32, "big") for value in self.memory)),
         )
+
+    def suffix(self, pc):
+        """Start the decoder at a checked frame after a preceding prefix."""
+        at = [i for i, step in enumerate(self.instructions) if step.inst.pc == pc]
+        require(len(at) == 1, "ABI decoder cut must select one instruction")
+        first = self.instructions[at[0]]
+        paid = first.inst.gas
+        steps = [
+            replace(step, inst=replace(step.inst, gas=step.inst.gas - paid))
+            for step in self.instructions[at[0] :]
+        ]
+        return replace(self, instructions=steps, gas=self.gas - paid)
 
 
 def read_word(data, at):
@@ -238,6 +250,11 @@ theorem entry_concrete :
 
 
 def steps_source(decoder, dispatch, helper, binders, args):
+    first = decoder.instructions[0]
+    require(
+        first.inst.pc == dispatch.pc and first.inst.stack == dispatch.stack,
+        "ABI decoder prefix and suffix disagree on the entry frame",
+    )
     out = """
 open MIR.TransferFromABI
 
@@ -326,19 +343,20 @@ def decoderFrame (env : World.Environment) (gas pc : Nat) (stack memory : List W
     Fork.atLeast,Fork.ordinal,{",".join(facts)}] <;> {close}
 """
         debit = metered_prefix.Debit(name, inst.pc, inst.opcode, charge, next_zero)
-        out += metered_prefix.paid_step(
-            debit,
-            binders,
-            args,
-            helper,
-            fuel - index - 1,
-            frame(inst.pc, inst.stack, step.memory, remaining),
-            frame(after_pc, after_stack, after_memory, after_gas),
-            pcs,
-            f"surplus+{remaining}",
-            f"surplus+{after_gas}",
-            "decoderFrame",
-        )
+        if helper is not None:
+            out += metered_prefix.paid_step(
+                debit,
+                binders,
+                args,
+                helper,
+                fuel - index - 1,
+                frame(inst.pc, inst.stack, step.memory, remaining),
+                frame(after_pc, after_stack, after_memory, after_gas),
+                pcs,
+                f"surplus+{remaining}",
+                f"surplus+{after_gas}",
+                "decoderFrame",
+            )
         debits.append(debit)
         pcs = after_pcs
     out += metered_prefix.certify(
@@ -346,7 +364,7 @@ def decoderFrame (env : World.Environment) (gas pc : Nat) (stack memory : List W
         binders,
         args,
         decoder.gas,
-        f"decoderFrame env 0 {dispatch.pc} {words(dispatch.stack)} []",
+        f"decoderFrame env 0 {dispatch.pc} {words(dispatch.stack)} {words(first.memory)}",
         f"decoderFrame env 0 {decoder.pc} {words(decoder.stack)} {words(decoder.memory)}",
         debits,
     )

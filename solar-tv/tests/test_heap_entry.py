@@ -10,10 +10,48 @@ from pathlib import Path
 from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
-from validator import evaluate, heap_entry, native, world
+from validator import decoder_proof, dispatch_proof, evaluate, heap_entry, native, world
 
 
 class HeapEntryTests(unittest.TestCase):
+    def test_decoder_suffix_retains_the_heap_arena(self):
+        # PUSH1 128, PUSH1 64, MSTORE, then PUSH0 followed by STOP.
+        pushes = (True, 3, 0, 0, 1)
+        store = (True, 3, 0, 2, 0)
+        push_zero = (True, 2, 0, 0, 1)
+        steps = [
+            decoder_proof.Step(
+                dispatch_proof.Instruction(0, 0x60, 0, pushes, [], 128, None), []
+            ),
+            decoder_proof.Step(
+                dispatch_proof.Instruction(2, 0x60, 3, pushes, [128], 64, None), []
+            ),
+            decoder_proof.Step(
+                dispatch_proof.Instruction(4, 0x52, 6, store, [64, 128], None, None),
+                [],
+                9,
+                2,
+            ),
+            decoder_proof.Step(
+                dispatch_proof.Instruction(5, 0x5F, 18, push_zero, [], None, None),
+                [0, 0, 128],
+            ),
+        ]
+        decoder = decoder_proof.Decoder(steps, 6, [0], [0, 0, 128], 20, 68, 96, (4,))
+        suffix = decoder.suffix(5)
+        self.assertEqual(suffix.gas, 2)
+        self.assertEqual(suffix.instructions[0].inst.gas, 0)
+        self.assertEqual(decoder.instructions[3].inst.gas, 18)
+        source, _ = decoder_proof.steps_source(
+            suffix,
+            dispatch_proof.Dispatch([], 5, [], 0),
+            None,
+            "(env : World.Environment) (journal : Journal)",
+            "env journal",
+        )
+        self.assertIn("(decoderFrame env 0 5 [] [0, 0, 128])", source)
+        self.assertIn("(decoderFrame env 0 6 [0] [0, 0, 128]) 1 (2)", source)
+
     def test_address_word_guard_checks_the_declared_width(self):
         image = bytes.fromhex("60043560a01c600f576080604052005bfe")
         selector = 0x12345678
