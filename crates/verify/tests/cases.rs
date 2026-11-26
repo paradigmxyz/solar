@@ -516,14 +516,21 @@ fn ctor_calls() {
     }
 }
 
+/// Two interfaces' structs of one name are told apart by qualified name: the contract's layout
+/// is known, so its functions are verified (and these two fail).
 #[test]
 fn struct_names() {
-    // Refused before any query, so this needs no z3.
-    let run = run_verifier(&["--json", "tests/cases/struct_names.sol"]);
-    let want = "this contract's storage or invariants reach `Item`";
-    assert!(run.stderr.contains(want), "missing `{want}`\n{}", run.stderr);
-    assert!(!run.stdout.contains("\"verified\""), "{}", run.stdout);
-    assert_eq!(run.code, Some(1), "{}", run.stderr);
+    if z3_missing() {
+        return;
+    }
+    let run = run_verifier(&["--json", "--timeout", TIMEOUT, "tests/cases/struct_names.sol"]);
+    let json = run.stdout.lines().find_map(|l| l.strip_prefix("JSON ")).expect("no JSON line");
+    let rows: Vec<serde_json::Value> = serde_json::from_str(json).expect("bad JSON line");
+    let got: BTreeMap<&str, &str> =
+        rows.iter().map(|r| (r["fn"].as_str().unwrap(), r["status"].as_str().unwrap())).collect();
+    for f in ["Names.add", "Names.clobber"] {
+        assert_eq!(got.get(f), Some(&"failed"), "{f}\n{}\n{}", run.stdout, run.stderr);
+    }
 }
 
 #[test]
@@ -551,14 +558,18 @@ fn const_unsized_local() {
     assert_eq!(run.code, Some(1), "{}", run.stderr);
 }
 
+/// Two alike declarations of `Item` are two types: the invariant one states is not the other's.
 #[test]
 fn struct_shared_inv() {
-    // Refused before any query, so this needs no z3.
-    let run = run_verifier(&["--json", "tests/cases/struct_shared_inv.sol"]);
-    let want = "this contract's storage or invariants reach `Item`";
-    assert!(run.stderr.contains(want), "missing `{want}`\n{}", run.stderr);
-    assert!(!run.stdout.contains("\"verified\""), "{}", run.stdout);
-    assert_eq!(run.code, Some(1), "{}", run.stderr);
+    if z3_missing() {
+        return;
+    }
+    let run = run_verifier(&["--json", "--timeout", TIMEOUT, "tests/cases/struct_shared_inv.sol"]);
+    let json = run.stdout.lines().find_map(|l| l.strip_prefix("JSON ")).expect("no JSON line");
+    let rows: Vec<serde_json::Value> = serde_json::from_str(json).expect("bad JSON line");
+    let got: BTreeMap<&str, &str> =
+        rows.iter().map(|r| (r["fn"].as_str().unwrap(), r["status"].as_str().unwrap())).collect();
+    assert_eq!(got.get("B.f"), Some(&"failed"), "{}\n{}", run.stdout, run.stderr);
 }
 
 #[test]
@@ -1231,19 +1242,17 @@ fn modifier_rebind() {
 
 #[test]
 fn struct_names_alike() {
-    // The functions are refused before any query, but the run starts z3 for the rest.
     if z3_missing() {
         return;
     }
-    let run = run_verifier(&["--json", "tests/cases/struct_names_alike.sol"]);
-    let want = "several structs share the name `Item`";
-    assert!(run.stderr.contains(want), "missing `{want}`\n{}", run.stderr);
+    // `A.Item` and `B.Item` are distinct types, so the call picks `pick(A.Item)`.
+    let run = run_verifier(&["--json", "--timeout", TIMEOUT, "tests/cases/struct_names_alike.sol"]);
     let json = run.stdout.lines().find_map(|l| l.strip_prefix("JSON ")).expect("no JSON line");
     let rows: Vec<serde_json::Value> = serde_json::from_str(json).expect("bad JSON line");
     let got: BTreeMap<&str, &str> =
         rows.iter().map(|r| (r["fn"].as_str().unwrap(), r["status"].as_str().unwrap())).collect();
     let f = "Child.bad_alike_overload";
-    assert_eq!(got.get(f), Some(&"unsupported"), "{f}\n{}", run.stdout);
+    assert_eq!(got.get(f), Some(&"failed"), "{f}\n{}", run.stdout);
 }
 
 #[test]
@@ -1487,4 +1496,19 @@ fn sound_hash_first_arg() {
 #[test]
 fn sound_asm_memory() {
     check("tests/cases/sound_asm_memory.sol")
+}
+
+#[test]
+fn gap_ghost_struct() {
+    check("tests/cases/gap_ghost_struct.sol")
+}
+
+#[test]
+fn gap_import_alias() {
+    check("tests/cases/gap_import_alias.sol")
+}
+
+#[test]
+fn gap_qualified_structs() {
+    check("tests/cases/gap_qualified_structs.sol")
 }

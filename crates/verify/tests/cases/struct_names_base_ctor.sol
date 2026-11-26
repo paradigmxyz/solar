@@ -1,9 +1,11 @@
 pragma solidity ^0.8.20;
-// A base constructor that reaches the ambiguous name `Item` runs as part of the derived one, which
-// never mentions it: the derived constructor is not verified either.
+// A base constructor that reaches the ambiguous name `Item` (a struct and an enum share it) runs
+// as part of the derived one, which never mentions it: the derived constructor is not verified
+// either.
 interface IOld {
-    struct Item {
-        uint256 amount;
+    enum Item {
+        A,
+        B
     }
 }
 

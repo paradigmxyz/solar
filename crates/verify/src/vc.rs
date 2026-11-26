@@ -2811,7 +2811,7 @@ impl<'p, 'a> Vc<'p, 'a> {
     }
 
     fn ty_of_decl(&self, t: &'a ast::Type<'a>) -> Ty {
-        ty_of(self.prog, t)
+        ty_of(self.prog, &self.c.lin, t)
     }
 
     fn loop_targets(
@@ -3566,7 +3566,7 @@ impl<'p, 'a> Vc<'p, 'a> {
 
     /// A contract (or library, interface) named `n`.
     fn contract_named(&self, n: &str) -> Option<&'p Contract<'a>> {
-        self.prog.contracts.iter().find(|c| c.name == n)
+        self.prog.contract(n)
     }
 
     /// An opaque compile-time constant (a selector, an interface id): equal names, equal values.
@@ -4634,8 +4634,10 @@ impl<'p, 'a> Vc<'p, 'a> {
                 if let Some(idx) = n.strip_prefix("__q").and_then(|i| i.parse::<usize>().ok()) {
                     return Ok(vec![self.quant(e, idx, argv[0])?]);
                 }
-                if let Some(fields) = self.prog.struct_fields(n).cloned() {
-                    return Ok(vec![self.mk_struct(n, &fields, args, e.span)?]);
+                if let Some(k) = self.prog.struct_key(&self.c.lin, n)
+                    && let Some(fields) = self.prog.struct_fields(&k).cloned()
+                {
+                    return Ok(vec![self.mk_struct(&k, &fields, args, e.span)?]);
                 }
                 if self.prog.contract(n).is_some() {
                     let v = self.eval(argv[0])?;
@@ -4901,10 +4903,11 @@ impl<'p, 'a> Vc<'p, 'a> {
                         let t = self.decl("abi", &Ty::Opaque);
                         return Ok(vec![Self::val(Ty::Opaque, t)]);
                     }
-                    if let Some(fields) =
-                        self.contract_named(bn).and_then(|_| self.prog.struct_fields(m).cloned())
+                    if let Some(k) =
+                        self.contract_named(bn).and_then(|_| self.prog.qualified_struct(bn, m))
+                        && let Some(fields) = self.prog.struct_fields(&k).cloned()
                     {
-                        return Ok(vec![self.mk_struct(m, &fields, args, e.span)?]);
+                        return Ok(vec![self.mk_struct(&k, &fields, args, e.span)?]);
                     }
                     if let Some(uty) = self.prog.udvts.get(bn).cloned()
                         && (m == "wrap" || m == "unwrap")
@@ -7527,7 +7530,7 @@ fn enum_index(p: &Program<'_>, e: &str, m: &str) -> Option<usize> {
     p.enum_variants.get(&format!("{e}.{m}")).copied()
 }
 
-pub(crate) fn ty_of<'a>(p: &Program<'a>, t: &'a ast::Type<'a>) -> Ty {
+pub(crate) fn ty_of<'a>(p: &Program<'a>, scope: &[String], t: &'a ast::Type<'a>) -> Ty {
     use ast::{ElementaryType as E, TypeKind as K};
     match &t.kind {
         K::Elementary(e) => match e {
@@ -7538,18 +7541,35 @@ pub(crate) fn ty_of<'a>(p: &Program<'a>, t: &'a ast::Type<'a>) -> Ty {
             E::FixedBytes(n) => Ty::Bytes(n.bytes() as u16 * 8),
             _ => Ty::Opaque,
         },
-        K::Mapping(m) => Ty::Map(Box::new(ty_of(p, &m.key)), Box::new(ty_of(p, &m.value))),
+        K::Mapping(m) => {
+            Ty::Map(Box::new(ty_of(p, scope, &m.key)), Box::new(ty_of(p, scope, &m.value)))
+        }
         K::Array(a) => Ty::Arr(
-            Box::new(ty_of(p, &a.element)),
+            Box::new(ty_of(p, scope, &a.element)),
             a.size.as_deref().and_then(|e| crate::prog::array_size(&p.const_sizes, e)),
         ),
         K::Function(f) if f.visibility() != Some(ast::Visibility::External) => {
-            let params = f.parameters.iter().map(|v| ty_of(p, &v.ty)).collect();
-            let rets = f.returns().iter().map(|v| ty_of(p, &v.ty)).collect();
+            let params = f.parameters.iter().map(|v| ty_of(p, scope, &v.ty)).collect();
+            let rets = f.returns().iter().map(|v| ty_of(p, scope, &v.ty)).collect();
             Ty::Fn(Box::new((params, rets)))
+        }
+        K::Custom(path) if p.qualified_structs.contains(path.last().as_str()) => {
+            let n = path.last().as_str();
+            let segs = path.segments();
+            let key = if segs.len() >= 2 {
+                p.qualified_struct(segs[segs.len() - 2].as_str(), n)
+            } else {
+                p.struct_key(scope, n)
+            };
+            key.map_or(Ty::Opaque, Ty::Struct)
         }
         K::Custom(path) => {
             let n = path.last().as_str();
+            let n = if path.segments().len() == 1 {
+                p.import_aliases.get(n).map_or(n, String::as_str)
+            } else {
+                n
+            };
             if let Some(k) = p.enums.get(n) {
                 Ty::Enum(n.into(), *k)
             } else if p.contract(n).is_some() {

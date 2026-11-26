@@ -102,14 +102,26 @@ impl Ty {
 
 /// Parse a type written in spec text (quantifier binders, ghost declarations).
 pub(crate) fn parse_ty_text(s: &str) -> Option<Ty> {
+    parse_ty_text_in(s, &|_| None)
+}
+
+/// `parse_ty_text`, with the user-defined type names (structs, enums, contracts, user-defined
+/// value types) `named` resolves.
+pub(crate) fn parse_ty_text_in(s: &str, named: &dyn Fn(&str) -> Option<Ty>) -> Option<Ty> {
     let s = s.trim();
     if let Some(rest) = s.strip_prefix("mapping") {
         let inner = rest.trim().strip_prefix('(')?.strip_suffix(')')?;
         let (k, v) = inner.split_once("=>")?;
-        return Some(Ty::Map(Box::new(parse_ty_text(k)?), Box::new(parse_ty_text(v)?)));
+        return Some(Ty::Map(
+            Box::new(parse_ty_text_in(k, named)?),
+            Box::new(parse_ty_text_in(v, named)?),
+        ));
     }
     if let Some(e) = s.strip_suffix("[]") {
-        return Some(Ty::Arr(Box::new(parse_ty_text(e)?), None));
+        return Some(Ty::Arr(Box::new(parse_ty_text_in(e, named)?), None));
+    }
+    if let Some(t) = named(s) {
+        return Some(t);
     }
     Some(match s {
         "bool" => Ty::Bool,

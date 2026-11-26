@@ -239,24 +239,25 @@ impl<'s, 'a> Load<'_, 's, 'a> {
         self.units.push((file, unit));
     }
 
-    /// Whether the import brings names in as they are; renames and namespaces are reported.
+    /// Whether the import brings names in as they are, or renames single symbols (`{A as B}`,
+    /// which `prog::build` resolves); namespaces are reported.
     fn check_flattenable(&mut self, import: &ast::ImportDirective<'_>, span: Span) -> bool {
-        let renamed = match &import.items {
+        let namespaced = match &import.items {
             ImportItems::Plain(alias) => alias.is_some(),
-            ImportItems::Aliases(aliases) => aliases.iter().any(|(_, alias)| alias.is_some()),
+            ImportItems::Aliases(_) => false,
             ImportItems::Glob(_) => true,
         };
-        if renamed {
+        if namespaced {
             self.loader
                 .sess
                 .dcx
-                .err("imports that rename or namespace symbols are not supported")
+                .err("imports that namespace symbols are not supported")
                 .span(span)
-                .help("import the names as they are: `import {A} from \"a.sol\";`")
+                .help("import the names: `import {A} from \"a.sol\";` or `import {A as B} from \"a.sol\";`")
                 .emit();
             self.ok = false;
         }
-        !renamed
+        !namespaced
     }
 
     fn resolve(

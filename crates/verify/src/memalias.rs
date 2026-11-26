@@ -33,6 +33,8 @@ type R<T> = Result<T, (Span, String)>;
 
 struct Pass<'p, 'a> {
     prog: &'p Program<'a>,
+    /// The verified contract's linearization, where struct names resolve.
+    scope: Vec<String>,
     /// Memory locals and parameters of a struct or array type.
     mem: FxHashMap<String, Ty>,
     /// Storage variables and storage pointers: writes to them copy.
@@ -77,6 +79,7 @@ pub(crate) fn check<'p, 'a>(
     user_names.extend(c.state.iter().map(|s| s.name.clone()));
     let mut p = Pass {
         prog,
+        scope: c.lin.clone(),
         mem: FxHashMap::default(),
         storage: c.state.iter().map(|s| s.name.clone()).collect(),
         borrowed: FxHashSet::default(),
@@ -207,7 +210,7 @@ impl<'p, 'a> Pass<'p, 'a> {
                 self.storage.insert(n);
             }
             Some(ast::DataLocation::Memory) => {
-                let ty = ty_of(self.prog, &v.ty);
+                let ty = ty_of(self.prog, &self.scope, &v.ty);
                 if is_ref(&ty) {
                     self.mem.insert(n.clone(), ty);
                     if borrowed {
@@ -268,11 +271,16 @@ impl<'p, 'a> Pass<'p, 'a> {
             ExprKind::Array(_) => true,
             ExprKind::Call(callee, _) => match &callee.peel_parens().kind {
                 ExprKind::New(_) => true,
-                ExprKind::Ident(i) => self.prog.struct_fields(i.as_str()).is_some(),
-                ExprKind::Member(b, m) => {
-                    matches!(&b.kind, ExprKind::Ident(i) if i.as_str() == "abi")
-                        && m.as_str() == "decode"
-                }
+                ExprKind::Ident(i) => self.prog.struct_key(&self.scope, i.as_str()).is_some(),
+                ExprKind::Member(b, m) => match &b.kind {
+                    ExprKind::Ident(i) if i.as_str() == "abi" => m.as_str() == "decode",
+                    // A struct constructor by its contract's name: `L.Item(..)`.
+                    ExprKind::Ident(i) => {
+                        self.prog.contract(i.as_str()).is_some()
+                            && self.prog.qualified_struct(i.as_str(), m.as_str()).is_some()
+                    }
+                    _ => false,
+                },
                 _ => false,
             },
             ExprKind::Ident(_) | ExprKind::Member(..) | ExprKind::Index(..) => self.is_storage(e),
