@@ -33,7 +33,8 @@ structure ByteExit where
 one unit of root fuel and evaluates any child with the remaining fuel. -/
 private def byteTransition (fuel : Nat) (cfg : EVM.State.Config)
     (instruction : Journal → EVM.State.Frame → EVM.State.Action) (readByte : Nat → Option Byte)
-    (state : ByteCut) : Except String (ByteExit ⊕ ByteCut) := do
+    (state : ByteCut) (computer : Precompiles.Computer := Precompiles.compute) :
+    Except String (ByteExit ⊕ ByteCut) := do
   let ⟨frame,world,samples,budgets,pcs⟩ := state
   let signal ← instruction world frame
   let budgets := match signal with
@@ -47,7 +48,7 @@ private def byteTransition (fuel : Nat) (cfg : EVM.State.Config)
       if result.stop == .outOfGas && readByte frame.pc == some 0xf1 then
         some (frame.pc,frame.gas) else none
     | _ => none
-  match ← EVM.State.advance cfg (EVM.State.run fuel cfg) signal with
+  match ← EVM.State.advance cfg (EVM.State.run fuel cfg) signal computer with
   | .inl result => return .inl ⟨result,samples.reverse,budgets.reverse,unpaidCall⟩
   | .inr (_,nextWorld,nextFrame) =>
     return .inr ⟨nextFrame,nextWorld,samples,budgets,frame.pc :: pcs⟩
@@ -119,12 +120,17 @@ def byteExitStep (cfg : EVM.State.Config) (code : List Byte) : Trace.Step ByteCu
   fun fuel state => byteTransition fuel cfg (EVM.State.instruction cfg) (fun i => code[i]?)
     {state with frame := {state.frame with code}}
 
-def chunkedByteExitStep (cfg : EVM.State.Config) (code : EVM.State.CodeChunks)
-    (hash : List Byte → Word := Keccak.hash) : Trace.Step ByteCut ByteExit := fun fuel state =>
+def chunkedByteExitStepWith (cfg : EVM.State.Config) (code : EVM.State.CodeChunks)
+    (hash : List Byte → Word) (computer : Precompiles.Computer) :
+    Trace.Step ByteCut ByteExit := fun fuel state =>
   byteTransition fuel cfg (fun world frame =>
     EVM.State.instructionWithImage cfg world frame code.size ((code.get? frame.pc).getD 0)
       (code.immediate frame.pc) (fun target => (code.jumps 0).contains target.toNat) hash)
-    code.get? {state with frame := {state.frame with code := code.bytes}}
+    code.get? {state with frame := {state.frame with code := code.bytes}} computer
+
+def chunkedByteExitStep (cfg : EVM.State.Config) (code : EVM.State.CodeChunks)
+    (hash : List Byte → Word := Keccak.hash) : Trace.Step ByteCut ByteExit :=
+  chunkedByteExitStepWith cfg code hash Precompiles.compute
 
 theorem storageExhaustion (fuel : Nat) (cfg : EVM.State.Config) (code : EVM.State.CodeChunks)
     (frame : EVM.State.Frame) (journal : Journal) (pcs : List Nat)
@@ -134,7 +140,7 @@ theorem storageExhaustion (fuel : Nat) (cfg : EVM.State.Config) (code : EVM.Stat
         EVM.State.stepExhausted journal) :
     chunkedByteExitStep cfg code Keccak.hash fuel ⟨frame,journal,[],[],pcs⟩ =
       .ok (.inl ⟨⟨.outOfGas,[],journal,0,0⟩,[],[],none⟩) := by
-  simp only [chunkedByteExitStep, byteTransition, get, Option.getD_some,
+  simp only [chunkedByteExitStep, chunkedByteExitStepWith, byteTransition, get, Option.getD_some,
     executes, EVM.State.stepExhausted, EVM.State.advance, Bind.bind, Except.bind,
     Pure.pure, Except.pure]
   rfl
@@ -142,7 +148,7 @@ theorem storageExhaustion (fuel : Nat) (cfg : EVM.State.Config) (code : EVM.Stat
 theorem chunkedByteExitStep_eq (cfg : EVM.State.Config) (code : EVM.State.CodeChunks) :
     chunkedByteExitStep cfg code = byteExitStep cfg code.bytes := by
   funext fuel state
-  unfold chunkedByteExitStep byteExitStep byteTransition EVM.State.instruction
+  unfold chunkedByteExitStep chunkedByteExitStepWith byteExitStep byteTransition EVM.State.instruction
   have immediate (i : Nat) : code.immediate i = EVM.State.pushValue code.bytes i :=
     funext (code.immediate_eq i)
   simp only [EVM.State.CodeChunks.get_eq, immediate,

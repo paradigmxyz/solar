@@ -2695,15 +2695,45 @@ inputs and an increase in requested gas from 1,976,883 to 1,976,912. For
 the malformed boolean, Lean checks both complete runs and their exact
 observation equality, including storage, logs, refund and remaining gas.
 The combined theorems use `propext`, and the trace theorems also use
-`Quot.sound`. The full signed-path kernel trace reached the signature
-precompile and exceeded its 2 GiB limit. A kernel proof through successful
-signature recovery and arbitrary-input gas refinement remain open.
+`Quot.sound`. The initial monolithic signed-path kernel trace reached the
+signature precompile and exceeded its 2 GiB limit.
 
 The 152-file manifest at
 `target/tv-integer-cleanup-authorization-replay/sha256.txt` fingerprints
 the emitted bytes, captures, fixtures, executables, Rust results and
 Lean certificates. Its SHA-256 is
 `750d9b4a090f501d072029de6e307783e3edc9f04fdaa90623d0c14c7a6d9280`.
+
+#### Successful signed authorization from emitted entry
+
+The segmented replay checks the concrete `ECRECOVER` request from the
+same two Cancun runtime images. The kernel checks field powers and scalar
+multiplications in segments of at most eight iterations. The split lemmas
+compose those segments in the existing arithmetic. Lean then checks
+normalization and Keccak address derivation, including the exact return
+bytes. The computation cache matches the precompile address and every
+input byte. Its equality theorem reduces the cached interpreter step to
+the ordinary evaluator, including fork admission, gas and output handling.
+
+Lean checks 79 before and 76 after trace segments from PC 0 with the same
+calldata, initial accounts and 2,000,000 gas. Both traces succeed with
+empty return data, zero refund, the same two storage writes and the same
+two logs. The optimized image leaves 1,947,555 gas, 29 more than the
+original. The trace and recovery theorems use `propext` and `Quot.sound`.
+The concrete outcome comparison and gas difference use no axioms.
+The pinned Rust EVM independently confirms each complete observation.
+
+This certificate covers the signed fixture's initial world, gas budget
+and fork. Arbitrary-input MIR-to-bytecode correspondence and gas
+refinement across the `ECRECOVER` invocation remain open. The signed
+fixture leaves the saved corpus tally at 2,123 of 2,228.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Checker on Lean 4.34.1 | `54f99ceb91b045173b4fe1c5db88a302ddb69216d475e44f79ef98f20efa0b6a` |
+| Independent Rust replay | `1c08fa6d66c19b52b661c4db7c93fc1d257948cb592d9856d09a237c174bca0c` |
+| `target/tv-integer-cleanup-current/signed-replay.json` | `2224777738a73d2b2a81a462be0716ee3a3b4f29f606c0a05aaa720a5b46c464` |
+| `target/tv-integer-cleanup-current/signed-sha256.txt` | `3a209b335f24d087b1ddc32ecac947c3cc0fefc6e92d41ce8f6c38938b5f8b83` |
 
 ### Full corpus after guarded MIR effect proofs
 

@@ -31,7 +31,9 @@ def modexp (input : List Byte) : Except String (List Byte) := do
       (readBE input (96+base+exponent) modulus)
     return be modulus value
 
-def compute (address : Nat) (input : List Byte) : Except String (Option (List Byte)) :=
+abbrev Computer := Nat → List Byte → Except String (Option (List Byte))
+
+def compute : Computer := fun address input =>
   match address with
   | 1 => .ok (some (Signatures.recover input))
   | 2 => .ok (some (SHA256.hash input))
@@ -56,7 +58,35 @@ def compute (address : Nat) (input : List Byte) : Except String (Option (List By
   | 256 => .ok (some (Signatures.verify input))
   | _ => .error "unrecognized active precompile"
 
-def execute (fork : Fork) (address : Address) (input : List Byte) (gas : Nat) :
+/-- A recorded precompile result is usable only after checking its exact input,
+address and output against the executable arithmetic. -/
+structure CheckedComputation where
+  address : Nat
+  input : List Byte
+  result : Except String (Option (List Byte))
+  sound : compute address input = result
+
+def withChecks (checks : List CheckedComputation) : Computer := fun address input =>
+  match checks with
+  | [] => compute address input
+  | entry :: rest =>
+    if address = entry.address ∧ input = entry.input then entry.result
+    else withChecks rest address input
+
+theorem withChecks_eq (checks : List CheckedComputation) : withChecks checks = compute := by
+  funext address input
+  induction checks with
+  | nil => rfl
+  | cons entry rest ih =>
+    simp only [withChecks]
+    split
+    · rename_i matched
+      rw [matched.1, matched.2]
+      exact entry.sound.symm
+    · exact ih
+
+def execute (fork : Fork) (address : Address) (input : List Byte) (gas : Nat)
+    (computer : Computer := compute) :
     Except String (Stop × List Byte × Nat) := do
   if fork = .amsterdam then .error "Amsterdam precompile pricing is not modeled" else
   if !precompile fork address then .error "inactive precompile must execute account code" else
@@ -73,7 +103,7 @@ def execute (fork : Fork) (address : Address) (input : List Byte) (gas : Nat) :
         (readBE input 0 32 > 1024 || readBE input 32 32 > 1024 || readBE input 64 32 > 1024) then
       return (.exception,[],0)
     if gas < cost then return (.outOfGas,[],0)
-    let output ← compute address.toNat input
+    let output ← computer address.toNat input
     match output with
     | none => return (.exception,[],0)
     | some bytes => return (.success,bytes,gas-cost)

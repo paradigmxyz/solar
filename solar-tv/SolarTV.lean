@@ -53,6 +53,7 @@ import SolarTV.EVMIR.Transforms.TailMerge
 import SolarTV.EVMIR.ContextSafety
 import SolarTV.EVMIR.State.Observe
 import SolarTV.EVMIR.State.Safety
+import SolarTV.EVMIR.Precompiles.CurveChunks
 import SolarTV.EVMIR.Precompiles.Observe
 import SolarTV.EVMIR.Precompiles.Safety
 import SolarTV.MIR.State.Observe

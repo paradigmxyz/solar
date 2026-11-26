@@ -2251,6 +2251,12 @@ The normal and capture compilations agree on ABI, creation bytecode and
 runtime bytecode. The per-pass counts and fingerprints are in
 [CORRECTNESS.md](CORRECTNESS.md#full-corpus-after-guarded-mir-effect-proofs).
 
+Across saved audits and targeted retries, 2,123 of the same 2,228 capture
+IDs have proofs. The 105 open IDs include cases beyond the automatic
+checker's logical gas and state domains. The coverage join includes
+different checker revisions, proof budgets and proof scopes.
+[Cumulative audit](CORRECTNESS.md#pinned-evm-stack-rescheduling-audit)
+
 All 368 pinned EVM IR `block-layout` captures have proofs. Eight
 module-entry certificates with a 120-second per-stage budget cover the
 72 captures left open by the three-second audit. The certificates check

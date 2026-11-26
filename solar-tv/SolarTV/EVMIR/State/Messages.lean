@@ -39,7 +39,8 @@ abbrev ChildExecutor := Journal → Frame → Run
 
 def executeCall (execute : ChildExecutor) (cfg : Config) (checkpoint : Journal)
     (parent : World.Environment) (message : Calls.Message) (code : ExecutionCode)
-    (supplied : Nat) : Except String MessageOutcome := do
+    (supplied : Nat) (computer : Precompiles.Computer := Precompiles.compute) :
+    Except String MessageOutcome := do
   if cfg.unknownCode == some code.address then .error "MIR root runtime code is unknown" else
   if parent.depth ≥ 1024 ||
       ((message.kind == .call || message.kind == .callcode) &&
@@ -50,7 +51,7 @@ def executeCall (execute : ChildExecutor) (cfg : Config) (checkpoint : Journal)
       (transfer checkpoint parent.address message.destination message.value).getD checkpoint
       else checkpoint
     let child ← if !code.delegated && precompile cfg.fork message.destination then do
-        let (stop,data,gas) ← Precompiles.execute cfg.fork message.destination message.input supplied
+        let (stop,data,gas) ← Precompiles.execute cfg.fork message.destination message.input supplied computer
         pure ⟨stop,data,entered,gas,0⟩
       else execute entered {
         environment := {Calls.childEnvironment parent message with codeAddress := code.address}
