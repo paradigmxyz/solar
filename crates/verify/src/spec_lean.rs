@@ -27,7 +27,7 @@
 //! steps: they are not part of a function's external spec and are not exported; the trusted ones
 //! (`@custom:assume`, `@custom:trusted`) are listed in the module's `trusted`.
 use crate::{
-    prog::{Contract, Func, Program, Spec},
+    prog::{Contract, EnumMember, Func, Program, Spec},
     ty::{Ty, parse_ty_text},
     walk,
 };
@@ -194,6 +194,9 @@ struct Cx<'p, 'a> {
     allow_result: bool,
     fns: Vec<SpecFnOut>,
     visiting: Vec<String>,
+    /// The contract whose declarations the spec being exported is written in (None: at file
+    /// level): an enum name resolves there, not in `c` (see `Program::enum_member`).
+    scope: Option<String>,
 }
 
 fn paren(s: &str) -> String {
@@ -307,13 +310,17 @@ impl<'p, 'a> Cx<'p, 'a> {
         Err((sp, format!("unknown name `{n}` in a spec")))
     }
 
-    /// Whether `n` names a bound variable, a parameter, a return value or a state variable, which
-    /// a member access on `n` then reads rather than a global or an enum.
+    /// Whether `n` names a bound variable, a parameter, a return value or a state variable (the
+    /// names `ident` reads, in its order), which a member access on `n` then reads rather than a
+    /// global or an enum.
     fn shadowed(&self, n: &str) -> bool {
         self.bound.iter().any(|b| b == n)
-            || self.f.is_some_and(|f| {
-                f.params.iter().any(|p| p.0 == n) || f.rets.iter().any(|r| r.0 == n)
-            })
+            || (!self.in_fn
+                && self.f.is_some_and(|f| {
+                    f.params.iter().any(|p| p.0 == n)
+                        || f.rets.iter().any(|r| r.0 == n)
+                        || (n == "result" && self.allow_result)
+                }))
             || self.c.state.iter().any(|s| s.name == n)
     }
 
@@ -439,22 +446,42 @@ impl<'p, 'a> Cx<'p, 'a> {
                         _ => Err((sp, format!("member `.{m}` of a type not exported"))),
                     };
                 }
-                if let ExprKind::Ident(b) = &base.kind {
-                    match (b.as_str(), m) {
+                // A name a variable shadows reads that variable, below. Otherwise an enum visible
+                // where the spec is written comes first, as in Solidity, then the globals.
+                if let ExprKind::Ident(b) = &base.kind
+                    && !self.shadowed(b.as_str())
+                {
+                    let b = b.as_str();
+                    match self.p.enum_member(self.scope.as_deref(), b, m) {
+                        // An enum member, such as `Color.Blue`, is its index: the value `(.enum k)`
+                        // reads from storage.
+                        EnumMember::Index(i) => return Ok(Val::Term(format!(".lit {i}"))),
+                        EnumMember::Refused(why) => return Err((sp, why)),
+                        EnumMember::NotVisible => {}
+                    }
+                    match (b, m) {
                         ("msg", "sender") => return Ok(Val::Term(".env .sender".into())),
                         ("msg", "value") => return Ok(Val::Term(".env .value".into())),
                         ("block", "timestamp") => return Ok(Val::Term(".env .timestamp".into())),
-                        ("msg" | "block" | "tx", _) if !self.shadowed(b.as_str()) => {
+                        ("msg" | "block" | "tx", _) => {
                             return Err((sp, format!("`{b}.{m}` not exported")));
                         }
                         _ => {}
                     }
-                    // An enum member, such as `Color.Blue`, is its index: the value `(.enum k)`
-                    // reads from storage.
-                    if !self.shadowed(b.as_str())
-                        && let Some(&i) = self.p.enum_variants.get(&format!("{b}.{m}"))
-                    {
-                        return Ok(Val::Term(format!(".lit {i}")));
+                    // An enum declared where this spec cannot see it, such as in another contract.
+                    if let Some(d) = self.p.enum_decls.iter().find(|d| d.name == b) {
+                        let at = d
+                            .container
+                            .as_deref()
+                            .map_or("at file level".to_string(), |c| format!("in `{c}`"));
+                        let here = self
+                            .scope
+                            .as_deref()
+                            .map_or("at file level".to_string(), |c| format!("in `{c}`"));
+                        return Err((
+                            sp,
+                            format!("enum `{b}` is declared {at}, not visible {here}"),
+                        ));
                     }
                 }
                 match self.expr(base)? {
@@ -581,11 +608,14 @@ impl<'p, 'a> Cx<'p, 'a> {
         let ret = lean_ty(ret, sp)?;
         self.visiting.push(f.name.clone());
         let saved = (std::mem::take(&mut self.bound), self.in_fn, self.allow_result);
+        // The body is written where the spec function is declared.
+        let scope = std::mem::replace(&mut self.scope, self.p.scope_at(f.item.header.span));
         self.bound = f.params.iter().map(|p| p.0.clone()).collect();
         self.in_fn = true;
         self.allow_result = false;
         let b = self.term(body);
         (self.bound, self.in_fn, self.allow_result) = saved;
+        self.scope = scope;
         self.visiting.pop();
         let body = b?;
         self.fns.push(SpecFnOut { name: f.name.clone(), params, ret, body, opaque: f.opaque });
@@ -726,10 +756,22 @@ pub(crate) fn export(program: &Program<'_>, unit: &SourceUnit<'_>, opts: &Opts) 
             allow_result: false,
             fns: vec![],
             visiting: vec![],
+            scope: None,
         };
         // Contract invariants, then struct invariants over every stored value of the struct.
         let mut invs = vec![];
         for s in &c.invariants {
+            // Each is written on the contract of the hierarchy that declares it: the first, bases
+            // first, whose own invariants include it (None, file level, if none does).
+            cx.scope = c
+                .lin
+                .iter()
+                .find(|cn| {
+                    program
+                        .contract(cn)
+                        .is_some_and(|d| d.invariants.iter().any(|t| t.span == s.span))
+                })
+                .cloned();
             invs.push(cx.term(s.expr)?);
         }
         for sv in c.state.iter().filter(|s| !s.ghost && !s.constant && !s.immutable) {
@@ -756,6 +798,8 @@ pub(crate) fn export(program: &Program<'_>, unit: &SourceUnit<'_>, opts: &Opts) 
             };
             let Some(sinvs) = program.struct_invs.get(&sn) else { continue };
             for s in sinvs {
+                // Written on the struct, where it is declared.
+                cx.scope = program.scope_at(s.span);
                 invs.push(struct_inv(&mut cx, &sv.name, &sn, key.as_ref(), s)?);
             }
         }
@@ -901,7 +945,14 @@ pub(crate) fn export(program: &Program<'_>, unit: &SourceUnit<'_>, opts: &Opts) 
 fn specs_of<'p, 'a>(cx: &mut Cx<'p, 'a>, list: &[Spec<'a>], post: bool) -> R<Vec<String>> {
     cx.allow_old = post;
     cx.allow_result = post;
-    let r = list.iter().map(|s| cx.term(s.expr)).collect::<R<Vec<_>>>();
+    // Each is written where its tag is, such as on a function of a base or an interface.
+    let r = list
+        .iter()
+        .map(|s| {
+            cx.scope = cx.p.scope_at(s.span);
+            cx.term(s.expr)
+        })
+        .collect::<R<Vec<_>>>();
     cx.allow_old = false;
     cx.allow_result = false;
     r

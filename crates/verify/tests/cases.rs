@@ -921,6 +921,26 @@ fn emit_lean_spec_enum() {
     let _ = std::fs::remove_file(&out);
 }
 
+/// An enum member resolves where its spec is written: the contract's own enums, its bases' and the
+/// file's, with a contract's enum shadowing a file-level one of the same name. Enums no spec can
+/// see are refused (`lean_unsupported/enum_*.sol`).
+#[test]
+fn emit_lean_spec_enum_scope() {
+    let out = std::env::temp_dir()
+        .join(format!("solar-verify-lean-enum-scope-{}.lean", std::process::id()));
+    let run = run_verifier(&[
+        "--emit-lean-spec",
+        out.to_str().unwrap(),
+        "--lean-spec-module",
+        "SolidCore.Spec.Export.EnumScope",
+        "tests/snapshots/lean_export_enum_scope.sol",
+    ]);
+    assert!(run.stderr.is_empty(), "{}", run.stderr);
+    let lean = std::fs::read_to_string(&out).unwrap();
+    assert_data_eq!(tidy(&lean), file!["snapshots/lean_export_enum_scope.lean"]);
+    let _ = std::fs::remove_file(&out);
+}
+
 /// Every construct `--emit-lean-spec` does not translate is an error that names it, and nothing is
 /// written: each file of `snapshots/lean_unsupported` pins the message in its `// expect:` line.
 #[test]
