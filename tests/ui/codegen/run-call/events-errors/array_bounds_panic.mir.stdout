@@ -126,12 +126,10 @@ fn @cdDyn(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x1406a581, pure,
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = mul arg1, 32
-    v5 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v5
-    v6 = ptrtoint ptr<calldata> v3 to i256
-    v7 = add v6, v4
-    v8 = calldataload v7
-    ret v8
+    v5 = ptrtoint ptr<calldata> v3 to i256
+    v6 = add v5, v4
+    v7 = calldataload v6
+    ret v7
 }
 
 ; function cdFix(uint256[3] calldata x, uint256 i) public pure returns (uint256) [selector 0xe21341a4]
@@ -143,12 +141,10 @@ fn @cdFix(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xe21341a4, pure,
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = mul arg1, 32
-    v5 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v5
-    v6 = ptrtoint ptr<calldata> v3 to i256
-    v7 = add v6, v4
-    v8 = calldataload v7
-    ret v8
+    v5 = ptrtoint ptr<calldata> v3 to i256
+    v6 = add v5, v4
+    v7 = calldataload v6
+    ret v7
 }
 
 ; function cdBytes(bytes calldata b, uint256 i) public pure returns (bytes1) [selector 0x335b74df]
