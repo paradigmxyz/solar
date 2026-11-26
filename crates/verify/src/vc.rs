@@ -55,7 +55,8 @@ pub(crate) struct FnReport {
     pub checks: usize,
     pub fails: Vec<Failure>,
     pub unsupported: Option<(Span, String)>,
-    pub warnings: Vec<String>,
+    /// Each warning, with the source it is about when it has one.
+    pub warnings: Vec<(String, Option<Span>)>,
     /// What inference concluded about each loop of the function (its real run).
     pub inferred: Vec<infer::Inferred>,
     /// The head of each loop the real run reached, in the order it reached them.
@@ -178,7 +179,7 @@ pub(crate) struct Vc<'p, 'a> {
     pub split_wins: usize,
     ranges: FxHashMap<String, crate::interval::Interval>,
     defs: FxHashMap<String, String>,
-    warnings: Vec<String>,
+    warnings: Vec<(String, Option<Span>)>,
     /// `@custom:reveal f(..)` being evaluated: unfold opaque `f` once
     reveal: Option<String>,
     /// structs whose invariant was already checked against the zero value in this function
@@ -973,9 +974,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                     "note: `@custom:check {}` is proved here: it can become an @custom:assert (statement) or @custom:requires (function), with no runtime check",
                     sp.text
                 );
-                if !self.warnings.contains(&w) {
-                    self.warnings.push(w);
-                }
+                self.warn(w, None);
             }
         }
         self.reverts_if(&format!("(not {})", v.t));
@@ -1223,9 +1222,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             if self.proved.get(&k) != Some(&true) {
                 let w =
                     format!("broadcast lemma `{}` is not verified, so it is not assumed", lf.name);
-                if !self.warnings.contains(&w) {
-                    self.warnings.push(w);
-                }
+                self.warn(w, None);
                 continue;
             }
             if global {
@@ -1911,7 +1908,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             self.smt.role = Some(Role::Advisory);
             matches!(self.smt.check(&self.guard.clone(), "false", &[]), Res::Unsat)
         } {
-            self.warnings.push("no execution of this function can return normally (contradictory requires/invariants, or it always reverts); its postconditions hold vacuously".into());
+            self.warn("no execution of this function can return normally (contradictory requires/invariants, or it always reverts); its postconditions hold vacuously".into(), None);
         }
         // succeeds_if P: every pre-state satisfying the entry facts and P reaches a normal return,
         // i.e. (entry guard and P) implies the merged guard of the normal exits.
@@ -6903,6 +6900,17 @@ impl<'p, 'a> Vc<'p, 'a> {
                     && f.params.iter().all(|p| scalar(&p.1))
                     && ret.as_ref().is_some_and(scalar)
                 {
+                    // Its body is more than one `return`, which the spec does not read: say so,
+                    // since a claim that rests on what the body computes cannot be proved.
+                    if f.item.body.is_some() {
+                        self.warn(
+                            format!(
+                                "`{}` is uninterpreted in this spec, because its body is more than a single `return`: the spec knows only that equal arguments give equal results, so a claim about its value may fail spuriously; state it with a body-level `@custom:assert`, or make `{}` a single-expression function",
+                                f.name, f.name
+                            ),
+                            Some(self.prog.spec_site(span)),
+                        );
+                    }
                     let ret = ret.unwrap();
                     let sig: Vec<String> = f.params.iter().map(|p| p.1.name()).collect();
                     let fname = format!("|fn.{}.{}({})|", c.name, f.name, sig.join(","));
@@ -7624,6 +7632,14 @@ impl<'p, 'a> Vc<'p, 'a> {
             caps.push(self.index_capture(a)?);
         }
         Ok(caps)
+    }
+
+    /// Reports `w` with the function's verdict, once; at `span` when it is about a source.
+    fn warn(&mut self, w: String, span: Option<Span>) {
+        let w = (w, span);
+        if !self.warnings.contains(&w) {
+            self.warnings.push(w);
+        }
     }
 }
 

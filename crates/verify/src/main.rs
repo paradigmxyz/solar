@@ -571,12 +571,15 @@ fn run() {
                             println!("  inferred {} loop at line {at}: {} of {} candidates kept", rep.name, l.invariants.len(), l.candidates);
                         }
                     }
-                    for w in &rep.warnings {
-                        if let Some(n) = w.strip_prefix("note: ") {
-                            sess.dcx.note(format!("{}: {n}", rep.name)).emit();
-                        } else {
-                            sess.dcx.warn(format!("{}: {w}", rep.name)).emit();
+                    for (w, span) in &rep.warnings {
+                        let mut d = match w.strip_prefix("note: ") {
+                            Some(n) => sess.dcx.note(format!("{}: {n}", rep.name)),
+                            None => sess.dcx.warn(format!("{}: {w}", rep.name)),
+                        };
+                        if let Some(span) = span {
+                            d = d.span(*span);
                         }
+                        d.emit();
                     }
                     if rep.fails.is_empty() {
                         total_ok += 1;
