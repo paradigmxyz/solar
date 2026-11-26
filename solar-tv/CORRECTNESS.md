@@ -3856,8 +3856,38 @@ ERC20Mock labels on each side. It checks logical actions, control flow
 and physical-entry stack admission. Physical transfer pricing stays
 outside the certificate.
 
-The saved join reaches **2,162 of 2,228**, with 66 unsupported captures.
-Each new result matches both raw capture hashes for the original ID.
+The 90-second whole-entry `tail-merge` run visits all three pending
+Morpho labels on both sides. The stack-schedule check verifies all five
+pending `stack-normalize` captures at 25 seconds per stage, preserving
+ordered interactions and the live stack under shared handlers.
+
+The frozen Morpho `extSloads` SCCP capture now verifies through the
+ordinary MIR checker. Scalar folding exposes a literal inactive check.
+The typed projection uses `MIR.ScalarChecks.inactive` and checks 27
+matched points with 97 live-local pairs. The regression replays both
+unchanged loop results and the panic when the guard is changed to true.
+
+The frozen `extSloads` `simplify-phis` capture now verifies through the
+same checker. It projects three self-carried values to single seeds.
+Lean checks dominance for each self edge and the typed read of the
+preserved value. This uses the existing SSA binding for the seed and
+phi definitions. Independent Rust replay agrees on the seed value and
+shows a different result when the backedge replaces it.
+
+The saved join reaches **2,172 of 2,228**, with 56 unsupported captures.
+It adds 19 verified IDs, two for WETH, three for ERC20Mock and 14 for
+Morpho Blue. Each result matches both raw capture hashes for the original
+ID. The time budgets and checked scopes vary across the retries.
+
+Three larger `reorder-pushes` stack-schedule retries did not close at 90
+seconds per stage. Nine cyclic MIR retries still have mismatched typed
+actions without an applicable state-read proof. The remaining cases
+include 12 `integer-cleanup`, six EVM `outline` and five MIR `memory-dse`
+captures. The original reports for 24 remaining MIR captures stop at
+`GAS`. The exact-gas witnesses for `permit` and `flashLoan` still apply.
+Those outcomes require a gas-refinement argument under the selected call
+policy.
+
 The retries use the pinned compiler launcher
 `c935a2bf85933ee1790810177538c159d5a974d89f383b5efb73e88236f5d165`
 and Rust replay
@@ -3868,7 +3898,10 @@ and Rust replay
 | `timeouts.json` | `9521f21693004a1070a6a2af89919a49deb54bb84078b0041f2c70ec54b6ac19` |
 | `nonmax-report.json` | `fd7dc0b559e056261e59c96de8924104140264555b0a82f1078b29b595a70405` |
 | `loop-layout-results.json` | `7b84586ffe8991d1bc8565921297404990b86147fadb59543abfd1d37041369c` |
-| `remaining.json` | `2763a89cfd1fcef0df40269fd74390823bcbb030887100c76a80794e00a320b2` |
+| `tail-and-schedule-results.json` | `a8a4674835828f193f16ae30a67ef85fde12b01686fe700fbacf18806d38b48c` |
+| `cyclic-results.json` | `808d7e10905aa6d47cd2541f6afb36fe964f448118ad0bef05d49515d6f6026d` |
+| `phi-results.json` | `d8dc32069b6592354b82c1e32737bd8b206f02a4626ea18aeae0e42b26e08266` |
+| `remaining.json` | `6927ec11f0312910fa21a81b4e52a72b85b8ce680357235172d107c332b5044d` |
 
 ### MIR CFG checks after an import timeout
 
@@ -3961,8 +3994,9 @@ coverage. Redirecting the second function's return address into the table
 removes that coverage while preserving the local guard proof. Independent
 raw-byte replay confirms a changed output and storage write for `other(0)`.
 Compiling with and without validation preserves ABI and both bytecode outputs.
-Spilled addresses, arithmetic-derived jump targets and backend placement
-correspondence remain open.
+The physical-entry checker also tracks some arithmetic-derived targets, and
+a separate metered proof checks a supplied spill slot. Automatic backend
+placement correspondence remains open.
 
 The continuation certificate independently exports source label pushes and
 dynamic jumps. The proposed graph associates each reachable source point with
@@ -4443,10 +4477,10 @@ continuation, preservation across disjoint writes, and a metered
 MLOAD–JUMP sequence. The jump must resolve to a real destination. The
 composed prefix charges memory expansion and checks both paid and unpaid
 balances. The regression assembles a supplied EVM IR spill and reload,
-checks the encoded slot, and replays an altered reload independently.
-The symbolic proof takes the stack, slot and write footprint as explicit
-inputs. Checking the stackifier's spill allocation and lifetimes remains
-open.
+composes the actual `PUSH1` for the slot with the load and jump charges,
+and replays an altered reload independently. The symbolic proof takes the
+incoming stack and write footprint as explicit inputs. Checking the
+stackifier's spill allocation and lifetimes remains open.
 
 The normalized graph keeps the largest temporary stack
 requirement along each chain of jumps and checks that changed requirements
