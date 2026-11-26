@@ -1438,7 +1438,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
     runs out of gas in `solar`: the copy has no overlap check and clears the
     old target elements one by one up to the forged length. `solc` reverts
     with `Panic(0x11)` from the checked `2 * length` when it clears those
-    elements; its test
+    elements, if its overlap check finds the source first, as it does for the
+    first child; a source far into the array can make the check run out of gas
+    first. Its test
     `copy_recursive_struct_overlap_length_mul_overflow_reverts.sol` expects the
     panic. Smaller lengths behave alike in both compilers, and so does a
     disjoint copy with the same forged length: both run out of gas.
