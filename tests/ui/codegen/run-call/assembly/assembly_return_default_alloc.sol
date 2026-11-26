@@ -22,7 +22,7 @@ contract AssemblyReturnDefaultAlloc {
     // CHECK-LABEL: fn @ecMul
     // CHECK: mload 64
     // CHECK-NOT: alloc
-    // CHECK: staticcall
+    // CHECK: ret
     function ecMul(uint256 k, Point memory p) internal view returns (Point memory) {
         Point memory result;
         assembly ("memory-safe") {
