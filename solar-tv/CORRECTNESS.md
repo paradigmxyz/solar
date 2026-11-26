@@ -3244,6 +3244,29 @@ respectively on the untaken and taken paths in this fixture.
 
 The join reaches 2,123 of 2,228 capture IDs across saved audits.
 
+The remaining IDs span 28 layer and pass pairs. The largest groups are
+listed below. This join matches the corpus manifest and the contract input
+and output fingerprints. It includes the complete physical-entry audits
+and the MIR and EVM CFG retries.
+
+| Layer and pass | Captured | Verified in saved audits | Open |
+| --- | ---: | ---: | ---: |
+| MIR `integer-cleanup` | 35 | 23 | 12 |
+| MIR `dead-arg-elim` | 11 | 0 | 11 |
+| MIR `jump-threading` | 52 | 42 | 10 |
+| EVM IR `inline-returns` | 14 | 7 | 7 |
+| MIR `memory-dse` | 10 | 3 | 7 |
+| Other pass groups | 2,106 | 2,048 | 58 |
+| Total | 2,228 | 2,123 | 105 |
+
+The complete breakdown and individual IDs are in
+`target/tv-integer-cleanup-current/remaining-by-pass.json`, SHA-256
+`3b9ca221d2d25d25a757cd69b6ac3d86e0d42c6bc6c9c9ea80d5dc46d636f90f`.
+All 11 `dead-arg-elim` IDs refer to a single Morpho capture pair. The
+independently exported bodies agree across all 46 functions after removing
+the unused decoder parameter and the constant argument at ten call sites,
+with bijective SSA renumbering. The argument-erasure proof remains open.
+
 ### MIR CFG checks after an import timeout
 
 The earlier three-second census timed out on 23 Morpho MIR `cfg-simplify`
