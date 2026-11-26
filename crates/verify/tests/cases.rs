@@ -1537,3 +1537,8 @@ fn gap_lowlevel_helper() {
 fn gap_rlp_alias() {
     check("tests/cases/gap_rlp_alias.sol")
 }
+
+#[test]
+fn gap_asm_scratch() {
+    check("tests/cases/gap_asm_scratch.sol")
+}

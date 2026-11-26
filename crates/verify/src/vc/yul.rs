@@ -2753,6 +2753,132 @@ pub(super) fn asm_destroys(b: &yul::Block<'_>) -> bool {
     })
 }
 
+/// Whether an assembly block in a function's body leaves its memory parameter `n`'s object as
+/// it was (see `Vc::mem_param_written`). Solidity allocates every memory object at or above
+/// 0x80, both in legacy and via-IR code generation, and keeps the free memory pointer at 0x40
+/// and the zero slot, which empty arrays point to, at 0x60; so a block whose memory writes all
+/// fall in the scratch space `[0, 0x40)` writes no object. Every write must be an `mstore` or
+/// `mstore8` at a literal offset, or a call whose output buffer has a literal offset and size,
+/// ending at or below 0x40. The copying builtins (`calldatacopy`, `codecopy`, `returndatacopy`,
+/// `extcodecopy`, `mcopy`, `datacopy`) and the builtins that write memory or run raw code
+/// (`setimmutable`, `verbatim_*`) are refused, as is a call to any name that is neither a builtin
+/// known to leave memory alone nor a function the block defines, whose body is checked alike.
+///
+/// The block must not make a Solidity variable name another object either. An assignment to
+/// `n` is refused, and so is one to a Solidity variable that `sol_var` says the function declares
+/// in memory (`Some(true)`) or does not declare (`None`): its new value, such as `n` itself
+/// or the literal 0x80, may point into `n`'s object, which a later Solidity write through it
+/// would change. The block's own variables and Solidity value, storage and calldata variables
+/// (`Some(false)`) hold no memory reference the function's Solidity code can write through.
+pub(super) fn asm_keeps_memory(
+    b: &yul::Block<'_>,
+    n: &str,
+    sol_var: &dyn Fn(&str) -> Option<bool>,
+) -> bool {
+    struct Cx<'x> {
+        n: &'x str,
+        sol_var: &'x dyn Fn(&str) -> Option<bool>,
+        /// The names the block declares: `let`, function parameters and returns.
+        vars: FxHashSet<String>,
+        /// The functions the block defines.
+        fns: FxHashSet<String>,
+    }
+
+    fn decls(cx: &mut Cx<'_>, b: &yul::Block<'_>) {
+        use yul::StmtKind as K;
+        for s in b.stmts.iter() {
+            match &s.kind {
+                K::Block(b) | K::If(_, b) => decls(cx, b),
+                K::Switch(sw) => sw.cases.iter().for_each(|c| decls(cx, &c.body)),
+                K::For(f) => [&f.init, &f.step, &f.body].into_iter().for_each(|b| decls(cx, b)),
+                K::FunctionDef(f) => {
+                    cx.fns.insert(f.name.as_str().to_string());
+                    let names = f.parameters.iter().chain(f.returns.iter());
+                    cx.vars.extend(names.map(|i| i.as_str().to_string()));
+                    decls(cx, &f.body);
+                }
+                K::VarDecl(names, _) => {
+                    cx.vars.extend(names.iter().map(|i| i.as_str().to_string()))
+                }
+                K::AssignSingle(..) | K::AssignMulti(..) | K::Expr(_) => {}
+                K::Leave | K::Break | K::Continue => {}
+            }
+        }
+    }
+
+    fn konst(e: &yul::Expr<'_>) -> Option<u64> {
+        let yul::ExprKind::Lit(l) = &e.kind else { return None };
+        let LitKind::Number(v) = &l.kind else { return None };
+        u64::try_from(*v).ok()
+    }
+
+    /// Whether `len` bytes at `off`, both literals, lie in the scratch space.
+    fn scratch(off: &yul::Expr<'_>, len: Option<u64>) -> bool {
+        konst(off).zip(len).and_then(|(o, l)| o.checked_add(l)).is_some_and(|end| end <= 0x40)
+    }
+
+    fn ex(cx: &Cx<'_>, e: &yul::Expr<'_>) -> bool {
+        let yul::ExprKind::Call(c) = &e.kind else { return true };
+        let a = &c.arguments;
+        let ok = match (c.name.as_str(), a.len()) {
+            ("mstore", 2) => scratch(&a[0], Some(32)),
+            ("mstore8", 2) => scratch(&a[0], Some(1)),
+            // The output buffer, where up to its size of what the callee returns is copied.
+            ("call" | "callcode", 7) => scratch(&a[5], konst(&a[6])),
+            ("staticcall" | "delegatecall", 6) => scratch(&a[4], konst(&a[5])),
+            ("mstore" | "mstore8" | "call" | "callcode" | "staticcall" | "delegatecall", _) => {
+                false
+            }
+            // Builtins that write no memory: they compute, read memory or other state, write
+            // storage, log, create a contract from memory, or end the call.
+            (
+                "stop" | "add" | "sub" | "mul" | "div" | "sdiv" | "mod" | "smod" | "exp" | "not"
+                | "lt" | "gt" | "slt" | "sgt" | "eq" | "iszero" | "and" | "or" | "xor" | "byte"
+                | "shl" | "shr" | "sar" | "clz" | "addmod" | "mulmod" | "signextend" | "keccak256"
+                | "address" | "balance" | "origin" | "caller" | "callvalue" | "calldataload"
+                | "calldatasize" | "codesize" | "gasprice" | "extcodesize" | "returndatasize"
+                | "extcodehash" | "blockhash" | "blobhash" | "coinbase" | "timestamp" | "number"
+                | "difficulty" | "prevrandao" | "gaslimit" | "chainid" | "selfbalance" | "basefee"
+                | "blobbasefee" | "pop" | "mload" | "sload" | "sstore" | "tload" | "tstore"
+                | "msize" | "gas" | "log0" | "log1" | "log2" | "log3" | "log4" | "create"
+                | "create2" | "return" | "revert" | "selfdestruct" | "invalid" | "datasize"
+                | "dataoffset" | "loadimmutable" | "linkersymbol" | "memoryguard",
+                _,
+            ) => true,
+            (name, _) => cx.fns.contains(name),
+        };
+        ok && a.iter().all(|a| ex(cx, a))
+    }
+
+    fn target(cx: &Cx<'_>, p: &ast::AstPath<'_>) -> bool {
+        let root = p.segments()[0].as_str();
+        root != cx.n
+            && match (cx.sol_var)(root) {
+                Some(memory) => !memory,
+                None => cx.vars.contains(root),
+            }
+    }
+
+    fn blk(cx: &Cx<'_>, b: &yul::Block<'_>) -> bool {
+        use yul::StmtKind as K;
+        b.stmts.iter().all(|s| match &s.kind {
+            K::Block(b) | K::FunctionDef(yul::Function { body: b, .. }) => blk(cx, b),
+            K::AssignSingle(p, e) => target(cx, p) && ex(cx, e),
+            K::AssignMulti(ps, e) => ps.iter().all(|p| target(cx, p)) && ex(cx, e),
+            K::Expr(e) | K::VarDecl(_, Some(e)) => ex(cx, e),
+            K::If(c, b) => ex(cx, c) && blk(cx, b),
+            K::Switch(sw) => ex(cx, &sw.selector) && sw.cases.iter().all(|c| blk(cx, &c.body)),
+            K::For(f) => {
+                blk(cx, &f.init) && ex(cx, &f.cond) && blk(cx, &f.step) && blk(cx, &f.body)
+            }
+            K::VarDecl(_, None) | K::Leave | K::Break | K::Continue => true,
+        })
+    }
+    let mut cx = Cx { n, sol_var, vars: FxHashSet::default(), fns: FxHashSet::default() };
+    decls(&mut cx, b);
+    blk(&cx, b)
+}
+
 impl<'p, 'a> Vc<'p, 'a> {
     /// A raw storage slot that assembly reaches must lie past the slots the declared state
     /// variables hold, which the executor models apart from raw storage.

@@ -5784,7 +5784,8 @@ impl<'p, 'a> Vc<'p, 'a> {
     }
 
     /// May the body of `f` change the memory object its parameter `n` refers to? Syntactic and
-    /// conservative: a write rooted at `n`, passing it on to a call, any assembly, or copying the
+    /// conservative: a write rooted at `n`, passing it on to a call, assembly that may write
+    /// memory other than the scratch space (see `yul::asm_keeps_memory`), or copying the
     /// reference into another variable (which may then write it) all count.
     ///
     /// A callee's parameter is written when its own body writes it or passes it on to one that
@@ -5945,6 +5946,31 @@ impl<'p, 'a> Vc<'p, 'a> {
                 _ => {}
             }
         };
+        // Each name `f` declares, with whether a declaration of it is in memory: what an
+        // assignment in its assembly may point into `n`'s object (see `yul::asm_keeps_memory`).
+        let mut sol_vars: FxHashMap<String, bool> = FxHashMap::default();
+        let mut note = |v: &ast::VariableDefinition<'_>| {
+            if let Some(i) = v.name {
+                *sol_vars.entry(i.as_str().to_string()).or_default() |=
+                    v.data_location == Some(ast::DataLocation::Memory);
+            }
+        };
+        for v in f.item.header.parameters.iter().chain(f.item.header.returns()) {
+            note(v);
+        }
+        for s in body.stmts.iter() {
+            walk::all_stmts(s, &mut |s| match &s.kind {
+                StmtKind::DeclSingle(v) => note(v),
+                StmtKind::DeclMulti(vs, _) => {
+                    vs.iter().filter_map(|v| v.as_ref().unspan()).for_each(&mut note)
+                }
+                StmtKind::Try(t) => {
+                    t.clauses.iter().flat_map(|c| c.args.iter()).for_each(&mut note)
+                }
+                _ => {}
+            });
+        }
+        let sol_var = |s: &str| sol_vars.get(s).copied();
         // A modifier argument may write `n` itself, or hand `n` to the modifier, whose body may
         // then write it through its own parameter.
         let mut passed = false;
@@ -5957,7 +5983,11 @@ impl<'p, 'a> Vc<'p, 'a> {
         for s in body.stmts.iter() {
             walk::all_stmts(s, &mut |s| {
                 match &s.kind {
-                    StmtKind::Assembly(_) => passed = true,
+                    // Assembly may write any memory, or make a Solidity reference point into
+                    // `n`'s object, unless it only writes the scratch space.
+                    StmtKind::Assembly(a) if !yul::asm_keeps_memory(&a.block, n, &sol_var) => {
+                        passed = true
+                    }
                     StmtKind::DeclSingle(v) if v.initializer.as_deref().is_some_and(is_n) => {
                         passed = true
                     }
