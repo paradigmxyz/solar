@@ -34,13 +34,7 @@ impl SourceMapEncoder {
 
     /// Encodes final EVM instructions.
     pub(crate) fn encode(&self, gcx: Gcx<'_>, bytecode: &[u8], debug_info: &DebugInfo) -> String {
-        let function_entries = debug_info
-            .instructions(bytecode)
-            .filter(|instruction| {
-                instruction.location.function_invoke.is_some_and(|function| !function.dispatched)
-            })
-            .map(|instruction| instruction.offset)
-            .collect::<FxHashSet<_>>();
+        let function_entries = function_entries(debug_info, bytecode);
         let files = gcx.sess.source_map().files();
         let mut previous = None;
         let entries = debug_info.instructions(bytecode).map(|instruction| {
@@ -81,12 +75,13 @@ impl SourceMapEncoder {
         // callee. The dispatcher's jumps and the jump into a constructor are not calls: the
         // function they enter ends in a halt, so no `o` follows.
         let is_jump = instruction.opcode == op::JUMP;
-        let enters_function = static_jump_target(bytecode, previous, instruction)
-            .and_then(|target| u32::try_from(target).ok())
-            .is_some_and(|target| function_entries.contains(&target));
-        let jump = if is_jump && enters_function {
-            b'i'
-        } else if is_jump && instruction.location.function_exit == Some(DebugFunctionExit::Return) {
+        let returns = instruction.location.function_exit == Some(DebugFunctionExit::Return);
+        // A tail call is a jump into a function that also leaves the caller. It opens a frame and
+        // closes one, so the depth stays and the jump has no marker.
+        let jump = if is_jump && enters_function(bytecode, previous, instruction, function_entries)
+        {
+            if returns { b'-' } else { b'i' }
+        } else if is_jump && returns {
             b'o'
         } else {
             b'-'
@@ -124,6 +119,30 @@ pub(crate) fn static_jump_target(
         target = target.checked_mul(256)?.checked_add(usize::from(byte))?;
     }
     (bytecode.get(target).copied() == Some(op::JUMPDEST)).then_some(target)
+}
+
+/// Returns the entry offsets of the functions that calls enter.
+pub(crate) fn function_entries(debug_info: &DebugInfo, bytecode: &[u8]) -> FxHashSet<u32> {
+    debug_info
+        .instructions(bytecode)
+        .filter(|instruction| {
+            instruction.location.function_invoke.is_some_and(|function| !function.dispatched)
+        })
+        .map(|instruction| instruction.offset)
+        .collect()
+}
+
+/// Returns whether a `JUMP` enters a function that calls enter, at its statically encoded
+/// destination.
+pub(crate) fn enters_function(
+    bytecode: &[u8],
+    previous: Option<&DebugInstruction<'_>>,
+    instruction: &DebugInstruction<'_>,
+    function_entries: &FxHashSet<u32>,
+) -> bool {
+    static_jump_target(bytecode, previous, instruction)
+        .and_then(|target| u32::try_from(target).ok())
+        .is_some_and(|target| function_entries.contains(&target))
 }
 
 fn encode(entries: impl IntoIterator<Item = SourceMapEntry>) -> String {
