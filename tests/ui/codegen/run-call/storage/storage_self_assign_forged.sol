@@ -9,6 +9,7 @@
 //@ run-call: staticSelfAssign() => false
 //@ run-call: arrayDirtyHighByte() => 0
 //@ run-call: structDirtyHighByte() => 0
+//@ run-call: packedStructHighByte() => 0xff
 //@ run-call: structCopyDirtyHighByte() => 0, 1, 2
 
 // Assigning a storage value to itself loads it and writes it back, so assembly-forged storage is
@@ -29,7 +30,13 @@ contract C {
     bytes data;
     bytes other;
     uint8[] values;
+    struct Packed {
+        uint8 a;
+        uint8 b;
+    }
+
     S s;
+    Packed packed;
     S t;
 
     // CHECK-LABEL: fn @bytesInvalidHeader()
@@ -110,6 +117,19 @@ contract C {
         s = s;
         assembly {
             r := shr(248, sload(s.slot))
+        }
+    }
+
+    // Narrow fields that share a slot keep the unused bytes in both compilers, as in CODEGEN-025.
+    function packedStructHighByte() external returns (uint256 r) {
+        packed.a = 1;
+        packed.b = 2;
+        assembly {
+            sstore(packed.slot, or(shl(248, 0xff), sload(packed.slot)))
+        }
+        packed = packed;
+        assembly {
+            r := shr(248, sload(packed.slot))
         }
     }
 
