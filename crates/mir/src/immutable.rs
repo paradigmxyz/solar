@@ -42,7 +42,7 @@ fn constructor_local_memory_end(module: &Module) -> u64 {
 }
 
 /// Returns the first immutable staging word, above every constructor-owned
-/// fixed memory word.
+/// fixed memory word and clear of every constant range the constructor's code names.
 ///
 /// `lower-immutables` fixes the base on the module, since its stores are themselves absolute
 /// accesses that a later computation would count.
@@ -50,8 +50,36 @@ pub fn immutable_staging_base(module: &Module) -> u64 {
     module.immutable_staging_base().unwrap_or_else(|| {
         let fixed_end = constructor_local_memory_end(module)
             .max(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE);
-        EvmMemoryLayout::align_word(fixed_end)
-            .expect("constructor immutable staging address overflow")
+        let mut base = EvmMemoryLayout::align_word(fixed_end)
+            .expect("constructor immutable staging address overflow");
+        let mut ranges = Vec::new();
+        for func in module.constructor_reachable_functions().iter() {
+            let func = module.function(func);
+            func.for_each_memory_range(|offset, size| {
+                if let Some(start) = func.value_u64(offset)
+                    && let Some(size) = size.filter(|&size| size != 0)
+                    && let Some(end) = start.checked_add(size)
+                    // A range this high runs out of gas when executed, so it leaves the base
+                    // where it is.
+                    && end <= EvmMemoryLayout::MAX_HEAP_FLOOR / 2
+                {
+                    ranges.push((start, end));
+                }
+            });
+        }
+        loop {
+            let end = immutable_staging_end(base, module.immutable_count());
+            let Some(raised) = ranges
+                .iter()
+                .filter(|&&(start, range_end)| start < end && range_end > base)
+                .map(|&(_, range_end)| range_end)
+                .max()
+            else {
+                return base;
+            };
+            base = EvmMemoryLayout::align_word(raised)
+                .expect("constructor immutable staging address overflow");
+        }
     })
 }
 
