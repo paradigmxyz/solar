@@ -330,7 +330,6 @@ set_option Elab.async false
 def image : List Byte := {list(artifact)}
 def cfg : Config := ⟨.{VERSION}, {world.opcode_rows(self.catalog, VERSION)}, 0, {{}}, none⟩
 def destination : Word := {destination}
-theorem savedSlot : image[{load - 2}]? = some 0x60 ∧ image[{load - 1}]? = some 128 := by decide +kernel
 theorem emittedSave (world : Journal) (frame : Frame) (grown : List Byte) (tail : EVM.Stack)
     (imageEq : frame.code = image) (pc : frame.pc = {store})
     (stack : frame.stack = 128 :: destination :: tail) (height : tail.length + 2 ≤ 1024)
@@ -345,28 +344,49 @@ theorem emittedSave (world : Journal) (frame : Frame) (grown : List Byte) (tail 
     (by decide +kernel) (by rw [imageEq, pc]; decide +kernel) stack (by simp; omega) arena
 theorem emittedResume (world : Journal) (frame : Frame) (memory written grown : List Byte)
     (tail : EVM.Stack) (value : Word)
-    (imageEq : frame.code = image) (pc : frame.pc = {load})
-    (stack : frame.stack = 128 :: tail) (height : tail.length + 1 ≤ 1024)
+    (imageEq : frame.code = image) (pc : frame.pc = {load - 2})
+    (stack : frame.stack = tail) (height : tail.length + 1 ≤ 1024)
     (aligned : frame.memory.length % 32 = 0)
     (writeArena : expand memory 0 32 = .ok written)
     (write : frame.memory = writeBytes written 0 (wordBytes value))
     (readArena : expand frame.memory 128 32 = .ok grown)
     (stored : saved memory 128 destination) :
     MeteredPrefix cfg world frame world {{frame with pc := destination.toNat, stack := tail, memory := grown}}
+      3 (3 + (3 + memoryCharge frame.memory 128 32 + 8)) := by
+  let loadedSlot : Frame := {{frame with pc := {load}, stack := (128 : Word) :: tail}}
+  have pushOpcode : (image[{load - 2}]?.getD 0 : Byte) = 0x60 := by decide +kernel
+  have pushValueEq : pushValue image {load - 2} 1 = 128 := by decide +kernel
+  have inImage : ¬image.length ≤ {load - 2} := by decide +kernel
+  have pushSchema : available cfg 0x60 = ⟨true,3,0,0,1⟩ := by decide +kernel
+  have stackRoom : ¬tail.length + 1 > 1024 := by omega
+  have pushStep (gas : Nat) : instruction cfg world {{frame with gas}} =
+      if gas < 3 then stepExhausted world
+      else .ok (.next world {{loadedSlot with gas := gas-3}}) := by
+    change instructionWithImage cfg world {{frame with gas}} frame.code.length
+      (frame.code[frame.pc]?.getD 0) (pushValue frame.code frame.pc) (validJump frame.code) = _
+    rw [imageEq, pc, pushOpcode]
+    simp [instructionWithImage, loadedSlot, stack, inImage, pushSchema, pushValueEq, pureOp, stackRoom]
+  have restored : MeteredPrefix cfg world loadedSlot world
+      {{frame with pc := destination.toNat, stack := tail, memory := grown}}
       2 (3 + memoryCharge frame.memory 128 32 + 8) := by
-  apply EVM.SpilledReturn.resume cfg world frame grown 128 destination tail 3 8 0 0
-  · decide +kernel
-  · decide +kernel
-  · rw [imageEq, pc]; decide +kernel
-  · rw [imageEq, pc]; decide +kernel
-  · rw [imageEq]; decide +kernel
-  · exact stack
-  · simpa using height
-  · exact aligned
-  · exact readArena
-  · rw [write]
-    exact EVM.SpilledReturn.preserve memory written (wordBytes value) 128 destination 0 32
-      writeArena (by simp) stored
+    apply EVM.SpilledReturn.resume cfg world loadedSlot grown 128 destination tail 3 8 0 0
+    · decide +kernel
+    · decide +kernel
+    · change frame.code[{load}]? = some 0x51
+      rw [imageEq]; decide +kernel
+    · change frame.code[{load + 1}]? = some 0x56
+      rw [imageEq]; decide +kernel
+    · change validJump frame.code destination = true
+      rw [imageEq]; decide +kernel
+    · rfl
+    · simpa using height
+    · exact aligned
+    · exact readArena
+    · change saved frame.memory 128 destination
+      rw [write]
+      exact EVM.SpilledReturn.preserve memory written (wordBytes value) 128 destination 0 32
+        writeArena (by simp) stored
+  exact MeteredPrefix.step pushStep restored
 #print axioms emittedSave
 #print axioms emittedResume
 """
