@@ -11,6 +11,12 @@ open EvmRules
 @[simp] theorem readBytes_zero (bytes : List Byte) (offset : Nat) :
     readBytes bytes offset 0 = [] := by rfl
 
+theorem readBytes_entire (bytes : List Byte) : readBytes bytes 0 bytes.length = bytes := by
+  apply List.ext_getElem
+  · simp [readBytes]
+  · intro i hi hj
+    simp [readBytes, List.getElem?_eq_getElem hj]
+
 theorem readBytes_append_prefix (memory suffix : List Byte) (offset count : Nat)
     (within : offset + count ≤ memory.length) :
     readBytes (memory ++ suffix) offset count = readBytes memory offset count := by

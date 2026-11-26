@@ -51,11 +51,8 @@ theorem roundedMask (n : Nat) (bound : n + 63 < 2^256) :
   change ((n+63)%2^256) &&& (2^256-32) = ((n+63)/32*32)%2^256
   rw [Nat.mod_eq_of_lt bound, roundDown _ bound, Nat.mod_eq_of_lt (by omega)]
 
-theorem readWhole (bytes : List Byte) : readBytes bytes 0 bytes.length = bytes := by
-  apply List.ext_getElem
-  · simp [readBytes]
-  · intro i hi hj
-    simp [readBytes, List.getElem?_eq_getElem hj]
+theorem readWhole (bytes : List Byte) : readBytes bytes 0 bytes.length = bytes :=
+  readBytes_entire bytes
 
 /-- The operation sequence emitted by lower-builtins, with SSA words inlined. -/
 def lowered (cfg : Config) (frame : Frame) : Step := do

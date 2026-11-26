@@ -75,6 +75,18 @@ theorem MeteredPrefix.paid {cfg : Config} {before after : Frame} {journal nextWo
     cases run work cfg lastWorld {last with gas := balance-(charge+rest)} <;>
       simp [Except.bind, Bind.bind, Except.pure, Pure.pure, Nat.add_assoc]
 
+/-- Consume a halt at a checked cut after charging the prefix. The halt
+specifies its result at the exact remaining balance. -/
+theorem MeteredPrefix.paid_halt {cfg : Config} {before after : Frame} {journal nextWorld : Journal}
+    {count price : Nat} (trace : MeteredPrefix cfg journal before nextWorld after count price)
+    (result : Nat → Result)
+    (halt : ∀ gas, instruction cfg nextWorld {after with gas := gas} = .ok (.done (result gas)))
+    (work balance : Nat) (enough : price ≤ balance) :
+    run (work+1+count) cfg journal {before with gas := balance} =
+      .ok {result (balance-price) with work := (result (balance-price)).work+1+count} := by
+  rw [trace.paid (work+1) balance enough, run_done work (halt (balance-price))]
+  rfl
+
 theorem MeteredPrefix.unpaid {cfg : Config} {before after : Frame} {journal nextWorld : Journal}
     {count price : Nat} (trace : MeteredPrefix cfg journal before nextWorld after count price)
     (work balance : Nat) (short : balance < price) :

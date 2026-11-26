@@ -3639,9 +3639,8 @@ cold fixture's forwarded gas to 3,598 and fails the kernel's byte check.
 | Cold | 5,012 | 495,088 | 487,254 | 494,973 |
 | Warm | 2,512 | 497,588 | 489,715 | 497,473 |
 
-The correspondence reaches the first external child return in the pinned
-runtime. The helper's MIR correspondence, returndata handling after
-PC 3600, the callback and the second transfer remain separate proofs.
+This theorem reaches the first external child return in the pinned
+runtime. The next section checks the emitted helper's continuation.
 
 From the repository root, rerun the retained entry audit above first if
 its generated source is missing. The call audit then checks the original
@@ -3659,6 +3658,110 @@ PYTHONPATH=solar-tv LEAN_NUM_THREADS=1 uv run --project solar-tv python \
 | `target/tv-memory-dse-current/FlashLoanTransferCall.lean` | `1eb4329c6e9a9e7827471621438ae91cee113f5bb52c8af3116827e427f93ef9` |
 | `target/tv-memory-dse-current/FlashLoanTransferWrongGas.lean` | `2004e1f712efa5ec88ba624e917aadcaf72d4f20104a920d24ffc449abee6d81` |
 | `target/tv-memory-dse-current/flash-first-call.json` | `1780bc321e5de4c299d8c70dd99260ea9864437c2f4d5db2dc12f3f261b1d0c1` |
+
+### FlashLoan first transfer's returndata continuation
+
+The continuation uses the actual `flashResume` frame from the first CALL
+certificate. The kernel checks the emitted cursor update, length header,
+copy, boolean decoder, and each jump or revert. Successful paths resume
+the FlashLoan caller at PC 6396 with its saved stack and child journal.
+Failure paths return the decoded helper error or empty revert data. The
+ordinary root executor restores the initial journal on either revert or
+exhaustion. Each path checks all insufficient gas balances separately.
+
+The path proofs assume the checked Cancun FlashLoan entry, returned child
+flag and branch conditions, and a buffer of at most 65,248 bytes. The copy
+starts at byte 288, so this fits the model's 64 KiB arena. For
+`words = (length + 31) / 32`, each path pays its fixed cost below plus 3
+for the header expansion, `3 * words` for the copy and the difference
+between memory prices at `9 + words` and `9` words. The kernel checks
+bytes and immediate operands against the pinned emitted runtime.
+
+| Child return | Fixed gas | Physical result |
+| --- | ---: | --- |
+| Success with empty data | 107 | Resume FlashLoan |
+| Success with true | 205 | Resume FlashLoan |
+| Success with false | 262 | Revert with `transfer returned false` |
+| Success with a noncanonical bool | 162 | Empty revert |
+| Success with a short nonempty buffer | 134 | Empty revert |
+| Child failure | 149 | Revert with `transfer reverted` |
+
+Pinned Rust replay uses the unchanged runtime from PC zero. It checks
+each helper exit, the exact gas cutoff with a nonwriting token and the
+out-of-gas result one unit below. A successful token write commits and
+both the false result and token revert discard the writes and root log.
+The maximal 65,248-byte true result consumes 20,634 gas in the tail and
+fills the active 65,536-byte arena. Raising the bool guard literal at
+byte 8120 from 1 to 2 makes the original malformed fixture reach PC 6396
+in Rust. Lean rejects the changed immediate. Each successful path
+certificate lists only `propext`, `Classical.choice` and `Quot.sound`.
+
+The audit reuses the retained first-CALL source and receipt. The proof
+driver is `solar-tv/tools/check_flash_return.py`. Its generated Lean
+sources and Rust observations are retained under `target/tv-memory-dse-current/`.
+
+```sh
+flash_audit=target/tv-memory-dse-current
+PYTHONPATH=solar-tv LEAN_NUM_THREADS=1 uv run --project solar-tv python \
+  solar-tv/tools/check_flash_return.py \
+  --baseline target/tv-full-post-guard-walk/morpho-blue/baseline.json \
+  --world target/tv-integer-cleanup-bytecode-probe/morpho-blue/world.json \
+  --compiler target/tv-pinned-corpus.wa91PI/tv-serial-solar \
+  --replay target/tv-pinned-corpus.wa91PI/solar-tv-replay \
+  --prior-proof "$flash_audit/FlashLoanTransferCall.lean" \
+  --prior-receipt "$flash_audit/flash-first-call.json" --output "$flash_audit"
+```
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Checker on Lean 4.34.1 | `56f23fbe7adb97878333127338c3bc7ca086c5ab6486204f6c82e25135fabfb5` |
+| `solar-tv/tools/check_flash_return.py` | `f8eb759b571c62b4f3e8db7318438f8fd1ace660f14f78a91949fd03f3012afa` |
+| `target/tv-memory-dse-current/FlashLoanTransferReturn.json` | `98c0ac3dba23b82c5531e874907e482b05c3668ed0834cf6746459886da148d9` |
+
+### Complete FlashLoan callback and repayment fixtures
+
+Three explicit Cancun worlds execute the pinned bytes from PC zero to
+the public exit. The checker uses 253 kernel-checked trace segments and
+links them back to the ordinary bytecode step function. The end theorems
+compare status, returndata, gas, both accounts' slot zero and the exact
+committed logs. The checked theorems use `propext` and `Quot.sound`.
+
+The successful callback receives the three-byte payload `deadbe` at
+CALL PC 6477. Repayment calls the token at PC 3111 and sends
+`transferFrom(caller, Morpho, 1)`. Independent Rust probes check the
+actual destinations, full encoded inputs and zero value and output size.
+In the two failure fixtures a callback reverts after a write, or the
+second token call returns false after a successful first transfer and
+callback. Both executions discard the accumulated writes and log.
+
+| Fixture | Public exit | Gas remaining | Callback slot | Token slot | Logs |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Successful callback and repayment | Empty success | 449,654 | 119 | 42 | 1 |
+| Callback reverts | `deadbeef` | 450,213 | 0 | 0 | 0 |
+| Repayment returns false | `transferFrom returned false` | 449,529 | 0 | 0 | 0 |
+
+Run the complete fixtures after the returndata audit has checked the
+first-CALL module and written its receipt.
+
+```sh
+PYTHONPATH=solar-tv LEAN_NUM_THREADS=1 uv run --project solar-tv python \
+  solar-tv/tools/check_flash_complete.py \
+  --baseline target/tv-full-post-guard-walk/morpho-blue/baseline.json \
+  --world target/tv-integer-cleanup-bytecode-probe/morpho-blue/world.json \
+  --compiler target/tv-pinned-corpus.wa91PI/tv-serial-solar \
+  --replay target/tv-pinned-corpus.wa91PI/solar-tv-replay \
+  --output target/tv-memory-dse-current
+```
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `solar-tv/tools/check_flash_complete.py` | `81e7c54ccae548f91e14c06a67fdc387389bdaeb1e4f797044ae406a4fdb206c` |
+| `target/tv-memory-dse-current/flash-complete-replay.json` | `4e9dda6420f8211924c572b089a7aebe5fffb075f6a2e75a77cf991d23e0272e` |
+
+The complete executions are specific to the supplied calldata, gas and
+child bytecode. General callback and repayment proofs, and the relation
+between the emitted path and the changed MIR bodies, remain open. The
+saved corpus join stays at 2,153 of 2,228.
 
 ### MIR CFG checks after an import timeout
 
