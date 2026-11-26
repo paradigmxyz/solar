@@ -1467,8 +1467,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   helpers of `solc` return at once when the source and target slots are equal.
   With valid storage the stored result is the same, but the load advances the
   free memory pointer, by 64 bytes for a 1-byte `bytes`, where `solc` leaves it
-  unchanged (as in CODEGEN-031). After assembly writes storage, two things
-  differ. A `bytes` or `string` whose short-form header is invalid, such
+  unchanged (as in CODEGEN-031). The write-back is a real `SSTORE`, so a
+  `STATICCALL` to a function that runs `data = data` fails in `solar` and
+  succeeds in `solc`. After assembly writes storage, two things differ. A `bytes` or `string` whose short-form header is invalid, such
   as `sstore(data.slot, 0x40)`, panics with `Panic(0x22)` in `solar` and stays
   untouched in `solc`. Dirty bits are cleared by `solar` and kept by `solc`:
   the padding in the last data word of a long `bytes`, such as `0xaaff..ff`
@@ -1479,7 +1480,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   write `0xaa00..00`. Dirty bits in the destination are a different case, which
   CODEGEN-025 covers. A dirty enum panics as CODEGEN-022 describes.
 - Rationale: only assembly-forged storage changes the stored result, and a slot
-  equality check would add a branch to every storage-to-storage copy.
+  equality check would add a branch to every storage-to-storage copy. No
+  ordinary contract assigns a value to itself inside a static call.
 - Coverage: `tests/ui/codegen/run-call/storage/storage_self_assign_forged.sol`.
 
 ### CODEGEN-036: A calldata argument is copied to memory before later arguments are evaluated

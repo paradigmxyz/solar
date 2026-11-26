@@ -6,6 +6,7 @@
 //@ run-call: bytesDirtyTail() => 0xaa00000000000000000000000000000000000000000000000000000000000000
 //@ run-call: bytesCopyDirtyTail() => 0xaa00000000000000000000000000000000000000000000000000000000000000
 //@ run-call: bytesFreeMemoryGrowth() => 0x40
+//@ run-call: staticSelfAssign() => false
 //@ run-call: arrayDirtyHighByte() => 0
 //@ run-call: structDirtyHighByte() => 0
 //@ run-call: structCopyDirtyHighByte() => 0, 1, 2
@@ -16,7 +17,8 @@
 // they were. A copy between distinct slots behaves the same in both compilers when the
 // destination is clean; CODEGEN-025 covers a dirty one.
 // With valid storage the result is the same, but the load advances the free memory pointer, which
-// `bytesFreeMemoryGrowth()` shows; solc leaves it unchanged. See CODEGEN-035 in
+// `bytesFreeMemoryGrowth()` shows; solc leaves it unchanged. The write-back also makes a static
+// call fail, which `staticSelfAssign()` shows; solc writes nothing. See CODEGEN-035 in
 // docs/SOLC_DIVERGENCE.md.
 contract C {
     struct S {
@@ -74,6 +76,14 @@ contract C {
         assembly {
             growth := sub(mload(0x40), before)
         }
+    }
+
+    function selfAssign() external {
+        data = data;
+    }
+
+    function staticSelfAssign() external view returns (bool ok) {
+        (ok, ) = address(this).staticcall(abi.encodeCall(this.selfAssign, ()));
     }
 
     function arrayDirtyHighByte() external returns (uint256 r) {
