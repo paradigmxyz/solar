@@ -51,7 +51,9 @@ def contract_ok_lean(ns):
     return (
         f"/-- SolidCore type checks the contract. -/\n"
         f"theorem contract_ok : ∃ c, {ns}.contract? = .ok c := by\n"
-        f"  have h := {ns}.shape_eq\n  unfold {ns}.shape? at h\n  split at h <;> simp_all\n"
+        f"  have h := {ns}.shape_eq\n"
+        f"  unfold {ns}.shape? SolidCore.Refinement.Generic.shapeOf at h\n"
+        f"  split at h\n  · next c hc => exact ⟨c, hc⟩\n  · simp at h\n"
     )
 
 
