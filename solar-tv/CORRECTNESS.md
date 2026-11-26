@@ -3522,18 +3522,39 @@ changes the address test from shift 160 to shift 159. The changed image
 loses its entry certificate and raises an exception for an address with
 bit 159 set, which reaches the original heap store.
 
-Composing these entry cuts with the two conditional MIR certificates still
-requires preserving the admitted heap through the remaining decoder and
-caller actions and binding each emitted helper entry to the MIR activation.
-Separately, direct typed MIR execution and pinned Rust replay agree on the
-`extSloads` return for an explicit two-slot world. The corpus count is
-unchanged by these prefix and scenario checks.
+For the seven routes sharing PC 1442, the kernel composes the heap prefix
+with the emitted market decoder. The decoder takes 49 instructions and 198
+gas. Under the four canonical market address bounds, its stack carries the
+pointer 128 into each route's own continuation. Its nine memory words are
+`[0, 0, 288, 0, w0, w1, w2, w3, w4]`, and the cursor still satisfies the
+initialized heap contract. Rust replay reaches the same return PCs with
+nonzero canonical market words and checks the combined budget at and one
+below the exact charge.
+
+| Public route | Decoder return PC | Gas from ABI entry |
+| --- | ---: | ---: |
+| `repay` | 4229 | 420 |
+| `supplyCollateral` | 4669 | 442 |
+| `borrow` | 3680 | 434 |
+| `withdraw` | 3183 | 478 |
+| `withdrawCollateral` | 4943 | 456 |
+| `supply` | 2494 | 374 |
+| `liquidate` | 5220 | 418 |
+
+Composing these prefixes with the two conditional MIR certificates still
+requires the rest of each caller path, including FlashLoan decoding, and a
+binding from each emitted helper entry to its MIR activation. Separately,
+direct typed MIR execution and pinned Rust replay agree on the `extSloads`
+return for an explicit two-slot world. These remain prefix and scenario
+checks. The corpus count stays at 2,153 verified captures.
 
 | Artifact | SHA-256 |
 | --- | --- |
 | Pinned runtime bytecode | `d2c1c3d7bb22df8c2e0e9853f10f2657af1c547028e7287b0452a9943a23cd2e` |
 | Checker on Lean 4.34.1 | `908bea3671518be7b5ee7aa273c4191fefde35d618da5867ffe5b62f2f4c3c2c` |
 | `target/tv-memory-dse-current/heap-prefix-caller-audit.json` | `3f828471ff150a9dd14bedba50ba881ee3f151ae46b242acea64d3db724a11b6` |
+| `target/tv-memory-dse-current/shared-decoder-kernel.json` | `bb8e1bd2293a442f184aba5b100302a0cf8eb6de678b13a806effd39d1c15dba` |
+| `target/tv-memory-dse-current/shared-decoder-rust.json` | `5fef4fc3913cc0e0b114d4fc1437d443625e69de03769def63a0dda66f9dfd97` |
 | `target/tv-memory-dse-current/extSloads-world-proof.json` | `29523962304188265e7a0ac83d9059b62100ef076e21ecb4b5a5d18f2a04088d` |
 
 ### MIR CFG checks after an import timeout
