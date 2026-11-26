@@ -16,7 +16,7 @@
 // they were. A copy between distinct slots behaves the same in both compilers when the
 // destination is clean; CODEGEN-025 covers a dirty one.
 // With valid storage the result is the same, but the load advances the free memory pointer, which
-// `bytesFreeMemoryGrowth()` shows; solc leaves it unchanged. See CODEGEN-032 in
+// `bytesFreeMemoryGrowth()` shows; solc leaves it unchanged. See CODEGEN-035 in
 // docs/SOLC_DIVERGENCE.md.
 contract C {
     struct S {

@@ -1458,9 +1458,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `copy_recursive_struct_overlap_push_self_parent`, and
   `copy_recursive_struct_disjoint_copy_memory_growth` expects no growth.
 
-### CODEGEN-032: Assigning a storage value to itself loads and rewrites it
+### CODEGEN-035: Assigning a storage value to itself loads and rewrites it
 
-- ID: CODEGEN-032
+- ID: CODEGEN-035
 - Status: intentional
 - Difference: `data = data` for a `bytes` or `string`, `s = s` for a struct and
   `arr = arr` for an array load the value and write it back in `solar`. The copy
@@ -1482,9 +1482,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   equality check would add a branch to every storage-to-storage copy.
 - Coverage: `tests/ui/codegen/run-call/storage/storage_self_assign_forged.sol`.
 
-### CODEGEN-033: A calldata argument is copied to memory before later arguments are evaluated
+### CODEGEN-036: A calldata argument is copied to memory before later arguments are evaluated
 
-- ID: CODEGEN-033
+- ID: CODEGEN-036
 - Status: intentional
 - Difference: when a struct constructor, an internal call or a tuple converts a
   calldata argument to memory, `solar` copies it as soon as it evaluates the

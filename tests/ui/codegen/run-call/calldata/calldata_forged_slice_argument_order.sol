@@ -13,7 +13,7 @@
 // reverts empty here; solc evaluates every argument first and reverts with `Panic(0x11)`. In
 // `stopInArgument(0)` a later argument ends the frame with `stop()`: solc stops successfully and
 // we revert empty. In `allocationSeenByArgument()` a later argument reads the free memory pointer
-// after the copy and sees 0x40 of growth; solc sees none. See CODEGEN-033 in
+// after the copy and sees 0x40 of growth; solc sees none. See CODEGEN-036 in
 // docs/SOLC_DIVERGENCE.md.
 contract C {
     struct S {
