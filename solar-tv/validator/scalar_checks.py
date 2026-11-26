@@ -16,6 +16,10 @@ def literal(value, ty):
     return {"kind": "constant", "value": str(value), "type": ty}
 
 
+def inactive(op):
+    return op["kind"] == "check" and op["args"] == [literal(int(op["zero"]), FLAG)]
+
+
 def argument_length(inst):
     op = inst["operation"]
     if (
@@ -203,15 +207,13 @@ def normalize(body):
                 stats["scalar_identities"] += 1
                 continue
             op = inst["operation"]
-            if op["kind"] == "check":
-                inactive = literal(int(op["zero"]), FLAG)
-                if op["args"] == [inactive]:
-                    stats["inactive_checks"] += 1
-                    continue
-                if retained and (canonical := polarity(retained[-1], inst, uses)):
-                    retained.pop()
-                    inst = canonical
-                    stats["check_polarities"] += 1
+            if inactive(op):
+                stats["inactive_checks"] += 1
+                continue
+            if retained and (canonical := polarity(retained[-1], inst, uses)):
+                retained.pop()
+                inst = canonical
+                stats["check_polarities"] += 1
             retained.append(inst)
         normalized.append({**block, "instructions": retained})
     updated = reuse_comparisons(substitute(normalized, aliases), stats)

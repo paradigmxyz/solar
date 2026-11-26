@@ -1509,6 +1509,47 @@ fn @choose(arg0: slice<calldata>) -> i256 {
             witness = record["witness"]
             self.assertEqual(witness["observations"], witness["native_observations"])
 
+    def test_sccp_removes_a_folded_inactive_loop_guard(self):
+        guard = "    v0 = eq 2, 0\n    icall panic_if<0x41>, v0\n"
+        original = f"""@module FoldedGuard
+fn @choose(arg0: i256) -> i256 {{
+  bb0:
+{guard}    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = lt v1, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add v1, 1
+    jump bb1
+  bb3:
+    ret v1
+}}
+"""
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{side}.mir" for side in ("before", "after"))
+            before.write_text(original)
+            optimized = original.replace(guard, "")
+            after.write_text(optimized)
+            record = self.check_loop(root, 0)
+            reuse = record["import_correspondence"][0]["correspondence"]["choose"][
+                "scalar_reuse"
+            ]
+            self.assertEqual([side.get("inactive_checks", 0) for side in reuse], [1, 0])
+            self.assertEqual(
+                self.replay_loop(root, original, optimized, [3]), [["3"], ["3"]]
+            )
+
+            before.write_text(original.replace("eq 2, 0", "eq 2, 2"))
+            self.check_loop(root, 2)
+            fixture = root / "world.json"
+            fixture.write_text('{"version":1}')
+            record = self.check_loop(root, 1, fixture=fixture)
+            self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+            witness = record["witness"]
+            self.assertEqual(witness["observations"], witness["native_observations"])
+
     def test_cfg_simplify_checks_mutually_recursive_callees(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

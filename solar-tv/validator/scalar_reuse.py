@@ -22,6 +22,7 @@ local, literal, substitute = (
 )
 
 AXIOMS = """
+#print axioms MIR.ScalarChecks.inactive
 #print axioms MIR.ScalarReuse.unsigned_nonzero
 #print axioms MIR.ScalarReuse.unsigned_flip
 #print axioms MIR.ScalarReuse.same_width
@@ -636,6 +637,9 @@ def normalize(body, definitions, fork, *, empty_targets=None):
             inst = substitute(original, aliases)
             result = inst["result"]
             op = inst["operation"]
+            if scalar_checks.inactive(op):
+                stats["inactive_checks"] += 1
+                continue
             if empty_targets and empty_call(inst, empty_targets):
                 stats["empty_calls"] += 1
                 continue
