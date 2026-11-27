@@ -40,6 +40,18 @@ revert; the statement declares that (allowed_vacuity) and is not the strongest s
 with no spec of the loop function keeps the True specification, declared vacuous, and so does one
 the bridge refuses, with the refusal in the declaration and the record.
 
+Several loop functions (Refused "functions" before): each function F gets its own part,
+NAME.Loop.F.{Resources,Valid,Join,NonVac}, with loop_resources.py's numbers restricted to the loop
+F's calls reach (its selector), its own iteration bound K ≤ Kmax and its own valid calls; one
+spec_connect.py run connects every function's exported spec in NAME.LoopSpec (a function it refuses
+is dropped and keeps True, declared vacuous, as one loop function does); NAME.LoopJoin imports every
+join, and shape.json's parts make final.py state the conjunction, one conjunct per loop function.
+
+The while route ("while-inferred", loop_cuts.py step 3w): the join applies final_of_whileW (no spec)
+or final_of_whileW_spec, whose spec premise is the bridge's WhileSpec (spec_connect.py --loops
+--while F=NAME.Loops.F.Obl:Certified.NAME.Loops.F: the export's spec on the obligation module's
+eraseWhile tree Te, whileSpec_of_check), restated in the fixed frame as on the other routes.
+
 What it does not give, recorded in shape.json's excluded and never reported as the strongest
 status: deployment (the statement is about the runtime bytecode from any storage: runtime-only),
 other callers, values and blocks (the one frame TreeLoop.ctx0, until Phase 2's caller
@@ -55,14 +67,15 @@ check_final accepted the final; and the kernel replays the final's whole constan
 (replay_closure.lean, accounted by replay.py closure) before the final is recorded.
 
 Refusals are precise and never a weaker proof (Refused, with the step that refused):
-"route": a function on the summary route, or the hook did not complete; "functions": not exactly
-one loop function; "resources": loop_resources.py's Unsupported; "abi": a parameter that is not
+"route": a function on the summary route, or the hook did not complete; "functions": no loop
+function; "resources": loop_resources.py's Unsupported; "abi": a parameter that is not
 uint256; "stages": the export's stage proofs do not compose from stage0 to the resources' final
 EVM IR; "exporter": no pinned solar-verify; "receipt": the receipt is missing or not this run's;
 "replay": the kernel replay of the closure fails or is not accounted for.
 """
 
 import hashlib
+import inspect
 import json
 import os
 import pathlib
@@ -89,6 +102,8 @@ ROUTES = ("erasure", "erasure-inferred", "while-inferred")
 # sequents and the MIR invariant's allSeqsW (Verify/LoopSource/Invariant/Final.lean).
 WHILE_MODULE = "Verify.LoopSource.Invariant.Final"
 JOIN_WHILE = f"{WHILE_MODULE}.final_of_whileW"
+# With the exported spec: the bridge's WhileSpec (spec_connect.py --loops --while).
+JOIN_WHILE_SPEC = f"{WHILE_MODULE}.final_of_whileW_spec"
 # The fixed frame of the loop route's spec: sender 0x2000, value 0, timestamp 1, self 0x1000.
 FRAME = "SolidCore.Spec.TreeLoop.ctx0"
 FRAME_MODULE = "Verify.Spec.TreeLoopFrame"
@@ -144,8 +159,9 @@ def contract_term(name, contract):
     )
 
 
-def loop_function(record):
-    """The one loop function on the erasure route, from the loop cut hook's record."""
+def loop_functions(record):
+    """The loop functions on the erasure routes, in the loop cut hook's order: every function the
+    hook gave obligations, none blocked."""
     cuts = record.get("loop_cuts") or {}
     blocked = record.get("loop_cuts_blocked") or {}
     if blocked:
@@ -155,19 +171,53 @@ def loop_function(record):
             f"the loop cut hook did not complete for {f if f != '*' else 'the source'}: "
             f"{b.get('step')}: {b.get('why')}",
         )
-    if len(cuts) != 1:
+    if not cuts:
+        raise Refused("functions", "no loop function has obligations")
+    for fname, entry in cuts.items():
+        if entry.get("route") not in ROUTES:
+            raise Refused(
+                "route",
+                f"{fname}: obligations from a body summary, not the erasure: final_of_generated "
+                "takes the generator's erasedOf_eq",
+            )
+    return list(cuts)
+
+
+def loop_function(record):
+    """The one loop function on the erasure route, from the loop cut hook's record."""
+    fnames = loop_functions(record)
+    if len(fnames) != 1:
         raise Refused(
             "functions",
-            f"{len(cuts)} loop functions with obligations; the statement covers one loop function",
+            f"{len(fnames)} loop functions with obligations; the single statement covers one "
+            "(loop_functions and the parts statement take several)",
         )
-    fname, entry = next(iter(cuts.items()))
-    if entry.get("route") not in ROUTES:
-        raise Refused(
-            "route",
-            f"{fname}: obligations from a body summary, not the erasure: final_of_generated "
-            "takes the generator's erasedOf_eq",
-        )
-    return fname
+    return fnames[0]
+
+
+def modules(name, fname=None):
+    """The modules of one loop function's part of the published statement: NAME.LoopResources,
+    NAME.LoopValid, NAME.LoopJoin and NAME.LoopNonVac for a contract with one loop function (FNAME
+    None), NAME.Loop.FNAME.{Resources,Valid,Join,NonVac} for each of several."""
+    if fname is None:
+        m = {k: f"{name}.Loop{k.capitalize()}" for k in ("resources", "valid", "join")}
+        m["nonvac"] = f"{name}.LoopNonVac"
+    else:
+        m = {
+            k: f"{name}.Loop.{fname}.{s}"
+            for k, s in (
+                ("resources", "Resources"),
+                ("valid", "Valid"),
+                ("join", "Join"),
+                ("nonvac", "NonVac"),
+            )
+        }
+    return m
+
+
+def module_file(root, mod):
+    """The file of the Certified module MOD under ROOT (the Certified source directory)."""
+    return pathlib.Path(root).joinpath(*mod.split(".")).with_suffix(".lean")
 
 
 def loop_route(record, fname):
@@ -178,22 +228,33 @@ def loop_route(record, fname):
 # --- the fixed-fuel module -------------------------------------------------------------------
 
 
-def resources(name, contract, gen_dir, plain, sel, nargs, params):
-    """loop_resources.py's module on this export, as NAME.LoopResources, with the facts the join
-    needs: the limit's kind, Kmax, E, B, X, the gas parts and the valid calls' body."""
+def resources(name, contract, gen_dir, plain, sel, nargs, params, mod=None, restrict=False):
+    """loop_resources.py's module on this export, as MOD (NAME.LoopResources by default), with the
+    facts the join needs: the limit's kind, Kmax, E, B, X, the gas parts and the valid calls' body.
+    RESTRICT (a contract with several loop functions): the numbers of the loop that calls of SEL
+    reach (loop_resources.obligation's selector restriction)."""
     import loop_resources
 
+    mod = mod or f"{name}.LoopResources"
     if any(p != "uint256" for p in params):
         raise Refused(
             "abi",
             f"parameters {params}: the join's valid calls take uint256 words only",
         )
+    if restrict and "sel" not in inspect.signature(loop_resources.obligation).parameters:
+        raise Refused(
+            "resources",
+            "loop_resources.py's obligation takes no selector, which several loops need",
+        )
     try:
-        ob = loop_resources.obligation(gen_dir, plain)
+        if restrict:
+            ob = loop_resources.obligation(gen_dir, plain, sel=sel, nargs=nargs)
+        else:
+            ob = loop_resources.obligation(gen_dir, plain)
         last = ob["final_evm_ir"]
         lower = last[0].lower() + last[1:]
         text = loop_resources.generate(
-            ns=f"Certified.{name}.LoopResources",
+            ns=f"Certified.{mod}",
             contract=contract,
             last=lower,
             gen_dir=gen_dir,
@@ -213,7 +274,6 @@ def resources(name, contract, gen_dir, plain, sel, nargs, params):
         exit_gas=ob["exit_gas"],
     )
     return text, facts
-
 
 def parse_resources(text):
     """The limit's kind, Kmax, E B X and the valid calls' body, read off the module's text."""
@@ -242,8 +302,10 @@ def parse_resources(text):
     }
 
 
-def valid_module(name, facts):
-    """NAME.LoopValid: the valid calls as a statement input, the same body as LoopResources' Valid."""
+def valid_module(name, facts, mod=None):
+    """MOD (NAME.LoopValid by default): the valid calls as a statement input, the same body as the
+    resources module's Valid."""
+    mod = mod or f"{name}.LoopValid"
     kpar = " (K : Nat)" if facts["bounded"] else ""
     return f"""import Verify.ShapeGeneric
 import SolarTV.Composition
@@ -251,7 +313,7 @@ import SolarTV.Composition
 -- Generated by solar's tools/certify/loop_final.py; do not edit. The body is the one
 -- tools/certify/loop_resources.py proves Loops for (LoopResources.Valid), so the two are one term.
 
-namespace Certified.{name}.LoopValid
+namespace Certified.{mod}
 
 open SolarTV SolarTV.Machine SolidCore.Refinement
 
@@ -259,7 +321,7 @@ open SolarTV SolarTV.Machine SolidCore.Refinement
 def valid{kpar} (call : Call) : Prop :=
   {facts["valid_body"]}
 
-end Certified.{name}.LoopValid
+end Certified.{mod}
 """
 
 
@@ -323,14 +385,16 @@ def join_module(
     route="erasure",
     spec=None,
     nonvac=False,
+    m=None,
 ):
     """NAME.LoopJoin: final_of_generated (final_of_generatedW on the erasure-inferred route) on this
     run's modules; with SPEC (spec_step's record) the exported spec through the bridge instead
-    (spec_join_module), importing NAME.LoopNonVac when NONVAC."""
+    (spec_join_module), importing NAME.LoopNonVac when NONVAC. M: the part's modules (modules)."""
     if isinstance(spec, dict):
         return spec_join_module(
-            name, contract, fname, sel, nargs, stages, facts, route, spec, nonvac
+            name, contract, fname, sel, nargs, stages, facts, route, spec, nonvac, m
         )
+    m = m or modules(name)
     inferred = route == "erasure-inferred"
     lemma = JOIN_W if inferred else JOIN_LEMMA
     route_import = f"import {ROUTE_MODULE}\n" if inferred else ""
@@ -339,8 +403,8 @@ def join_module(
         lemma, route_import = JOIN_WHILE, f"import {WHILE_MODULE}\n"
         src_args = f"whileOf_eq\n    sigOf_eq Certified.{name}.Loops.{fname}.src_seqs Certified.{name}.Loops.{fname}.src_valid"
     O = f"Certified.{name}.Loops.{fname}"
-    R = f"Certified.{name}.LoopResources"
-    V = f"Certified.{name}.LoopValid.valid"
+    R = f"Certified.{m['resources']}"
+    V = f"Certified.{m['valid']}.valid"
     pi, ex = facts["per_iteration_gas"], facts["exit_gas"]
     if facts["bounded"]:
         binder, kt, kapp = f" {{K : Nat}} (hK : K ≤ {facts['Kmax']})", "K", " K"
@@ -351,8 +415,8 @@ def join_module(
     ws = "[" + ", ".join(["256"] * nargs) + "]"
     return f"""import {JOIN_MODULE}
 {route_import}import {name}.Loops.{fname}.Obl
-import {name}.LoopResources
-import {name}.LoopValid
+import {m['resources']}
+import {m['valid']}
 import {name}.Proofs.Stages
 import {name}.Source
 import SolidCore.Refinement.KernelRfl
@@ -368,7 +432,7 @@ import SolidCore.Refinement.KernelRfl
 `{stages["first"]}` to `{stages["last"]}`) and the fixed-fuel premises on this run's bytes (`{R}`).
 -/
 
-namespace Certified.{name}.LoopJoin
+namespace Certified.{m['join']}
 
 /-- The loop function's ABI widths and word returns, as the kernel computes them. -/
 def sigV : Option (List Nat × Bool) :=
@@ -391,23 +455,25 @@ theorem join{binder} :
     ({R}.inhabited{kapp}) (fun _ _ _ _ _ => trivial) (fun _ _ _ _ _ => trivial)
     (fun call hv => {R}.loops {ORACLE}{kapp} call hv) (by decide) (by decide) {fit}
 
-/-- info: 'Certified.{name}.LoopJoin.join' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'Certified.{m['join']}.join' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms join
 
-end Certified.{name}.LoopJoin
+end Certified.{m['join']}
 """
 
 
 def spec_join_module(
-    name, contract, fname, sel, nargs, stages, facts, route, spec, nonvac
+    name, contract, fname, sel, nargs, stages, facts, route, spec, nonvac, m=None
 ):
     """NAME.LoopJoin with the exported spec: the bridge's LoopSpec (NAME.LoopSpec's F_loop_spec, of
     NAME.LoopCore's contract, the same AST as NAME.Source's by core_eq) as hspec, and the conclusion
-    restated in the fixed frame (certified_ctx0)."""
+    restated in the fixed frame (certified_ctx0). On the while route the bridge's WhileSpec instead
+    (spec_connect.py --while), through final_of_whileW_spec."""
+    m = m or modules(name)
     O = f"Certified.{name}.Loops.{fname}"
-    R = f"Certified.{name}.LoopResources"
-    V = f"Certified.{name}.LoopValid.valid"
+    R = f"Certified.{m['resources']}"
+    V = f"Certified.{m['valid']}.valid"
     C = f"Certified.{name}.LoopCore"
     pi, ex = facts["per_iteration_gas"], facts["exit_gas"]
     if facts["bounded"]:
@@ -423,14 +489,23 @@ def spec_join_module(
         lemma, obl = JOIN_W_SPEC, f"{O}.seqs {O}.valid"
     else:
         lemma, obl = JOIN_OBL_SPEC, f"({OBL_OF_SEQS} {O}.seqs {O}.valid)"
+    src = f"{O}.erasedOf_eq\n      sigOf_eq"
+    hspec = f"(fun c hc => {spec['loop_spec']} (core_eq.trans hc))"
+    route_import = ""
+    if route == "while-inferred":
+        # The bridge's WhileSpec is of the core module's contract and the obligation module's tree.
+        lemma, obl = JOIN_WHILE_SPEC, f"{O}.seqs {O}.valid"
+        src = f"{O}.whileOf_eq\n      sigOf_eq {O}.src_seqs {O}.src_valid"
+        hspec = f"(by rw [← core_eq]; exact {spec['loop_spec']})"
+        route_import = f"import {WHILE_MODULE}\n"
     ct = contract_term(name, contract)
-    nv_import = f"import {name}.LoopNonVac\n" if nonvac else ""
+    nv_import = f"import {m['nonvac']}\n" if nonvac else ""
     return f"""import {JOIN_MODULE}
 import {ROUTE_MODULE}
-import {FRAME_MODULE}
+{route_import}import {FRAME_MODULE}
 import {name}.Loops.{fname}.Obl
-import {name}.LoopResources
-import {name}.LoopValid
+import {m['resources']}
+import {m['valid']}
 import {name}.LoopSpec
 {nv_import}import {name}.Proofs.Stages
 import {name}.Source
@@ -451,7 +526,7 @@ backend stage of this run's export (`{stages["ns"]}.{stages["compose"]}`, `{stag
 erasure's tree, in the fixed frame `{FRAME}` (sender 0x2000, value 0, timestamp 1, self 0x1000).
 -/
 
-namespace Certified.{name}.LoopJoin
+namespace Certified.{m['join']}
 
 /-- The loop function's ABI widths and word returns, as the kernel computes them. -/
 def sigV : Option (List Nat × Bool) :=
@@ -478,9 +553,8 @@ theorem join{binder} :
         {R}.code ({V}{kapp}) (SolidCore.Refinement.Shapes.bundleAllowed {B} SolidCore.Refinement.Shapes.ctxOfCall)
         (SolidCore.Refinement.Shapes.bundlePost {B} SolidCore.Refinement.Shapes.ctxOfCall SolidCore.Refinement.Shapes.idStep)
         (fun _ => {kt} * {pi} + {ex}) ∧ SolidCore.Spec.TreeLoop.ExportedFor c {B} {sel} :=
-    {lemma} (bd := {B}) (by decide) {O}.erasedOf_eq
-      sigOf_eq {O}.leaves {obl} {O}.same
-      (fun c hc => {spec["loop_spec"]} (core_eq.trans hc))
+    {lemma} (bd := {B}) (by decide) {src} {O}.leaves {obl} {O}.same
+      {hspec}
       ({stages["ns"]}.{stages["compose"]} {ORACLE}) (fun _ => trivial) {R}.check_ok
       {hsub_proof(nargs, facts["bounded"])}
       ({R}.inhabited{kapp})
@@ -488,11 +562,11 @@ theorem join{binder} :
   obtain ⟨c, hc, h, -⟩ := h0
   exact ⟨c, hc, SolidCore.Spec.TreeLoop.certified_ctx0 {value_proof(nargs, facts["bounded"])} h⟩
 
-/-- info: 'Certified.{name}.LoopJoin.join' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'Certified.{m['join']}.join' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms join
 
-end Certified.{name}.LoopJoin
+end Certified.{m['join']}
 """
 
 
@@ -510,14 +584,15 @@ def witness_call(valid_body, nargs):
     return lit.replace("storage := σ", f"storage := {WITNESS_STORAGE}")
 
 
-def nonvac_module(name, contract, sel, nargs, facts, index):
+def nonvac_module(name, contract, sel, nargs, facts, index, m=None):
     """NAME.LoopNonVac: the exported postcondition, in the fixed frame, rejects a result of a valid
     call at every iteration bound: the loop function's call with zero arguments from
     WITNESS_STORAGE, finishing with a success that writes 1 to every slot. INDEX is the loop
     function's spec in the bundle. Untrusted: Lean checks it, and the driver declares the vacuity
-    instead when it does not check."""
+    instead when it does not check. M: the part's modules (modules)."""
+    m = m or modules(name)
     B, _, post = spec_terms(name, contract)
-    V = f"Certified.{name}.LoopValid.valid"
+    V = f"Certified.{m['valid']}.valid"
     call = witness_call(facts["valid_body"], nargs)
     zeros = ", ".join(["0"] * nargs)
     if facts["bounded"]:
@@ -530,7 +605,7 @@ def nonvac_module(name, contract, sel, nargs, facts, index):
         "Ty.ofBits, SolidCore.Refinement.slotValue"
     )
     return f"""import {name}.gen.{contract}.Spec
-import {name}.LoopValid
+import {m['valid']}
 import Verify.Spec.TreeLoop
 import Verify.ShapeBundle
 
@@ -540,11 +615,12 @@ import Verify.ShapeBundle
 # {contract}: the exported postcondition rejects something on the loop's valid calls
 
 `post_rejects`: for {doc}, the call with zero arguments from the storage {WITNESS_STORAGE} is valid,
-and a success that writes 1 to every slot does not meet `{B}`'s postcondition in the fixed frame
+and a success that writes 1 to every slot (and returns no data, which a function with returns
+does not decode) does not meet `{B}`'s postcondition in the fixed frame
 `{FRAME}`: the specification's half of the published statement's NonVacuous.
 -/
 
-namespace Certified.{name}.LoopNonVac
+namespace Certified.{m['nonvac']}
 
 open SolarTV SolidCore.Refinement SolidCore.Spec
 
@@ -564,15 +640,17 @@ theorem post_rejects{binder} :
     · simp [{FRAME}]
     · simp [{unfold}]
     · simp [{unfold}]
-  obtain ⟨rets, -, hens, -⟩ := (h _ (List.getElem_mem _) _ _ hpre).1 rfl
+  obtain ⟨rets, hdec, hens, -⟩ := (h _ (List.getElem_mem _) _ _ hpre).1 rfl
   simp [{unfold}] at hens
-  all_goals (revert hens; decide)
+  all_goals first
+    | (revert hens; decide)
+    | (revert hdec; simp [{B}, SolidCore.Spec.decodeWords, SolidCore.Spec.words])
 
-/-- info: 'Certified.{name}.LoopNonVac.post_rejects' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'Certified.{m['nonvac']}.post_rejects' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms post_rejects
 
-end Certified.{name}.LoopNonVac
+end Certified.{m['nonvac']}
 """
 
 
@@ -737,21 +815,40 @@ def receipt_problem(path, *, module, contract, source, source_sha, exporter_sha,
 
 
 def spec_step(
-    *, run, lean_dir, name, contract, fname, ast, src, verify, lean_cmd, build, env=None
+    *,
+    run,
+    lean_dir,
+    name,
+    contract,
+    fname=None,
+    ast,
+    src,
+    verify,
+    lean_cmd,
+    build,
+    env=None,
+    fnames=None,
+    whiles=(),
 ):
-    """The exported spec of the loop function on its erased tree (the O6 bridge), in the clone
+    """The exported spec of the loop functions on their erased trees (the O6 bridge), in the clone
     LEAN_DIR: the source's bytes as Certified/NAME/NAME.sol, solar-verify's export of them
-    (NAME.gen.C.Spec), NAME.LoopCore, then spec_connect.py --loops --only C.FNAME, which writes and
-    Lean-checks NAME.LoopSpec (with its receipt). BUILD(modules) builds Lean modules (lake in the
-    driver) and returns None or why not; LEAN_CMD is spec_connect.py's --lean. Returns None when the
-    export has no spec of the loop function, else {"loop_spec", "index", "verify_sha256",
-    "receipt"}; raises Refused("spec", why) when a step refuses, and Refused("receipt", why) when
-    spec_connect.py's receipt is missing or is not of this run's source bytes, exporter and module
-    (receipt_problem)."""
+    (NAME.gen.C.Spec), NAME.LoopCore, then spec_connect.py --loops --only C.F,… (with --while
+    C.F=NAME.Loops.F.Obl:Certified.NAME.Loops.F for each function in WHILES, the while route), which
+    writes and Lean-checks NAME.LoopSpec (with its receipt). FNAMES are the loop functions (FNAME: the
+    one of a single-function call). BUILD(modules) builds Lean modules (lake in the driver) and
+    returns None or why not; LEAN_CMD is spec_connect.py's --lean. Returns, with FNAME, None when the
+    export has no spec of the loop function, else {"loop_spec", "index", "verify_sha256", "receipt"};
+    with FNAMES, {F: that record, None, or the reason the bridge refused F's spec}: a function the
+    bridge refuses (exit 1, by name) or whose theorem does not check is dropped and the rest are
+    connected again without it. Raises Refused("spec", why) when a step before the bridge refuses,
+    and Refused("receipt", why) when spec_connect.py's receipt is missing or is not of this run's
+    source bytes, exporter and module (receipt_problem)."""
     import hashlib
 
     import spec_connect as sc
 
+    single = fnames is None
+    fnames = [fname] if single else list(fnames)
     lean_dir = pathlib.Path(lean_dir)
     d = lean_dir / "Certified" / name
     rel = f"Certified/{name}/{name}.sol"
@@ -771,8 +868,13 @@ def spec_step(
         raise Refused(
             "spec", f"solar-verify cannot export the spec: {err.strip()[-300:]}"
         )
-    if f'name := "{contract}.{fname}"' not in out.read_text():
-        return None
+    exported = out.read_text()
+    res = {
+        f: None for f in fnames if f'name := "{contract}.{f}"' not in exported
+    }
+    todo = [f for f in fnames if f not in res]
+    if not todo:
+        return None if single else res
     solc = sc.pinned_solc(str(lean_dir))
     if isinstance(solc, str):
         raise Refused("spec", solc)
@@ -801,8 +903,8 @@ def spec_step(
     if why:
         raise Refused("spec", f"the core or spec module does not build: {why}")
     vsha = hashlib.sha256(pathlib.Path(verify).read_bytes()).hexdigest()
-    rc, outp, err = run(
-        [
+    while todo:
+        cmd = [
             sys.executable,
             str(HERE / "spec_connect.py"),
             "--core-module",
@@ -823,31 +925,51 @@ def spec_step(
             str(lean_dir),
             "--loops",
             "--only",
-            f"{contract}.{fname}",
+            ",".join(f"{contract}.{f}" for f in todo),
             "--solar-verify",
             str(verify),
             "--solar-verify-sha256",
             vsha,
             "--solc",
             solc[0],
-        ],
-        env=env,
-    )
-    thm = [l for l in outp.split() if l.endswith("_loop_spec")]
-    if rc != 0 or len(thm) != 1:
-        raise Refused(
-            "spec", f"spec_connect.py --loops refuses: {(err or outp).strip()[-400:]}"
-        )
-    fid = thm[0].rsplit(".", 1)[1][: -len("_loop_spec")]
-    m = re.search(
-        rf"^def {re.escape(fid)}_spec : FnSpec := spec\.spec\.specs\[(\d+)\]",
-        (d / "LoopSpec.lean").read_text(),
-        re.MULTILINE,
-    )
-    if not m:
-        raise Refused(
-            "spec", "the bridge's module names no spec index for the loop function"
-        )
+        ]
+        for f in todo:
+            if f in whiles:
+                cmd += [
+                    "--while",
+                    f"{contract}.{f}={name}.Loops.{f}.Obl:Certified.{name}.Loops.{f}",
+                ]
+        (d / "LoopSpec.lean.receipt.json").unlink(missing_ok=True)
+        rc, outp, err = run(cmd, env=env)
+        thms = {
+            l.rsplit(".", 1)[1][: -len("_loop_spec")]: l
+            for l in outp.split()
+            if l.endswith("_loop_spec")
+        }
+        if rc == 0 and set(thms) == {sc.ident(f"{contract}.{f}") for f in todo}:
+            break
+        text = (err or outp).strip()
+        why = f"spec_connect.py --loops refuses: {text[-400:]}"
+        # The functions the bridge names: each refused one, or the one whose theorem fails.
+        named = [
+            f
+            for f in todo
+            if re.search(rf"^{re.escape(contract)}\.{re.escape(f)}: ", text, re.MULTILINE)
+            or re.search(
+                rf"REJECTED: spec: \S*\b{re.escape(sc.ident(contract + '.' + f))}_\w+ does not check",
+                text,
+            )
+        ]
+        if single or not named or len(named) == len(todo):
+            if single:
+                raise Refused("spec", why)
+            res.update({f: why for f in todo})
+            return res
+        for f in named:
+            m = re.search(rf"^{re.escape(contract)}\.{re.escape(f)}: (.*)$", text, re.MULTILINE)
+            res[f] = f"spec_connect.py --loops refuses: {(m.group(1) if m else text[-300:])}"
+        todo = [f for f in todo if f not in named]
+    spec_text = (d / "LoopSpec.lean").read_text()
     receipt = d / "LoopSpec.lean.receipt.json"
     why = receipt_problem(
         receipt,
@@ -860,18 +982,34 @@ def spec_step(
     )
     if why:
         raise Refused("receipt", why)
-    return {
-        "loop_spec": thm[0],
-        "index": int(m.group(1)),
-        "verify_sha256": vsha,
-        "receipt": json.loads(receipt.read_text()),
-    }
+    for f in todo:
+        fid = sc.ident(f"{contract}.{f}")
+        m = re.search(
+            rf"^def {re.escape(fid)}_spec : FnSpec := spec\.spec\.specs\[(\d+)\]",
+            spec_text,
+            re.MULTILINE,
+        )
+        if not m:
+            raise Refused(
+                "spec", f"the bridge's module names no spec index for {f}"
+            )
+        res[f] = {
+            "loop_spec": thms[fid],
+            "index": int(m.group(1)),
+            "verify_sha256": vsha,
+            "receipt": json.loads(receipt.read_text()),
+        }
+    return res[fnames[0]] if single else res
 
 
-def shape(name, contract, fname, sig, facts, spec=None, nonvac=False):
+def shape(
+    name, contract, fname, sig, facts, spec=None, nonvac=False, m=None, route="erasure"
+):
     """shape.json for final.py. SPEC: spec_step's record (the exported spec in the fixed frame), a
     refusal string (True, declared vacuous with the refusal) or None (no spec of the loop function).
-    NONVAC: True when NAME.LoopNonVac checked, else why there is no witness."""
+    NONVAC: True when NAME.LoopNonVac checked, else why there is no witness. M: the part's modules
+    (modules); ROUTE: the function's loop route."""
+    m = m or modules(name)
     pi, ex = facts["per_iteration_gas"], facts["exit_gas"]
     bounded = facts["bounded"]
     kt = "K" if bounded else str(facts["M"])
@@ -885,7 +1023,7 @@ def shape(name, contract, fname, sig, facts, spec=None, nonvac=False):
         "contract": contract_term(name, contract),
         "fuel": FUEL,
         "source_sem": SOURCE_SEM,
-        "valid": f"Certified.{name}.LoopValid.valid" + (" K" if bounded else ""),
+        "valid": f"Certified.{m['valid']}.valid" + (" K" if bounded else ""),
         "allowed": "fun _ _ => True",
         "post": "fun _ _ => True",
         "vacuity": (
@@ -896,9 +1034,9 @@ def shape(name, contract, fname, sig, facts, spec=None, nonvac=False):
         "gas": f"fun _ => {kt} * {pi} + {ex}",
         "env": [],
         "spec": "none proved: True, declared vacuous; the source's NatSpec is not bound by this statement",
-        "spec_modules": [f"{name}.Source", f"{name}.LoopValid"],
-        "proof_module": f"{name}.LoopJoin",
-        "proof": f"Certified.{name}.LoopJoin.join",
+        "spec_modules": [f"{name}.Source", m["valid"]],
+        "proof_module": m["join"],
+        "proof": f"Certified.{m['join']}.join",
         "export_ns": export_ns.of_run(name, contract),
         "excluded": [
             (
@@ -929,8 +1067,12 @@ def shape(name, contract, fname, sig, facts, spec=None, nonvac=False):
         },
         "loop": {
             "function": fname,
-            "join": JOIN_LEMMA,
-            "route": "erasure",
+            "join": {
+                "erasure": JOIN_LEMMA,
+                "erasure-inferred": JOIN_W,
+                "while-inferred": JOIN_WHILE,
+            }.get(route, JOIN_LEMMA),
+            "route": route,
             "E": facts["E"],
             "B": facts["B"],
             "X": facts["X"],
@@ -970,7 +1112,7 @@ def shape(name, contract, fname, sig, facts, spec=None, nonvac=False):
         ),
     ]
     if nonvac is True:
-        s["nonvacuous"] = f"Certified.{name}.LoopNonVac.post_rejects"
+        s["nonvacuous"] = f"Certified.{m['nonvac']}.post_rejects"
         s["allowed_vacuity"] = (
             f"{sig}'s exported spec has no @custom:succeeds-if (the loop bridge takes none), so "
             "every revert is an allowed status"
@@ -1025,57 +1167,153 @@ def write(
     record,
     *,
     contract,
-    sig,
-    sel,
-    params,
     gen_dir,
     plain,
     stages_text,
+    parts=None,
+    sig=None,
+    sel=None,
+    params=None,
     spec=None,
     nonvac=False,
 ):
-    """Write NAME.LoopResources, NAME.LoopValid, NAME.LoopJoin and NAME/shape.json under ROOT (the
-    Certified source directory) for the record's loop function; with SPEC (spec_step's record) also
-    NAME.LoopNonVac, which the join imports when NONVAC is True (shape's SPEC and NONVAC). Returns
-    (shape, files)."""
-    fname = loop_function(record)
-    route = loop_route(record, fname)
-    rtext, facts = resources(name, contract, gen_dir, plain, sel, len(params), params)
-    st = compose_of(stages_text, facts)
-    d = pathlib.Path(root) / name
-    d.mkdir(parents=True, exist_ok=True)
-    files = {
-        "LoopResources.lean": rtext,
-        "LoopValid.lean": valid_module(name, facts),
-        "LoopJoin.lean": join_module(
+    """Write the loop functions' modules and NAME/shape.json under ROOT (the Certified source
+    directory). PARTS: one {"fname", "sig", "sel", "params", "spec", "nonvac"} per loop function, in
+    the hook's order (without PARTS: the record's one loop function, with SIG, SEL, PARAMS, SPEC and
+    NONVAC). For one function: NAME.LoopResources, NAME.LoopValid, NAME.LoopJoin and, with a spec
+    (spec_step's record), NAME.LoopNonVac, which the join imports when its NONVAC is True; shape.json
+    is the single statement. For several: NAME.Loop.F.{Resources,Valid,Join,NonVac} for each F (its
+    resources restricted to the loop F's calls reach), NAME.LoopJoin importing every F's join, and
+    shape.json's parts, one conjunct per function with its own bound and valid calls (final.py's
+    parts). Returns (shape, files)."""
+    if parts is None:
+        parts = [
+            {
+                "fname": loop_function(record),
+                "sig": sig,
+                "sel": sel,
+                "params": params,
+                "spec": spec,
+                "nonvac": nonvac,
+            }
+        ]
+    multi = len(parts) > 1
+    root = pathlib.Path(root)
+    (root / name).mkdir(parents=True, exist_ok=True)
+    files, shapes = {}, []
+    for p in parts:
+        fname, psel, pparams, pspec = p["fname"], p["sel"], p["params"], p["spec"]
+        m = modules(name, fname if multi else None)
+        route = loop_route(record, fname)
+        rtext, facts = resources(
+            name,
+            contract,
+            gen_dir,
+            plain,
+            psel,
+            len(pparams),
+            pparams,
+            mod=m["resources"],
+            restrict=multi,
+        )
+        st = compose_of(stages_text, facts)
+        files[m["resources"]] = rtext
+        files[m["valid"]] = valid_module(name, facts, m["valid"])
+        files[m["join"]] = join_module(
             name,
             contract,
             fname,
-            sel,
-            len(params),
+            psel,
+            len(pparams),
             st,
             facts,
             route,
-            spec,
-            nonvac is True,
-        ),
-    }
-    if isinstance(spec, dict):
-        try:
-            files["LoopNonVac.lean"] = nonvac_module(
-                name, contract, sel, len(params), facts, spec["index"]
-            )
-        except Refused as e:
-            if nonvac is True:
-                raise
-            record.setdefault("loop_final_nonvac", e.why)
-    for f, t in files.items():
-        if not (d / f).is_file() or (d / f).read_text() != t:
-            (d / f).write_text(t)
-    sh = shape(name, contract, fname, sig, facts, spec, nonvac)
-    (d / "shape.json").write_text(json.dumps(sh, indent=2, ensure_ascii=False) + "\n")
-    out = [d / f for f in files] + [d / "shape.json"]
+            pspec,
+            p["nonvac"] is True,
+            m,
+        )
+        if isinstance(pspec, dict):
+            try:
+                files[m["nonvac"]] = nonvac_module(
+                    name, contract, psel, len(pparams), facts, pspec["index"], m
+                )
+            except Refused as e:
+                if p["nonvac"] is True:
+                    raise
+                if multi:
+                    record.setdefault("loop_final_nonvac", {})[fname] = e.why
+                else:
+                    record.setdefault("loop_final_nonvac", e.why)
+        shapes.append(
+            shape(name, contract, fname, p["sig"], facts, pspec, p["nonvac"], m, route)
+        )
+    if multi:
+        files[f"{name}.LoopJoin"] = parts_join_module(
+            name, contract, [modules(name, p["fname"])["join"] for p in parts]
+        )
+        sh = shape_parts(name, shapes)
+    else:
+        sh = shapes[0]
+    out = []
+    for mod, t in files.items():
+        f = module_file(root, mod)
+        f.parent.mkdir(parents=True, exist_ok=True)
+        if not f.is_file() or f.read_text() != t:
+            f.write_text(t)
+        out.append(f)
+    (root / name / "shape.json").write_text(
+        json.dumps(sh, indent=2, ensure_ascii=False) + "\n"
+    )
+    out.append(root / name / "shape.json")
     return sh, [{"path": str(p), "sha256": sha(p)} for p in out]
+
+
+def parts_join_module(name, contract, joins):
+    """NAME.LoopJoin of a contract with several loop functions: the proof module of the parts
+    statement, importing each function's join (each part's proof is its join's `join`)."""
+    imports = "".join(f"import {j}\n" for j in joins)
+    names = ", ".join(f"`Certified.{j}.join`" for j in joins)
+    return f"""{imports}
+-- Generated by solar's tools/certify/loop_final.py from this run's generated modules; do not edit.
+
+/-!
+# {contract}: the proof module of the published statement, one part per loop function
+
+The statement's parts are proved by {names}, each on its function's valid calls.
+-/
+"""
+
+
+def shape_parts(name, shapes):
+    """shape.json of a contract with several loop functions (final.py's parts): the checked source,
+    the statement's inputs and NAME.LoopJoin at the top level, and each function's single-statement
+    shape (SHAPES) as one part, with its own valid calls, bound, spec and proof."""
+    import final
+
+    top = {k: shapes[0][k] for k in ("kind", "contract", "fuel", "source_sem")}
+    # The run's export namespace (tools/certify/export_ns.py), which every part shares.
+    if "export_ns" in shapes[0]:
+        top["export_ns"] = shapes[0]["export_ns"]
+    mods, excl = [], []
+    for sh in shapes:
+        mods += [x for x in sh["spec_modules"] if x not in mods]
+        excl += [x for x in sh["excluded"] if x not in excl]
+    parts = []
+    for sh in shapes:
+        part = {"function": sh["loop"]["function"]}
+        part.update({k: sh[k] for k in final.PART_KEYS if k in sh and k != "function"})
+        parts.append(part)
+    top.update(
+        spec_modules=mods,
+        proof_module=f"{name}.LoopJoin",
+        excluded=excl,
+        spec="per function: "
+        + "; ".join(f"{sh['loop']['function']}: {sh['spec']}" for sh in shapes),
+        source_ast=shapes[0]["source_ast"],
+        loop={"functions": [sh["loop"] for sh in shapes]},
+        parts=parts,
+    )
+    return top
 
 
 def replay_closure(run, lean_dir, name, env):
@@ -1190,7 +1428,8 @@ def attach(
 ):
     """The loop branch of tools/certify/generic.py, after the loop cut hook (loop_cuts.hook) built the
     obligations in the run's clone LEAN_DIR: export this run's stages (solar -Zemit-lean-stages) and
-    their backend proofs (certify.py, through cut points), write the loop's modules and shape.json,
+    their backend proofs (certify.py, through cut points), write the modules of every loop function
+    (one part each when there are several) and shape.json,
     the published statement (final.py), build NAME.Final with lake and check it with check_final.lean
     and this run's bytes PLAIN (the fresh-byte gate). Records record["loop_final"]; returns [] when the
     final theorem checked, else the run's BLOCKED reason (a refusal names its step)."""
@@ -1201,22 +1440,32 @@ def attach(
     lean_dir = pathlib.Path(lean_dir)
     d = lean_dir / "Certified" / name
     try:
-        fname = loop_function(record)
+        fnames = loop_functions(record)
+        multi = len(fnames) > 1
         cdef = next(
             c
             for c in ast.get("nodes", [])
             if c.get("nodeType") == "ContractDefinition" and c.get("name") == contract
         )
-        fdef = next(
-            f
-            for f in cdef.get("nodes", [])
-            if f.get("nodeType") == "FunctionDefinition" and f.get("name") == fname
-        )
-        params = [
-            p["typeDescriptions"]["typeString"]
-            for p in fdef["parameters"]["parameters"]
-        ]
-        sel = int(fdef["functionSelector"], 16)
+        parts = []
+        for fname in fnames:
+            fdef = next(
+                f
+                for f in cdef.get("nodes", [])
+                if f.get("nodeType") == "FunctionDefinition" and f.get("name") == fname
+            )
+            params = [
+                p["typeDescriptions"]["typeString"]
+                for p in fdef["parameters"]["parameters"]
+            ]
+            parts.append(
+                {
+                    "fname": fname,
+                    "sig": f"{fname}({','.join(params)})",
+                    "sel": int(fdef["functionSelector"], 16),
+                    "params": params,
+                }
+            )
         tmp = pathlib.Path(work) / "loop-final"
         shutil.rmtree(tmp, ignore_errors=True)
         tmp.mkdir(parents=True)
@@ -1274,12 +1523,13 @@ def attach(
         # the final.
         verify, verify_pin = spec_exporter(run)
         try:
-            spec = spec_step(
+            specs = spec_step(
                 run=lambda c, cwd=None, env=None: run(c, cwd=cwd, env=env),
                 lean_dir=lean_dir,
                 name=name,
                 contract=contract,
-                fname=fname,
+                fnames=fnames,
+                whiles={f for f in fnames if loop_route(record, f) == "while-inferred"},
                 ast=ast,
                 src=src,
                 verify=verify,
@@ -1290,23 +1540,23 @@ def attach(
         except Refused as e:
             if e.step != "spec":
                 raise
-            spec = e.why
+            specs = {f: e.why for f in fnames}
+        for p in parts:
+            p["spec"], p["nonvac"] = specs[p["fname"]], False
         common = {
             "contract": contract,
-            "sig": f"{fname}({','.join(params)})",
-            "sel": sel,
-            "params": params,
             "gen_dir": g,
             "plain": plain,
             "stages_text": (d / "Proofs" / "Stages.lean").read_text(),
-            "spec": spec,
+            "parts": parts,
         }
-        nonvac = False
-        if isinstance(spec, dict):
-            write(lean_dir / "Certified", name, record, **common, nonvac=False)
-            why = build([f"{name}.LoopNonVac"])
-            nonvac = True if why is None else f"the witness does not check: {why}"
-        sh, files = write(lean_dir / "Certified", name, record, **common, nonvac=nonvac)
+        if any(isinstance(p["spec"], dict) for p in parts):
+            write(lean_dir / "Certified", name, record, **common)
+            for p in parts:
+                if isinstance(p["spec"], dict):
+                    why = build([modules(name, p["fname"] if multi else None)["nonvac"]])
+                    p["nonvac"] = True if why is None else f"the witness does not check: {why}"
+        sh, files = write(lean_dir / "Certified", name, record, **common)
         rc, out, err = run(
             [
                 sys.executable,
@@ -1358,7 +1608,7 @@ def attach(
         # bytes (the digest the run recorded, the file now and the copy the export read), of the
         # pinned exporter, and of the spec module as it is now.
         accepted = None
-        if isinstance(spec, dict):
+        if any(isinstance(p["spec"], dict) for p in parts):
             accepted = acceptance_problem(
                 record, src, lean_dir, name, contract, verify_pin["sha256"]
             )
@@ -1366,19 +1616,23 @@ def attach(
                 raise Refused("receipt", accepted)
             accepted = json.loads((d / "LoopSpec.lean.receipt.json").read_text())
         axioms = re.search(r"axioms \[([^\]]*)\]", out)
+        one = (lambda k: parts[0][k]) if not multi else (lambda k: {p["fname"]: p[k] for p in parts})
         record["loop_final"] = {
-            "function": fname,
-            "route": loop_route(record, fname),
-            "spec": spec,
+            "function": fnames[0],
+            "functions": fnames,
+            "route": loop_route(record, fnames[0])
+            if not multi
+            else {f: loop_route(record, f) for f in fnames},
+            "spec": one("spec"),
             "spec_exporter": verify_pin,
             "receipt": accepted,
             "replay": replayed,
-            "nonvacuous": nonvac,
+            "nonvacuous": one("nonvac"),
             "files": files,
             "final": json.loads((d / "final.json").read_text()),
             "axioms": axioms.group(1).split(", ") if axioms else None,
         }
-        log(f"loop final {fname}: Certified.{name}.Final.final checked")
+        log(f"loop final {', '.join(fnames)}: Certified.{name}.Final.final checked")
         return []
     except Refused as e:
         record["loop_final"] = {"refused": {"step": e.step, "why": e.why}}

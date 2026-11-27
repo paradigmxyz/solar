@@ -4908,6 +4908,7 @@ def loop_cuts(record, src, ast, a, work, name, src_sha):
         summary=loop_summaries(a.loop_summary or []).get,
         shape=refused.get,
         keep=keep_log,
+        heads_verify=lambda: lc.heads_exporter(tool(build_solar_verify)),
     )
     record["loop_heads"] = heads
     record["loop_cuts"] = cuts
@@ -4954,7 +4955,8 @@ def loop_final(record, reasons, src, ast, a, work, name):
     )
     if out:
         return reasons + out
-    fname = record["loop_final"]["function"]
+    fnames = record["loop_final"].get("functions") or [record["loop_final"]["function"]]
+    fname = ", ".join(fnames)
     # The envelope's reason names the function at the start of its detail (its where is a line);
     # the loop cut hook's names it in where.
     kept = [
@@ -4962,9 +4964,12 @@ def loop_final(record, reasons, src, ast, a, work, name):
         for r in reasons
         if not (
             r["feature"] == "loop"
-            and (
-                r.get("where") == fname
-                or r.get("detail", "").startswith(f"{fname}: a counted for loop")
+            and any(
+                r.get("where") == f
+                or r.get("detail", "").startswith(
+                    (f"{f}: a counted for loop", f"{f}: a while loop")
+                )
+                for f in fnames
             )
         )
     ]
@@ -4983,12 +4988,13 @@ def loop_final(record, reasons, src, ast, a, work, name):
         if fin.get("spec_bound_to_export")
         else "specification True (declared vacuous)"
     )
+    whose = "the loop functions'" if len(fnames) > 1 else "the loop function's"
     return kept + [
         {
             "feature": "loop",
             "where": fname,
             "detail": f"loop final checked (Certified.{name}.Final.final, record loop_final): runtime "
-            f"only, the loop function's calls only, {spec_s}",
+            f"only, {whose} calls only, {spec_s}",
         }
     ]
 

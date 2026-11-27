@@ -4,7 +4,12 @@ The offline tests run the generator on checked-in exports (Counter's and Bump's)
 it on the final EVM IR of solar's own exports (with SOLAR set), one per loop layout the generator
 covers (a counter word stepped up to zero with a calldata, storage or literal limit; the counter
 compared with its limit; a rotated loop whose body writes storage), and on hand-mutated copies: a
-body that steps the counter by two must be refused by name, and so must a nested loop. The Lean
+body that steps the counter by two must be refused by name, and so must a nested loop. A counter
+that steps down to zero (`while (a > 0) { a--; }`, the dec shape) runs on a checked-in export of
+Transfer and on solar's own exports with a calldata, storage or literal limit. A final EVM IR with
+two loops (Horn's two functions) is refused without a selector and taken one selector at a time
+with one (obligation's selector restriction); a selector that reaches no loop, and a module
+generated for one selector from the other selector's numbers, are refused. The Lean
 side (the generated module building, and refusing mutated modules for their proof reason) is
 tools/certify/loop_resources_check.sh.
 """
@@ -61,10 +66,21 @@ def export(src_text, tmp):
     return pathlib.Path(tmp) / "gen" / "C"
 
 
-def generate(gen, contract="C", sel=0xB20EB4C4, nargs=1):
+def plain_of(gen):
     bt = (gen / "Bytecode.lean").read_text()
-    plain = re.search(r'def bytecodeHex : String :=\n  "([0-9a-f]+)"', bt).group(1)
-    ob = loop_resources.obligation(gen, plain)
+    return re.search(r'def bytecodeHex : String :=\n  "([0-9a-f]+)"', bt).group(1)
+
+
+def generate(gen, contract="C", sel=0xB20EB4C4, nargs=1, restrict=False, ob=None):
+    """The generated module; RESTRICT computes the obligation for SEL's calls only, OB overrides
+    the obligation."""
+    plain = plain_of(gen)
+    if ob is None:
+        ob = (
+            loop_resources.obligation(gen, plain, sel=sel, nargs=nargs)
+            if restrict
+            else loop_resources.obligation(gen, plain)
+        )
     last = ob["final_evm_ir"]
     return loop_resources.generate(
         ns="T.LoopResources",
@@ -265,6 +281,136 @@ class Offline(unittest.TestCase):
         self.assertRegex(str(e.exception), "stepping the counter by one")
 
 
+TRANSFER_SEL = 0x12514BBA  # transfer(uint256)
+OK_TRANSFER, BAD_TRANSFER = 0xFD0011A5, 0x18A4B471  # Horn's ok_transfer, bad_transfer(uint256)
+
+
+class Dec(unittest.TestCase):
+    """The dec shape on a checked-in export of tools/certify/testdata/while_route/Transfer.sol
+    (`while (a > 0) { a--; b++; }`): its header tests word 1 and the body returns `w1 - 1`."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.gen = pathlib.Path(self.tmp) / "Transfer"
+        shutil.copytree(HERE / "testdata" / "loop_resources" / "Transfer", self.gen)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def test_transfer_generates(self):
+        text = generate(self.gen, "Transfer", sel=TRANSFER_SEL)
+        for want in (
+            "import Verify.Gas.FixedFuel.MeasuredDec\n",
+            "Header block 2 (depth 3; header word 1 steps by one down to zero), B = 2, X = 2, E = 1",
+            "refine Measured.loops_of (H := 2) (n := 3) Measured.always (MeasuredDec.dec 1)"
+            " (MeasuredDec.dec_lt 1)",
+            "have hk : ¬w1 = 0 := MeasuredDec.dec_ne (w := w1) hμ0",
+            "have hk : w1 = 0 := MeasuredDec.dec_zero (w := w1) hμ0",
+            "MeasuredDec.sub_one_lt hk",
+            "exact Measured.arg_le ha hK",
+            "∃ σ a0, a0 < 2 ^ 256 ∧ a0 ≤ K ∧ call =",
+            "theorem premises {K : Nat} (hK : K ≤ Kmax)",
+            "theorem resources_evmir",
+        ):
+            self.assertIn(want, text)
+        self.assertNotIn("sorry", text)
+        self.assertNotIn("native_decide", text)
+        self.assertNotIn("axiom ", text)
+
+    def test_step_by_two_is_refused(self):
+        # The body's decrement of the counter word (sub 1) becomes sub 2.
+        mutate(
+            self.gen,
+            "    [.op (.stack (.push 1)),\n     .op (.stack (.swap 0)),\n     .op (.stack (.swap 1)),\n"
+            "     .op (.stack .sub),",
+            "    [.op (.stack (.push 2)),\n     .op (.stack (.swap 0)),\n     .op (.stack (.swap 1)),\n"
+            "     .op (.stack .sub),",
+        )
+        with self.assertRaises(loop_resources.Unsupported) as e:
+            generate(self.gen, "Transfer", sel=TRANSFER_SEL)
+        self.assertRegex(str(e.exception), r"dec\(k=1.*stepping the counter down by one")
+
+    def test_restriction_keeps_the_numbers(self):
+        # One loop: the restriction to the loop's selector gives the unrestricted numbers.
+        plain = plain_of(self.gen)
+        ob = loop_resources.obligation(self.gen, plain)
+        rob = loop_resources.obligation(self.gen, plain, sel=TRANSFER_SEL, nargs=1)
+        self.assertEqual(rob.pop("selector"), "0x12514bba")
+        self.assertEqual(ob, rob)
+
+    def test_tests(self):
+        v, z = ("var", "w2"), loop_resources.lit(0)
+        self.assertEqual(loop_resources.dec_test(v), (2, True, "word"))
+        self.assertEqual(loop_resources.dec_test(("op", "iszero", v)), (2, False, "word"))
+        self.assertEqual(loop_resources.dec_test(("op", "gt", v, z)), (2, True, "pos"))
+        self.assertEqual(loop_resources.dec_test(("op", "lt", z, v)), (2, True, "pos"))
+        self.assertIsNone(loop_resources.dec_test(("op", "gt", z, v)))
+        self.assertIsNone(loop_resources.dec_test(("op", "lt", v, ("var", "w0"))))
+
+
+class Restrict(unittest.TestCase):
+    """A final EVM IR with two loops: a checked-in export of corpus/verify/horn.sol, whose two
+    functions each run the same count-down loop."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.gen = pathlib.Path(self.tmp) / "Horn"
+        shutil.copytree(HERE / "testdata" / "loop_resources" / "Horn", self.gen)
+        self.plain = plain_of(self.gen)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def test_two_loops_refused_without_selector(self):
+        with self.assertRaises(loop_resources.Unsupported) as e:
+            loop_resources.obligation(self.gen, self.plain)
+        self.assertRegex(str(e.exception), "has 2 loops")
+
+    def test_each_selector(self):
+        for sel, h, E in ((OK_TRANSFER, 2, 1), (BAD_TRANSFER, 6, 2)):
+            with self.subTest(sel=hex(sel)):
+                ob = loop_resources.obligation(self.gen, self.plain, sel=sel, nargs=1)
+                self.assertEqual(
+                    (ob["header"], ob["B"], ob["X"], ob["E"], ob["selector"]),
+                    (h, 2, 2, E, f"{sel:#010x}"),
+                )
+                text = generate(self.gen, "Horn", sel=sel, nargs=1, restrict=True)
+                for want in (
+                    f"Header block {h} (depth 3; header word 1 steps by one down to zero)",
+                    f"refine Measured.loops_of (H := {h}) (n := 3) Measured.always"
+                    " (MeasuredDec.dec 1)",
+                    f"Abi.calldata {sel} [a0]",
+                    "theorem premises {K : Nat} (hK : K ≤ Kmax)",
+                ):
+                    self.assertIn(want, text)
+                self.assertNotIn("sorry", text)
+
+    def test_selector_without_loop_refused(self):
+        with self.assertRaises(loop_resources.Unsupported) as e:
+            loop_resources.obligation(self.gen, self.plain, sel=0x12345678, nargs=1)
+        self.assertRegex(str(e.exception), "reach 0 loop headers")
+
+    def test_selector_needs_arity(self):
+        with self.assertRaises(loop_resources.Unsupported):
+            loop_resources.obligation(self.gen, self.plain, sel=OK_TRANSFER)
+
+    def test_other_selectors_numbers_refused(self):
+        # bad_transfer's numbers (header 6) for ok_transfer's calls: its entry never reaches
+        # header 6, so the generator refuses rather than proving a different loop.
+        ob = loop_resources.obligation(self.gen, self.plain, sel=BAD_TRANSFER, nargs=1)
+        with self.assertRaises(loop_resources.Unsupported):
+            generate(self.gen, "Horn", sel=OK_TRANSFER, nargs=1, ob=ob)
+
+    def test_counter_restriction_keeps_the_numbers(self):
+        gen = pathlib.Path(self.tmp) / "Counter"
+        shutil.copytree(HERE / "testdata" / "loop_resources" / "Counter", gen)
+        plain = plain_of(gen)
+        ob = loop_resources.obligation(gen, plain)
+        rob = loop_resources.obligation(gen, plain, sel=0xB20EB4C4, nargs=1)
+        rob.pop("selector")
+        self.assertEqual(ob, rob)
+
+
 @unittest.skipUnless(os.access(SOLAR, os.X_OK), "no solar binary (set SOLAR)")
 class Shapes(unittest.TestCase):
     def setUp(self):
@@ -355,6 +501,36 @@ class Shapes(unittest.TestCase):
             "uint256 public count;", "uint256 count;\n    uint256 other;"
         ).replace("count += 1;", "count++;\n            other++;")
         self.shape(src, ["(Measured.nonzero 0)", "sym_exec_st"])
+
+    def test_count_down_loop(self):
+        # `while (a > 0) { a--; b++; }` with the limit from calldata, storage or a literal.
+        src = """// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+contract C {
+    uint256 limit;
+    function f(uint256 n) external returns (uint256) {
+        uint256 a = n;
+        uint256 b = 0;
+        while (a > 0) { a--; b++; }
+        return b;
+    }
+}
+"""
+        common = ["(MeasuredDec.dec 1)", "MeasuredDec.sub_one_lt hk"]
+        self.shape(src, common + ["exact Measured.arg_le ha hK"], sel=0xB3DE648B)
+        nullary = src.replace("f(uint256 n)", "f()")
+        self.shape(
+            nullary.replace("= n;", "= limit;"),
+            common + ["SolarTV.slotValue σ 0 ≤ K", "exact hst"],
+            sel=0x26121FF0,
+            nargs=0,
+        )
+        self.shape(
+            nullary.replace("= n;", "= 10;"),
+            common + ["abbrev M : Nat := 10", "(10 : EvmRules.Word).toNat ≤ 10"],
+            sel=0x26121FF0,
+            nargs=0,
+        )
 
     def test_nested_loop_is_refused(self):
         tmp = tempfile.mkdtemp()

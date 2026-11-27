@@ -13,7 +13,10 @@ every case, and a step that fails leaves the function without a loop_cuts entry.
 
 1. exporter: `solar-verify SOURCE --emit-loop-heads WORK/loops/loop-heads.json`, with z3 from
    SOLAR_VERIFY_Z3, then `--check-loop-heads` on the file it wrote. The manifest is an untrusted
-   hint.
+   hint. The driver runs the pinned solar-verify (solar-verify.pin, heads_exporter), which writes
+   the heads of every function and each failing function's status and failures: a loop function
+   that solar-verify does not verify is blocked here on its own (failing_functions), and the
+   other functions go on.
 2. cut: loop_equiv.py writes the function's `Cut` from the manifest and the run's own
    `Stage0.lean`, exported by the run's solar with the run's options. The selector and argument
    count come from solc's AST of the source, never from the manifest. Exit 2 is a refusal.
@@ -260,6 +263,36 @@ def gen_result(out):
     return mods, measure, route
 
 
+def heads_exporter(verify):
+    """The solar-verify whose --emit-loop-heads writes the manifest, for the driver: the pinned one
+    (solar-verify.pin's binary, when it is the pinned SHA-256), which writes the heads of every
+    function it verified and reports each function that fails in the manifest (its status and
+    failures) rather than exiting 1; the run's VERIFY() when the pin is unusable, with which any
+    failing spec in the file stops step 1. The manifest is an untrusted hint either way
+    (loop_equiv.py reads only how many loops a function has)."""
+    try:
+        pin = json.loads((HERE / "solar-verify.pin").read_text())
+        exe = pathlib.Path(pin["binary"])
+        if exe.is_file() and hashlib.sha256(exe.read_bytes()).hexdigest() == pin["sha256"]:
+            return exe
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    return verify()
+
+
+def failing_functions(manifest):
+    """{function name: why} for the manifest's functions whose verification did not succeed (status
+    other than verified), with the failures solar-verify reported for each."""
+    out = {}
+    for f in manifest.get("functions", []):
+        if f.get("status") != "verified":
+            fails = "; ".join(str(x) for x in f.get("failures") or [])
+            out[f["function"].split(".")[-1]] = (
+                f"solar-verify reports {f.get('status')}" + (f": {fails}" if fails else "")
+            )
+    return out
+
+
 def exporter(run, verify, z3, src, out):
     """Step 1: the manifest, written and then re-derived by solar-verify."""
     if not z3:
@@ -452,9 +485,10 @@ def hook(
     summary=lambda fname: None,
     shape=lambda fname: None,
     keep=None,
+    heads_verify=None,
 ):
     """Steps 1 to 4 for every loop function of SRC. SOLAR and VERIFY return the run's solar and
-    solar-verify, STAGES(solar, tmp) exports the run's stages to tmp/gen, LEAN_DIR() returns the
+    solar-verify (HEADS_VERIFY, when given, the one step 1 runs: heads_exporter), STAGES(solar, tmp) exports the run's stages to tmp/gen, LEAN_DIR() returns the
     prepared clone and LAKE_ENV(clone) its build environment; each may raise Stop. Returns
     (loop_heads, loop_cuts, blocked): loop_cuts only for the functions every step completed for,
     blocked for the rest, keyed by function ("*" when no function was reached), each
@@ -469,9 +503,12 @@ def hook(
     heads_file = loops / "loop-heads.json"
     cuts, blocked, heads = {}, {}, None
     try:
-        manifest = exporter(run, verify(), z3, src, heads_file)
+        manifest = exporter(run, (heads_verify or verify)(), z3, src, heads_file)
         heads = dict(file_entry(heads_file), checked=True)
         names = loop_functions(manifest)
+        failing = failing_functions(manifest)
+        if failing:
+            heads["failing"] = failing
         if not names:
             raise Stop("exporter", "the manifest gives no function a loop")
     except Stop as s:
@@ -489,8 +526,14 @@ def hook(
     except OSError:
         src_bytes = b""
     stage0, clone = None, None
+    for fname, why in failing.items():
+        if fname not in names:
+            log(f"loop heads: {fname} (no loop): {why}")
     for fname in names:
         try:
+            if fname in failing:
+                # Each function's verification is reported on its own: one that fails blocks only itself.
+                raise Stop("exporter", failing[fname])
             if (why := shape(fname)) is not None:
                 raise Stop("shape", why)
             sel, nargs = abi(ast, contract, fname)

@@ -59,6 +59,7 @@ class Refusals(unittest.TestCase):
         )
 
     def test_functions(self):
+        # One loop function for the single statement; several take loop_functions and parts.
         rec = {"loop_cuts": {"a": {"route": "erasure"}, "b": {"route": "erasure"}}}
         self.refused("functions", loop_final.loop_function, rec)
         self.refused("functions", loop_final.loop_function, {"loop_cuts": {}})
@@ -500,6 +501,162 @@ class Exporter(unittest.TestCase):
             if r.returncode == 128:
                 self.skipTest("the pinned commit is not in this repository")
             self.assertEqual(r.returncode, 0, c)
+
+
+class SeveralLoops(unittest.TestCase):
+    """Several loop functions: one part each, and final.py's parts statement."""
+
+    def test_functions(self):
+        rec = {"loop_cuts": {"a": {"route": "erasure"}, "b": {"route": "while-inferred"}}}
+        self.assertEqual(loop_final.loop_functions(rec), ["a", "b"])
+        with self.assertRaises(loop_final.Refused) as c:
+            loop_final.loop_functions({"loop_cuts": {}})
+        self.assertEqual(c.exception.step, "functions")
+
+    def test_modules(self):
+        self.assertEqual(
+            loop_final.modules("n"),
+            {
+                "resources": "n.LoopResources",
+                "valid": "n.LoopValid",
+                "join": "n.LoopJoin",
+                "nonvac": "n.LoopNonVac",
+            },
+        )
+        m = loop_final.modules("n", "ok_transfer")
+        self.assertEqual(m["join"], "n.Loop.ok_transfer.Join")
+        self.assertEqual(
+            loop_final.module_file("/r", m["valid"]),
+            pathlib.Path("/r/n/Loop/ok_transfer/Valid.lean"),
+        )
+
+    def test_part_modules(self):
+        m = loop_final.modules("n", "a")
+        st = loop_final.compose_of(STAGES, facts())
+        j = loop_final.join_module("n", "C", "a", 1, 1, st, facts(), m=m)
+        self.assertIn("namespace Certified.n.Loop.a.Join", j)
+        self.assertIn("import n.Loop.a.Resources\nimport n.Loop.a.Valid\n", j)
+        self.assertIn("Certified.n.Loop.a.Resources.check_ok", j)
+        self.assertIn("(Certified.n.Loop.a.Valid.valid K)", j)
+        v = loop_final.valid_module("n", facts(), m["valid"])
+        self.assertIn("namespace Certified.n.Loop.a.Valid", v)
+
+    def test_shape_parts(self):
+        import final
+
+        shapes = []
+        for f, sp in (("a", {"loop_spec": "Certified.n.LoopSpec.a_loop_spec", "index": 0}), ("b", None)):
+            m = loop_final.modules("n", f)
+            shapes.append(
+                loop_final.shape("n", "C", f, f"{f}(uint256)", dict(facts(), E=2, B=2, X=3), sp, True, m)
+            )
+        sh = loop_final.shape_parts("n", shapes)
+        self.assertEqual(sh["proof_module"], "n.LoopJoin")
+        self.assertEqual([p["function"] for p in sh["parts"]], ["a", "b"])
+        self.assertEqual(sh["parts"][0]["proof"], "Certified.n.Loop.a.Join.join")
+        self.assertEqual(sh["parts"][0]["nonvacuous"], "Certified.n.Loop.a.NonVac.post_rejects")
+        self.assertIn("vacuity", sh["parts"][1])
+        self.assertIn("n.Loop.a.Valid", sh["spec_modules"])
+        self.assertIn("n.Loop.b.Valid", sh["spec_modules"])
+        for p in sh["parts"]:
+            self.assertTrue(set(p) <= set(final.PART_KEYS))
+        for k in final.PART_KEYS:
+            if k not in ("spec", "excluded"):
+                self.assertNotIn(k, sh)
+        # final.py states one conjunct per part, each with its own bound.
+        import subprocess
+        import tempfile
+
+        d = pathlib.Path(tempfile.mkdtemp())
+        (d / "shape.json").write_text(json.dumps(sh))
+        r = subprocess.run(
+            [sys.executable, str(loop_final.HERE / "final.py"), str(d / "shape.json"), "--name", "n",
+             "--contract", "C", "--hex", "6001", "--out", str(d / "F.lean"),
+             "--statement-out", str(d / "S.lean"), "--record", str(d / "r.json")],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        stmt = (d / "S.lean").read_text()
+        self.assertEqual(stmt.count("∀ (K : Nat), K ≤ 13042098468400 →"), 2)
+        self.assertIn("def NonVacuous_a (K : Nat) : Prop :=", stmt)
+        self.assertNotIn("NonVacuous_b", stmt)
+        self.assertIn("(Certified.n.Loop.b.Valid.valid K) (fun _ _ => True) (fun _ _ => True)", stmt)
+        fin = (d / "F.lean").read_text()
+        self.assertIn("fun K hK => ⟨(Certified.n.Loop.a.NonVac.post_rejects) hK, (Certified.n.Loop.a.Join.join) hK⟩", fin)
+        self.assertIn("fun K hK => (Certified.n.Loop.b.Join.join) hK", fin)
+        rec = json.loads((d / "r.json").read_text())
+        self.assertFalse(rec["strongest"])
+        self.assertEqual([p["function"] for p in rec["parts"]], ["a", "b"])
+
+    def test_parts_refusals(self):
+        import subprocess
+        import tempfile
+
+        base = {"kind": "certified", "contract": "M.c", "fuel": "1", "proof_module": "M.J",
+                "parts": [{"function": "a", "valid": "M.V.v", "allowed": "fun _ _ => True",
+                           "post": "fun _ _ => True", "vacuity": "none", "gas": "fun _ => 1",
+                           "proof": "M.J.a"}]}
+        bads = [
+            dict(base, valid="M.V.v"),
+            dict(base, parts=[]),
+            dict(base, parts=base["parts"] * 2),
+            dict(base, parts=[dict(base["parts"][0], pinned_bytes="M.b")]),
+            dict(base, pinned_bytes="M.b"),
+            dict(base, kind="open_functional"),
+        ]
+        for sh in bads:
+            d = pathlib.Path(tempfile.mkdtemp())
+            (d / "s.json").write_text(json.dumps(sh))
+            r = subprocess.run(
+                [sys.executable, str(loop_final.HERE / "final.py"), str(d / "s.json"), "--name", "n",
+                 "--contract", "C", "--hex", "6001", "--out", str(d / "F.lean"),
+                 "--statement-out", str(d / "S.lean")],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(r.returncode, 1, sh)
+            self.assertFalse((d / "S.lean").exists())
+
+
+class WhileSpec(unittest.TestCase):
+    """The while route with the exported spec: final_of_whileW_spec and the bridge's WhileSpec."""
+
+    def test_while_spec_join(self):
+        st = loop_final.compose_of(STAGES, facts())
+        spec = {"loop_spec": "Certified.n.LoopSpec.count_loop_spec", "index": 0}
+        j = loop_final.join_module("n", "C", "count", 1, 1, st, facts(), "while-inferred", spec, True)
+        self.assertIn(loop_final.JOIN_WHILE_SPEC, j)
+        self.assertIn(f"import {loop_final.WHILE_MODULE}\n", j)
+        self.assertIn(
+            "Certified.n.Loops.count.whileOf_eq\n      sigOf_eq Certified.n.Loops.count.src_seqs "
+            "Certified.n.Loops.count.src_valid Certified.n.Loops.count.leaves", j)
+        self.assertIn("(by rw [← core_eq]; exact Certified.n.LoopSpec.count_loop_spec)", j)
+        self.assertNotIn("erasedOf_eq", j)
+        self.assertIn("SolidCore.Spec.TreeLoop.certified_ctx0", j)
+
+    def test_bridge_block(self):
+        import spec_connect as sc
+
+        self.assertEqual(
+            sc.parse_while("while C.count 0 123 [256] 1 TREE .halt"),
+            (0, 123, "[256]", ".halt", 1),
+        )
+        self.assertEqual(sc.parse_while("while C.count nowhile"), ("nowhile", None, None, None, None))
+        self.assertEqual(
+            sc.while_specs(["C.count=n.Loops.count.Obl:Certified.n.Loops.count"]),
+            {"C.count": ("n.Loops.count.Obl", "Certified.n.Loops.count")},
+        )
+        out = "\n".join(
+            sc.while_block("count", "C.count", 0, 1, 123, "[256]", ".halt", "NS", "M", "M.exported",
+                           "u", False, False, "Certified.n.Loops.count")
+        )
+        self.assertIn("theorem count_tree_eq : Certified.n.Loops.count.Te = count_tree := rfl", out)
+        self.assertIn("Verify.LoopSource.Invariant.Final.whileSpecCheck NS.contract? 123 spec 0", out)
+        self.assertIn(
+            "theorem count_loop_spec : Verify.LoopSource.Invariant.Final.WhileSpec NS.contract? 123 1 [256] "
+            "Certified.n.Loops.count.Te spec := by", out)
+        self.assertIn("Verify.LoopSource.Invariant.Final.whileSpec_of_check (by decide) count_while_eq", out)
+        for bad in ("sorry", "native_decide", "axiom "):
+            self.assertNotIn(bad, out)
 
 
 if __name__ == "__main__":

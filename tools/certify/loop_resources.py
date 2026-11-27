@@ -36,13 +36,25 @@ loops `eraseLoopStmt` erases, each a guard `G` on header stacks and a measure `�
 * **rotated**: the test ends the body block, so the header is the body: `G` is `w ≠ 0`, every
   iteration returns with `w + 1` after testing it nonzero, and the entry tests `w` nonzero; `μ`
   as for down.
+* **dec** (a counter that steps down to zero, as `while (a > 0) { a--; ... }` gives): the header's
+  first branch tests one header word `w` (the word itself or `iszero w`, nonzero iterates, or
+  `0 < w`), every iteration returns with `w` replaced by `w - 1` (or `w + (2^256 - 1)`);
+  `μ = w` (Verify.Gas.FixedFuel.MeasuredDec.dec), `G` none. It is tried after down, whose test
+  is the same word.
 
 On every entry path the measure at the header is bounded by one limit: for down and rotated the
 counter enters as `0 - L` (or a literal), for up the compared word is `L` (or both are literals),
-with `L` a calldata argument, a storage word of the initial state, or a literal. Blocks may write
-memory and storage on any path: a storage read after a write in the same block is placed when both
-slots are literals and refused otherwise. Anything else is refused by name (`Unsupported`), never a
+for dec the counter enters as `L` itself (or a literal), with `L` a calldata argument, a storage
+word of the initial state, or a literal. Blocks may write memory and storage on any path: a
+storage read after a write in the same block is placed when both slots are literals and refused
+otherwise. Anything else is refused by name (`Unsupported`), never a
 weaker proof, and so is an exit alone that needs `2^64` gas.
+
+A final EVM IR with several loops (one per external function, say) is taken one selector at a
+time: `obligation(gen_dir, plain, sel, nargs)` computes the numbers over the part of the control
+flow that calls of that selector reach (`restricted_fuel`), and `generate` proves the one loop
+they reach. The restriction is untrusted: the module's every path is re-checked in Lean, so a wrong
+one is a refusal or a Lean failure, never a weaker statement.
 
 What it does not give: the source join. `resources_of_verdict` over the source semantics needs a
 stage from the source to the final EVM IR; the erasure join (`eraseLoop_certified_generated`) takes
@@ -485,11 +497,14 @@ class Tree:
 
 class Shape:
     """A guard and a measure of header stacks: KIND down (word K steps up to zero), up (word K
-    steps below word J) or rotated (down, with the guard that word K is nonzero). FIRST is the
-    header's first decision when the shape cases on it (down, up), else None."""
+    steps below word J), rotated (down, with the guard that word K is nonzero) or dec (word K
+    steps down to zero). FIRST is the header's first decision when the shape cases on it (down,
+    up, dec), else None; TAKEN whether its jump is taken when the loop iterates. FORM is dec's
+    test: "word" (`w` or `iszero w`: the iteration's hypothesis is `¬w = 0`) or "pos" (`0 < w`)."""
 
-    def __init__(self, kind, k, j=None, first=None):
+    def __init__(self, kind, k, j=None, first=None, taken=True, form=None):
         self.kind, self.k, self.j, self.first = kind, k, j, first
+        self.taken, self.form = taken, form
 
     def __repr__(self):
         return f"{self.kind}(k={self.k}, j={self.j})"
@@ -498,6 +513,8 @@ class Shape:
         return f"(Measured.nonzero {self.k})" if self.kind == "rotated" else "Measured.always"
 
     def measure(self):
+        if self.kind == "dec":
+            return f"(MeasuredDec.dec {self.k})", f"(MeasuredDec.dec_lt {self.k})"
         if self.kind == "up":
             return f"(Measured.up {self.k} {self.j})", f"(Measured.up_lt {self.k} {self.j})"
         return f"(Measured.down {self.k})", f"(Measured.down_lt {self.k})"
@@ -508,12 +525,20 @@ class Shape:
             return f"have hk : {w} < w{self.j} := Measured.upM_pos (i := {w}) (n := w{self.j}) hμ0"
         if self.kind == "rotated":
             return f"have hk : ¬{w} = 0 := hg"
+        if self.kind == "dec" and self.form == "pos":
+            return f"have hk : 0 < {w} := MeasuredDec.dec_pos (w := {w}) hμ0"
+        if self.kind == "dec":
+            return f"have hk : ¬{w} = 0 := MeasuredDec.dec_ne (w := {w}) hμ0"
         return f"have hk : ¬{w} = 0 := Measured.down_ne (w := {w}) hμ0"
 
     def done_have(self):
         w = f"w{self.k}"
         if self.kind == "up":
             return f"have hk : ¬{w} < w{self.j} := Measured.upM_zero (i := {w}) (n := w{self.j}) hμ0"
+        if self.kind == "dec" and self.form == "pos":
+            return f"have hk : ¬0 < {w} := MeasuredDec.dec_not_pos (w := {w}) hμ0"
+        if self.kind == "dec":
+            return f"have hk : {w} = 0 := MeasuredDec.dec_zero (w := {w}) hμ0"
         return f"have hk : {w} = 0 := Measured.down_zero (w := {w}) hμ0"
 
     def guard_proof(self, nst, hyps):
@@ -540,6 +565,17 @@ class Shape:
                 ("op", "add", lit(1), w): "Measured.upM_step hk",
                 ("op", "add", w, lit(1)): "Measured.upM_step' hk",
             }
+        elif self.kind == "dec":
+            ne = "(MeasuredDec.ne_of_pos hk)" if self.form == "pos" else "hk"
+            steps = {
+                ("op", "sub", w, lit(1)): f"MeasuredDec.sub_one_lt {ne}",
+                ("op", "add", w, lit(WORD - 1)): f"MeasuredDec.add_ones_lt {ne} (by decide)",
+                ("op", "add", lit(WORD - 1), w): f"MeasuredDec.add_ones_lt' {ne} (by decide)",
+            }
+            if nst[k] not in steps:
+                raise Unsupported(
+                    "an iteration returns to the header without stepping the counter down by one"
+                )
         else:
             steps = {
                 ("op", "add", lit(1), w): "Counted.meas_add_one hk",
@@ -560,6 +596,9 @@ def shapes_of(houts, n):
     if len(firsts) == 1 and c0 is not None:
         if c0[0] == "var":
             out.append(Shape("down", int(c0[1][1:]), first=c0))
+        dec = dec_test(c0)
+        if dec is not None:
+            out.append(Shape("dec", dec[0], first=c0, taken=dec[1], form=dec[2]))
         cmp = None
         if c0[0] == "op" and c0[1] == "lt":
             cmp = (c0[2], c0[3])
@@ -569,6 +608,21 @@ def shapes_of(houts, n):
             out.append(Shape("up", int(cmp[0][1][1:]), int(cmp[1][1][1:]), first=c0))
     out += [Shape("rotated", k) for k in range(n)]
     return out
+
+
+def dec_test(c):
+    """A header test of one word W for the dec shape: (W's index, whether the jump is taken when
+    the loop iterates, the form), or None. W itself and `iszero W` test it nonzero; `gt W 0`
+    and `lt 0 W` test `0 < W`."""
+    if c[0] == "var":
+        return int(c[1][1:]), True, "word"
+    if c[0] == "op" and c[1] == "iszero" and c[2][0] == "var":
+        return int(c[2][1][1:]), False, "word"
+    if c[0] == "op" and c[1] == "gt" and c[2][0] == "var" and c[3] == lit(0):
+        return int(c[2][1][1:]), True, "pos"
+    if c[0] == "op" and c[1] == "lt" and c[2] == lit(0) and c[3][0] == "var":
+        return int(c[3][1][1:]), True, "pos"
+    return None
 
 
 def limit_of(e, nargs, initial):
@@ -601,6 +655,16 @@ def entry_bound(shape, nst, nargs, initial):
             )
         return lim
     e = nst[shape.k]
+    if shape.kind == "dec":
+        v = evaluate(e, {})
+        if v is not None:
+            return ("const", v)
+        lim = limit_of(e, nargs, initial)
+        if lim is None:
+            raise Unsupported(
+                f"the loop's counter word enters the header as {render(e)}, not a call argument, an initial storage word or a literal"
+            )
+        return lim
     v = evaluate(e, {})
     if v is not None:
         return ("const", meas_val(v))
@@ -733,7 +797,7 @@ def emit(
         return f".here (.inl ⟨_, _, rfl, rfl, {shape.guard_proof(nst, hyps)}, {mp}⟩)"
 
     it = Tree(mod, H, {}, [], ".next", iter_leaf)
-    iter_lines = it.walk(H, W, "s", 0, (first, "hk", True) if first else None, 3)
+    iter_lines = it.walk(H, W, "s", 0, (first, "hk", shape.taken) if first else None, 3)
 
     # Exit: from the header with the guard and measure zero, a block that halts within X blocks.
     def done_leaf(kind, depth, _nst, app, _hyps):
@@ -748,7 +812,7 @@ def emit(
     else:
         dn = Tree(mod, H, {}, [], "ends_next", done_leaf)
         done_lines = [f"      {shape.done_have()}"] + dn.walk(
-            H, W, "s", 0, (first, "hk", False), 3
+            H, W, "s", 0, (first, "hk", not shape.taken), 3
         )
 
     # Entry: from the program's entry, within E blocks the header with the guard at a measure of
@@ -793,6 +857,11 @@ def emit(
     Mterm = "M" if lkind == "const" else "K"
 
     def mproof(nst):
+        if shape.kind == "dec":
+            if lkind == "const":
+                return f"(MeasuredDec.dec_le (by decide : ({render(nst[shape.k])} : EvmRules.Word).toNat ≤ {Mc}))"
+            lp = "Measured.arg_le ha hK" if lkind == "arg" else "hst"
+            return f"(by refine MeasuredDec.dec_le ?_; simp only [List.getD_cons_succ, List.getD_cons_zero]; exact {lp})"
         if lkind == "const":
             if shape.kind == "up":
                 return f"(by exact (by decide : Measured.upM ({render(nst[shape.k])}) ({render(nst[shape.j])}) ≤ {Mc}))"
@@ -938,6 +1007,7 @@ theorem joint {{K : Nat}} (hK : K ≤ {joint["bound"]}) :
 """
     imports = [
         "Verify.Gas.FixedFuel.Measured",
+        *(["Verify.Gas.FixedFuel.MeasuredDec"] if shape.kind == "dec" else []),
         "Verify.ShapeGeneric",
         "W1Proofs.Tactic",
         "SolarTV.Composition",
@@ -954,6 +1024,7 @@ theorem joint {{K : Nat}} (hK : K ≤ {joint["bound"]}) :
         "down": f"header word {shape.k} steps by one up to zero",
         "up": f"header word {shape.k} steps by one below header word {shape.j}",
         "rotated": f"rotated: header word {shape.k} is nonzero at the header and steps by one up to zero",
+        "dec": f"header word {shape.k} steps by one down to zero",
     }[shape.kind]
     body = f"""{"".join("import " + m + chr(10) for m in seen)}
 -- Generated by solar's tools/certify/loop_resources.py from this run's stage export
@@ -1077,9 +1148,83 @@ end {ns}
     return body
 
 
-def obligation(gen_dir, plain):
+def restricted_fuel(blocks, facts):
+    """fixed_fuel.fuel's numbers (M = 1) for the one loop that calls with FACTS (callvalue,
+    calldata size, selector) reach, over the part of the control flow they reach.
+
+    The entry is explored symbolically from block 0 as generate's scan does (a jumpi the facts
+    decide follows one branch) and stops at the first block inside a cycle of the control flow:
+    that block is the header, and every entry path must stop at the same one. The restricted
+    graph is the entry blocks visited, with the edges the exploration took, and everything the
+    header reaches, with all its edges; the loop is the header's strongly connected component,
+    entered only at the header. B, X and E are then fixed_fuel's, over that graph. Untrusted: the
+    generated module re-checks every path in Lean."""
+    succ = fixed_fuel.successors(blocks)
+    cyclic = set()
+    comps = fixed_fuel.sccs(succ)
+    for c in comps:
+        if len(c) > 1 or any(v in succ[v] for v in c):
+            cyclic |= c
+    if 0 in cyclic:
+        raise Unsupported("the program's entry block is inside a loop")
+    entry, edges, heads, seen = set(), set(), set(), set()
+
+    def explore(b, st, depth):
+        key = (b, repr(st))
+        if key in seen:
+            return
+        seen.add(key)
+        if depth > len(blocks):
+            raise Unsupported("an entry path of the restricted calls does not reach a loop")
+        entry.add(b)
+        for _ch, _js, end in outcomes(blocks[b], st, f"s{depth}", facts):
+            if end[0] == "halt":
+                continue
+            edges.add((b, end[1]))
+            if end[1] in cyclic:
+                heads.add(end[1])
+            else:
+                explore(end[1], end[2], depth + 1)
+
+    explore(0, [], 0)
+    if len(heads) != 1:
+        raise Unsupported(
+            f"calls of selector {facts.get('sel', 0):#x} reach {len(heads)} loop headers; "
+            "the restriction takes exactly one"
+        )
+    h = heads.pop()
+    comp = next(c for c in comps if h in c)
+    reach, todo = {h}, [h]
+    while todo:
+        for w in succ[todo.pop()]:
+            if w not in reach:
+                reach.add(w)
+                todo.append(w)
+    rsucc = [[] for _ in succ]
+    for u in reach:
+        rsucc[u] = list(succ[u])
+    for u, w in edges:
+        if w not in rsucc[u]:
+            rsucc[u].append(w)
+    rsucc = [sorted(ws) for ws in rsucc]
+    nodes = entry | reach
+    if any(w in comp and w != h for u in nodes - comp for w in rsucc[u]):
+        raise Unsupported("the restricted loop has more than one entry block")
+    inner = [[w for w in ws if not (w == h and u in comp)] for u, ws in enumerate(rsucc)]
+    latches = [u for u in comp if h in succ[u]]
+    body = fixed_fuel.longest(inner, h, lambda v: 1, nodes=comp)
+    B = max(body[u] for u in latches)
+    total = max(fixed_fuel.longest(inner, 0, lambda v: 1 + (B if v == h else 0)).values())
+    X = max(fixed_fuel.longest(inner, h, lambda v: 1).values())
+    return {"header": h, "B": B, "X": X, "E": total - B - X, "F": total}
+
+
+def obligation(gen_dir, plain, sel=None, nargs=None):
     """fixed_fuel's numbers for the export's one loop, with no iteration bound: the bound is the
-    valid calls' (K), so the verdict is proved for every K up to Kmax."""
+    valid calls' (K), so the verdict is proved for every K up to Kmax. With SEL (and NARGS, the
+    call's word arguments) the numbers are those of the one loop that calls of that selector
+    reach (restricted_fuel), so a final EVM IR with a loop per function is taken one function at
+    a time; without it the final EVM IR must have exactly one loop."""
     final = fixed_fuel.last_evm(gen_dir)
     text = final.read_text()
     outside = asm_cert.outside(text)
@@ -1088,7 +1233,12 @@ def obligation(gen_dir, plain):
             f"the final EVM IR is outside the loop checker's fragment: {outside}"
         )
     blocks = asm_cert.parse_program(text)
-    f = fixed_fuel.fuel(blocks, 1)
+    if sel is None:
+        f = fixed_fuel.fuel(blocks, 1)
+    else:
+        if nargs is None:
+            raise Unsupported("a selector restriction needs the call's argument count")
+        f = restricted_fuel(blocks, {"cv": 0, "cds": 4 + 32 * nargs, "sel": sel})
     inferred = fixed_fuel.infer(text, bytes.fromhex(plain))
     bmax = max(inferred["costs"]) if inferred["costs"] else 0
     words = inferred["top"] // 32
@@ -1101,6 +1251,7 @@ def obligation(gen_dir, plain):
         "memory": mem,
         "per_iteration_gas": fixed_fuel.ITEM * f["B"] * bmax,
         "exit_gas": fixed_fuel.ITEM * (f["E"] + f["X"]) * bmax + mem,
+        **({"selector": f"{sel:#010x}"} if sel is not None else {}),
     }
 
 

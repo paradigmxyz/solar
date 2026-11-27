@@ -92,6 +92,16 @@ shape.json keys (Lean terms without tactics or commands):
             NonVacuous takes V too, the statement is `∀ V, V ≤ N → NonVacuous V ∧ …` (non-vacuity
             at every bound, the bound 0 included), and nonvacuous is a term of type
             `∀ {V : Nat}, V ≤ N → NonVacuous V`
+  parts     (kinds certified, functional and compiled) a list of claims, one per function of a
+            contract with several loop functions: each part names its function (an identifier) and
+            carries the claim keys valid, allowed or allowed_export, post or spec_export, nonvacuous
+            or vacuity, allowed_vacuity, gas, iteration_bound, proof, spec and excluded, which the
+            top level then lacks (it keeps kind, contract, fuel, source_sem, spec_modules,
+            proof_module, spec and excluded). The statement binds the bytes once and is the
+            conjunction, in order, of the claim the single mode states for each part, each with its
+            own iteration bound and its own NonVacuous_FUNCTION; pinned_bytes, sem/prog, an open
+            world, env and the expected statement are refused with parts. The record adds parts (each
+            part's statuses) and is strongest only when every part is.
 The strongest status is reported only for kind "certified" with the specification from
 solar-verify's export (spec_export) and the non-vacuity witnesses (nonvacuous) in the statement.
 """
@@ -694,60 +704,38 @@ theorem {ns}.final : _root_.{ns}.Statement := by
     return stmt_text, final_text
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("shape")
-    ap.add_argument("--name", required=True)
-    ap.add_argument("--contract", required=True)
-    ap.add_argument("--hex", required=True)
-    ap.add_argument("--out", required=True)
-    ap.add_argument("--statement-out", required=True)
-    ap.add_argument("--record", help="write the statuses and statement here as JSON")
-    a = ap.parse_args()
-    shape = json.load(open(a.shape))  # noqa: SIM115
-    kind = shape.get("kind")
-    if kind not in ("certified", "functional", "compiled", "open_functional"):
-        fail(
-            "shape.json: kind must be certified, functional, compiled or open_functional"
-        )
-    opened = kind == "open_functional"
-    if opened and "sem" in shape:
-        fail(
-            "shape.json: kind open_functional states a checked source (contract and fuel)"
-        )
-    if not opened:
-        for k in ("env_ok", "wide", "admit"):
-            if k in shape:
-                fail(f"shape.json: {k} is for kind open_functional only")
-    allowed_vac = None
-    if not re.fullmatch(r"[0-9a-f]+", a.hex) or len(a.hex) % 2:
-        fail("--hex is not the lowercase hex of the bytecode")
-    for k in ("name", "contract"):
-        if not NAME.match(getattr(a, k)):
-            fail(f"--{k} is not a Lean name")
-    if "sem" in shape:
-        # A source below SolidCore (the first lowered MIR, for code no SolidCore stage reaches):
-        # the statement names its semantics and program; the frontend trust boundary moves there.
-        if "contract" in shape or "fuel" in shape:
-            fail("shape.json: sem/prog and contract/fuel exclude each other")
-        source = f"({expr(shape, 'sem')}) ({expr(shape, 'prog')})"
-        exists = ""
+def nonvac_text(ns, valid, post, allowed, allowed_vac, ib, nv_name="NonVacuous"):
+    """The definition of the statement's non-vacuity (kinds other than open_functional), named
+    NV_NAME, of the valid calls VALID, the postcondition POST and the allowed statuses ALLOWED (only
+    the specification's half when ALLOWED_VAC says why the allowed statuses reject nothing), taking
+    the iteration bound IB's variable when there is one."""
+    call_t, obs_t = "_root_.SolarTV.Call", "_root_.SolarTV.Observable"
+    nv_bind = f" ({ib[0]} : Nat)" if ib is not None else ""
+    nv_at = f" (at the iteration bound {ib[0]})" if ib is not None else ""
+    if allowed_vac is not None:
+        nonvac_def = f"""
+/-- The specification is not vacuous{nv_at}: some valid call has a result it rejects (the allowed
+statuses reject nothing: {allowed_vac}). -/
+def {nv_name}{nv_bind} : Prop :=
+  ∃ (call : {call_t}) (obs : {obs_t}), ({valid}) call ∧ ¬ ({post}) call obs
+"""
     else:
-        contract, fuel = expr(shape, "contract"), expr(shape, "fuel")
-        sem_fn = shape.get("source_sem", "SolidCore.Refinement.solidCore")
-        if not isinstance(sem_fn, str) or not NAME.match(sem_fn):
-            fail("shape.json: source_sem must be a Lean name")
-        source = f"({fuel}) c" if opened else f"(_root_.{sem_fn} ({fuel})) c"
-        exists = f"∃ c, {contract} = .ok c ∧\n      "
-    ctor_args, ctor_claim = ctor_binders(shape, kind)
-    if ctor_args is not None:
-        source = (
-            "(_root_.SolidCore.Refinement.solidCoreFromArgs _root_.SolidCore.Refinement.callerAddress "
-            f"({fuel}) [{', '.join(v for v, _ in ctor_args)}]) c"
-        )
-    valid = expr(shape, "valid")
-    ns = f"Certified.{a.name}.Final"
-    export_ns = f"Certified.{a.name}.gen.{a.contract}.Spec"
+        nonvac_def = f"""
+/-- The specification and the allowed statuses are not vacuous{nv_at}: some valid call has a result
+the specification rejects, and some valid call has a revert the allowed statuses reject. -/
+def {nv_name}{nv_bind} : Prop :=
+  (∃ (call : {call_t}) (obs : {obs_t}), ({valid}) call ∧ ¬ ({post}) call obs) ∧
+    (∃ (call : {call_t}) (obs : {obs_t}), ({valid}) call ∧ obs.success = false ∧
+      ¬ ({allowed}) call obs)
+"""
+    return nonvac_def
+
+
+def spec_of(shape, a, kind, opened, export_ns, valid):
+    """shape.json's specification keys, checked (kinds other than compiled): the allowed statuses and
+    the postcondition (or the export's), whether they are bound to solar-verify's export, the vacuity
+    or non-vacuity witness, the allowed statuses' vacuity and the shape's specification arguments."""
+    allowed_vac = None
     bound_spec, bound_allowed, vacuity, nonvac = False, False, None, None
     allowed = post = None
     if kind == "compiled":
@@ -858,6 +846,349 @@ def main():
                 f" ({expr(shape, 'env_ok')}) ({expr(shape, 'wide')}) ({expr(shape, 'admit')})"
                 f" ({valid}) ({allowed}) ({post})"
             )
+    return {
+        "allowed": allowed,
+        "post": post,
+        "bound_spec": bound_spec,
+        "bound_allowed": bound_allowed,
+        "vacuity": vacuity,
+        "nonvac": nonvac,
+        "allowed_vac": allowed_vac,
+        "spec_args": spec_args,
+    }
+
+# shape.json keys that state a single claim: with parts, each part states its own instead.
+PART_KEYS = (
+    "function",
+    "valid",
+    "allowed",
+    "allowed_export",
+    "post",
+    "spec_export",
+    "nonvacuous",
+    "vacuity",
+    "allowed_vacuity",
+    "gas",
+    "iteration_bound",
+    "proof",
+    "spec",
+    "excluded",
+)
+# What a parts statement does not take (at the top level or in a part): a pinned artifact, a source
+# below SolidCore, an open world, assumptions, or the expected statement.
+NOT_IN_PARTS = (
+    "pinned_bytes",
+    "pinned_module",
+    "sem",
+    "prog",
+    "env_ok",
+    "wide",
+    "admit",
+    "statement",
+    "ctor_args",
+    "ctor_returns",
+    "succeeds_witness",
+)
+
+
+def parts_mode(a, shape):
+    """shape.json with parts: a contract with several loop functions, each certified on its own valid
+    calls. The statement binds the bytes once (bound) and states, for each part in order, the claim
+    the single mode states for a shape with that part's keys: `∃ c, CONTRACT = .ok c ∧ SHAPE …` on
+    the part's valid calls, with the part's allowed statuses, postcondition (or the export's) and gas
+    bound, quantified over the part's own iteration bound and with the part's own NonVacuous
+    (`NonVacuous_FUNCTION`) when it has one. The top level names the kind, the checked source
+    (contract, fuel, source_sem), spec_modules and proof_module; every claim key belongs to a part
+    (PART_KEYS). Each part's proof is a term of the type the single mode asks for. Writes the same
+    two modules and record as main, with the record's statuses per part."""
+    kind = shape.get("kind")
+    if kind not in ("certified", "functional", "compiled"):
+        fail("shape.json: parts are for kinds certified, functional and compiled")
+    for k in [*PART_KEYS, *NOT_IN_PARTS]:
+        if k in shape and k not in ("spec", "excluded"):
+            fail(f"shape.json: with parts, {k} belongs to a part, or is not supported")
+    if shape.get("env"):
+        fail("shape.json: parts take no env assumptions")
+    if not re.fullmatch(r"[0-9a-f]+", a.hex) or len(a.hex) % 2:
+        fail("--hex is not the lowercase hex of the bytecode")
+    for k in ("name", "contract"):
+        if not NAME.match(getattr(a, k)):
+            fail(f"--{k} is not a Lean name")
+    parts = shape.get("parts")
+    if not (isinstance(parts, list) and parts and all(isinstance(p, dict) for p in parts)):
+        fail("shape.json: parts must be a non-empty list of objects")
+    fns = [p.get("function") for p in parts]
+    if any(not (isinstance(f, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", f)) for f in fns):
+        fail("shape.json: every part needs function, an identifier")
+    if len(set(fns)) != len(fns):
+        fail("shape.json: two parts name the same function")
+    contract, fuel = expr(shape, "contract"), expr(shape, "fuel")
+    sem_fn = shape.get("source_sem", "SolidCore.Refinement.solidCore")
+    if not isinstance(sem_fn, str) or not NAME.match(sem_fn):
+        fail("shape.json: source_sem must be a Lean name")
+    ns = f"Certified.{a.name}.Final"
+    export_ns = f"Certified.{a.name}.gen.{a.contract}.Spec"
+    spec_mods = shape.get("spec_modules", [])
+    proof_mod = shape.get("proof_module")
+    for m in spec_mods + [proof_mod]:
+        if not isinstance(m, str) or not NAME.match(m):
+            fail(f"shape.json: {m!r} is not a Lean name")
+    if proof_mod in spec_mods:
+        fail("shape.json: the proof module cannot define the statement's inputs")
+    if proof_mod in (f"{a.name}.Statement", f"{a.name}.Final"):
+        fail("shape.json: the proof module cannot be the statement or the final module")
+    shape_t = {
+        "certified": "_root_.SolidCore.Refinement.Shapes.Certified",
+        "functional": "_root_.SolidCore.Refinement.Shapes.Functional",
+        "compiled": "_root_.SolidCore.Refinement.Shapes.Compiled",
+    }[kind]
+    # The run's export namespace, as main reads it (shape.json's export_ns, else solar's default).
+    plain = re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", a.contract)
+    exported = (
+        shape.get("export_ns")
+        or f"SolarTV.Export.{a.contract if plain else f'«{a.contract}»'}"
+    )
+    if not isinstance(exported, str) or not NAME.match(
+        exported.replace("«", "").replace("»", "")
+    ):
+        fail("shape.json: export_ns is not a Lean name")
+    export = f"_root_.{exported}"
+    claims, terms, defs, recs = [], [], [], []
+    any_spec = any_allowed = False
+    for p, fn in zip(parts, fns):
+        for k in p:
+            if k not in PART_KEYS:
+                fail(f"shape.json: part {fn}: unknown key {k}")
+        valid = expr(p, "valid")
+        sp = spec_of(p, a, kind, False, export_ns, valid)
+        nonvac = sp["nonvac"]
+        _, ib = pinned_and_bound(p, kind, proof_mod, spec_mods, nonvac)
+        gas = f" ({expr(p, 'gas')})" if kind in ("certified", "compiled") else ""
+        proof = expr(p, "proof")
+        any_spec |= sp["bound_spec"]
+        any_allowed |= sp["bound_allowed"]
+        base = (
+            f"∃ c, {contract} = .ok c ∧\n      {shape_t} (_root_.{sem_fn} ({fuel})) c "
+            f"_root_.{ns}.code\n        ({valid}){sp['spec_args']}{gas}"
+        )
+        nv = f"NonVacuous_{fn}"
+        if nonvac is not None:
+            defs.append(
+                nonvac_text(ns, valid, sp["post"], sp["allowed"], sp["allowed_vac"], ib, nv)
+            )
+        if ib is not None:
+            v, n = ib
+            if nonvac is not None:
+                claim = f"∀ ({v} : Nat), {v} ≤ {n} →\n      (_root_.{ns}.{nv} {v} ∧ ({base}))"
+                term = f"fun {v} h{v} => ⟨({nonvac}) h{v}, ({proof}) h{v}⟩"
+            else:
+                claim = f"∀ ({v} : Nat), {v} ≤ {n} →\n      ({base})"
+                term = f"fun {v} h{v} => ({proof}) h{v}"
+        elif nonvac is not None:
+            claim = f"_root_.{ns}.{nv} ∧ ({base})"
+            term = f"⟨{nonvac}, {proof}⟩"
+        else:
+            claim, term = base, proof
+        claims.append(claim)
+        terms.append(term)
+        st = statuses(kind, p.get("spec"), sp["bound_spec"], sp["vacuity"])
+        if sp["allowed_vac"] is not None:
+            st["termination"] += f" (the allowed statuses reject nothing: {sp['allowed_vac']})"
+            st["vacuity"] += f"; the allowed statuses: none rejected ({sp['allowed_vac']})"
+        recs.append(
+            {
+                "function": fn,
+                "nonvacuous": f"{ns}.{nv}" if nonvac is not None else None,
+                "vacuity": sp["vacuity"],
+                "allowed_vacuity": sp["allowed_vac"],
+                "spec_bound_to_export": (
+                    f"{export_ns}.{a.contract}" if sp["bound_spec"] else None
+                ),
+                "allowed_bound_to_export": sp["bound_allowed"],
+                "spec": p.get("spec"),
+                "statuses": st,
+                "strongest": kind == "certified"
+                and sp["bound_spec"]
+                and sp["vacuity"] is None
+                and sp["allowed_vac"] is None,
+                "iteration_bound": {"var": ib[0], "max": ib[1]} if ib else None,
+                "excluded": p.get("excluded", []),
+            }
+        )
+    imports = [
+        "Verify.Shapes",
+        *(["Verify.ShapeGeneric"] if kind == "compiled" else []),
+        *(["Verify.ShapeBundle", f"{a.name}.gen.{a.contract}.Spec"] if any_spec else []),
+        *(["Verify.ShapeSpecExport"] if any_allowed else []),
+        f"{a.name}.gen.{a.contract}.Bytecode",
+        *spec_mods,
+    ]
+    lines = [f"import {m}" for m in dict.fromkeys(imports)]
+    byte_list = ",".join(
+        ("\n   " if i % 16 == 0 and i else "") + " " + hex(b)
+        for i, b in enumerate(bytes.fromhex(a.hex))
+    ).strip()
+    claim = " ∧\n    ".join(f"({c})" for c in claims)
+    named = ", ".join(f"`{f}`" for f in fns)
+    stmt_text = (
+        "\n".join(lines)
+        + f"""
+
+-- Generated by solar's tools/certify/final.py from {a.name}/shape.json and the bytecode the
+-- driver compiled in this run; do not edit. This module never imports the proof module.
+
+/-!
+# {a.contract}: the published statement
+
+`Statement` binds the exact runtime bytecode (`runtimeHex`, from the driver's own compile) and
+states {shape_t.replace("_root_.", "")} of it against the checked source, once for each of
+{named}, on that function's declared valid calls.
+-/
+
+namespace {ns}
+
+/-- The runtime bytecode the pinned solar emitted in this run, as hex (for the reader). -/
+def runtimeHex : String :=
+  "{a.hex}"
+
+/-- The same bytes, as numbers: what the statement binds. -/
+def runtimeBytes : List Nat :=
+  [{byte_list}]
+
+/-- The freshly exported bytecode the obligations speak of. -/
+def code : ByteArray := ⟨({export}.bytecode.map UInt8.ofNat).toArray⟩
+{"".join(defs)}
+/-- **The published statement.** -/
+def Statement : Prop :=
+  _root_.{ns}.code.data.toList.map (·.toNat) = _root_.{ns}.runtimeBytes ∧
+    ({claim})
+
+set_option maxRecDepth 100000 in
+theorem bound : _root_.{ns}.code.data.toList.map (·.toNat) = _root_.{ns}.runtimeBytes :=
+  @of_decide_eq_true _ (instDecidableEqList _ _) (by decide +kernel)
+
+end {ns}
+"""
+    )
+    final_text = f"""import {a.name}.Statement
+import {proof_mod}
+
+-- Generated by solar's tools/certify/final.py; do not edit. The statement is
+-- Certified.{a.name}.Final.Statement of {a.name}.Statement, which does not import the proof
+-- module; the driver's checker requires `final`'s type to be exactly that constant.
+
+theorem {ns}.final : _root_.{ns}.Statement :=
+  ⟨{", ".join([f"_root_.{ns}.bound", *terms])}⟩
+
+#print axioms {ns}.final
+"""
+    open(a.statement_out, "w").write(stmt_text)  # noqa: SIM115
+    open(a.out, "w").write(final_text)  # noqa: SIM115
+    stmt = " ".join(
+        stmt_text.split("def Statement : Prop :=", 1)[1]
+        .split("set_option maxRecDepth 100000 in\ntheorem ")[0]
+        .split()
+    )
+
+    def per(key):
+        vals = [r["statuses"][key] for r in recs]
+        if len(set(vals)) == 1:
+            return vals[0]
+        return "per function: " + "; ".join(f"{r['function']}: {v}" for r, v in zip(recs, vals))
+
+    def some(key):
+        vals = [(r["function"], r[key]) for r in recs if r[key] is not None]
+        return "; ".join(f"{f}: {v}" for f, v in vals) if vals else None
+
+    exported = [r["spec_bound_to_export"] for r in recs if r["spec_bound_to_export"]]
+    if a.record:
+        json.dump(
+            {
+                "module": f"{a.name}.Final",
+                "statement_module": f"{a.name}.Statement",
+                "theorem": f"{ns}.final",
+                "kind": kind,
+                "shape": shape_t.replace("_root_.", ""),
+                "statement": stmt,
+                "nonvacuous": some("nonvacuous"),
+                "vacuity": some("vacuity"),
+                "allowed_vacuity": some("allowed_vacuity"),
+                "spec_bound_to_export": exported[0] if exported else None,
+                "allowed_bound_to_export": any(r["allowed_bound_to_export"] for r in recs),
+                "assumptions": [],
+                "excluded": shape.get("excluded", []),
+                "spec": shape.get("spec"),
+                "statuses": {k: per(k) for k in recs[0]["statuses"]},
+                "strongest": all(r["strongest"] for r in recs),
+                "parts": recs,
+            },
+            open(a.record, "w"),  # noqa: SIM115
+            indent=2,
+            ensure_ascii=False,
+        )
+    print(f"{ns}.final")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("shape")
+    ap.add_argument("--name", required=True)
+    ap.add_argument("--contract", required=True)
+    ap.add_argument("--hex", required=True)
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--statement-out", required=True)
+    ap.add_argument("--record", help="write the statuses and statement here as JSON")
+    a = ap.parse_args()
+    shape = json.load(open(a.shape))  # noqa: SIM115
+    if "parts" in shape:
+        return parts_mode(a, shape)
+    kind = shape.get("kind")
+    if kind not in ("certified", "functional", "compiled", "open_functional"):
+        fail(
+            "shape.json: kind must be certified, functional, compiled or open_functional"
+        )
+    opened = kind == "open_functional"
+    if opened and "sem" in shape:
+        fail(
+            "shape.json: kind open_functional states a checked source (contract and fuel)"
+        )
+    if not opened:
+        for k in ("env_ok", "wide", "admit"):
+            if k in shape:
+                fail(f"shape.json: {k} is for kind open_functional only")
+    allowed_vac = None
+    if not re.fullmatch(r"[0-9a-f]+", a.hex) or len(a.hex) % 2:
+        fail("--hex is not the lowercase hex of the bytecode")
+    for k in ("name", "contract"):
+        if not NAME.match(getattr(a, k)):
+            fail(f"--{k} is not a Lean name")
+    if "sem" in shape:
+        # A source below SolidCore (the first lowered MIR, for code no SolidCore stage reaches):
+        # the statement names its semantics and program; the frontend trust boundary moves there.
+        if "contract" in shape or "fuel" in shape:
+            fail("shape.json: sem/prog and contract/fuel exclude each other")
+        source = f"({expr(shape, 'sem')}) ({expr(shape, 'prog')})"
+        exists = ""
+    else:
+        contract, fuel = expr(shape, "contract"), expr(shape, "fuel")
+        sem_fn = shape.get("source_sem", "SolidCore.Refinement.solidCore")
+        if not isinstance(sem_fn, str) or not NAME.match(sem_fn):
+            fail("shape.json: source_sem must be a Lean name")
+        source = f"({fuel}) c" if opened else f"(_root_.{sem_fn} ({fuel})) c"
+        exists = f"∃ c, {contract} = .ok c ∧\n      "
+    ctor_args, ctor_claim = ctor_binders(shape, kind)
+    if ctor_args is not None:
+        source = (
+            "(_root_.SolidCore.Refinement.solidCoreFromArgs _root_.SolidCore.Refinement.callerAddress "
+            f"({fuel}) [{', '.join(v for v, _ in ctor_args)}]) c"
+        )
+    valid = expr(shape, "valid")
+    ns = f"Certified.{a.name}.Final"
+    export_ns = f"Certified.{a.name}.gen.{a.contract}.Spec"
+    sp = spec_of(shape, a, kind, opened, export_ns, valid)
+    allowed, post, spec_args = sp["allowed"], sp["post"], sp["spec_args"]
+    bound_spec, bound_allowed = sp["bound_spec"], sp["bound_allowed"]
+    vacuity, nonvac, allowed_vac = sp["vacuity"], sp["nonvac"], sp["allowed_vac"]
     env = shape.get("env", [])
     if not isinstance(env, list):
         fail("shape.json: env must be a list")
@@ -931,24 +1262,7 @@ def NonVacuous : Prop :=
 """
         nonvac_conj = f"_root_.{ns}.NonVacuous ∧\n    "
     elif nonvac is not None:
-        nv_bind = f" ({ib[0]} : Nat)" if ib is not None else ""
-        nv_at = f" (at the iteration bound {ib[0]})" if ib is not None else ""
-        if allowed_vac is not None:
-            nonvac_def = f"""
-/-- The specification is not vacuous{nv_at}: some valid call has a result it rejects (the allowed
-statuses reject nothing: {allowed_vac}). -/
-def NonVacuous{nv_bind} : Prop :=
-  ∃ (call : {call_t}) (obs : {obs_t}), ({valid}) call ∧ ¬ ({post}) call obs
-"""
-        else:
-            nonvac_def = f"""
-/-- The specification and the allowed statuses are not vacuous{nv_at}: some valid call has a result
-the specification rejects, and some valid call has a revert the allowed statuses reject. -/
-def NonVacuous{nv_bind} : Prop :=
-  (∃ (call : {call_t}) (obs : {obs_t}), ({valid}) call ∧ ¬ ({post}) call obs) ∧
-    (∃ (call : {call_t}) (obs : {obs_t}), ({valid}) call ∧ obs.success = false ∧
-      ¬ ({allowed}) call obs)
-"""
+        nonvac_def = nonvac_text(ns, valid, post, allowed, allowed_vac, ib)
         nonvac_conj = f"_root_.{ns}.NonVacuous ∧\n    "
     stmt_text = (
         "\n".join(lines)

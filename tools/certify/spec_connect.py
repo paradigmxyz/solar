@@ -41,6 +41,18 @@ runtime-only and in the fixed frame (sender 0x2000, value 0, timestamp 1, self 0
 loop function with succeeds-if conditions, mapping reads, more than eight parameters or under
 --any-caller is refused.
 
+With --loops --while NAME=MODULE:NS, the spec function NAME, whose loop is a `while` loop, is
+connected through the while route instead (Verify/LoopSource/Invariant/Final.lean): MODULE is the
+driver's obligation module (loop_cuts.py step 3w, GenWhile's emit) whose namespace NS defines the
+loop data `wd` and the erased tree `Te` (its `whileOf_eq` binds them to `eraseWhile` of the function).
+The probe computes `Final.whileOf` with `NS.wd` on the core module's contract, and the module states
+`F_tree` (that tree), `F_tree_eq` (`NS.Te = F_tree`, by `rfl`), `F_while_eq` (`kernel_rfl` of
+`Final.whileSpecCheck`: the bundle is the contract's export with F's spec, the only one of F's
+selector, at F's index), `F_meets` and `F_loop_spec` (`Final.WhileSpec` of the bundle on `NS.Te`, by
+`whileSpec_of_check`): the spec premise of `Final.final_of_whileW_spec`. The refusals are the loop
+route's (succeeds-if conditions, mappings, more than eight parameters, --any-caller), and a function
+whose while erasure with that data gives no tree.
+
 With --loops the bundle must be the export of the core module's contract (`provenance_refusal`):
 the bundle is named for the contract, the export's manifest names the file whose
 `importedSourceName` the core module's imports define, and that file's SHA-256 is the manifest's.
@@ -74,6 +86,7 @@ never written as passing.
 """
 
 import argparse
+import json
 import pathlib
 import re
 import shlex
@@ -137,6 +150,34 @@ LOOP_REFUSAL = {
     "nowidths": "outside the generic source stage, and the loop route needs uint or address arguments (widthsOf)",
     "returns": "outside the generic source stage, and the loop route needs word returns (wordBinding)",
     "noloop": "outside the generic source stage and the loop erasure (eraseLoopStmt: not one counted loop)",
+}
+
+# --loops --while NAME=MODULE:NS: for a function whose loop is a while loop, the tree of its while
+# erasure with the loop data the driver's obligation module proposed (`NS.wd`; the module's
+# `whileOf_eq` binds it to `eraseWhile`), as `Verify.LoopSource.Invariant.Final.whileOf` computes it,
+# with the function's argument widths and arity.
+PROBE_WHILE = """    for fs in ({bundle}).spec.specs do
+      if fs.name == {name} then
+        match c.core.findFunctionBySelector? fs.selector with
+        | none => IO.println s!"SPEC_CONNECT while {{fs.name}} none"
+        | some f =>
+          match widthsOf f.params f.paramAbiCleanups with
+          | none => IO.println s!"SPEC_CONNECT while {{fs.name}} nowidths"
+          | some ws =>
+            if f.returns.all wordBinding then
+              match Verify.LoopSource.Invariant.Final.whileOf {ns}.contract? fs.selector {ns}.fuel {wns}.wd with
+              | none => IO.println s!"SPEC_CONNECT while {{fs.name}} nowhile"
+              | some (n, _, t) =>
+                IO.println s!"SPEC_CONNECT while {{fs.name}} {{fs.succeedsIf.length}} {{fs.selector}} {{repr ws}} {{n}} TREE {{(repr t).pretty 100000}}"
+            else IO.println s!"SPEC_CONNECT while {{fs.name}} returns"
+"""
+
+# Why the while erasure gives no tree, by the probe's word.
+WHILE_REFUSAL = {
+    "none": "no function of its selector",
+    "nowidths": "outside the generic source stage, and the while route needs uint or address arguments (widthsOf)",
+    "returns": "outside the generic source stage, and the while route needs word returns (wordBinding)",
+    "nowhile": "outside the generic source stage, and the while erasure with the obligation module's loop data gives no tree (whileOf)",
 }
 
 # --any-caller: the erasure with `msg.sender` the symbolic word (`eraseFnSym`, the stage for
@@ -505,6 +546,33 @@ def parse_loop(line):
     if not m:
         sys.exit(f"spec_connect: unreadable probe line: {line[:200]}")
     return m.group(1), None, None, None
+
+
+def parse_while(line):
+    """A probe line `while NAME NSI SEL [w, ...] N TREE t` as (nsi, sel, widths, tree, n), or
+    `while NAME WHY` as (WHY, None, None, None, None)."""
+    m = re.fullmatch(r"while \S+ (\d+) (\d+) (\[[^\]]*\]) (\d+) TREE (.*)", line, re.DOTALL)
+    if m:
+        return int(m.group(1)), int(m.group(2)), m.group(3), m.group(5), int(m.group(4))
+    m = re.fullmatch(r"while \S+ (\w+)", line)
+    if not m:
+        sys.exit(f"spec_connect: unreadable probe line: {line[:200]}")
+    return m.group(1), None, None, None, None
+
+
+def while_specs(values):
+    """--while NAME=MODULE:NS values as {NAME: (MODULE, NS)}: the obligation module whose namespace
+    NS defines the loop data `wd` and the erased tree `Te` of the while route (loop_cuts.py step 3w)."""
+    out = {}
+    pat = re.compile(r"([A-Za-z_][\w.]*)=([A-Za-z_][\w.']*):([A-Za-z_][\w.']*)")
+    for v in values:
+        m = pat.fullmatch(v)
+        if not m:
+            sys.exit(f"spec_connect: --while takes NAME=MODULE:NAMESPACE, not {v!r}")
+        if m.group(1) in out:
+            sys.exit(f"spec_connect: --while names {m.group(1)} twice")
+        out[m.group(1)] = (m.group(2), m.group(3))
+    return out
 
 
 def loop_refusal(loop, n, spec_slots, args):
@@ -1010,6 +1078,62 @@ def loop_block(
     ]
 
 
+def while_block(
+    fid, name, i, n, sel, ws, tree, ns, mod, bundle, usings, ghost_fixed, tree_only, wns
+):
+    """--loops --while: `fid`'s while erasure's tree, its tie to the obligation module `wns`'s tree,
+    the kernel's check of the export's names, `fid`'s spec on the tree and the while route's spec
+    premises (`Verify.LoopSource.Invariant.Final.WhileSpec`, by `whileSpec_of_check`)."""
+    F = "Verify.LoopSource.Invariant.Final"
+    meets = "TreeMeetsFixed" if ghost_fixed else "TreeMeets"
+    tactic = "tree_meets_fixed" if ghost_fixed else "tree_meets"
+    of_check = "whileSpec_of_check_fixed" if ghost_fixed else "whileSpec_of_check"
+    out = [
+        f"/-- The while erasure's tree of `{name}` (`eraseWhile` with the loop data `{wns}.wd`, then",
+        "`brTree`): the generic stage does not erase it. -/",
+        f"def {fid}_tree : Tree :=",
+        f"  {tree}",
+        "",
+        f"/-- The obligation module's erased tree is the tree above: `{wns}.whileOf_eq` binds it to the",
+        f"while erasure of SolidCore's function of {sel}. -/",
+        f"theorem {fid}_tree_eq : {wns}.Te = {fid}_tree := rfl",
+        "",
+        f"/-- `spec` is the contract's export with `{name}`'s spec at index {i}, the only spec of its",
+        "selector (`spec` is `exported`, this run's export of the source bytes: `spec_is_fresh`). -/",
+        f"def {fid}_while? : Bool :=",
+        f"  {F}.whileSpecCheck {ns}.contract? {sel} spec {i}",
+        "",
+        f"kernel_rfl {fid}_while_eq {fid}_while? true using {usings}",
+        "",
+        f"/-- `{name}`'s exported spec. -/",
+        f"def {fid}_spec : FnSpec := spec.spec.specs[{i}]'(by decide)",
+        "",
+    ]
+    if tree_only:
+        return out
+    return out + [
+        f"/-- `{name}`'s spec holds of its while erasure's tree. -/",
+        f"theorem {fid}_meets : {meets} spec {fid}_spec ctx {n} {fid}_tree := by",
+        f"  {tactic} [{fid}_tree, {fid}_spec, {mod}.spec, {bundle}, {mod}.ctx, UnOp.eval]",
+        "",
+        f"/-- **`{name}`'s spec premises of the while route** (`{F}.final_of_whileW_spec`): the",
+        "exported spec's allowed statuses and postcondition (`Shapes.ctxOfCall`, `Shapes.idStep`: sender",
+        "0x2000, value 0, timestamp 1, self 0x1000) on the obligation module's erased tree, for the",
+        f"function of {n} parameters, and `spec` the contract's export (`ExportedFor`), whose contents are",
+        "this run's export of the source bytes (`spec := exported`, `spec_is_fresh`). -/",
+        f"theorem {fid}_loop_spec : {F}.WhileSpec {ns}.contract? {sel} {n} {ws} {wns}.Te spec := by",
+        f"  rw [{fid}_tree_eq]",
+        f"  exact {F}.{of_check} (by decide) {fid}_while_eq",
+        f"    (TreeLoop.meets_of_index (P := fun fs => {meets} spec fs TreeLoop.ctx0 {n} {fid}_tree) {i}",
+        "      (by decide) (by decide) {fid}_meets)".replace("{fid}", fid),
+        "",
+        f"/-- info: '{mod}.{fid}_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/",
+        "#guard_msgs in",
+        f"#print axioms {fid}_loop_spec",
+        "",
+    ]
+
+
 def from_block(
     fid, name, n, nsi, ns, mod, bundle, ws, usings, payable=False, tree_only=False
 ):
@@ -1348,6 +1472,15 @@ def main():
         "(eraseLoopStmt) and the loop route's premises (_loop_spec, Verify/Spec/TreeLoopCheck.lean)",
     )
     ap.add_argument(
+        "--while",
+        dest="whiles",
+        action="append",
+        default=[],
+        help="with --loops: NAME=MODULE:NAMESPACE (repeatable): connect the spec function NAME, whose "
+        "loop is a while loop, through the while route (the obligation module MODULE, whose namespace "
+        "defines the loop data wd and the erased tree Te; _loop_spec is Invariant.Final.WhileSpec)",
+    )
+    ap.add_argument(
         "--solar-verify",
         default=None,
         help="with --loops: the solar-verify that exports the source's specs in this run "
@@ -1372,12 +1505,21 @@ def main():
     )
     args = ap.parse_args()
     only = {x for x in args.only.split(",") if x}
+    whiles = while_specs(args.whiles)
+    if whiles and not args.loops:
+        sys.exit("spec_connect: --while needs --loops")
 
     sym = (
         PROBE_SYM.format(ns=args.namespace, bundle=args.bundle)
         if args.any_caller
         else ""
     ) + (PROBE_LOOP.format(ns=args.namespace, bundle=args.bundle) if args.loops else "")
+    sym += "".join(
+        PROBE_WHILE.format(
+            ns=args.namespace, bundle=args.bundle, name=json.dumps(name), wns=wns
+        )
+        for name, (_, wns) in whiles.items()
+    )
 
     probe = PROBE.format(
         core=args.core_module,
@@ -1388,7 +1530,9 @@ def main():
         sym_import=(
             "import SolidCore.Refinement.Generic.StageFrom\n" if args.any_caller else ""
         )
-        + ("import Verify.LoopSource.Proof.EraseLoop\n" if args.loops else ""),
+        + ("import Verify.LoopSource.Proof.EraseLoop\n" if args.loops else "")
+        + ("import Verify.LoopSource.Invariant.Final\n" if whiles else "")
+        + "".join(f"import {m}\n" for m in dict.fromkeys(m for m, _ in whiles.values())),
     )
     with tempfile.NamedTemporaryFile(
         "w", suffix=".lean", dir=args.cwd, delete=False
@@ -1492,9 +1636,17 @@ def main():
     loops = {}
     for line in [x for x in lines[1:] if x.startswith("loop ")]:
         loops[line.split(" ", 2)[1]] = parse_loop(line)
+    whiled = {}
+    for line in [x for x in lines[1:] if x.startswith("while ")]:
+        whiled[line.split(" ", 2)[1]] = parse_while(line)
     lines = [lines[0]] + [
-        x for x in lines[1:] if not x.startswith("sym ") and not x.startswith("loop ")
+        x
+        for x in lines[1:]
+        if not x.startswith("sym ")
+        and not x.startswith("loop ")
+        and not x.startswith("while ")
     ]
+    while_fids = {}
     fns, refused = [], []
     dups = duplicate_names(lines[1:]) if args.loops else []
     for name in dups:
@@ -1513,6 +1665,29 @@ def main():
         if parts[3] == "noerase":
             if not args.loops:
                 refused.append(f"{name}: outside the generic source stage")
+                continue
+            if name in whiles:
+                # The while route: the obligation module's loop data, not eraseLoopStmt.
+                w = whiled.get(name)
+                if w is None:
+                    refused.append(f"{name}: the probe printed no while erasure")
+                    continue
+                if w[1] is None:
+                    refused.append(f"{name}: {WHILE_REFUSAL.get(w[0], w[0])}")
+                    continue
+                if w[4] != int(parts[2]):
+                    refused.append(
+                        f"{name}: the while erasure's arity {w[4]} is not the function's {parts[2]}"
+                    )
+                    continue
+                why = loop_refusal(w[:4], int(parts[2]), spec_slots, args)
+                if why:
+                    refused.append(f"{name}: {why.replace('loop bridge', 'while bridge')}")
+                    continue
+                fns.append(
+                    (k, name, ident(name), int(parts[2]), w[1], w[3], ([], []), 0, w[2])
+                )
+                while_fids[ident(name)] = whiles[name][1]
                 continue
             why = loop_refusal(loops.get(name), int(parts[2]), spec_slots, args)
             if why:
@@ -1551,6 +1726,13 @@ def main():
                 refused.append(f"{name}: {why}")
                 continue
         fns.append((k, name, ident(name), n, sel, tree, slots, nsi, None))
+    for name in whiles:
+        if (not only or name in only) and ident(name) not in while_fids and not any(
+            r.startswith(f"{name}: ") for r in refused
+        ):
+            refused.append(
+                f"{name}: --while names a function the export has no spec of, or one the generic stage erases"
+            )
     if refused:
         sys.exit("spec_connect: refused (unproved):\n" + "\n".join(refused))
 
@@ -1582,6 +1764,12 @@ def main():
             "import Verify.Spec.TreeSucceeds",
             "import Verify.Spec.TreeSucceedsTry",
             *(["import Verify.Spec.TreeLoopCheck"] if any(x[8] for x in fns) else []),
+            *(["import Verify.LoopSource.Invariant.Final"] if while_fids else []),
+            *[
+                f"import {whiles[x[1]][0]}"
+                for x in fns
+                if x[2] in while_fids
+            ],
             "import Verify.VC.KernelIdx",
             "import SolidCore.Refinement.KernelRfl",
             *(["import SolidCore.Solidity.Checked"] if source_def is not None else []),
@@ -1719,6 +1907,24 @@ def main():
         holds = "holdsFn_of_tree_fixed" if args.ghost_fixed else "holdsFn_of_tree"
         hstep = " hstep" if args.ghost_fixed else ""
         for i, name, fid, n, sel, tree, slots, nsi, ws in fns:
+            if fid in while_fids:
+                out += while_block(
+                    fid,
+                    name,
+                    i,
+                    n,
+                    sel,
+                    ws,
+                    tree,
+                    ns,
+                    args.module_name,
+                    bundle_ref,
+                    usings,
+                    args.ghost_fixed,
+                    args.tree_only,
+                    while_fids[fid],
+                )
+                continue
             if ws is not None:
                 out += loop_block(
                     fid,
