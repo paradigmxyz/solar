@@ -19,7 +19,7 @@ ZKsync paths. The focused runtime suites compile only the selected test or produ
 and its imports.
 
 The test-bearing archives are Forge Std, Morpho Blue, OpenZeppelin, PRBMath, Seaport, Solady,
-Solarray, Solmate, Tempo Earn, Tempo Zones, and v4-core. The runtime suite currently exercises OpenZeppelin
+Solarray, Solmate, Tempo Zones, and v4-core. The runtime suite currently exercises OpenZeppelin
 and Solady test entrypoints; the other test trees remain whole-project inputs in the `projects` suite.
 
 Runtime workload definitions and upstream revisions are documented in

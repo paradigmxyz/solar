@@ -106,8 +106,8 @@ other case, omit CBOR metadata.
 `tempo-channel-reserve` deploys the Solidity reference of the TIP-1034 channel reserve,
 `tips/verify/src/TIP20ChannelReserve.sol` in `tempoxyz/tempo`, and runs a channel through its life.
 Tempo's default end-to-end mix (`contrib/bench/txgen/presets/public-mix.yml`, which includes
-`mpp.yml`) spends 15% of its transactions on `open`, so Tempo's bench-e2e, multi-region, and
-nightly runs all exercise this path.
+`mpp.yml`) gives `open` a weight of 15 out of 100, so Tempo's bench-e2e, multi-region, and nightly
+runs all exercise this path.
 
 ```sh
 uv run --project tools/compiler-diff compiler-diff runtime -- \
@@ -138,7 +138,8 @@ Each call is a separate transaction with cold access state:
 
 Channel IDs and voucher digests use the constant reserve address and `block.chainid`, so on Anvil's
 chain ID 31337 the vouchers signed by the default sender are static; `cases.py` holds them and says
-how to regenerate them. Post-call checks require the payee to hold 600,000 units, the sender
+how to regenerate them. They also bind the case to the default sender key, so it needs Anvil's
+default chain ID. Post-call checks require the payee to hold 600,000 units, the sender
 99.4 million, and the reserve zero, and both channel states to read back as zero.
 
 ## Tempo Earn gas
@@ -159,8 +160,8 @@ uv run --project tools/compiler-diff compiler-diff runtime -- \
 `testdata/projects/tempo-earn.json.gz`, and exposes the vault's entry points as ordinary calls with
 the harness as the only user. Like `minimal-proxy`, runtime size covers the harness alone, while
 creation size and deployment gas include Earn's contracts: `EarnVault` alone is over the EIP-170
-limit under solc, so the harness's creation code is over the initcode limit too, and
-`start_anvil` disables the code size limit.
+limit under solc, so the harness's creation code is over the initcode limit too. `--start-anvil`
+disables the code size limit; a node you start yourself needs `--disable-code-size-limit`.
 
 | Call | Source |
 | --- | --- |
@@ -172,9 +173,8 @@ limit under solc, so the harness's creation code is over the initcode limit too,
 Each call is a separate transaction. Post-call checks require 400e6 shares and 600e6 assets with the
 harness. Fee-enabled workloads are out: Earn's fee gas tests depend on `vm.warp`, and fee accrual
 over wall-clock block times would make gas vary between runs. The archive holds the 46 sources
-`TempoEarn.sol` imports, not Earn's whole Forge input: that input has 337 sources, including
-Forge's rewrites of test sources, and one solc 0.8.39 run took 206 seconds, too long for a
-compile-time case.
+`TempoEarn.sol` imports; [its README](../../testdata/projects/README.md#tempo-earn) says why it is not
+Earn's whole Forge input.
 
 ## Reference compilers
 

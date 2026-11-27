@@ -25,16 +25,16 @@ contract TempoEarn {
         earnShare.approve(address(earnVault), type(uint256).max);
     }
 
-    function deposit(uint256 assets) external returns (uint256) {
-        return earnVault.deposit(assets, address(this), 1);
+    function deposit(uint256 amount) external returns (uint256) {
+        return earnVault.deposit(amount, address(this), 1);
     }
 
-    function redeem(uint256 shares) external returns (uint256) {
-        return earnVault.redeem(shares, address(this), 1);
+    function redeem(uint256 amount) external returns (uint256) {
+        return earnVault.redeem(amount, address(this), 1);
     }
 
-    function withdrawExact(uint256 assets) external returns (uint256) {
-        return earnVault.withdrawExact(assets, address(this), type(uint256).max);
+    function withdrawExact(uint256 amount) external returns (uint256) {
+        return earnVault.withdrawExact(amount, address(this), type(uint256).max);
     }
 
     function shares() external view returns (uint256) {
