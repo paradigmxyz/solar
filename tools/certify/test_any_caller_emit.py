@@ -75,6 +75,10 @@ def emit(shape, name=NAME):
         root.mkdir()
         for p in ("gen", "Proofs"):
             shutil.copytree(D / p, root / p)
+        # The same export under module NAME is under NAME's namespace (export_ns.py).
+        for f in (root / "gen").rglob("*"):
+            if f.suffix in (".lean", ".json"):
+                f.write_text(f.read_text().replace(NAME, name))
         st = root / "Proofs" / "Stages.lean"
         st.write_text(rename(st.read_text(), name))
         sc = (D / "SpecConnect.lean").read_text().replace(NAME, name)
@@ -149,11 +153,11 @@ class AnyRoute(unittest.TestCase):
         low = generic.lowering_lean(NAME, CONTRACT, FNS, [], CORE, "[]", sym=True)
         self.assertIn("import SolidCore.Refinement.Generic.StageFrom\n", low)
         self.assertIn(
-            "theorem check_sym_stage0 :\n    Generic.checkSym fuel mirFuel coreLit SolarTV.Export.SimpleStorage.stage0 fns = true",
+            "theorem check_sym_stage0 :\n    Generic.checkSym fuel mirFuel coreLit SolarTV.Export.simplestorage_928cc159.SimpleStorage.stage0 fns = true",
             low,
         )
         self.assertIn(
-            "theorem checkValueSym_stage0 :\n    Generic.checkValue mirFuel coreLit SolarTV.Export.SimpleStorage.stage0 fns .allSym = true",
+            "theorem checkValueSym_stage0 :\n    Generic.checkValue mirFuel coreLit SolarTV.Export.simplestorage_928cc159.SimpleStorage.stage0 fns .allSym = true",
             low,
         )
 
@@ -175,7 +179,7 @@ class AnyRoute(unittest.TestCase):
         for want in (
             f"namespace Certified.{NAME}.AnyCaller",
             "theorem published_any : ∀ ctx : SolidCore.Verify.Generic.Context, ctx.Ok →",
-            f"theorem gas_le : AssembleLoop.gasBoundL SolarTV.Export.{CONTRACT}.CtxGas.cx.base 4 ≤ {BOUND}",
+            f"theorem gas_le : AssembleLoop.gasBoundL SolarTV.Export.{NAME}.{CONTRACT}.CtxGas.cx.base 4 ≤ {BOUND}",
             f"rw [hk]; exact Certified.{NAME}.Lowering.check_sym_stage0",
             f"rw [hk]; exact Certified.{NAME}.Lowering.checkValueSym_stage0",
             "SolidCore.Verify.AnyCaller.bytes_eq_source_from",

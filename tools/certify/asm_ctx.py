@@ -21,6 +21,7 @@ sys.path.insert(0, str(here))
 sys.path.insert(0, str(here.parents[1] / "solar-tv" / "milestone"))
 import asm_cert
 import cutpoints
+import export_ns
 
 
 def infer_ctx(program_text, code):
@@ -350,7 +351,7 @@ def main():
     module = last["file"].removesuffix(".lean")
     program = (args.gen / last["file"]).read_text()
     base, ctxs = infer_ctx(program, bytes.fromhex(manifest["bytecode"]))
-    export = f"SolarTV.Export.{contract}"
+    export = export_ns.of_gen(args.gen)
     norm_blocks = [
         [
             ".effect .returndatasize 0" if i == ".op (.stack .returndatasize)" else i

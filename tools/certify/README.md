@@ -90,16 +90,24 @@ run the driver on Counter.
 stated subset of Solidity and refuses everything else before any build, with exit 3 and a
 `BLOCKED: <feature> (...)` line naming the first place each feature appears; the record's
 `status` is `BLOCKED` and its `blocked` list holds every refusal. A `BLOCKED` run proves
-and claims nothing. The subset is one self-contained file with one concrete contract that has no
-bases, no constructor parameters and no fallback or receive function, and none of:
+and claims nothing. The subset is one self-contained file and one concrete contract in it that has
+no bases and no fallback or receive function (constructor parameters: see below). The file may hold other
+contracts, interfaces and libraries: with several concrete contracts, `--contract` names the one
+certified, and the statement is about it alone (its source is the whole unit with that contract
+named, its bytes that contract's export). A sibling is part of the certified contract only as the
+library internal functions and free functions it calls, which solar inlines and the envelope
+checks as the contract's own code; a public library function it calls runs by DELEGATECALL and is
+an external call. The contract and the code it inlines have none of:
 
 - imports;
 - inline assembly;
-- external calls (including try/catch, low-level calls and calls of external functions), contract
-  creation and payable functions or value transfers;
+- external calls (including try/catch, low-level calls, calls of external functions and of public
+  library functions), contract creation (`new`, and `type(C).creationCode` or `runtimeCode`,
+  which embed another contract's bytecode) and payable functions or value transfers;
 - reads of other accounts (`code`, `codehash`, `balance`) and of `selfdestruct`, `gasleft` or
   `blockhash`;
-- loops;
+- loops, apart from the counted `for` loops the source erasure covers (one per external function,
+  below), which still block until the published statement applies their join;
 - recursion: a function or modifier that can reach itself through internal calls or modifier
   invocations (directly or through others), and calls through internal function values, whose
   callee the source does not name. The generic stage proofs need a cut point at every back edge,
@@ -108,6 +116,26 @@ bases, no constructor parameters and no fallback or receive function, and none o
 
 A natspec spec may in addition read only `msg.value` from the environment. Nothing in the subset
 is selected by contract name or hash.
+
+### Constructor parameters
+
+A constructor whose parameters are all static `uintN` or `address` words is inside the subset on
+the compiled tier (no specification): the published statement holds for every argument list
+(`∀ (A0 A1 … : Nat), A0 < 2 ^ W0 → …`), against the source deployed with those words
+(`solidCoreFromArgs callerAddress fuel [A0, …]`), from any storage covering the slots that deployment
+writes. The probe prints the erasure of the constructor's body over the argument words, and the
+Lowering module checks it in the kernel (`Generic.ctorShapeOf`, solidity-lean
+`Verify/Generic/CtorWords.lean`); its leaves must be normal with one set of writes and no logs, or
+revert. When some leaf reverts (a checked operation that may overflow, a `require`), the statement
+has the premise `Generic.CtorReturns fuel contract? [A0, …]` (SolidCore's constructor returns on
+those words) and states one witness list on which it returns. Refused, each with its reason:
+dynamic and multi-word arguments (`bytes`, `string`, arrays, structs), the word types not bound yet
+(`bool`, `intN`, `bytesN`, enums, contract and function types), immutables (the runtime bytes
+depend on the arguments), a specification (SpecConnect and the Expected statement run the
+constructor with no arguments), and a constructor body the erasure does not cover (for one, a write
+to a storage field other than an unsigned scalar or mapping). The creation bytecode is not part of
+the statement, as for a constructor without parameters; the lifecycle tier
+(`--tier lifecycle --constructor-args`) states it for given words.
 
 ### Loop cut-point certificates
 
@@ -118,19 +146,46 @@ the `Stage0.lean` that `-Zemit-lean-stages` exports. A certificate is only an in
 header matches it; it is never a reason to pass. [test_loop_equiv.py](test_loop_equiv.py) pins its
 reading of the MIR export on a real one (`testdata/loop_equiv/`) and runs without Lean.
 
+The envelope reads each loop's shape from solc's AST (`loop_cuts.loop_shapes`). A loop the source
+erasure (solidity-lean's `eraseLoopStmt`) certainly does not cover is blocked with the reason:
+while and do-while loops, nested loops, several loops in one function, `break`, `continue`,
+`return`, `revert`, `require` or `assert` in the loop, logs, decrements, `delete`, writes to
+mapping or array elements, `++` on a narrow word or an indexed expression, a condition other than
+`counter < bound`, and loops in modifiers, constructors, fallback, receive or internal functions.
+Any other `for` loop is blocked as a counted loop whose source premises the hook generates; the
+erasure itself, in the kernel, decides the rest.
+
 generic.py calls it from [loop_cuts.py](loop_cuts.py), beside `loop_resources`, when the
-envelope blocks a source on a loop. For each function solar-verify's manifest
+envelope blocks a source on a loop. A function refused by shape stops at step `shape`, before any
+export or build. For each other function solar-verify's manifest
 (`--emit-loop-heads`, then `--check-loop-heads` on the file; z3 from `SOLAR_VERIFY_Z3`) gives a
 loop, it writes `LoopCut.<function>.lean` into the work directory from the run's own
 `Stage0.lean`, with the selector and argument count from solc's AST. In a clone of the base it
 then runs the base's obligation generator (`Verify.LoopSource.Equiv.GenObl`) and builds the
-`Obl` module it writes. The record's `loop_cuts` holds, for each function every step completed
-for, the manifest, the certificate and the obligation modules with their digests, plus the measure.
-`loop_cuts_blocked` names the step each other function stopped at. A base without `Cut.lean` or
-the generator (the current pin has neither) stops there, before any build. The run stays
-`BLOCKED` in every case: the published statement does not apply `loop_equiv` yet, and the
-loop's resources stay open until an iteration-bound premise exists.
+`Obl` module it writes. With no `--loop-summary` (the default) the generator takes the erasure
+route: it erases the imported function's body with `eraseLoopStmt` at the statement fuel
+`2 ^ 256 + 8`, refuses a body outside the erasure's shape, and the `Obl` module proves, besides the
+leaves of the cut check, the tree, the sequents and the obligations, `erased` (the function's
+arity, its erasure and the erasure's tree, `GenObl.Erased`; `Erased.runs` gives its `BodyRuns` by
+`bodyRuns_of_eraseLoop`) and `same` (the erased tree and the simplified tree the sequents are
+stated over observe alike): the source and obligation premises of solidity-lean's
+`EraseLoopJoin.GeneratedTarget`. The record's `loop_cuts` holds, for each function every step
+completed for, the manifest, the certificate and the obligation modules with their digests, the
+measure and the route. `loop_cuts_blocked` names the step each other function stopped at. A base
+without `Cut.lean` or the generator (the current pin has neither) stops there, before any build.
 [test_loop_cuts.py](test_loop_cuts.py) pins each way a step can fail and runs without Lean.
+
+When every loop function's obligations are built, [loop_final.py](loop_final.py) publishes the
+loop function's final theorem in the same clone: the backend stage proofs of the run's export
+(certify.py, through cut points), [loop_resources.py](loop_resources.py)'s fixed-fuel module on the
+run's bytes, `LoopJoin.join` (solidity-lean's `EraseLoopFinal.final_of_generated`, hence
+`EraseLoopJoin.eraseLoop_certified_generated`), and a `shape.json` for final.py with
+`iteration_bound` (the loop's limit bounded by `K ≤ Kmax`) and `source_ast`. It builds
+`NAME.Final` and checks it with check_final.lean and the run's bytes. The statement covers the loop
+function's calls from any storage (runtime only), with the specification `True` and its vacuity
+declared, so the run stays `BLOCKED`; the record's `loop_final` holds the checked statement or
+the step that refused (`route`, `functions`, `abi`, `resources`, `export`, `stages`,
+`statement`, `build`, `check`). [test_loop_final.py](test_loop_final.py) runs without Lean.
 
 ## The published statement
 

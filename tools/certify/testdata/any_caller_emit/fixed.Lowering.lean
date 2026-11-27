@@ -1,6 +1,8 @@
 import SolidCore.Refinement.Generic.Value
+import SolidCore.Refinement.Generic.Shape
 import SolidCore.Refinement.KernelCopies
 import SolidCore.Refinement.KernelRfl
+import SolidCore.Refinement.KernelTable
 import simplestorage_928cc159.Source
 import simplestorage_928cc159.gen.SimpleStorage.Stage0
 
@@ -77,49 +79,34 @@ def selSig2 : SolidCore.Solidity.Shared.Word :=
 kernel_rfl selSig2_eq selSig2 sel2
 
 /-- `ABI.selectorFromSignature`, with the contract's signatures by table. -/
-def selectorTable (s : String) : SolidCore.Solidity.Shared.Word :=
-  if s = "get()" then sel0
-  else  if s = "num()" then sel1
-  else  if s = "set(uint256)" then sel2
-  else SolidCore.Solidity.Source.ABI.selectorFromSignature s
+def selectorTable : String → SolidCore.Solidity.Shared.Word :=
+  KernelTable.tableOr SolidCore.Solidity.Source.ABI.selectorFromSignature
+    [("get()", sel0),
+     ("num()", sel1),
+     ("set(uint256)", sel2)]
 
-theorem selector_eq : SolidCore.Solidity.Source.ABI.selectorFromSignature = selectorTable := by
-  funext s
-  unfold selectorTable
-  split
-  · next h => subst h; exact selSig0_eq
-  · split
-    · next h => subst h; exact selSig1_eq
-    · split
-      · next h => subst h; exact selSig2_eq
-      · rfl
+theorem selector_eq : SolidCore.Solidity.Source.ABI.selectorFromSignature = selectorTable :=
+  KernelTable.eq_tableOr ⟨selSig0_eq, selSig1_eq, selSig2_eq, trivial⟩
 
 /-- SolidCore's checked core, and whether the constructor leaves exactly `storageLit` and no logs. -/
-def shape? : Option (Contract × Bool) :=
-  match contract? with
-  | .ok c => some (c.core, Wide.deployedAt fuel c storageLit)
-  | .error _ => none
+def shape? : Option (Contract × Bool) := Generic.shapeOf fuel contract? storageLit
 
 kernel_rfl shape_eq shape? (some (coreLit, true)) using selector_eq
 
 set_option maxRecDepth 100000 in
 /-- The kernel's evaluation: the generic check accepts stage0 for every function. -/
 theorem check_stage0 :
-    Generic.check fuel mirFuel coreLit SolarTV.Export.SimpleStorage.stage0 fns .all = true := by
+    Generic.check fuel mirFuel coreLit SolarTV.Export.simplestorage_928cc159.SimpleStorage.stage0 fns .all = true := by
   decide +kernel
 
 set_option maxRecDepth 100000 in
 /-- The kernel's evaluation: no function is payable, and stage0 reverts on a call with a value. -/
 theorem checkValue_stage0 :
-    Generic.checkValue mirFuel coreLit SolarTV.Export.SimpleStorage.stage0 fns .all = true := by
+    Generic.checkValue mirFuel coreLit SolarTV.Export.simplestorage_928cc159.SimpleStorage.stage0 fns .all = true := by
   decide +kernel
 
 theorem deployed_of {c : TypeCheck.CheckedContract} (hc : contract? = .ok c) :
-    c.core = coreLit ∧ ∃ d, Wide.DeployedAt fuel c d storageLit := by
-  have h := shape_eq
-  unfold shape? at h
-  rw [hc] at h
-  obtain ⟨hk, hd⟩ := Prod.mk.inj (Option.some.inj h)
-  exact ⟨hk, Wide.deployedAt_of hd⟩
+    c.core = coreLit ∧ ∃ d, Wide.DeployedAt fuel c d storageLit :=
+  Generic.deployed_of_shapeOf shape_eq hc
 
 end Certified.simplestorage_928cc159.Lowering

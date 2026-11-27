@@ -14,6 +14,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import asm_ctxl
+import export_ns
 
 ap = argparse.ArgumentParser()
 ap.add_argument("gen", type=pathlib.Path)
@@ -29,7 +30,8 @@ import json
 
 code = bytes.fromhex(json.loads(hexs)["bytecode"])
 c = asm_ctxl.infer_ctx(text, code)
-ns = f"SolarTV.Export.{a.contract}.Ctx"
+export = export_ns.of_gen(a.gen)
+ns = f"{export}.Ctx"
 out = f"""import {a.module_prefix}.{final_mod}
 import {a.module_prefix}.Bytecode
 import SolidCore.Refinement.Solar.AssembleCtxCall
@@ -50,12 +52,12 @@ namespace {ns}
 open SolidCore.Refinement.Solar SolidCore.Refinement.Solar.AssembleCtx
 
 /-- The exact runtime bytecode, byte by byte. -/
-abbrev bytes : List Nat := SolarTV.Export.{a.contract}.bytecode
+abbrev bytes : List Nat := {export}.bytecode
 
 def code : ByteArray := ⟨(bytes.map UInt8.ofNat).toArray⟩
 
 /-- The final EVM IR. -/
-abbrev prog : SolarTV.Assembly.Program := SolarTV.Export.{a.contract}.{a.final}
+abbrev prog : SolarTV.Assembly.Program := {export}.{a.final}
 
 def cx : CtxCert :=
   {asm_ctxl.lean_ctx_cert(c)}

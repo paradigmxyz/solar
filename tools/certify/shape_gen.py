@@ -38,12 +38,32 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import asm_cert
+import export_ns
+import succeeds_witness
 import gen_ctxgas
 
 
 def fail(msg):
     print(f"shape_gen.py: {msg}", file=sys.stderr)
     sys.exit(1)
+
+
+def contract_ok_lean(ns, shape_fn="shapeOf"):
+    """`contract_ok`: SolidCore type checks the contract, read off the Lowering module's `shape_eq`.
+    A Lowering module defines `shape?` either through `Generic.shapeOf` (the current template;
+    `Generic.ctorShapeOf`, SHAPE_FN, for constructor arguments) or
+    as the same match inline (archived records, such as Certified/record/acc4-flag, which do not
+    import it): `shapeOf` is unfolded only when it is there (`unfold` fails on a name it cannot
+    resolve or a hypothesis it does not change), and either way the match on `contract?` is what
+    `split` takes apart, so a Lowering of neither form fails."""
+    return (
+        f"/-- SolidCore type checks the contract. -/\n"
+        f"theorem contract_ok : ∃ c, {ns}.contract? = .ok c := by\n"
+        f"  have h := {ns}.shape_eq\n"
+        f"  unfold {ns}.shape? at h\n"
+        f"  try unfold SolidCore.Refinement.Generic.{shape_fn} at h\n"
+        f"  split at h\n  · next c hc => exact ⟨c, hc⟩\n  · simp at h\n"
+    )
 
 
 def last_stage(stages_text):
@@ -77,14 +97,14 @@ def last_stage(stages_text):
     }
 
 
-def any_caller_lean(name, contract, g, shape, stages, bound, K):
+def any_caller_lean(name, contract, g, shape, stages, bound, K, export=None):
     """NAME.AnyCaller for the caller route "any": AnyCaller.bytes_eq_source_from on Lowering's
     check for every caller (check_sym_stage0, checkValueSym_stage0), solar-tv's backend stages to
     the final EVM IR under every oracle, the final EVM IR's run within its fuel on every call and
     NAME.CtxGas's checker with contexts and gas on the exact bytes. The same text for every
     contract on the route, from shape.json and Stages.lean alone; untrusted: the kernel re-derives
     every claim, and final.py states the type it must have."""
-    X = f"SolarTV.Export.{contract}"
+    X = export or export_ns.of_contract(contract)
     M = stages["ns"]
     ns = g["ns"]
     sns = g.get("source_ns", ns)
@@ -129,13 +149,7 @@ theorem guard_eq : AssembleCtxGas.guard {C}.F (AssembleCtx.norm {last}) = {last}
 
 theorem gas_le : AssembleLoop.gasBoundL {C}.cx.base {N} ≤ {K} := by decide +kernel
 
-theorem contract_ok : ∃ c, {ns}.contract? = .ok c := by
-  have h := {ns}.shape_eq
-  unfold {ns}.shape? at h
-  split at h
-  · next c hc => exact ⟨c, hc⟩
-  · simp at h
-
+{contract_ok_lean(ns)}
 /-- **{contract} from every caller.** -/
 theorem published_any : ∀ ctx : SolidCore.Verify.Generic.Context, ctx.Ok →
     ∃ c, {sns}.contract? = .ok c ∧ ∀ call, {shape["valid"]} call →
@@ -232,7 +246,9 @@ def any_caller_route(name, shape, g, root, gen, contract, stages, value):
         fail(
             f"shape.json: any_caller gas bound {K} is below the checker's {bound} or not below 2^64"
         )
-    return ctx_text, any_caller_lean(name, contract, g, shape, stages, bound, K)
+    return ctx_text, any_caller_lean(
+        name, contract, g, shape, stages, bound, K, export_ns.of_gen(gen)
+    )
 
 
 def main():
@@ -250,10 +266,19 @@ def main():
         fail("shape.json has no generic block")
     kind = shape.get("kind")
     root = pathlib.Path(a.certified) / a.name
-    gens = [p for p in (root / "gen").iterdir() if p.is_dir()]
-    if len(gens) != 1:
-        fail("expected one exported contract under gen/")
-    gen = gens[0]
+    # solar exports every contract of the source; the statement is about the one shape.json's
+    # source names (source_ast.contract), whose export the stage proofs and the bytes are of.
+    gens = sorted(p.name for p in (root / "gen").iterdir() if p.is_dir())
+    named = (shape.get("source_ast") or {}).get("contract")
+    if named is None:
+        if len(gens) != 1:
+            fail(
+                "expected one exported contract under gen/, or shape.json source_ast.contract"
+            )
+        named = gens[0]
+    if not isinstance(named, str) or named not in gens:
+        fail(f"no export of the source's contract {named!r} under gen/ ({', '.join(gens)})")
+    gen = root / "gen" / named
     contract = gen.name
     stages = last_stage((root / "Proofs" / "Stages.lean").read_text())
     bt = (gen / "Bytecode.lean").read_text()
@@ -288,7 +313,11 @@ def main():
         fail(
             f"shape.json: gas bound {K} is below the checker's {need} or not below 2^64"
         )
-    X = f"SolarTV.Export.{contract}"
+    X = export_ns.of_gen(gen)
+    if X != export_ns.of_shape(shape, contract):
+        fail(
+            f"shape.json: export_ns is not the namespace of the export under gen/ ({X})"
+        )
     M = stages["ns"]
     ns = g["ns"]
     sns = g.get("source_ns", ns)
@@ -305,20 +334,53 @@ def main():
         fail(f"shape.json: valid must be {valid!r} for this generic block")
     env = shape.get("env", [])
     binders = " ".join(f"_h{i}" for i in range(len(env)))
-    if g["style"] == "core":
+    ctor = g.get("ctor")
+    if ctor is not None and (g["style"] != "core" or not value or kind != "compiled"):
+        fail("generic.ctor needs style core, check_value and kind compiled")
+    if g["style"] == "core" and ctor is not None:
+        # Every constructor argument list (Verify/Generic/CtorWords.lean): the deployment on the
+        # statement's words A0, A1, ..., each below 2 ^ its width, from the Lowering module's one
+        # evaluation of the constructor's erasure.
+        args, widths = ctor["args"], ctor["widths"]
+        if [b.get("var") for b in shape.get("ctor_args", [])] != args or [
+            b.get("lt") for b in shape.get("ctor_args", [])
+        ] != [f"2 ^ {w}" for w in widths]:
+            fail("shape.json: ctor_args must be generic.ctor's words and widths")
+        alts = " | ".join("rfl" for _ in args)
+        lifts = "".join(
+            f"  · exact Nat.lt_of_lt_of_le h{i} (Nat.pow_le_pow_right (by decide) (by decide))\n"
+            for i in range(len(args))
+        )
+        start = (
+            f"  obtain ⟨hk, hdep, hnorm⟩ := {ns}.deployed_of hc\n"
+            f"  have hall : ∀ a ∈ [{', '.join(args)}], a < 2 ^ 256 := by\n"
+            f"    intro a ha\n"
+            f"    simp only [List.mem_cons, List.not_mem_nil, or_false] at ha\n"
+            f"    rcases ha with {alts}\n"
+            + "".join("  " + l + "\n" for l in lifts.splitlines())
+            + f"  have hcl : Generic.argsClean {ns}.ctorWidths [{', '.join(args)}] = true := by\n"
+            f"    simp only [Generic.argsClean, {ns}.ctorWidths, {', '.join(f'decide_eq_true h{i}' for i in range(len(args)))}, Bool.and_self, Bool.and_true]\n"
+            + (
+                "  have hret := hR\n"
+                if ctor.get("branches")
+                else f"  have hret := hnorm [{', '.join(args)}] rfl hall hcl rfl\n"
+            )
+            + f"  obtain ⟨d, hd, hcov⟩ := hdep [{', '.join(args)}] rfl hall hcl hret\n"
+            f"  have hchk := hk ▸ {ns}.{g['check']}\n"
+            f"  have hval := hk ▸ {ns}.{g['check_value']}\n"
+        )
+        okthm = "contract_ok"
+        okdef = contract_ok_lean(ns, "ctorShapeOf") + "\n"
+    elif g["style"] == "core":
+        # The Lowering module's checks are about its literal core; `hk` is that it is `c.core`.
         start = (
             f"  obtain ⟨hk, d, hd⟩ := {ns}.deployed_of hc\n"
-            f"  have hchk := {ns}.{g['check']}\n  rw [← hk] at hchk\n"
+            f"  have hchk := hk ▸ {ns}.{g['check']}\n"
         )
         if value:
-            start += f"  have hval := {ns}.{g['check_value']}\n  rw [← hk] at hval\n"
+            start += f"  have hval := hk ▸ {ns}.{g['check_value']}\n"
         okthm = "contract_ok"
-        okdef = (
-            f"/-- SolidCore type checks the contract. -/\n"
-            f"theorem contract_ok : ∃ c, {ns}.contract? = .ok c := by\n"
-            f"  have h := {ns}.shape_eq\n  unfold {ns}.shape? at h\n  split at h\n"
-            f"  · next c hc => exact ⟨c, hc⟩\n  · simp at h\n\n"
-        )
+        okdef = contract_ok_lean(ns) + "\n"
     elif g["style"] == "checked":
         hs = " ".join(f"h{i}" for i in range(len(g["checks"])))
         start = f"  obtain ⟨d, hd⟩ := {ns}.deployed hc\n"
@@ -338,9 +400,21 @@ def main():
     comp = (
         f"{S}.compiled{'' if value else '0'} hd hchk {'hval ' if value else ''}"
         f"({S}.genericValid{'' if value else '0'}_inhabited _ _ _)\n"
-        f"      ({M}.{stages['compose']} {S}.oracle) (fun _ _ => trivial) ends check_ok gas_lt"
+        f"      ({M}.{stages['compose']} {S}.oracle) (fun _ _ => trivial) ends check_ok\n"
+        f"      (Nat.lt_of_le_of_lt gas_le (by decide))"
     )
-    if kind == "compiled":
+    if ctor is not None:
+        comp = (
+            f"{S}.compiledArgs hd hcov hchk hval ({S}.genericValid_inhabited _ _ _)\n"
+            f"      ({M}.{stages['compose']} {S}.oracle) (fun _ _ => trivial) ends check_ok\n"
+            f"      (Nat.lt_of_le_of_lt gas_le (by decide))"
+        )
+        shape_t = (
+            f"{S}.Compiled (solidCoreFromArgs callerAddress {sns}.fuel [{', '.join(ctor['args'])}]) c code "
+            f"({valid}) ({gas})"
+        )
+        body = f"  exact ⟨c, hc, ({comp}).mono_gas (fun _ => gas_le) (fun _ => by decide)⟩\n"
+    elif kind == "compiled":
         shape_t = f"{S}.Compiled (solidCore {sns}.fuel) c code ({valid}) ({gas})"
         body = f"  exact ⟨c, hc, ({comp}).mono_gas (fun _ => gas_le) (fun _ => by decide)⟩\n"
     elif kind == "certified" and not g.get("spec_connect"):
@@ -463,9 +537,8 @@ def main():
             fail(
                 "generic.spec_connect.witness must name a connected function with succeeds-if conditions"
             )
-        wsel, wn = fnd[wit]
         storage = g["storage"]
-        nonvac = f"""
+        nonvac_main = f"""
 /-- **Non-vacuity**: `{wit}` on zero words with no value, from the constructor's slots written with 0,
 meets its precondition and its succeeds-if conditions, so the spec requires it to succeed: the same call
 reverting is rejected by the exported postcondition and by the exported allowed statuses. -/
@@ -473,17 +546,9 @@ theorem nonvacuous :
     (∃ (call : SolarTV.Call) (obs : SolarTV.Observable), ({valid}) call ∧ ¬ {post_t} call obs) ∧
       (∃ (call : SolarTV.Call) (obs : SolarTV.Observable), ({valid}) call ∧ obs.success = false ∧
         ¬ {allowed_t} call obs) := by
-  let wcall : SolarTV.Call := {{ calldata := SolidCore.Refinement.Abi.calldata {wsel} (List.replicate {wn} 0), callvalue := 0, storage := {S}.zeros ({storage}) }}
-  have hpre : SolidCore.Spec.Pre {B} (({B}).spec.specs[{idx[wit]}]'(by decide))
-      ({S}.ctxOfCall wcall) ⟨fun _ => 0, SolidCore.Spec.Ghost.zero, 0⟩ wcall (List.replicate {wn} 0) := by
-    refine ⟨{S}.decodes_zero (by decide) (by rfl) (by first | rfl | decide | simp [{B}, SolidCore.Spec.decodeWords, SolidCore.Spec.Ty.ofWord]) 0 _,
-      ({S}.slotValue_zeros _).symm, by simp [{S}.ctxOfCall], ?_, ?_⟩ <;>
-      simp [SolidCore.Spec.Bundle.satAll, {B}]
   refine {S}.nonvacuous_of_succeeds ({S}.valid{"" if value else "0"}_of_find ({S}.covers_zeros _) (by decide))
-    (List.getElem_mem _) hpre (by simp [{B}]) ?_
-  simp [SolidCore.Spec.Bundle.satAll, SolidCore.Spec.Bundle.sat, {B}, SolidCore.Spec.eval,
-    SolidCore.Spec.BinOp.apply, SolidCore.Spec.mkEnv, SolidCore.Spec.Env.cur, SolidCore.Spec.ofProp,
-    SolidCore.Spec.slotOf, SolidCore.Spec.Ty.ofBits, SolidCore.Spec.toWord, {S}.ctxOfCall]
+    (List.getElem_mem _) pre_sat_{wit} (by simp [{B}]) ?_
+  spec_sat [{B}]
 
 /-- info: 'Certified.{a.name}.Shape.nonvacuous' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
@@ -508,17 +573,113 @@ theorem pre_sat_{fid} :
     SolidCore.Spec.Pre {B} (({B}).spec.specs[{i}]'(by decide))
       ({S}.ctxOfCall wcall) ⟨fun _ => 0, SolidCore.Spec.Ghost.zero, 0⟩ wcall (List.replicate {fn_n} 0) := by
   intro wcall
-  refine ⟨{S}.decodes_zero (by decide) (by rfl) (by first | rfl | decide | simp [{B}, SolidCore.Spec.decodeWords, SolidCore.Spec.Ty.ofWord]) 0 _,
-    ({S}.slotValue_zeros _).symm, by simp [{S}.ctxOfCall], ?_, ?_⟩ <;>
-    simp [SolidCore.Spec.Bundle.satAll, SolidCore.Spec.Bundle.sat, {B}, SolidCore.Spec.eval,
-      SolidCore.Spec.BinOp.apply, SolidCore.Spec.mkEnv, SolidCore.Spec.Env.cur, SolidCore.Spec.ofProp,
-      SolidCore.Spec.slotOf, SolidCore.Spec.Ty.ofBits, SolidCore.Spec.toWord, {S}.ctxOfCall]
+  spec_pre_zero [{B}]
 
 /-- info: 'Certified.{a.name}.Shape.pre_sat_{fid}' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms pre_sat_{fid}
 """.replace("§", "\u0060")
-        g["imports"] = [*g["imports"], "Verify.ShapeSpecExport", SC]
+        # The witness's precondition is its pre_sat theorem above.
+        sw = shape.get("succeeds_witness")
+        if sw is None:
+            nonvac += nonvac_main
+        else:
+            # No function has succeeds-if conditions: the driver's succeeds witness instead
+            # (succeeds_witness.py). The statement's allowed statuses and postcondition are the
+            # export's, each with the witness clause; that the witness succeeds is the kernel's
+            # evaluation of SolidCore on it (kernel_rfl), and its precondition is its pre_sat.
+            try:
+                wf, wsel, wn, _, _ = succeeds_witness.check(sw)
+                W = succeeds_witness.call_term(sw, g["storage"])
+            except ValueError as e:
+                fail(f"shape.json: {e}")
+            if wf != wit or fnd.get(wit) != (wsel, wn):
+                fail(
+                    "shape.json: succeeds_witness must be generic.spec_connect.witness, with its selector and arity"
+                )
+            D = succeeds_witness.domain_term(B, f"{S}.ctxOfCall")
+            allowed_w = succeeds_witness.strengthen(allowed_t, sw, g["storage"], B, f"{S}.ctxOfCall")
+            post_w = succeeds_witness.strengthen(post_t, sw, g["storage"], B, f"{S}.ctxOfCall")
+            shape_t = f"{S}.Certified (solidCore {sns}.fuel) c code ({valid}) ({allowed_w}) ({post_w}) ({gas})"
+            usings = " ".join(
+                [f"{sns}.selector_eq", "SolidCore.Verify.VC.mkIdx_eq", *g["spec_connect"].get("using", [])]
+            )
+            body = (
+                holds_proof
+                + f"  exact ⟨c, hc, certified_witness (W := {W}) (D := fun call => {D})\n"
+                f"    ((({comp}).mono_gas (fun _ => gas_le) (fun _ => by decide)).certified_of_holds\n"
+                f"      (fun _ h => h) hholds) (wit_run hc)⟩\n"
+            )
+            okdef += f"""
+/-- A certified contract stays certified when its allowed statuses and postcondition both gain the
+clause that a call §W§ from a pre-state in §D§ succeeds, given a successful source run of §W§. -/
+theorem certified_witness {{S' : SolarTV.Sem}} {{p : S'.Prog}} {{code' : ByteArray}}
+    {{Valid : SolarTV.Call → Prop}} {{A P : SolarTV.Call → SolarTV.Observable → Prop}}
+    {{G : SolarTV.Call → Nat}} {{W : SolarTV.Call}} {{D : SolarTV.Call → Prop}}
+    (h : {S}.Certified S' p code' Valid A P G)
+    (hw : ∃ obs, S'.run p W = some obs ∧ obs.success = true) :
+    {S}.Certified S' p code' Valid
+      (fun call obs => A call obs ∧ (call = W → D call → obs.success = true))
+      (fun call obs => P call obs ∧ (call = W → D call → obs.success = true)) G := by
+  have key : ∀ obs, S'.run p W = some obs → obs.success = true := by
+    intro obs hr
+    obtain ⟨o, ho, hs⟩ := hw
+    rw [ho] at hr
+    exact Option.some.inj hr ▸ hs
+  refine ⟨h.inhabited, h.equiv, fun call hc => ?_, fun call hc obs hr => ?_, h.resources⟩
+  · obtain ⟨obs, hr, ha⟩ := h.terminates call hc
+    exact ⟨obs, hr, ha, fun hW _ => key obs (hW ▸ hr)⟩
+  · exact ⟨h.meets call hc obs hr, fun hW _ => key obs (hW ▸ hr)⟩
+
+/-- Whether SolidCore's run of the witness call §{wit}§ succeeds: evaluated by the kernel below. -/
+def wit_ok? : Bool :=
+  match {sns}.contract? with
+  | .ok c => (SolidCore.Refinement.Source.run {sns}.fuel c {W}).any (·.success)
+  | .error _ => false
+
+set_option maxRecDepth 100000 in
+kernel_rfl wit_ok_eq wit_ok? true using {usings}
+
+/-- **The witness succeeds**: SolidCore's run of §{wit}§ on zero words with no value, from the
+constructor's slots written with 0, returns successfully. -/
+theorem wit_run {{c : SolidCore.Solidity.TypeCheck.CheckedContract}} (hc : {sns}.contract? = .ok c) :
+    ∃ obs, (solidCore {sns}.fuel).run c {W} = some obs ∧ obs.success = true := by
+  have h := wit_ok_eq
+  simp only [wit_ok?, hc] at h
+  cases hr : SolidCore.Refinement.Source.run {sns}.fuel c {W} with
+  | none => rw [hr] at h; simp [Option.any] at h
+  | some o => rw [hr] at h; exact ⟨o, hr, h⟩
+""".replace("§", chr(96))
+            nonvac += f"""
+/-- **Non-vacuity**: the witness §{wit}§ on zero words with no value, from the constructor's slots
+written with 0, is a valid call meeting its function spec's precondition (§pre_sat_{wit}§), so the
+witness clause requires it to succeed: the same call reverting is rejected by the statement's
+postcondition and by its allowed statuses. -/
+theorem nonvacuous :
+    (∃ (call : SolarTV.Call) (obs : SolarTV.Observable), ({valid}) call ∧ ¬ ({post_w}) call obs) ∧
+      (∃ (call : SolarTV.Call) (obs : SolarTV.Observable), ({valid}) call ∧ obs.success = false ∧
+        ¬ ({allowed_w}) call obs) := by
+  have hv : ({valid}) {W} :=
+    {S}.valid{"" if value else "0"}_of_find (sel := {wsel}) (n := {wn}) ({S}.covers_zeros _) (by decide)
+  have hd : (fun call => {D}) {W} := ⟨_, List.getElem_mem _, _, _, pre_sat_{wit}⟩
+  refine ⟨⟨{W}, ⟨false, [], [], fun _ => 0⟩, hv, fun h => ?_⟩,
+    ⟨{W}, ⟨false, [], [], fun _ => 0⟩, hv, rfl, fun h => ?_⟩⟩ <;>
+    exact Bool.false_ne_true (h.2 rfl hd)
+
+/-- info: 'Certified.{a.name}.Shape.nonvacuous' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms nonvacuous
+
+/-- info: 'Certified.{a.name}.Shape.wit_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms wit_run
+""".replace("§", chr(96))
+        g["imports"] = [
+            *g["imports"],
+            "Verify.ShapeSpecExport",
+            "Verify.ShapeSpecExportTac",
+            SC,
+        ]
     else:
         fail("kind must be compiled or certified")
     # Negative controls the module proves: the loop checker rejects the bytecode with a jump
@@ -544,16 +705,49 @@ theorem pre_sat_{fid} :
                 )
             )
             break
-    negs = "".join(
-        f"set_option maxRecDepth 100000 in\n/-- The checker rejects the bytecode with {what} (byte {i}). -/\n"
-        f"theorem rejects_{tag} : {L}.checkL {last} (mutant {i} {b}) cert maxs = false := by\n"
-        "  decide +kernel\n\n"
-        for tag, what, i, b in mutants
+    negs = (
+        "set_option maxRecDepth 100000 in\n/-- The checker rejects the bytecode with one byte changed: "
+        + "; ".join(f"{what} (byte {i})" for _, what, i, _ in mutants)
+        + ". -/\ntheorem rejects : ["
+        + ", ".join(f"({i}, {b})" for _, _, i, b in mutants)
+        + f"].all fun (i, b) => !{L}.checkL {last} (mutant i b) cert maxs := by\n  decide +kernel\n\n"
+        if mutants
+        else ""
     )
     premises = "".join(f"({e}) →\n    " for e in env)
     intro = f"  intro {binders}\n" if env else ""
+    if ctor is not None:
+        if env:
+            fail("generic.ctor states no env premises")
+        args = ctor["args"]
+        branches = bool(ctor.get("branches"))
+        wit = (shape.get("ctor_returns") or {}).get("witness")
+        if branches != (wit is not None):
+            fail("shape.json: ctor_returns must be present exactly when the constructor's erasure branches")
+        premises = (
+            f"∀ ({' '.join(args)} : Nat), "
+            + "".join(f"{v} < 2 ^ {w} → " for v, w in zip(args, ctor["widths"]))
+            + (f"Generic.CtorReturns {sns}.fuel {sns}.contract? [{', '.join(args)}] → " if branches else "")
+            + "\n    "
+        )
+        intro = (
+            f"  intro {' '.join(args)} {' '.join(f'h{i}' for i in range(len(args)))}"
+            + (" hR" if branches else "")
+            + "\n"
+        )
+    wit_conj = ""
+    if ctor is not None and ctor.get("branches"):
+        w = ", ".join(str(x) for x in shape["ctor_returns"]["witness"])
+        wit_conj = (
+            f"\n/-- The claim, and one argument list on which the constructor returns. -/\n"
+            f"theorem published : ({premises}∃ c, {sns}.contract? = .ok c ∧\n      {shape_t}) ∧\n"
+            f"    Generic.CtorReturns {sns}.fuel {sns}.contract? [{w}] :=\n"
+            f"  ⟨claim, {ns}.ctorReturns_witness⟩\n"
+        )
     mods = [
         "Verify.ShapeGeneric",
+        *(["Verify.Generic.CtorWords"] if ctor is not None else []),
+        "SolidCore.Refinement.Solar.AssembleCheckFast",
         g["lowering"],
         f"{a.name}.Proofs.Stages",
         f"{a.name}.gen.{contract}.Bytecode",
@@ -591,28 +785,10 @@ def cert : {A}.Cert :=
 def maxs : List Nat := {maxs}
 
 set_option maxRecDepth 100000 in
-theorem walk_ok : (SolarTV.Assembly.walk ({A}.bytesOf code) cert.offset 0
-    ({A}.lower {last} cert)).isSome = true := by
-  have hw := {A}.walkS_drop ({A}.bytesOf code) cert.offset ({A}.lower {last} cert) 0
-    (Nat.zero_le _)
-  rw [List.drop_zero] at hw
-  rw [← hw]
-  decide +kernel
-
-set_option maxRecDepth 100000 in
-theorem blocks_ok : {L}.blocksOkL {last} cert maxs 0 {last}.blocks = true := by
-  decide +kernel
-
-theorem labels_ok : {A}.labelsValid {last} cert code = true :=
-  {A}.labelsValid_of_walk walk_ok
-
-theorem size_ok : code.size < 2 ^ 32 := by decide +kernel
-
-/-- The checker of code with loops accepts the exact bytecode for the final EVM IR. -/
-theorem check_ok : {L}.checkL {last} code cert maxs = true := by
-  simp only [{L}.checkL, walk_ok, blocks_ok, labels_ok, decide_eq_true size_ok, Bool.and_true,
-    Bool.true_and]
-  decide
+/-- The checker of code with loops accepts the exact bytecode for the final EVM IR: one kernel
+evaluation of its fast form (the walk on the code's suffixes, which implies the labels' check). -/
+theorem check_ok : {L}.checkL {last} code cert maxs = true :=
+  {L}.checkL_of_checkLS (by decide +kernel)
 
 /-- The final EVM IR ends within {N} blocks on every call, under the bytecode's oracle. -/
 theorem ends (call : Call) : (EVM.Program.run {S}.oracle {last} call {N}).isSome = true :=
@@ -623,16 +799,14 @@ theorem ends (call : Call) : (EVM.Program.run {S}.oracle {last} call {N}).isSome
 /-- The bytecode with byte `i` replaced by `b`. -/
 def mutant (i b : Nat) : ByteArray := ⟨(({X}.bytecode.set i b).map UInt8.ofNat).toArray⟩
 
-{negs}theorem gas_lt : {L}.gasBoundL cert {N} < 2 ^ 64 := by decide +kernel
-
-theorem gas_le : {L}.gasBoundL cert {N} ≤ {K} := by decide +kernel
+{negs}theorem gas_le : {L}.gasBoundL cert {N} ≤ {K} := by decide +kernel
 
 {okdef}
 /-- **What the published statement asks of this module.** -/
-theorem published : {premises}∃ c, {sns}.contract? = .ok c ∧
+theorem {"claim" if wit_conj else "published"} : {premises}∃ c, {sns}.contract? = .ok c ∧
       {shape_t} := by
 {intro}  obtain ⟨c, hc⟩ := {okthm}
-{start}{body}
+{start}{body}{wit_conj}
 /-- info: 'Certified.{a.name}.Shape.published' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms published

@@ -98,6 +98,10 @@ pub(crate) struct StateVar<'a> {
     /// EIP-1153 transient storage (`transient` variables, and the ghost `__traw` behind
     /// tload/tstore): cleared at the end of every transaction.
     pub transient: bool,
+    /// The declaration: the variable's, or the `@custom:ghost` tag's; `Span::DUMMY` for the
+    /// model's own state (`__balance` and the like). Two entries of one name are one variable
+    /// only when their spans are equal (`spec_lean` checks a spec's names this way).
+    pub span: Span,
 }
 
 pub(crate) struct Contract<'a> {
@@ -133,6 +137,26 @@ pub(crate) struct Contract<'a> {
     pub custom_layout: bool,
 }
 
+/// An enum declaration.
+pub(crate) struct EnumDecl {
+    pub name: String,
+    /// The contract that declares it, or None for a file-level enum.
+    pub container: Option<String>,
+    /// Declared in a file the verified file imports.
+    pub imported: bool,
+    pub variants: Vec<String>,
+}
+
+/// What an enum member `E.m` written in some declaration scope is (see `Program::enum_member`).
+pub(crate) enum EnumMember {
+    /// `E` is an enum visible there, and `m` its member with this index.
+    Index(usize),
+    /// No enum `E` is visible there.
+    NotVisible,
+    /// `E` names an enum there, but not one member `m` of one enum: why.
+    Refused(String),
+}
+
 /// `@custom:group G L1 L2 ...` on a contract.
 pub(crate) struct Group {
     pub name: String,
@@ -150,6 +174,10 @@ pub(crate) struct Program<'a> {
     pub block_tail: FxHashMap<Span, Vec<(String, Spec<'a>)>>,
     pub enums: FxHashMap<String, usize>,
     pub enum_variants: FxHashMap<String, usize>,
+    /// Every enum declaration, where it is declared and its members (see `Program::enum_member`).
+    pub enum_decls: Vec<EnumDecl>,
+    /// Each contract's declaration, by name: what a span inside one is written in.
+    pub contract_spans: Vec<(String, Span)>,
     pub structs: Vec<(String, Vec<(String, Ty)>)>,
     pub udvts: FxHashMap<String, Ty>,
     /// User-defined value types over a `bytesN` (left-aligned in their ABI word).
@@ -267,6 +295,54 @@ impl<'a> Program<'a> {
             .then(|| n.to_string())
     }
 
+    /// What `e.m` names when written in the declarations of contract `scope` (None: at file
+    /// level, as in a file-level struct's invariant), by Solidity's lookup: an enum that contract
+    /// or one of its bases declares, else a file-level enum. A file-level enum of an imported
+    /// file, an enum two bases both declare, or two file-level enums of one name are refused
+    /// rather than guessed. (`enum_variants` is keyed by bare name over every contract, so it
+    /// would also accept an enum another contract declares, which `scope` cannot see.)
+    pub(crate) fn enum_member(&self, scope: Option<&str>, e: &str, m: &str) -> EnumMember {
+        let decls = || self.enum_decls.iter().filter(move |d| d.name == e);
+        let lin: &[String] = match scope {
+            Some(c) => match self.contract(c) {
+                Some(c) => &c.lin,
+                None => {
+                    return EnumMember::Refused(format!("no contract `{c}` to resolve `{e}` in"));
+                }
+            },
+            None => &[],
+        };
+        let inner: Vec<&EnumDecl> =
+            decls().filter(|d| d.container.as_ref().is_some_and(|c| lin.contains(c))).collect();
+        let found: Vec<&EnumDecl> = if inner.is_empty() {
+            decls().filter(|d| d.container.is_none()).collect()
+        } else {
+            inner
+        };
+        let d = match &found[..] {
+            [] => return EnumMember::NotVisible,
+            [d] => *d,
+            _ => {
+                return EnumMember::Refused(format!(
+                    "enum `{e}` is declared more than once in scope"
+                ));
+            }
+        };
+        if d.imported {
+            return EnumMember::Refused(format!("enum `{e}` is declared in an imported file"));
+        }
+        match d.variants.iter().position(|v| v == m) {
+            Some(i) => EnumMember::Index(i),
+            None => EnumMember::Refused(format!("enum `{e}` has no member `{m}`")),
+        }
+    }
+
+    /// The contract whose declaration contains `sp`, such as a spec on one of its functions or
+    /// structs: None at file level.
+    pub(crate) fn scope_at(&self, sp: Span) -> Option<String> {
+        self.contract_spans.iter().find(|(_, s)| s.contains(sp)).map(|(n, _)| n.clone())
+    }
+
     pub(crate) fn contract(&self, name: &str) -> Option<&Contract<'a>> {
         let name = self.import_aliases.get(name).map_or(name, String::as_str);
         self.contracts.iter().find(|c| c.name == name)
@@ -292,6 +368,7 @@ struct Builder<'s, 'a> {
     errors: Vec<(Span, String)>,
     enums: FxHashMap<String, usize>,
     enum_variants: FxHashMap<String, usize>,
+    enum_decls: Vec<EnumDecl>,
     udvts: FxHashMap<String, &'a Type<'a>>,
     struct_items: Vec<&'a ast::ItemStruct<'a>>,
     struct_names: FxHashSet<String>,
@@ -757,6 +834,7 @@ pub(crate) fn build<'a>(
         errors: vec![],
         enums: FxHashMap::default(),
         enum_variants: FxHashMap::default(),
+        enum_decls: vec![],
         udvts: FxHashMap::default(),
         struct_items: vec![],
         struct_names: FxHashSet::default(),
@@ -817,6 +895,12 @@ pub(crate) fn build<'a>(
     let collect_names =
         |b: &mut Builder<'_, 'a>, it: &'a ast::Item<'a>, container: Option<&str>| match &it.kind {
             ItemKind::Enum(e) => {
+                b.enum_decls.push(EnumDecl {
+                    name: e.name.as_str().to_string(),
+                    container: container.map(str::to_string),
+                    imported: false,
+                    variants: e.variants.iter().map(|v| v.name.as_str().to_string()).collect(),
+                });
                 b.type_spans.entry(e.name.as_str().to_string()).or_default().insert(e.name.span);
                 b.enums.insert(e.name.as_str().to_string(), e.variants.len());
                 for (i, v) in e.variants.iter().enumerate() {
@@ -857,7 +941,11 @@ pub(crate) fn build<'a>(
         .enumerate()
         .flat_map(|(index, unit)| unit.items.iter().map(move |item| (item, index != last)));
     for (it, from_import) in items_of {
+        let enums_before = b.enum_decls.len();
         collect_names(&mut b, it, None);
+        for d in &mut b.enum_decls[enums_before..] {
+            d.imported = from_import;
+        }
         if let ItemKind::Function(f) = &it.kind {
             free_fns.push((it, f, from_import));
             for st in f.body.iter().flat_map(|b| b.stmts.iter()) {
@@ -1240,6 +1328,7 @@ pub(crate) fn build<'a>(
                                 ghost: true,
                                 ghost_decl: Some(span),
                                 transient: false,
+                                span,
                             }),
                             None => {
                                 b.errors.push((span, format!("bad ghost declaration `{content}`")))
@@ -1277,6 +1366,7 @@ pub(crate) fn build<'a>(
                             ghost: false,
                             ghost_decl: None,
                             transient: v.data_location == Some(ast::DataLocation::Transient),
+                            span: v.span,
                         });
                     }
                     ItemKind::Function(f) if f.kind.is_modifier() => {
@@ -1367,6 +1457,7 @@ pub(crate) fn build<'a>(
                     ghost: false,
                     ghost_decl: None,
                     transient: false,
+                    span: v.span,
                 });
             }
         }
@@ -1384,6 +1475,7 @@ pub(crate) fn build<'a>(
                 ghost: true,
                 ghost_decl: None,
                 transient: true,
+                span: Span::DUMMY,
             });
             // raw storage slots that inline assembly reaches with sload/sstore (assumed disjoint
             // from the declared state variables)
@@ -1396,6 +1488,7 @@ pub(crate) fn build<'a>(
                 ghost: true,
                 ghost_decl: None,
                 transient: false,
+                span: Span::DUMMY,
             });
         }
         let uses_time = con.invariants.iter().any(|s| s.text.contains("__time"))
@@ -1417,6 +1510,7 @@ pub(crate) fn build<'a>(
                 ghost: true,
                 ghost_decl: None,
                 transient: false,
+                span: Span::DUMMY,
             });
         }
         if con.kind == ContractKind::Contract || con.kind == ContractKind::AbstractContract {
@@ -1430,6 +1524,7 @@ pub(crate) fn build<'a>(
                 ghost: true,
                 ghost_decl: None,
                 transient: false,
+                span: Span::DUMMY,
             });
             // which code each address holds: a value of this epoch, which every external call and
             // contract creation moves on (code changes only through outside code), so code read
@@ -1443,6 +1538,7 @@ pub(crate) fn build<'a>(
                 ghost: true,
                 ghost_decl: None,
                 transient: false,
+                span: Span::DUMMY,
             });
             if creates || has_asm || lib_asm {
                 // the addresses this contract deployed with code that can never be removed
@@ -1456,6 +1552,7 @@ pub(crate) fn build<'a>(
                     ghost: true,
                     ghost_decl: None,
                     transient: false,
+                    span: Span::DUMMY,
                 });
             }
             if con.kind == ContractKind::Contract
@@ -1587,6 +1684,7 @@ pub(crate) fn build<'a>(
                     ghost: false,
                     ghost_decl: None,
                     transient: false,
+                    span: v.span,
                 });
             }
         }
@@ -1656,6 +1754,8 @@ pub(crate) fn build<'a>(
         block_tail: b.block_tail,
         enums: b.enums,
         enum_variants: b.enum_variants,
+        enum_decls: std::mem::take(&mut b.enum_decls),
+        contract_spans: items.iter().map(|(n, (it, _))| (n.clone(), it.span)).collect(),
         structs,
         udvts,
         udvt_bytes,

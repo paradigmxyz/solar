@@ -1775,6 +1775,14 @@ def evm_evm_rels(cuts):
 def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
     """The cut-point proof of the stage from a to b (manifest stages with def, file, kind and
     pass), after the module header, or raise Unsupported."""
+    # A recursive function has unbounded call strings: rec_cuts.py (tools/certify) cuts it at
+    # its entry and resume points with one relation over every depth of recursion.
+    try:
+        import rec_cuts
+    except ImportError:
+        rec_cuts = None
+    if rec_cuts is not None and rec_cuts.is_recursive(gen):
+        return rec_cuts.stage_body(gen, a, b, heartbeats, recdepth)
     ta = (gen / a["file"]).read_text()
     tb = (gen / b["file"]).read_text()
     entry_reach = None

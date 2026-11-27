@@ -31,7 +31,7 @@ def runtimeBytes : List Nat :=
 def code : ByteArray := ⟨(_root_.SolarTV.Export.C.bytecode.map UInt8.ofNat).toArray⟩
 
 /-- The source: solc's AST of the source unit, the contract and SolidCore's fuel. -/
-def src : _root_.SolidCore.Verify.Generic.Source := ⟨Certified.c_1.Src.importedSourceUnit, "SimpleStorage", Certified.c_1.Lowering.fuel⟩
+def src : _root_.SolidCore.Verify.Generic.Source := ⟨Certified.c_1.Src.importedSourceUnit, "C", Certified.c_1.Lowering.fuel⟩
 
 /-- The specification: the default context; one entry per external function; the valid calls,
 allowed statuses and postcondition solar-verify exported in this run; the gas bound. -/

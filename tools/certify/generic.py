@@ -22,6 +22,16 @@ Exit status and the last line printed:
      certified
   1  ERROR: <message>: the driver or a step failed
 
+A source the envelope blocks only on its loops takes the loop branch (loop_cuts, loop_resources,
+loop_final). It is CERTIFIED (exit 0, the requested tier's status) at the bounded loop tier exactly
+when loop_verdict accepts the checked loop final: check_final accepted Certified.NAME.Final.final with
+this run's fresh bytes and only propext, Classical.choice and Quot.sound, its closure replayed, it
+covers every function of the contract's ABI and every source loop, and each part states its function's
+exported spec (proved by the bridge, non-vacuous) or True by the checked no-spec determination. The
+statement is bounded: each part holds for every K ≤ Kmax on its valid calls (Valid K), which the
+record's loop_tier names. The unbounded tier (every loop limit n) is reported beside it, never
+dropped: "unbounded n: not certified", with the fixed-fuel resource result (out of gas) as its reason.
+
 --tier lifecycle (with --constructor-args W,... for a constructor with static word parameters) is
 about the creation, not the calls: solar's init code with the ABI-encoded arguments appended is run
 by EthLib, which must succeed and return the runtime bytes (solar's bin-runtime, with immutables
@@ -57,6 +67,8 @@ import tempfile
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(HERE))
+import asm_cert
+import export_ns
 import keccak
 import lakefile_inputs
 
@@ -157,6 +169,15 @@ class Blocked(Exception):
 
 class Failed(Exception):
     pass
+
+
+class LoopCertified(Exception):
+    """The loop branch's verdict at the bounded loop tier (loop_verdict): STATUS (the requested tier's,
+    CERTIFIED or COMPILED), the run's last LINE, and TIER, the record's loop_tier."""
+
+    def __init__(self, status, line, tier):
+        super().__init__(line)
+        self.status, self.line, self.tier = status, line, tier
 
 
 def spec_rejection(lines):
@@ -291,34 +312,304 @@ def param_of(p, enums):
     return None
 
 
-def creation_reach(cdef):
+ABI_ARRAY = re.compile(r"^(.*)\[(\d*)\]$")
+ABI_BYTES_N = re.compile(r"^bytes(\d+)$")
+
+
+def abi_dynamic(t):
+    """Whether the ABI type string T is dynamic: `bytes`, `string`, `T[]`, or an aggregate of a
+    dynamic type (a tuple's own string is `tuple`, so its components decide, by the caller)."""
+    return t in ("bytes", "string") or t.endswith("[]") or (
+        bool(ABI_ARRAY.match(t)) and abi_dynamic(ABI_ARRAY.match(t).group(1))
+    )
+
+
+def static_words(p, enums):
+    """The head words of a static ABI parameter P, each as the SolidCore Abi.Param of its word, in
+    calldata order: (words, None); or (None, (feature, why)) outside the envelope. The model is
+    SolidCore/Refinement/AbiStatic.lean's Static and Static.params?: a word type is one word; a
+    `bytes32` is one word whose clean words are every word below 2 ^ 256, exactly `.uint 256`'s
+    (Abi.Word.clean_bytes32); a fixed-size array `T[k]` of a static `T` is `k` copies of
+    `T`'s words; a struct (`tuple`) of static components is their words in order. A dynamic type
+    (`bytes`, `string`, `T[]`) and any aggregate holding one stay refused, each with its own
+    reason, and so do `bytesN` below 32 bytes (a left-aligned word: AbiStatic models it, but
+    Abi.Param has no such word) and every other type."""
+    t, it = p["type"], p.get("internalType", "")
+    m = ABI_ARRAY.match(t)
+    if m:
+        if m.group(2) == "":
+            if abi_dynamic(m.group(1)) or (m.group(1).startswith("tuple") and _has_dynamic(p)):
+                return None, ("ABI types: nested dynamic type", f"`{it or t}`: an array of a dynamic type")
+            return None, ("ABI types: dynamic parameter", f"`{it or t}`: a dynamic array (calldata of any length)")
+        inner = dict(p, type=m.group(1), internalType=ABI_ARRAY.sub(r"\1", it) if it else "")
+        ws, why = static_words(inner, enums)
+        if ws is None:
+            if why[0] in ("ABI types: dynamic parameter", "ABI types: nested dynamic type"):
+                return None, ("ABI types: nested dynamic type", f"`{it or t}`: a fixed-size array of a dynamic type")
+            return None, why
+        return ws * int(m.group(2)), None
+    if t == "tuple":
+        out = []
+        for c in p.get("components", []):
+            ws, why = static_words(c, enums)
+            if ws is None:
+                if why[0] in ("ABI types: dynamic parameter", "ABI types: nested dynamic type"):
+                    return None, ("ABI types: nested dynamic type", f"`{it or t}`: a struct with a dynamic member `{c.get('name', '')}`")
+                return None, why
+            out += ws
+        if not out:
+            return None, ("ABI types", f"`{it or t}`: an empty struct")
+        return out, None
+    if t in ("bytes", "string"):
+        return None, ("ABI types: dynamic parameter", f"`{t}`: a dynamic type (calldata of any length)")
+    b = ABI_BYTES_N.match(t)
+    if b:
+        n = int(b.group(1))
+        if n == 32:
+            return [".uint 256"], None
+        return None, ("ABI types: bytesN below 32 bytes", f"`{t}`: a left-aligned word, which Abi.Param does not model")
+    w = param_of(p, enums)
+    if w is None:
+        return None, ("ABI types", f"`{it or t}`: outside the ABI model")
+    return [w], None
+
+
+def abi_canon(p):
+    """The canonical type of the ABI parameter P in a signature: its type, with a struct (`tuple`,
+    `tuple[k]`, `tuple[]`) written as its components' canonical types in parentheses, as the
+    selector and the event topic hash it."""
+    t = p["type"]
+    if t.startswith("tuple"):
+        return "(" + ",".join(abi_canon(c) for c in p.get("components", [])) + ")" + t[len("tuple") :]
+    return t
+
+
+def _has_dynamic(p):
+    """Whether the ABI parameter P (a tuple or an array of tuples) holds a dynamic type."""
+    for c in p.get("components", []):
+        t = c["type"]
+        if abi_dynamic(t) or (t.startswith("tuple") and _has_dynamic(c)):
+            return True
+    return False
+
+
+def return_ok(p, enums):
+    """None when the ABI result P is in the envelope, else (feature, why): a static type, as
+    static_words reads it, or `bytes` or `string` (one dynamic value, whose encoding is the offset
+    word, the length word and the bytes padded to a word: AbiStatic.encode_bytes); every other
+    dynamic result stays refused."""
+    if p["type"] in ("bytes", "string"):
+        return None
+    ws, why = static_words(p, enums)
+    if ws is not None:
+        return None
+    if why[0] == "ABI types: dynamic parameter":
+        return ("ABI types: dynamic return", why[1].replace("calldata of any length", "returndata of any length"))
+    return why
+
+
+def linearization(ast, cdef):
+    """CDEF's bases in solc's C3 order, most derived first (CDEF itself first), as
+    (contract definitions, None), or (None, why) when the driver cannot certify the order: a base
+    it cannot find, a cycle, C3 failing, or an order other than solc's linearizedBaseContracts. The
+    order is computed here as solc does (NameAndTypeResolver: CDEF, then the merge of its direct
+    bases' linearizations, last-listed base first, with the reversed list of direct bases), the same
+    computation as the Lean frontend's ContractDecl.dispatchOrder?, and must equal the order solc
+    reports for the contract it compiled; Lean then checks its own order against solc's in the
+    kernel (linearization_module's linearization_eq, a module of its own that
+    scripts/certify regenerates, builds and audits)."""
+    byid = {
+        n["id"]: n
+        for n in walk(ast)
+        if n.get("nodeType") == "ContractDefinition" and "id" in n
+    }
+    names = [d.get("name") for d in byid.values()]
+    if len(set(names)) != len(names):
+        return (
+            None,
+            "two contracts share a name, and the Lean frontend finds bases by name",
+        )
+    memo = {}
+
+    def merge(seqs):
+        seqs = [list(q) for q in seqs if q]
+        out = []
+        while seqs:
+            for q in seqs:
+                head = q[0]
+                if not any(head in r[1:] for r in seqs):
+                    break
+            else:
+                return None
+            out.append(head)
+            seqs = [[x for x in r if x != head] for r in seqs]
+            seqs = [r for r in seqs if r]
+        return out
+
+    def lin(cid, stack):
+        if cid in memo:
+            return memo[cid]
+        if cid in stack:
+            raise ValueError("the inheritance graph has a cycle")
+        c = byid[cid]
+        bases = []
+        for b in c.get("baseContracts", []):
+            ref = (b.get("baseName") or {}).get("referencedDeclaration")
+            if ref not in byid:
+                raise ValueError(f"{c.get('name')}: a base outside the source unit")
+            bases.append(ref)
+        rev = bases[::-1]
+        m = merge([lin(b, stack | {cid}) for b in rev] + [rev])
+        if m is None:
+            raise ValueError(f"{c.get('name')}: no C3 linearization of its bases")
+        memo[cid] = [cid] + m
+        return memo[cid]
+
+    try:
+        order = lin(cdef["id"], frozenset())
+    except ValueError as e:
+        return None, str(e)
+    solc = cdef.get("linearizedBaseContracts")
+    if solc != order:
+
+        def shown(ids):
+            return ", ".join(
+                byid[i].get("name", "?") if i in byid else str(i) for i in ids or []
+            )
+
+        return None, (
+            f"the C3 order {shown(order)} is not the order solc reports ({shown(solc)}): "
+            "refused rather than flattened by either"
+        )
+    return [byid[i] for i in order], None
+
+
+class Dispatch:
+    """Internal calls resolved as they run in the most-derived contract of LIN (its contracts, most
+    derived first), as solc's resolveVirtual does: an unqualified call or modifier invocation runs
+    the first function (same name and parameter types) or modifier (same name) in LIN, super.f() in
+    contract X the first such function after X in LIN (whether or not it overrides the one the call
+    names), and a qualified C.f() or C.m a static call of the one named. Callables are every
+    function and modifier of LIN's contracts, by id."""
+
+    def __init__(self, lin):
+        self.lin = lin
+        self.callables, self.home, self.pos = {}, {}, {}
+        for i, c in enumerate(lin):
+            self.pos[c["id"]] = i
+            for n in walk(c):
+                if (
+                    n.get("nodeType") in ("FunctionDefinition", "ModifierDefinition")
+                    and "id" in n
+                ):
+                    self.callables[n["id"]] = n
+                    self.home[n["id"]] = i
+        self.bases = {}
+        for k, n in self.callables.items():
+            self.bases[k] = set(n.get("baseFunctions") or []) | set(
+                n.get("baseModifiers") or []
+            )
+        changed = True
+        while changed:
+            changed = False
+            for k in self.bases:
+                more = (
+                    set().union(*(self.bases.get(b, set()) for b in self.bases[k]))
+                    - self.bases[k]
+                )
+                if more:
+                    self.bases[k] |= more
+                    changed = True
+
+    @staticmethod
+    def params(n):
+        # Parameter types without data locations (solc compares asExternallyCallableFunction's).
+        out = []
+        for q in (n.get("parameters") or {}).get("parameters", []):
+            t = (q.get("typeDescriptions") or {}).get("typeString", "")
+            for loc in (" storage pointer", " storage ref", " memory", " calldata"):
+                t = t.replace(loc, "")
+            out.append(t)
+        return out
+
+    def first_after(self, ref, after):
+        want = self.callables[ref]
+        kind = want.get("nodeType")
+        for c in self.lin[after:]:
+            for n in c.get("nodes", []):
+                if (
+                    n.get("id") in self.callables
+                    and n.get("nodeType") == kind
+                    and n.get("kind", "function") in ("function", None)
+                    and n.get("name") == want.get("name")
+                    and (
+                        kind == "ModifierDefinition"
+                        or self.params(n) == self.params(want)
+                    )
+                ):
+                    return n["id"]
+        return None
+
+    def target(self, ref, node=None, site=None):
+        """The callable a call or invocation naming REF runs, or None when REF is not one. NODE is the
+        call's callee expression or the invocation's modifier name, SITE the id of the callable
+        the call is in."""
+        if ref not in self.callables:
+            return None
+        e = node or {}
+        if (
+            e.get("nodeType") == "MemberAccess"
+            and (e.get("expression") or {}).get("nodeType") == "Identifier"
+            and (e.get("expression") or {}).get("name") == "super"
+            and site in self.home
+        ):
+            return self.first_after(ref, self.home[site] + 1)
+        if e.get("nodeType") == "MemberAccess" or (
+            e.get("nodeType") == "IdentifierPath" and "." in (e.get("name") or "")
+        ):
+            return ref  # C.f() or C.m: a static call of the named function or modifier
+        return self.first_after(ref, 0) or ref
+
+
+def creation_reach(cdef, lin=None, extra=()):
     """The AST nodes creation can run in CDEF: the constructor (with its modifiers and base
     constructor invocations), every state variable's initializer, and, through internal calls and
-    modifier invocations, every function and modifier they reach. Returns (the ids of those nodes,
-    whether some call or invocation could not be resolved to a function or modifier of CDEF, in
-    which case nothing counts as runtime-only)."""
-    defs = {
-        n["id"]: n
-        for n in walk(cdef)
-        if n.get("nodeType") in ("FunctionDefinition", "ModifierDefinition")
-        and "id" in n
-    }
+    modifier invocations, every function and modifier they reach, those of CDEF and the inlined
+    sibling code EXTRA (sibling_code's library and free functions). Returns (the ids of those nodes,
+    whether some call or invocation could not be resolved to a function or modifier of CDEF or
+    EXTRA, in which case nothing counts as runtime-only). With LIN (CDEF's linearization, most
+    derived first), every base's constructor and initializers are roots too, and calls resolve as
+    they run in CDEF (Dispatch)."""
+    lin = lin or [cdef]
+    disp = Dispatch(lin)
+    defs = dict(disp.callables)
+    for n in (m for f in extra for m in walk(f)):
+        if n.get("nodeType") in ("FunctionDefinition", "ModifierDefinition") and "id" in n:
+            defs.setdefault(n["id"], n)
+
+    def resolve(ref, node, site):
+        # The callable of LIN a call runs (Dispatch), else the inlined sibling function it names.
+        k = disp.target(ref, node, site)
+        return k if k is not None else (ref if ref in defs else None)
     roots = [
-        n
-        for n in walk(cdef)
+        (n, n["id"])
+        for c in lin
+        for n in walk(c)
         if n.get("nodeType") == "FunctionDefinition" and n.get("kind") == "constructor"
     ]
     roots += [
-        n["value"]
-        for n in cdef.get("nodes", [])
+        (n["value"], None)
+        for c in lin
+        for n in c.get("nodes", [])
         if n.get("nodeType") == "VariableDeclaration"
         and n.get("stateVariable")
         and n.get("value")
     ]
+    bases = {c["id"] for c in lin}
     unresolved = False
     seen, todo, reach = set(), list(roots), set()
     while todo:
-        node = todo.pop()
+        node, site = todo.pop()
         if id(node) in seen:
             continue
         seen.add(id(node))
@@ -327,15 +618,19 @@ def creation_reach(cdef):
             t = m.get("nodeType")
             if t == "ModifierInvocation":
                 ref = (m.get("modifierName") or {}).get("referencedDeclaration")
-                if ref in defs:
-                    todo.append(defs[ref])
+                k = resolve(ref, m.get("modifierName"), site)
+                if k is not None:
+                    todo.append((defs[k], k))
+                elif ref in bases:
+                    pass  # a base constructor specifier: every base constructor is a root
                 else:
-                    unresolved = True  # a base constructor or an unknown modifier
+                    unresolved = True  # an unknown modifier
             elif t == "FunctionCall" and m.get("kind") == "functionCall":
                 e = m.get("expression") or {}
                 ref = e.get("referencedDeclaration")
-                if ref in defs:
-                    todo.append(defs[ref])
+                k = resolve(ref, e, site)
+                if k is not None:
+                    todo.append((defs[k], k))
                 elif isinstance(ref, int) and ref < 0:
                     pass  # a builtin (require, keccak256, ...)
                 elif " internal" in str(
@@ -343,6 +638,85 @@ def creation_reach(cdef):
                 ):
                     unresolved = True  # an internal call not to a known function (a function value)
     return reach, unresolved
+
+
+def sibling_code(ast, cdef, lin=None):
+    """The code of the source's other units that CDEF runs inline, and the calls that would run a
+    sibling's deployed code instead. A source may hold other contracts, interfaces and libraries
+    beside CDEF: only what CDEF reaches is part of it. CDEF reaches a library's internal (or
+    private) function and a free function by naming it (a call, a function value, a bound
+    `using` function, or a user-defined operator): solar inlines that code, as it compiles
+    CDEF's own internal functions, so the envelope checks it as CDEF's code. Nothing else of a
+    sibling is compiled into CDEF's runtime bytecode. Returns (the reached function and modifier
+    definitions, closed under what they reach in turn, each with the unit that declares it, None for
+    a free function; the call sites that run a public or external library function, by DELEGATECALL
+    into the deployed library, each as (call node, library name, function name)). With LIN (CDEF's
+    linearization, most derived first), its bases' code is CDEF's own and reaches siblings too."""
+    owner = {}
+    for unit in ast.get("nodes", []):
+        if unit.get("nodeType") == "ContractDefinition":
+            for n in walk(unit):
+                if n.get("nodeType") in ("FunctionDefinition", "ModifierDefinition"):
+                    owner[n["id"]] = (n, unit)
+        elif unit.get("nodeType") == "FunctionDefinition":
+            owner[unit["id"]] = (unit, None)
+    lin = lin or [cdef]
+    own = {n["id"] for c in lin for n in walk(c) if "id" in n}
+
+    def inlined(ref, here, expr):
+        """Whether REF (a declaration a node in unit HERE names, through EXPR when it is a callee)
+        is sibling code CDEF runs inline."""
+        if ref not in owner or ref in own:
+            return False
+        node, unit = owner[ref]
+        if unit is None:
+            return True
+        if unit.get("contractKind") != "library":
+            return False  # a function of another contract or interface: an external call, or a base
+        if node.get("visibility") in ("internal", "private") or node.get(
+            "nodeType"
+        ) == "ModifierDefinition":
+            return True
+        # A library's public function runs inline only when the library itself calls it by name.
+        return unit is here and (expr or {}).get("nodeType") == "Identifier"
+
+    reached, delegate, seen = [], [], set()
+    todo = [(c, c) for c in lin]
+    while todo:
+        root, here = todo.pop()
+        for n in walk(root):
+            t = n.get("nodeType")
+            refs = []
+            if t == "FunctionCall" and n.get("kind") == "functionCall":
+                e = n.get("expression") or {}
+                ref = e.get("referencedDeclaration")
+                if ref in owner and ref not in own:
+                    node, unit = owner[ref]
+                    if (
+                        unit is not None
+                        and unit.get("contractKind") == "library"
+                        and node.get("visibility") in ("public", "external")
+                        and not inlined(ref, here, e)
+                    ):
+                        delegate.append((n, unit.get("name"), node.get("name")))
+            elif t in ("BinaryOperation", "UnaryOperation") and isinstance(
+                n.get("function"), int
+            ):
+                refs.append((n["function"], None))
+            if isinstance(n.get("referencedDeclaration"), int) and t in (
+                "Identifier",
+                "MemberAccess",
+                "IdentifierPath",
+            ):
+                refs.append((n["referencedDeclaration"], n))
+            for ref, expr in refs:
+                if ref in seen or not inlined(ref, here, expr):
+                    continue
+                seen.add(ref)
+                node, unit = owner[ref]
+                reached.append((node, unit))
+                todo.append((node, unit))
+    return reached, delegate
 
 
 def envelope(
@@ -360,6 +734,7 @@ def envelope(
     obligations for it (the fixed-fuel resource obligation among them) are recorded OPEN, never
     discharged; a loop in the constructor still blocks."""
     reasons = []
+    ctor_ps, ctor_node = None, None
 
     def block(feature, node, detail):
         reasons.append(
@@ -380,19 +755,6 @@ def envelope(
     defs = [
         n for n in ast.get("nodes", []) if n.get("nodeType") == "ContractDefinition"
     ]
-    for d in defs:
-        if d.get("contractKind") != "contract" or d.get("abstract"):
-            block(
-                "several contracts",
-                d,
-                f"{d.get('contractKind')} {d.get('name')}: only one concrete contract per file",
-            )
-        if d.get("baseContracts"):
-            block(
-                "inheritance",
-                d,
-                f"{d.get('name')} inherits; only one contract with no bases",
-            )
     concrete = [
         d for d in defs if d.get("contractKind") == "contract" and not d.get("abstract")
     ]
@@ -409,14 +771,85 @@ def envelope(
     if not cdefs:
         raise Failed(f"no contract {contract} in the source")
     cdef = cdefs[0]
-    own = {n["id"] for n in walk(cdef) if "id" in n}
-    creation, creation_unresolved = creation_reach(cdef)
+    # Inheritance: the contract is checked as the Lean frontend flattens it (CheckedInput.contract
+    # translates the most-derived contract over its C3 order: functions with overrides resolved,
+    # storage laid out base first, super calls as internal calls), so the checks below walk every
+    # contract of the order. The order must be solc's (linearization), and what the flattening does
+    # not cover yet is refused by name.
+    lin, why = linearization(ast, cdef)
+    if lin is None:
+        block("inheritance", cdef, why)
+        lin = [cdef]
+    for c in lin:
+        for spec in c.get("baseContracts", []):
+            if spec.get("arguments"):
+                block(
+                    "inheritance: base constructor arguments",
+                    spec,
+                    f"{c.get('name')} passes arguments to the base constructor "
+                    f"{(spec.get('baseName') or {}).get('name')}: base constructor arguments are not handled yet",
+                )
+        for n in c.get("nodes", []):
+            if (
+                n.get("nodeType") != "FunctionDefinition"
+                or n.get("kind") != "constructor"
+            ):
+                continue
+            for m in n.get("modifiers", []):
+                ref = (m.get("modifierName") or {}).get("referencedDeclaration")
+                if m.get("kind") == "baseConstructorSpecifier" or ref in {
+                    x["id"] for x in lin
+                }:
+                    if m.get("arguments"):
+                        block(
+                            "inheritance: base constructor arguments",
+                            m,
+                            f"{c.get('name')}'s constructor passes arguments to the base constructor "
+                            f"{(m.get('modifierName') or {}).get('name')}: base constructor arguments are not handled yet",
+                        )
+                elif c is not cdef:
+                    block(
+                        "inheritance: modifier on a base constructor",
+                        m,
+                        f"the constructor of base {c.get('name')} has the modifier "
+                        f"{(m.get('modifierName') or {}).get('name')}: modifiers on base constructors are not handled",
+                    )
+    # Only the named contract is certified: its siblings (other contracts, interfaces, libraries)
+    # are compiled into its bytecode only as the library and free functions it (or a base in its
+    # linearization) runs inline (sibling_code), which are checked below as its own code.
+    inline, delegate = sibling_code(ast, cdef, lin)
+    for call, lib, fname in delegate:
+        block(
+            "external call",
+            call,
+            f"{lib}.{fname} is a public library function: the call runs the deployed library {lib} "
+            "by DELEGATECALL, a sibling's code outside the certified contract",
+        )
+    inline_defs = [node for node, _ in inline]
+    own = {n["id"] for c in lin for n in walk(c) if "id" in n}
+    import loop_cuts
+
+    # Each loop's function and why the source erasure (eraseLoopStmt) certainly does not cover it,
+    # or None, by node.
+    loop_why = {
+        id(n): (fname, why) for c in lin for n, fname, why in loop_cuts.loop_shapes(c)
+    }
+    for node, unit in inline:
+        where = f"{unit.get('name')}." if unit is not None else ""
+        for n in walk(node):
+            if n.get("nodeType") in ("ForStatement", "WhileStatement", "DoWhileStatement"):
+                loop_why[id(n)] = (
+                    f"{where}{node.get('name')}",
+                    "a loop in inlined library or free function code, which the loop cut hook "
+                    "does not read",
+                )
+    creation, creation_unresolved = creation_reach(cdef, lin, inline_defs)
     enums = {}
     for n in walk(ast):
         if n.get("nodeType") == "EnumDefinition":
             enums[n["name"]] = len(n.get("members", []))
             enums[n.get("canonicalName", n["name"])] = len(n.get("members", []))
-    for n in walk(cdef):
+    for n in [*(m for c in lin for m in walk(c)), *(m for node in inline_defs for m in walk(node))]:
         t = n.get("nodeType")
         if t == "InlineAssembly":
             block(
@@ -443,14 +876,25 @@ def envelope(
                 }
             )
         elif t in ("ForStatement", "WhileStatement", "DoWhileStatement"):
+            fname, why = loop_why.get(id(n), ("", "a loop outside every function"))
             block(
                 "loop",
                 n,
-                "loops need a kernel-checked invariant certificate; the generic source stage at this base is loop-free"
+                (
+                    f"{fname}: outside the source erasure's counted loop: {why}"
+                    if why is not None
+                    else f"{fname}: a while loop, the while route's shape (eraseWhile through an "
+                    "invariant; bodyRuns_of_eraseWhile): the loop cut hook generates its source "
+                    "premises and obligations, and the published statement does not apply them yet"
+                    if t == "WhileStatement"
+                    else f"{fname}: a counted for loop, the source erasure's shape (eraseLoopStmt; "
+                    "bodyRuns_of_eraseLoop): the loop cut hook generates its source premises and "
+                    "obligations, and the published statement does not apply them yet"
+                )
                 + (
-                    ", and the supplied invariants file is not consumed yet"
+                    "; the supplied invariants file is not consumed"
                     if invariants
-                    else " (no --invariants given)"
+                    else ""
                 ),
             )
         elif t == "FunctionDefinition":
@@ -465,17 +909,26 @@ def envelope(
                 and n.get("parameters", {}).get("parameters")
                 and not lifecycle
             ):
-                block(
-                    "constructor parameters",
-                    n,
-                    "the generic stage runs the constructor with no arguments (Wide.DeployedAt), so its storage is unknown; --tier lifecycle with --constructor-args takes static word arguments",
-                )
+                ctor_ps, ctor_why = ctor_word_params(n)
+                for why in ctor_why:
+                    block("constructor parameters", n, why)
+                if not ctor_why:
+                    ctor_node = n
             if n.get("kind") in ("receive", "fallback"):
                 block(
                     "fallback",
                     n,
                     f"{n.get('kind')} function: calls outside the ABI's functions",
                 )
+        elif t == "MemberAccess" and n.get("memberName") in (
+            "creationCode",
+            "runtimeCode",
+        ):
+            block(
+                "contract creation",
+                n,
+                f"type(...).{n['memberName']} embeds another contract's bytecode",
+            )
         elif t == "MemberAccess" and n.get("memberName") in (
             "call",
             "delegatecall",
@@ -516,20 +969,39 @@ def envelope(
                 n,
                 f"{n['name']} is outside the source semantics' environment",
             )
-    # Recursion: the generic stage proofs need a cut point at every back edge, and a recursive call
-    # site has none (the stage proofs have no measure to cut at), so the call graph must be acyclic.
+    # Recursion: the generic stage proofs need a cut point at every back edge. One function calling
+    # itself, with its measure written (@custom:decreases), has them: the backend stages cut it at
+    # its call frames (rec_cuts.py), bounded by the measure. Any other cycle has no cut points at
+    # its call sites, so it stays refused.
     variables = {
         n["id"]
         for n in walk(ast)
         if n.get("nodeType") == "VariableDeclaration" and "id" in n
     }
-    cycles, values = recursion_cycles(cdef, variables)
+    cycles, values = recursion_cycles(cdef, variables, lin, inline_defs)
     for names, call in cycles:
+        fns = [
+            n
+            for n in walk(cdef)
+            if n.get("nodeType") == "FunctionDefinition" and n.get("name") == names[0]
+        ] or [
+            n
+            for n in walk(ast)
+            if n.get("nodeType") == "FunctionDefinition" and n.get("name") == names[0]
+        ]
+        doc = ((fns[0].get("documentation") or {}).get("text", "")) if len(fns) == 1 else ""
+        if len(names) == 1 and re.search(r"@custom:decreases\s+\S", doc):
+            continue
         block(
             "recursion",
             call,
-            f"unsupported: {' and '.join(names)} can call {'itself' if len(names) == 1 else 'each other'} "
-            "(the generic stage needs an acyclic call graph; recursive calls have no cut points)",
+            f"unsupported: {' and '.join(names)} can call "
+            f"{'itself' if len(names) == 1 else 'each other'} "
+            + (
+                "(only one function calling itself, with @custom:decreases, has cut points)"
+                if len(names) > 1
+                else "(no @custom:decreases measure for its recursive call sites)"
+            ),
         )
     for call in values:
         block(
@@ -545,7 +1017,7 @@ def envelope(
         env_re = re.compile(
             r"\b(block\.\w+|tx\.\w+|gasleft|blockhash|chainid|basefee|coinbase|prevrandao)\b"
         )
-        for n in walk(cdef):
+        for n in (m for c in lin for m in walk(c)):
             if n.get("nodeType") in (
                 "ContractDefinition",
                 "FunctionDefinition",
@@ -565,22 +1037,30 @@ def envelope(
     for e in abi:
         if e["type"] != "function":
             continue
-        sig = f"{e['name']}({','.join(p['type'] for p in e['inputs'])})"
-        params = [param_of(p, enums) for p in e["inputs"]]
-        outs = [param_of(p, enums) for p in e.get("outputs", [])]
-        if None in params or None in outs:
-            block(
-                "ABI types",
-                None,
-                f"{sig}: only uintN, intN, bool, address and enum parameters and results",
-            )
+        sig = f"{e['name']}({','.join(abi_canon(p) for p in e['inputs'])})"
+        # The head words of the parameters (static types only, flattened in calldata order; see
+        # static_words), and the results: static, or bytes or string.
+        params = []
+        for p in e["inputs"]:
+            ws, why = static_words(p, enums)
+            if ws is None:
+                block(why[0], None, f"{sig}: parameter {why[1]}")
+            else:
+                params += ws
+        for p in e.get("outputs", []):
+            why = return_ok(p, enums)
+            if why is not None:
+                block(why[0], None, f"{sig}: result {why[1]}")
+        # The definition the selector dispatches to: the most derived one in the C3 order.
+        fsel = keccak.keccak256(sig.encode())[:4].hex()
         fdef = next(
             (
                 n
-                for n in walk(cdef)
+                for c in lin
+                for n in c.get("nodes", [])
                 if n.get("nodeType") == "FunctionDefinition"
-                and n.get("name") == e["name"]
                 and n.get("kind") == "function"
+                and n.get("functionSelector") == fsel
             ),
             None,
         )
@@ -600,7 +1080,7 @@ def envelope(
     events = []
     for e in abi:
         if e["type"] == "event":
-            sig = f"{e['name']}({','.join(p['type'] for p in e['inputs'])})"
+            sig = f"{e['name']}({','.join(abi_canon(p) for p in e['inputs'])})"
             events.append(
                 {
                     "sig": sig,
@@ -609,6 +1089,27 @@ def envelope(
             )
     if not fns:
         block("no functions", None, "the contract has no external functions")
+    fns = Fns(fns)
+    if ctor_node is not None:
+        # A constructor with static word parameters: the statement is for every argument list
+        # (Verify/Generic/CtorWords.lean), on the compiled tier only, and the runtime bytes must
+        # not depend on the arguments.
+        if natspec:
+            block(
+                "constructor parameters",
+                ctor_node,
+                "with a specification: the spec connection (SpecConnect) and the Expected statement run "
+                "the constructor with no arguments; constructor arguments are stated for every word "
+                "on the compiled tier (no specification) only",
+            )
+        for v in immutables(ast, contract):
+            block(
+                "constructor parameters",
+                ctor_node,
+                f"immutable {v} with constructor arguments: the runtime bytes the constructor deploys "
+                "depend on the arguments, and the statement binds one runtime bytecode",
+            )
+        fns.ctor = {"params": ctor_ps}
     if reasons:
         raise Blocked(reasons)
     return contract, fns, events
@@ -751,8 +1252,37 @@ def natspec_checks(ast, contract):
     )
     if cdef is None:
         return None, []
+    # With bases, the checks read the flattened contract: the state variables and the public
+    # functions of the whole C3 order (each selector's most derived definition). The initial state
+    # is decided only when no base has a constructor or an initializer (a base constructor runs
+    # before CDEF's initializers and can reach CDEF's variables through a virtual call).
+    lin, _ = linearization(ast, cdef)
+    lin = lin or [cdef]
+    flat, seen_sel = [], set()
+    for c in lin:
+        for n in c.get("nodes", []):
+            if (
+                n.get("nodeType") == "FunctionDefinition"
+                and n.get("kind") == "function"
+            ):
+                sel = n.get("functionSelector")
+                if sel is None:
+                    continue
+                if sel in seen_sel:
+                    continue
+                seen_sel.add(sel)
+            flat.append(n)
+    base_init = any(
+        n.get("nodeType") == "FunctionDefinition"
+        and n.get("kind") == "constructor"
+        or n.get("nodeType") == "VariableDeclaration"
+        and n.get("stateVariable")
+        and n.get("value")
+        for c in lin[1:]
+        for n in c.get("nodes", [])
+    )
     svars = {}
-    for n in cdef.get("nodes", []):
+    for n in (m for c in lin for m in c.get("nodes", [])):
         if n.get("nodeType") == "VariableDeclaration" and n.get("stateVariable"):
             v = n.get("value")
             svars[n["name"]] = (
@@ -760,7 +1290,7 @@ def natspec_checks(ast, contract):
                 if v and v.get("nodeType") == "Literal" and v.get("kind") == "number"
                 else (0 if v is None else None)
             )
-    for f in cdef.get("nodes", []):
+    for f in flat:
         if f.get("nodeType") != "FunctionDefinition" or f.get("kind") != "function":
             continue
         if (
@@ -799,7 +1329,7 @@ def natspec_checks(ast, contract):
                 None,
             )
             sets = literal_assignments(ctor.get("body")) if ctor else {}
-            if sets is not None and len(init) == len(svars):
+            if sets is not None and len(init) == len(svars) and not base_init:
                 init.update(sets)
                 if spec_holds(atoms, init) is False:
                     shown = ", ".join(f"{k} = {init[k]}" for k, _, _ in atoms)
@@ -807,7 +1337,7 @@ def natspec_checks(ast, contract):
                         f"invariant: {text} fails in the initial state (the constructor leaves {shown})",
                         invs,
                     )
-            for f in cdef.get("nodes", []):
+            for f in flat:
                 if (
                     f.get("nodeType") != "FunctionDefinition"
                     or f.get("kind") != "function"
@@ -828,19 +1358,24 @@ def natspec_checks(ast, contract):
     return None, invs
 
 
-def recursion_cycles(cdef, variables):
+def recursion_cycles(cdef, variables, lin=None, extra=()):
     """The contract's recursion: each strongly connected component of its internal call graph that
-    has a cycle (functions or modifiers that can reach themselves), as (names, first call site), and
-    the calls through internal function values, whose callee the source does not name. The graph's
-    nodes are the contract's functions and modifiers; an edge is an internal call naming one of them
-    (an Identifier, or a MemberAccess such as C.f) or a modifier invocation. VARIABLES holds the ids
-    of the source's variable declarations (struct members included)."""
-    callables = {
-        n["id"]: n
-        for n in walk(cdef)
-        if n.get("nodeType") in ("FunctionDefinition", "ModifierDefinition")
-        and "id" in n
-    }
+    has a cycle (functions or modifiers that can reach themselves) and that the contract's own
+    functions and modifiers reach, as (names, first call site), and the calls through internal
+    function values, whose callee the source does not name. The graph's nodes are the contract's
+    functions and modifiers (with LIN, CDEF's linearization, most derived first: every function and
+    modifier of its contracts) and EXTRA, the sibling library and free functions CDEF runs inline
+    (sibling_code; a contract calls them internally, so a cycle through them is recursion too); an
+    edge is an internal call naming one of them (an Identifier, or a MemberAccess such as C.f) or a
+    modifier invocation, to the callable the call runs in CDEF (Dispatch: final overrides, super).
+    VARIABLES holds the ids of the source's variable declarations (struct members included)."""
+    disp = Dispatch(lin or [cdef])
+    own = dict(disp.callables)
+    callables = dict(own)
+    for f in extra:
+        for n in walk(f):
+            if n.get("nodeType") == "FunctionDefinition" and "id" in n:
+                callables.setdefault(n["id"], n)
     edges, site, values = {}, {}, []
     for cid, c in callables.items():
         out = edges.setdefault(cid, [])
@@ -865,9 +1400,17 @@ def recursion_cycles(cdef, variables):
                 if internal_value and (
                     ref in variables if named else e.get("nodeType") not in other
                 ):
-                    values.append(n)
+                    values.append((cid, n))
             else:
                 continue
+            k = disp.target(
+                ref,
+                n.get("modifierName")
+                if t == "ModifierInvocation"
+                else n.get("expression"),
+                cid,
+            )
+            ref = k if k is not None else ref
             if ref in callables:
                 out.append(ref)
                 site.setdefault((cid, ref), n)
@@ -904,11 +1447,20 @@ def recursion_cycles(cdef, variables):
                     if w == v:
                         break
                 sccs.append(comp)
+    # What the contract's own functions and modifiers reach: a free function it never calls is not
+    # part of its code.
+    reached, todo = set(own), list(own)
+    while todo:
+        for w in edges[todo.pop()]:
+            if w not in reached:
+                reached.add(w)
+                todo.append(w)
+    values = [n for cid, n in values if cid in reached]
     cycles = []
     for comp in sccs:
         members = set(comp)
         inner = [(x, y) for x in comp for y in edges[x] if y in members]
-        if not inner:
+        if not inner or not members & reached:
             continue
         first = min(
             inner, key=lambda xy: int(site[xy].get("src", "0:0:0").split(":")[0])
@@ -934,6 +1486,80 @@ def constructor_params(ast, contract):
                         for q in n["parameters"]["parameters"]
                     ]
     return []
+
+
+class Fns(list):
+    """The external functions of the contract (a list), and in `ctor` its constructor's static word
+    parameters ({"params": [{"name", "type", "width"}]}) when it takes arguments, else None: every
+    generator of the run receives the functions, so the constructor rides with them."""
+
+    ctor = None
+
+
+# A constructor parameter bound for every argument word (Verify/Generic/CtorWords.lean,
+# bindArgs_words): a uint256-typed word (narrow uintN with its cleanup) or an address.
+CTOR_UINT = re.compile(r"uint(8|16|24|32|40|48|56|64|72|80|88|96|104|112|120|128|136|144|152|160|168|176|184|192|200|208|216|224|232|240|248|256)?")
+
+
+def ctor_word_params(n):
+    """The constructor N's parameters as static words ([{"name", "type", "width"}], []) or, for
+    parameters outside them, ([], why) with one reason per parameter, each refused precisely:
+    dynamic ABI types (bytes, string, arrays, structs), multi-word static types and the word types
+    not bound yet (bool, intN, bytesN, enums, contracts, function types)."""
+    ps, why = [], []
+    for q in n.get("parameters", {}).get("parameters", []):
+        name = q.get("name") or "_"
+        t = (q.get("typeDescriptions") or {}).get("typeString", "")
+        tn = q.get("typeName") or {}
+        if tn.get("nodeType") == "ElementaryTypeName" and q.get("storageLocation") in (
+            None,
+            "default",
+        ):
+            base = tn.get("name", "")
+            m = CTOR_UINT.fullmatch(base)
+            if m:
+                ps.append({"name": name, "type": t, "width": int(m.group(1) or 256)})
+                continue
+            if base in ("address", "address payable"):
+                ps.append({"name": name, "type": t, "width": 160})
+                continue
+            if base in ("bytes", "string"):
+                why.append(
+                    f"parameter {name} of type {t}: a dynamic constructor argument; the deployment "
+                    "is stated for static word arguments only"
+                )
+                continue
+            why.append(
+                f"parameter {name} of type {t}: only uintN and address words are bound for every "
+                "argument (Verify/Generic/CtorWords.lean, bindArgs_words); bool, intN and bytesN "
+                "are not yet"
+            )
+            continue
+        kind = tn.get("nodeType", "")
+        if kind == "ArrayTypeName" and tn.get("length") is not None:
+            why.append(
+                f"parameter {name} of type {t}: a static array, not one static word (only uintN and "
+                "address words are bound for every argument)"
+            )
+        elif kind == "ArrayTypeName" or (
+            kind == "ElementaryTypeName" and tn.get("name") in ("bytes", "string")
+        ):
+            why.append(
+                f"parameter {name} of type {t}: a dynamic constructor argument; the deployment "
+                "is stated for static word arguments only"
+            )
+        elif t.startswith("struct "):
+            why.append(
+                f"parameter {name} of type {t}: a struct argument, not one static word (only uintN "
+                "and address words are bound for every argument)"
+            )
+        else:
+            why.append(
+                f"parameter {name} of type {t}: only uintN and address words are bound for every "
+                "argument (Verify/Generic/CtorWords.lean, bindArgs_words); enums, contract and "
+                "function types are not yet"
+            )
+    return (ps, []) if not why else ([], why)
 
 
 def immutables(ast, contract):
@@ -1037,9 +1663,21 @@ def storage_pairs(text):
     )
 
 
+# What solar writes where the linker puts a library's address: 20 bytes, as 40 characters.
+LIBRARY_PLACEHOLDER = re.compile(r"__\$[0-9a-fA-F]{34}\$__")
+
+
 def scan_bytecode(hexcode):
+    """The opcodes of the runtime bytecode HEXCODE outside the fragment, each with its first pc,
+    and "unlinked library" with the offset of the first library placeholder: the code calls a
+    library whose address only linking fixes, which is not code the stages can describe."""
+    found = {}
+    m = LIBRARY_PLACEHOLDER.search(hexcode)
+    if m:
+        found["unlinked library"] = m.start() // 2
+        hexcode = LIBRARY_PLACEHOLDER.sub("0" * 40, hexcode)
     code = bytes.fromhex(hexcode)
-    found, i = {}, 0
+    i = 0
     while i < len(code):
         op = code[i]
         if op == 0xFE:  # INVALID: the start of the metadata or data section
@@ -1057,18 +1695,153 @@ def lean_str(s):
     return json.dumps(s)
 
 
-def nested_splits(eqs):
-    """The tactic lines of `funext; unfold` by one `split` per table entry, nested under bullets."""
-    n, out = len(eqs), []
-    for i, e in enumerate(eqs):
-        out.append("  split" if i == 0 else "  " * i + "· split")
-        out.append("  " * (i + 1) + f"· next h => subst h; exact {e}")
-    out.append("  " * n + "· rfl")
-    return "\n".join(out) + "\n"
+def kernel_table(doc, name, eq, ty, f, pre, entries):
+    """F : String → TY by a table of its values at ENTRIES' signatures ((signature, value literal)
+    pairs): each entry is PRE{i}_eq : PRE{i} = value, F on its signature by kernel_rfl alone (F
+    costs the kernel too much to evaluate inside a larger check); NAME is the table
+    (KernelTable.tableOr) and EQ : F = NAME follows from those equations by KernelTable.eq_tableOr,
+    in one line whatever the number of entries."""
+    defs = "".join(
+        f"def {pre}{i} : {ty} :=\n  {f} {lean_str(s)}\n\nkernel_rfl {pre}{i}_eq {pre}{i} {v}\n\n"
+        for i, (s, v) in enumerate(entries)
+    )
+    rows = ",\n     ".join(f"({lean_str(s)}, {v})" for s, v in entries)
+    eqs = [f"{pre}{i}_eq" for i in range(len(entries))]
+    agrees = f"⟨{', '.join(eqs)}, trivial⟩" if eqs else "trivial"
+    return (
+        f"{defs}/-- {doc} -/\ndef {name} : String → {ty} :=\n  KernelTable.tableOr {f}\n    [{rows}]\n\n"
+        f"theorem {eq} : {f} = {name} :=\n  KernelTable.eq_tableOr {agrees}\n"
+    )
+
+
+SELECTOR_TABLE = (
+    "§ABI.selectorFromSignature§, with the contract's signatures by table.",
+    "selectorTable",
+    "selector_eq",
+    "SolidCore.Solidity.Shared.Word",
+    "SolidCore.Solidity.Source.ABI.selectorFromSignature",
+    "selSig",
+)
+DIGEST_TABLE = (
+    "§Keccak.digestWord§, with the events' signatures by table.",
+    "digestTable",
+    "digest_eq",
+    "Nat",
+    "SolidCore.Solidity.Source.Keccak.digestWord",
+    "topicSig",
+)
+
+
+def runtime_lean(deployed, plain):
+    """The runtime code a creation installs, as a Lean term: DEPLOYED's bytes, or with immutables
+    the term `runtime` (PLAIN) with each word the constructor patches."""
+    patches = immutable_patches(deployed, plain)
+    if patches is None:
+        return lean_bytes(deployed)
+    code = "runtime"
+    for off, w in patches:
+        code = f"patchWord ({code}) {off} {hex(w)}"
+    return code
 
 
 def lowering_lean(name, contract, fns, events, core_lit, storage_lit, sym=False):
+    # The run's stages are exported under its own namespace (export_ns.py).
+    X = export_ns.of_run(name, contract)
     ns = f"Certified.{name}.Lowering"
+    ctor = getattr(fns, "ctor", None)
+    if ctor is not None:
+        # The probe's storage line for a constructor with word parameters: "ctorArgs WIDTHS WRITES",
+        # the parameters' widths and the writes of its body's one normal leaf (ctorShapeOf).
+        m = re.fullmatch(
+            r"ctorArgs \[([0-9, ]*)\] ;; (.+) ;; (\[.*\]) ;; \[([0-9, ]*)\]",
+            str(storage_lit).strip(),
+            re.S,
+        )
+        if m is None:
+            raise Failed(
+                "constructor parameters: the probe did not print the constructor's writes for every argument"
+            )
+        widths = [int(x) for x in m.group(1).split(",") if x.strip()]
+        want = [p["width"] for p in ctor["params"]]
+        if widths != want:
+            raise Failed(
+                f"constructor parameters: SolidCore's widths {widths} are not the ABI's {want}"
+            )
+        if sym:
+            raise Failed(
+                "constructor parameters: the caller route any is not stated for constructor arguments"
+            )
+        tree, writes = m.group(2), m.group(3)
+        witness = [int(x) for x in m.group(4).split(",") if x.strip()]
+        # A tree that branches reverts for some arguments: the statement then covers the argument
+        # lists on which the constructor returns (CtorReturns), with a witness that one does.
+        branches = not tree.lstrip("(").startswith("SolidCore.Refinement.Generic.Br.leaf")
+        ctor["branches"] = branches
+        ctor["witness"] = witness
+        storage_defs = f"""/-- The widths of the constructor's parameters (§uint256§-typed words their width, addresses
+160), as SolidCore's check reads them (checked by §shape_eq§). -/
+def ctorWidths : List Nat := {widths}
+
+/-- The erasure of the constructor's body over the argument words (§WExpr.arg i§), as the probe
+printed it (checked by §shape_eq§): its leaves are normal with §ctorWrites§ and no logs, or revert. -/
+def ctorTree : Generic.Br :=
+  {tree}
+
+/-- The writes of the constructor's normal leaves (checked by §shape_eq§): slot words and value
+words over the argument words. -/
+def ctorWrites : Generic.Writes :=
+  {writes}
+
+/-- What the constructor leaves in storage on the argument words §ws§: each slot it writes, with its
+word. -/
+def storageOf (ws : List Nat) : List (Nat × Nat) := Generic.storageOf ctorWrites ws"""
+        shape_def = f"""/-- SolidCore's checked core, and whether the constructor's body erases, with §ctorWidths§, to one
+normal leaf with the writes §ctorWrites§ and no logs. -/
+def shape? : Option (Contract × Bool) := Generic.ctorShapeOf fuel contract? ctorWidths ctorTree ctorWrites"""
+        deployed_def = """/-- The deployment on every argument list of the parameters' count, each word below §2 ^ 256§ and
+clean for its width, on which the constructor returns: it leaves a state with no logs, and a storage
+that writes every slot of §storageOf ws§ writes every slot it leaves nonzero; and the constructor
+returns wherever §ctorTree§'s leaf is normal. -/
+theorem deployed_of {c : TypeCheck.CheckedContract} (hc : contract? = .ok c) :
+    c.core = coreLit ∧
+      (∀ ws, ws.length = ctorWidths.length → (∀ a ∈ ws, a < 2 ^ 256) →
+        Generic.argsClean ctorWidths ws = true → Generic.CtorReturns fuel contract? ws →
+        ∃ d, Generic.Loop.LoadDeployed fuel c ws d ∧
+          ∀ σ, Generic.Covers (storageOf ws) σ → Generic.Loop.CoversLoad d σ) ∧
+      (∀ ws, ws.length = ctorWidths.length → (∀ a ∈ ws, a < 2 ^ 256) →
+        Generic.argsClean ctorWidths ws = true → Generic.normalAt ctorTree ws = true →
+        Generic.CtorReturns fuel contract? ws) :=
+  Generic.deployed_of_ctorShapeOf shape_eq hc
+
+/-- The constructor returns on the witness words """ + str(witness) + """ (its erasure's leaf there is normal). -/
+theorem ctorReturns_witness : Generic.CtorReturns fuel contract? """ + str(witness) + """ := by
+  have h := shape_eq
+  unfold shape? Generic.ctorShapeOf at h
+  split at h
+  · next c hc =>
+    exact (deployed_of hc).2.2 """ + str(witness) + """ rfl (by decide) (by decide +kernel) (by decide +kernel)
+  · simp at h"""
+        ctor_import = "import Verify.Generic.CtorWords\n"
+        intro_doc = (
+            "§coreLit§ is SolidCore's own evaluation of the checked contract, and §ctorWidths§ and\n"
+            "§ctorWrites§ the erasure of its constructor's body for every argument list, printed by the\n"
+            "driver's probe and read back; §shape_eq§ proves in the kernel that they are what §contract?§\n"
+            "gives, so the probe is not trusted."
+        )
+    else:
+        storage_defs = f"""/-- What the constructor leaves in storage, as SolidCore's evaluation printed it (checked by §shape_eq§). -/
+def storageLit : List (Nat × Nat) := {storage_lit}"""
+        shape_def = """/-- SolidCore's checked core, and whether the constructor leaves exactly §storageLit§ and no logs. -/
+def shape? : Option (Contract × Bool) := Generic.shapeOf fuel contract? storageLit"""
+        deployed_def = """theorem deployed_of {c : TypeCheck.CheckedContract} (hc : contract? = .ok c) :
+    c.core = coreLit ∧ ∃ d, Wide.DeployedAt fuel c d storageLit :=
+  Generic.deployed_of_shapeOf shape_eq hc"""
+        ctor_import = ""
+        intro_doc = (
+            "§coreLit§ and §storageLit§ are SolidCore's own evaluation of the checked contract and of its\n"
+            "constructor, printed by the driver's probe and read back; §shape_eq§ proves in the kernel that\n"
+            "they are what §contract?§ gives, so the probe is not trusted."
+        )
     sels = "\n".join(
         f"/-- The selector of §{f['sig']}§. -/\nabbrev sel{i} : Nat := {hex(f['sel'])}\n"
         for i, f in enumerate(fns)
@@ -1078,34 +1851,15 @@ def lowering_lean(name, contract, fns, events, core_lit, storage_lit, sym=False)
         for i, f in enumerate(fns)
     )
     fnlist = ", ".join(f"fn{i}" for i in range(len(fns)))
-    kr = []
-    for i, f in enumerate(fns):
-        kr.append(
-            f"def selSig{i} : SolidCore.Solidity.Shared.Word :=\n  SolidCore.Solidity.Source.ABI.selectorFromSignature {lean_str(f['sig'])}\n\n"
-            f"kernel_rfl selSig{i}_eq selSig{i} sel{i}\n"
-        )
-    for i, e in enumerate(events):
-        kr.append(
-            f"def topicSig{i} : Nat := SolidCore.Solidity.Source.Keccak.digestWord {lean_str(e['sig'])}\n\n"
-            f"kernel_rfl topicSig{i}_eq topicSig{i} {hex(e['topic'])}\n"
-        )
-    table = "".join(
-        f"  if s = {lean_str(f['sig'])} then sel{i}\n  else" for i, f in enumerate(fns)
+    table = kernel_table(
+        *SELECTOR_TABLE, [(f["sig"], f"sel{i}") for i, f in enumerate(fns)]
     )
-    splits = nested_splits([f"selSig{i}_eq" for i in range(len(fns))])
     using = "selector_eq"
     digest = ""
     if events:
-        dt = "".join(
-            f"  if s = {lean_str(e['sig'])} then {hex(e['topic'])}\n  else"
-            for e in events
-        )
-        dsplits = nested_splits([f"topicSig{i}_eq" for i in range(len(events))])
         digest = (
-            f"/-- §Keccak.digestWord§, with the events' signatures by table. -/\n"
-            f"def digestTable (s : String) : Nat :=\n{dt} SolidCore.Solidity.Source.Keccak.digestWord s\n\n"
-            f"theorem digest_eq : SolidCore.Solidity.Source.Keccak.digestWord = digestTable := by\n"
-            f"  funext s\n  unfold digestTable\n{dsplits}\n"
+            kernel_table(*DIGEST_TABLE, [(e["sig"], hex(e["topic"])) for e in events])
+            + "\n"
         )
         using += " digest_eq"
     # The check for every caller (caller_route, the any route only): Generic.checkSym and
@@ -1118,21 +1872,23 @@ set_option maxRecDepth 100000 in
 /-- The kernel's evaluation: the generic check for every caller (the caller a symbolic word)
 accepts stage0 for every function. -/
 theorem check_sym_stage0 :
-    Generic.checkSym fuel mirFuel coreLit SolarTV.Export.{contract}.stage0 fns = true := by
+    Generic.checkSym fuel mirFuel coreLit {X}.stage0 fns = true := by
   decide +kernel
 
 set_option maxRecDepth 100000 in
 /-- The kernel's evaluation: stage0 reverts on a call with a value, whoever sends it. -/
 theorem checkValueSym_stage0 :
-    Generic.checkValue mirFuel coreLit SolarTV.Export.{contract}.stage0 fns .allSym = true := by
+    Generic.checkValue mirFuel coreLit {X}.stage0 fns .allSym = true := by
   decide +kernel
 """
         if sym
         else ""
     )
     return f"""import SolidCore.Refinement.Generic.Value
-{sym_import}import SolidCore.Refinement.KernelCopies
+import SolidCore.Refinement.Generic.Shape
+{ctor_import}{sym_import}import SolidCore.Refinement.KernelCopies
 import SolidCore.Refinement.KernelRfl
+import SolidCore.Refinement.KernelTable
 import {name}.Source
 import {name}.gen.{contract}.Stage0
 
@@ -1142,9 +1898,7 @@ import {name}.gen.{contract}.Stage0
 /-!
 # {contract}: the generic source check, generated
 
-§coreLit§ and §storageLit§ are SolidCore's own evaluation of the checked contract and of its
-constructor, printed by the driver's probe and read back; §shape_eq§ proves in the kernel that
-they are what §contract?§ gives, so the probe is not trusted. §check_stage0§ and §checkValue_stage0§
+{intro_doc} §check_stage0§ and §checkValue_stage0§
 are the generic check on solar's first lowered MIR, by the kernel's evaluation.
 -/
 
@@ -1171,53 +1925,35 @@ def fns : List Fn := [{fnlist}]
 def coreLit : Contract :=
   {core_lit}
 
-/-- What the constructor leaves in storage, as SolidCore's evaluation printed it (checked by §shape_eq§). -/
-def storageLit : List (Nat × Nat) := {storage_lit}
+{storage_defs}
 
 /-! ## Selectors and topics, each by Keccak-256 once, then by table -/
 
-{chr(10).join(kr)}
-/-- §ABI.selectorFromSignature§, with the contract's signatures by table. -/
-def selectorTable (s : String) : SolidCore.Solidity.Shared.Word :=
-{table} SolidCore.Solidity.Source.ABI.selectorFromSignature s
-
-theorem selector_eq : SolidCore.Solidity.Source.ABI.selectorFromSignature = selectorTable := by
-  funext s
-  unfold selectorTable
-{splits}
-{digest}/-- SolidCore's checked core, and whether the constructor leaves exactly §storageLit§ and no logs. -/
-def shape? : Option (Contract × Bool) :=
-  match contract? with
-  | .ok c => some (c.core, Wide.deployedAt fuel c storageLit)
-  | .error _ => none
+{table}
+{digest}{shape_def}
 
 kernel_rfl shape_eq shape? (some (coreLit, true)) using {using}
 
 set_option maxRecDepth 100000 in
 /-- The kernel's evaluation: the generic check accepts stage0 for every function. -/
 theorem check_stage0 :
-    Generic.check fuel mirFuel coreLit SolarTV.Export.{contract}.stage0 fns .all = true := by
+    Generic.check fuel mirFuel coreLit {X}.stage0 fns .all = true := by
   decide +kernel
 
 set_option maxRecDepth 100000 in
 /-- The kernel's evaluation: no function is payable, and stage0 reverts on a call with a value. -/
 theorem checkValue_stage0 :
-    Generic.checkValue mirFuel coreLit SolarTV.Export.{contract}.stage0 fns .all = true := by
+    Generic.checkValue mirFuel coreLit {X}.stage0 fns .all = true := by
   decide +kernel
 {sym_thms}
-theorem deployed_of {{c : TypeCheck.CheckedContract}} (hc : contract? = .ok c) :
-    c.core = coreLit ∧ ∃ d, Wide.DeployedAt fuel c d storageLit := by
-  have h := shape_eq
-  unfold shape? at h
-  rw [hc] at h
-  obtain ⟨hk, hd⟩ := Prod.mk.inj (Option.some.inj h)
-  exact ⟨hk, Wide.deployedAt_of hd⟩
+{deployed_def}
 
 end {ns}
 """.replace("§§", "§§").replace("§", "\u0060")
 
 
 def probe_lean(name, contract, fns):
+    X = export_ns.of_run(name, contract)
     """The probe (never part of a proof): SolidCore's evaluation of the checked contract's core and
     of its constructor's storage, printed for the generated module to state as literals, and per
     function whether SolidCore's erased tree and the symbolic run of the first lowered MIR exist
@@ -1226,10 +1962,12 @@ def probe_lean(name, contract, fns):
         f'  IO.println ("PROBE fn {f["sig"]}: " ++ (match core.findFunctionBySelector? {f["sel"]} with\n'
         f'    | none => "no source function"\n'
         f"    | some fn => match Generic.eraseFn (Generic.envOf core) fuel fn, "
-        f"Generic.symTree SolarTV.Export.{contract}.stage0 {f['sel']} {len(f['params'])} mirFuel .all with\n"
-        f'      | none, _ => "source tree undefined (erasure)"\n'
+        f"Generic.symTree {X}.stage0 {f['sel']} {len(f['params'])} mirFuel .all with\n"
+        f'      | none, _ => "source tree undefined (erasure)" ++ (match Generic.widthsOf fn.params fn.paramAbiCleanups with\n'
+        f'        | none => ": a parameter is not a word"\n'
+        f'        | some _ => if fn.returns.all Generic.wordBinding then "" else ": a result is not a word")\n'
         f'      | _, none => "MIR symbolic run undefined"\n'
-        f'      | some a, some b => if a.canon.beq b.canon then "agree" else ("trees differ: source " ++ (reprStr a.canon).replace "\\n" " " ++ " MIR " ++ (reprStr b.canon).replace "\\n" " ")))'
+        f'      | some a, some b => if Generic.Tree.agree a b then "agree" else ("trees differ: source " ++ (reprStr a.canon).replace "\\n" " " ++ " MIR " ++ (reprStr b.canon).replace "\\n" " ")))'
         for f in fns
     )
     # The same check for every caller (Generic.checkFnSym): the source erased with msg.sender a
@@ -1238,15 +1976,85 @@ def probe_lean(name, contract, fns):
         f'  IO.println ("PROBE sym fn {f["sig"]}: " ++ (match core.findFunctionBySelector? {f["sel"]} with\n'
         f'    | none => "no source function"\n'
         f"    | some fn => match Generic.eraseFnSym (Generic.envOf core) fuel fn, "
-        f"Generic.symTree SolarTV.Export.{contract}.stage0 {f['sel']} {len(f['params'])} mirFuel .allSym with\n"
-        f'      | none, _ => "source tree undefined (erasure)"\n'
+        f"Generic.symTree {X}.stage0 {f['sel']} {len(f['params'])} mirFuel .allSym with\n"
+        f'      | none, _ => "source tree undefined (erasure)" ++ (match Generic.widthsOf fn.params fn.paramAbiCleanups with\n'
+        f'        | none => ": a parameter is not a word"\n'
+        f'        | some _ => if fn.returns.all Generic.wordBinding then "" else ": a result is not a word")\n'
         f'      | _, none => "MIR symbolic run undefined"\n'
-        f'      | some a, some b => if a.canon.beq b.canon then "agree" else ("trees differ: source " ++ (reprStr a.canon).replace "\\n" " " ++ " MIR " ++ (reprStr b.canon).replace "\\n" " ")))'
+        f'      | some a, some b => if Generic.Tree.agree a b then "agree" else ("trees differ: source " ++ (reprStr a.canon).replace "\\n" " " ++ " MIR " ++ (reprStr b.canon).replace "\\n" " ")))'
         for f in fns
     )
+    # The succeeds-witness search (synth_witness): SolidCore's run of every function on the zero
+    # call (zero words, no value, the constructor's slots written with 0). Untrusted: the Shape
+    # module re-proves the chosen witness by the kernel's evaluation.
+    runs = (
+        "  let st0 : List (Nat × Nat) := match TypeCheck.CheckedContract.constructWithContext? fuel c\n"
+        "      (Wide.ctxOf c) State.empty SolidCore.Refinement.selfAddress 0 [] with\n"
+        "    | some (CallResult.returned d _) => d.storage.toList.map fun kv => (kv.1, 0)\n"
+        "    | _ => []\n"
+        + "\n".join(
+            f'  IO.println ("PROBE run fn {f["sig"]}: " ++ (match SolidCore.Refinement.Source.run fuel c\n'
+            f"      ⟨SolidCore.Refinement.Abi.calldata {f['sel']} (List.replicate {len(f['params'])} 0), 0, st0⟩ with\n"
+            f'    | some o => if o.success then "success" else "revert"\n'
+            f'    | none => "none"))'
+            for f in fns
+        )
+    )
+    ctor_import = ""
+    ctor_helper = ""
+    ctor_run = """  match TypeCheck.CheckedContract.constructWithContext? fuel c (Wide.ctxOf c) State.empty
+      SolidCore.Refinement.selfAddress 0 [] with
+  | some (CallResult.returned d _) =>
+    IO.println ("PROBE constructor: returns" ++ (if d.events.isEmpty then "" else ", with logs"))
+    IO.println ("PROBE storage: " ++ reprStr d.storage.toList)
+  | some _ => IO.println "PROBE constructor: does not return (reverts or fails) with no arguments"
+  | none => IO.println "PROBE constructor: undefined with no arguments\""""
+    if getattr(fns, "ctor", None):
+        # A constructor with static word parameters: its body's erasure with the parameters' width
+        # facts (Verify/Generic/CtorWords.lean, ctorShapeOf), for every argument list at once. The
+        # storage line carries the widths and the writes (Lowering reads them back as literals).
+        ctor_import = "import Verify.Generic.CtorWords\n"
+        ctor_run = """  match TypeCheck.CheckedProgram.constructorFunctionFor? c.program c.decl with
+  | none => IO.println "PROBE constructor: no constructor function"
+  | some fn =>
+  match Generic.widthsOf fn.params fn.paramAbiCleanups with
+  | none => IO.println "PROBE constructor: the parameters' widths are undefined"
+  | some wds =>
+  if !Generic.wordParams fn.params then
+    IO.println "PROBE constructor: a parameter is not a uint256-typed or address word"
+  else if !fn.returns.isEmpty then IO.println "PROBE constructor: returns values"
+  else
+  match Generic.eraseStmt { Generic.envOf core with facts := Generic.argFacts wds 0 } fuel fn.body
+      { Generic.initState fn with caller := .lit SolidCore.Refinement.selfAddress } with
+  | none =>
+    let bad := (core.storageFields.filter fun f => !Generic.fieldOk f && !Generic.mapOk f).map (·.name)
+    IO.println ("PROBE constructor: the constructor's body is outside the erasure (eraseStmt)" ++
+      (if bad.isEmpty then "" else "; storage fields outside its unsigned scalars and mappings: " ++ ", ".intercalate bad))
+  | some b =>
+  match firstNormal b with
+  | none => IO.println "PROBE constructor: no normal leaf (it reverts on every argument list)"
+  | some S =>
+  if !Generic.normalsOnly S.writes b then
+    IO.println "PROBE constructor: the erasure's normal leaves differ, log or return; the statement for every argument needs one normal leaf shape"
+  else
+  let zeros := wds.map fun _ => 0
+  let ones := wds.map fun _ => 1
+  match (if Generic.normalAt b zeros then some zeros else if Generic.normalAt b ones then some ones else none) with
+  | none => IO.println "PROBE constructor: returns on no argument list tried (all zeros, all ones): no witness"
+  | some w =>
+    IO.println ("PROBE constructor: returns" ++ (match b with | .leaf _ => " for every argument list" | _ => " where its erasure does not revert"))
+    IO.println ("PROBE storage: ctorArgs " ++ reprStr wds ++ " ;; " ++ ((repr b).pretty 100000000).replace "\\n" " " ++
+      " ;; " ++ ((repr S.writes).pretty 100000000).replace "\\n" " " ++ " ;; " ++ reprStr w)"""
+        ctor_helper = """
+/-- The first normal leaf of an erasure tree. -/
+def firstNormal : Generic.Br → Option Generic.SymState
+  | .leaf (.normal S) => some S
+  | .leaf _ => none
+  | .ite _ t e => (firstNormal t).orElse fun _ => firstNormal e
+"""
     return f"""import SolidCore.Refinement.Generic.Value
 import SolidCore.Refinement.Generic.StageFrom
-import {name}.Source
+{ctor_import}import {name}.Source
 import {name}.gen.{contract}.Stage0
 
 namespace Certified.{name}.Probe
@@ -1259,7 +2067,7 @@ def mirFuel : Nat := 4096
 
 def contract? : Except TypeCheck.TypeError TypeCheck.CheckedContract :=
   TypeCheck.CheckedInput.contract Certified.{name}.Src.importedSourceUnit {lean_str(contract)}
-
+{ctor_helper}
 def main : IO Unit := do
   match contract? with
   | .error _ => IO.println "PROBE typecheck: error"
@@ -1267,14 +2075,9 @@ def main : IO Unit := do
   let core := c.core
   IO.println "PROBE typecheck: ok"
   IO.println ("PROBE core: " ++ ((repr core).pretty 100000000).replace "\\n" " ")
-  match TypeCheck.CheckedContract.constructWithContext? fuel c (Wide.ctxOf c) State.empty
-      SolidCore.Refinement.selfAddress 0 [] with
-  | some (CallResult.returned d _) =>
-    IO.println ("PROBE constructor: returns" ++ (if d.events.isEmpty then "" else ", with logs"))
-    IO.println ("PROBE storage: " ++ reprStr d.storage.toList)
-  | some _ => IO.println "PROBE constructor: does not return (reverts or fails) with no arguments"
-  | none => IO.println "PROBE constructor: undefined with no arguments"
+{ctor_run}
 {checks}
+{runs}
 
 end Certified.{name}.Probe
 
@@ -1497,6 +2300,57 @@ def ctx_route(tmp, contract):
     return gen_ctxgas.gas_bound(info, stages["fuel"]), None
 
 
+# The spec witness generic.py and the scoreboard name when no function has succeeds-if conditions:
+# the succeeds witness is chosen after the probe (synth_witness).
+SYNTH_WITNESS = "<succeeds witness>"
+
+
+def spec_witness(fns):
+    """The non-vacuity witness of a spec run: the first function with succeeds-if conditions
+    (mutating first), else SYNTH_WITNESS when some function has a spec (requires or ensures), whose
+    concrete succeeds witness synth_witness picks after the probe. Fails when no function has a spec."""
+    w = next(
+        (f["name"] for f in fns if f.get("mutates") and f.get("succeeds")), None
+    ) or next((f["name"] for f in fns if f.get("succeeds")), None)
+    if w is not None:
+        return w
+    if any(f.get("specified") for f in fns):
+        return SYNTH_WITNESS
+    raise Failed(
+        "spec: no function has @custom:succeeds-if, so the spec's allowed statuses reject nothing and "
+        "the certified statement's non-vacuity (a revert the spec rejects) cannot hold; add succeeds-if "
+        "conditions, or run with SPEC none"
+    )
+
+
+def synth_witness(res, fns):
+    """The succeeds witness (succeeds_witness.py) of a spec without succeeds-if conditions: the first
+    function with a spec (mutating first) whose zero call (zero words, no value, the constructor's
+    slots written with 0) SolidCore's probe runs successfully. Untrusted: the Shape module proves
+    that it succeeds by the kernel's evaluation and that it meets its precondition (pre_sat), and
+    fails otherwise. Fails, naming every verdict, when no zero call succeeds: the proofs support
+    only the zero call, so the run is refused rather than the spec weakened."""
+    cands = sorted(
+        (f for f in fns if f.get("specified")), key=lambda f: not f.get("mutates")
+    )
+    for f in cands:
+        if res.get(f"run fn {f['sig']}") == "success":
+            return {
+                "function": f["name"],
+                "sel": f["sel"],
+                "arity": len(f["params"]),
+                "args": [0] * len(f["params"]),
+                "storage": [],
+            }
+    seen = ", ".join(f"{f['sig']}: {res.get('run fn ' + f['sig'], 'not run')}" for f in cands)
+    raise Failed(
+        "spec: no succeeds witness: no function has @custom:succeeds-if, and no spec'd function's zero "
+        "call (zero words, no value, the constructor's slots written with 0) succeeds in SolidCore "
+        f"({seen}); the spec may be vacuous there (the witness proofs support only the zero call); "
+        "add succeeds-if conditions, or run with SPEC none"
+    )
+
+
 def decide_route(res, fns, reasons, witness, probe_dir, contract):
     """The run's caller route: (caller, any_gas, reasons, note). "any" (with the checker with
     contexts' gas bound) only when the probe agreed on the check for every caller for every
@@ -1513,6 +2367,13 @@ def decide_route(res, fns, reasons, witness, probe_dir, contract):
     caller, creasons = caller_route(res, fns)
     if creasons:
         return "0x2000", None, creasons, "caller route: BLOCKED (msg.sender)"
+    if getattr(fns, "ctor", None):
+        return (
+            "0x2000",
+            None,
+            [],
+            "caller route: the fixed caller 0x2000 (constructor arguments are stated on the fixed caller)",
+        )
     if caller != "any":
         return (
             "0x2000",
@@ -2029,23 +2890,8 @@ def lifecycle_lean(
     init, code and ws are proved equal to its init code, runtime and words (fuel_same,
     contract_same, init_same, code_same, ws_same), so the certificate and the theorem share one
     source unit, constructor and runtime."""
-    patches = immutable_patches(deployed, plain)
-    if patches is None:
-        code = lean_bytes(deployed)
-    else:
-        code = "runtime"
-        for off, w in patches:
-            code = f"patchWord ({code}) {off} {hex(w)}"
-    sel = []
-    for i, g in enumerate(sigs):
-        sel.append(
-            f"def selSig{i} : SolidCore.Solidity.Shared.Word :=\n  SolidCore.Solidity.Source.ABI.selectorFromSignature {lean_str(g['sig'])}\n\n"
-            f"kernel_rfl selSig{i}_eq selSig{i} {hex(g['sel'])}\n"
-        )
-    table = "".join(
-        f"  if s = {lean_str(g['sig'])} then {hex(g['sel'])}\n  else" for g in sigs
-    )
-    splits = nested_splits([f"selSig{i}_eq" for i in range(len(sigs))])
+    code = runtime_lean(deployed, plain)
+    table = kernel_table(*SELECTOR_TABLE, [(g["sig"], hex(g["sel"])) for g in sigs])
     bind_imports = (
         "".join(f"import {m}\n" for m in bind_modules(bind))
         + "import Verify.Generic.Expected\n"
@@ -2079,9 +2925,10 @@ theorem ws_same : ws = [{", ".join(str(w) for w in bind["ws"])}] := rfl
         else ""
     )
     head = f"""import Verify.Lifecycle.CreationFrame
-import Verify.Lifecycle.Route
+import Verify.Lifecycle.Life
 import Verify.Lifecycle.KernelIndex
 import SolidCore.Refinement.KernelRfl
+import SolidCore.Refinement.KernelTable
 import {src_import}
 {bind_imports}
 -- Generated by solar's tools/certify/generic.py from this run's init code, arguments and storage;
@@ -2129,7 +2976,7 @@ theorem refuted : ¬ Deploys (initArgs init ws) code storageLit :=
   not_deploys_of_refutes frameFuel refutesB_eq
 
 /-- info: '{ns}.refuted' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
+#guard_msgs (whitespace := lax) in
 #print axioms refuted
 
 end {ns}
@@ -2144,15 +2991,7 @@ def contract? : Except TypeCheck.TypeError TypeCheck.CheckedContract :=
 
 /-! ## Selectors, each by Keccak-256 once, then by table -/
 
-{chr(10).join(sel)}
-/-- §ABI.selectorFromSignature§, with the contract's signatures by table. -/
-def selectorTable (s : String) : SolidCore.Solidity.Shared.Word :=
-{table} SolidCore.Solidity.Source.ABI.selectorFromSignature s
-
-theorem selector_eq : SolidCore.Solidity.Source.ABI.selectorFromSignature = selectorTable := by
-  funext s
-  unfold selectorTable
-{splits}
+{table}
 /-- The generic creation frame's check of this creation. -/
 def checkB : Bool := check frameFuel (initArgs init ws) code storageLit
 
@@ -2165,24 +3004,17 @@ theorem deploys : Deploys (initArgs init ws) code storageLit :=
   deploys_of_check frameFuel checkB_eq
 
 /-- Whether the contract checks and its constructor, called with §ws§, leaves §storageLit§ and no logs. -/
-def life? : Bool :=
-  match contract? with
-  | .ok c => deployedAtWith fuel c (wordArgs ws) storageLit
-  | .error _ => false
+def life? : Bool := lifeOf fuel contract? ws storageLit
 
 kernel_rfl life_eq life? true using selector_eq mkIdx_eq
 
 /-- **The lifecycle statement**: the checked contract's constructor on §ws§ leaves §storageLit§,
 and solar's init code with §ws§ deploys §code§ with the same storage. -/
-theorem statement : ∃ c, contract? = .ok c ∧ Statement fuel c init code ws storageLit := by
-  have h := life_eq
-  unfold life? at h
-  split at h
-  next c hc => exact ⟨c, hc, deploys, deployedAtWith_of h⟩
-  next => simp at h
+theorem statement : ∃ c, contract? = .ok c ∧ Statement fuel c init code ws storageLit :=
+  statement_of_lifeOf deploys life_eq
 
 /-- info: '{ns}.statement' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
+#guard_msgs (whitespace := lax) in
 #print axioms statement
 {same}
 end {ns}
@@ -2384,13 +3216,7 @@ def lifecycle_all_lean(ns, contract, init, plain, deployed, ws, storage):
     reads off (Verify.Lifecycle.Creation.Sym.deploys_allArgs), and this run's creation, WS with
     DEPLOYED and STORAGE, is its instance at WS (deploys_at). Untrusted text: the specification is
     the kernel's own evaluation of the symbolic run, and every literal is checked by the kernel."""
-    patches = immutable_patches(deployed, plain)
-    if patches is None:
-        code = lean_bytes(deployed)
-    else:
-        code = "runtime"
-        for off, w in patches:
-            code = f"patchWord ({code}) {off} {hex(w)}"
+    code = runtime_lean(deployed, plain)
     words = ", ".join(f"{w}#256" for w in ws)
     return f"""import Verify.Lifecycle.Symbolic
 import SolidCore.Refinement.KernelRfl
@@ -2447,11 +3273,11 @@ theorem deploysAt : Deploys (initArgs init ws) code storageLit :=
   deploys_at allB_eq atB_eq
 
 /-- info: '{ns}.deploysAll' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
+#guard_msgs (whitespace := lax) in
 #print axioms deploysAll
 
 /-- info: '{ns}.deploysAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
+#guard_msgs (whitespace := lax) in
 #print axioms deploysAt
 
 end {ns}
@@ -2688,6 +3514,20 @@ def lifecycle_run(
     """--tier lifecycle: the creation stages, ending UNSUPPORTED-lifecycle (exit 4) at the first
     stage with no kernel proof, REJECTED (exit 1) at a stage that disagrees or a creation the
     kernel refutes, CERTIFIED (exit 0) only when the kernel proves the generated lifecycle module."""
+    if linearization_module(name, contract, ast, src_sha):
+        # This route builds its own modules and never reaches scripts/certify, which is what binds,
+        # builds and audits an inherited contract's C3 theorem (Linearization.lean): refused here
+        # rather than certified over a flattening nothing checked.
+        raise Blocked(
+            [
+                {
+                    "feature": "inheritance: lifecycle tier",
+                    "where": "",
+                    "detail": f"{contract} has bases, and the lifecycle tier does not build its C3 "
+                    "theorem (Certified/NAME/Linearization.lean) yet",
+                }
+            ]
+        )
     types = constructor_params(ast, contract)
     ws = constructor_words(types, a.constructor_args)
     bind_file = getattr(a, "lifecycle_bind", None)
@@ -2962,7 +3802,7 @@ def lifecycle_run(
                 loops_note = (
                     f"; runtime loop ({', '.join(o['where'] for o in opened)}) resources: the final "
                     f"EVM IR subedge is proved on these bytes ({lr['theorem']}); the source join stays "
-                    f"OPEN: {LOOP_SOURCE_GAP}"
+                    f"OPEN: {LOOP_SOURCE_JOIN}"
                 )
         finish(
             "CERTIFIED",
@@ -2985,17 +3825,15 @@ def lifecycle_run(
     )
 
 
-# The edge the loop-resource generator cannot derive within tools/certify: the source loop's body
-# summary. resources_of_verdict over the source semantics needs a stage from the source to the final
-# EVM IR, and Verify.LoopSource.Equiv.loop_stage needs BodyRuns of the loop's body, which
-# SolidCore.Refinement.Generic.eraseStmt (no loop case) cannot give.
-LOOP_SOURCE_GAP = (
-    "no generic BodyRuns for a loop body. SolidCore.Refinement.Generic.bodyRuns_of_erase needs "
-    "`eraseStmt E fuel fn.body (initState fn) = some b`, and eraseStmt has no case for a loop. "
-    "Missing: a loop-aware eraser `eraseLoopStmt (E : EraseEnv) : Nat → Stmt → SymState → Option Br` "
-    "and `theorem bodyRuns_of_eraseLoop {E : EraseEnv} {fuel : Nat} {fn : FunctionDef} {b : Br} "
-    "(h : eraseLoopStmt E fuel fn.body (initState fn) = some b) : BodyRuns E fuel fn b`, the premise "
-    "`hb` of Verify.LoopSource.Equiv.loop_stage"
+# What the lifecycle tier's loop subedge leaves open. The source side exists in the base:
+# eraseLoopStmt erases a counted loop and bodyRuns_of_eraseLoop gives the BodyRuns that
+# Verify.LoopSource.Equiv.loop_stage needs; the loop cut hook (loop_cuts.py) generates the erasure,
+# its tree and obligations on a run's own source. This tier runs neither that hook nor the join
+# (EraseLoopJoin.GeneratedTarget) of those premises with this subedge.
+LOOP_SOURCE_JOIN = (
+    "the source side of the loop is not composed with this subedge at this tier: the loop cut "
+    "hook's erasure-route obligations (eraseLoopStmt, bodyRuns_of_eraseLoop) and their join "
+    "(EraseLoopJoin.GeneratedTarget) are not part of the lifecycle statement"
 )
 
 # The composed theorem's binder the joint consumer reuses: one iteration bound K under a named bound.
@@ -3063,7 +3901,7 @@ def lifecycle_loop_resources(
         "lean_sha256": hashlib.sha256(text.encode()).hexdigest(),
         "export_runtime_sha256": hashlib.sha256(bytes.fromhex(runtime)).hexdigest(),
         "obligation": facts,
-        "source_join": LOOP_SOURCE_GAP,
+        "source_join": LOOP_SOURCE_JOIN,
         "detail": (
             "Shapes.Resources of the final EVM IR on Valid K, K ≤ Kmax, joined with the composed theorem"
             if ok
@@ -3187,7 +4025,7 @@ def frontend(lean_dir, src, src_sha, name, contract, solc):
     fe = pathlib.Path("/tmp/solar-certify-src") / src_sha
     fe.mkdir(parents=True, exist_ok=True)
     shutil.copy(src, fe / f"{name}.sol")
-    return run(
+    rc, body, err = run(
         [
             sys.executable,
             str(pathlib.Path(lean_dir) / "scripts/solc_ast_to_lean_source.py"),
@@ -3201,6 +4039,55 @@ def frontend(lean_dir, src, src_sha, name, contract, solc):
             "--body-only",
         ]
     )
+    return rc, body, err
+
+
+def linearization_module(name, contract, ast, src_sha):
+    """The text of Certified/NAME/Linearization.lean for CONTRACT of AST, the solc AST of the run's
+    source (SHA-256 SRC_SHA) that the envelope read, or "" for a contract without bases. Its
+    theorem linearization_eq, kernel-checked by decide, states that the Lean frontend's C3 order of
+    CONTRACT in the bound source unit (ContractDecl.dispatchOrder? over NAME.Source's
+    importedSourceUnit: the order CheckedInput.contract flattens it by, so the one the published
+    statement's src.checked uses) is AST's linearizedBaseContracts, the order the envelope and its
+    Dispatch checked the contract by. NAME.Source stays exactly the frontend's output
+    (source_bind.sh). scripts/certify regenerates this module from the run's source with the pinned
+    solc (linearization_bind.sh, linearization.py), compares it byte for byte, then builds it and
+    audits the theorem. A contract with bases whose order the driver does not certify raises
+    Failed, so no contract with bases goes without the theorem."""
+    cdef = next(
+        (
+            n
+            for n in ast.get("nodes", [])
+            if n.get("nodeType") == "ContractDefinition" and n.get("name") == contract
+        ),
+        None,
+    )
+    if cdef is None:
+        raise Failed(f"linearization: no contract {contract} in the source")
+    if not cdef.get("baseContracts"):
+        return ""
+    lin, why = linearization(ast, cdef)
+    if lin is None:
+        raise Failed(f"linearization: {why}")
+    try:
+        lakefile_inputs.check_name(name)
+    except lakefile_inputs.Refused as e:
+        raise Failed(f"linearization: {e}") from None
+    order = ", ".join(lean_str(c["name"]) for c in lin)
+    unit = f"Certified.{name}.Src.importedSourceUnit"
+    return (
+        "-- Generated by solar's tools/certify/generic.py (tools/certify/linearization.py) from "
+        f"{name}.sol (sha256 {src_sha}) and solc's AST of it; do not edit.\n"
+        f"\nimport {name}.Source\n\nopen SolidCore.Solidity\n\n"
+        f"namespace Certified.{name}.Linearization\n\n"
+        f"/-- The Lean frontend flattens {contract} (CheckedInput.contract) over solc's C3 order of it\n"
+        "(linearizedBaseContracts in the AST the driver's envelope checked). -/\n"
+        "theorem linearization_eq :\n"
+        f"    ((Executable.SourceUnit.findContract? {unit} {lean_str(contract)}).bind\n"
+        f"      (Executable.ContractDecl.dispatchOrder? (Executable.SourceUnit.contracts {unit}))).map\n"
+        f"      (List.map (fun d : ContractDecl => d.name)) = some [{order}] := by decide\n"
+        f"\nend Certified.{name}.Linearization\n"
+    )
 
 
 def source_lean(body):
@@ -3211,10 +4098,30 @@ def source_lean(body):
 
 
 def shape_json(
-    name, contract, fns, gas, spec_desc, spec_witness=None, events=(), any_gas=None
+    name,
+    contract,
+    fns,
+    gas,
+    spec_desc,
+    spec_witness=None,
+    events=(),
+    any_gas=None,
+    succeeds_witness=None,
 ):
     ns = f"Certified.{name}.Lowering"
-    valid = f"SolidCore.Refinement.Shapes.genericValid ({ns}.fns) ({ns}.storageLit)"
+    ctor = getattr(fns, "ctor", None)
+    storage = f"{ns}.storageLit"
+    if ctor is not None:
+        # Every argument list: the statement quantifies the words A0, A1, ... each below 2 ^ width,
+        # against the source deployed with them (final.py's ctor_args), from any storage covering
+        # the slots that deployment writes.
+        if spec_witness is not None or any_gas is not None:
+            raise Failed(
+                "constructor parameters: stated on the compiled tier with the fixed caller only"
+            )
+        args = [f"A{i}" for i in range(len(ctor["params"]))]
+        storage = f"{ns}.storageOf [{', '.join(args)}]"
+    valid = f"SolidCore.Refinement.Shapes.genericValid ({ns}.fns) ({storage})"
     sigs = ", ".join(f["sig"] for f in fns)
     shape = {
         "kind": "compiled",
@@ -3227,6 +4134,7 @@ def shape_json(
         "spec_modules": [f"{name}.Lowering", "Verify.ShapeGeneric"],
         "proof_module": f"{name}.Shape",
         "proof": f"Certified.{name}.Shape.published",
+        "export_ns": export_ns.of_run(name, contract),
         "generic": {
             "lowering": f"{name}.Lowering",
             "ns": ns,
@@ -3234,7 +4142,7 @@ def shape_json(
             "check": "check_stage0",
             "check_value": "checkValue_stage0",
             "fns": f"{ns}.fns",
-            "storage": f"{ns}.storageLit",
+            "storage": storage,
         },
         "excluded": [
             "deployment: the init code is not covered; the statement is about the runtime bytecode from any storage that holds the slots the constructor writes, as SolidCore's constructor run with no arguments leaves them",
@@ -3249,6 +4157,39 @@ def shape_json(
             "contract": contract,
         },
     }
+    if ctor is not None:
+        shape["ctor_args"] = [
+            {"var": v, "lt": f"2 ^ {p['width']}"} for v, p in zip(args, ctor["params"])
+        ]
+        shape["generic"]["ctor"] = {
+            "args": args,
+            "widths": [p["width"] for p in ctor["params"]],
+            "branches": bool(ctor.get("branches")),
+        }
+        if ctor.get("branches"):
+            # The constructor may revert (its erasure branches to reverts): the statement covers
+            # the argument lists on which SolidCore's constructor returns, and states one.
+            shape["ctor_returns"] = {"witness": ctor["witness"]}
+            shape["excluded"].insert(
+                1,
+                "creations that revert: the statement covers the argument lists on which SolidCore's "
+                "constructor returns (CtorReturns, a premise; the witness "
+                + str(ctor["witness"])
+                + " is one); on the others the source deploys nothing",
+            )
+        shape["excluded"][0] = (
+            "deployment: the init code is not covered; the statement is about the runtime bytecode, "
+            "for every constructor argument list ("
+            + ", ".join(
+                f"{v} for {p['name']} : {p['type']}, below 2^{p['width']}"
+                for v, p in zip(args, ctor["params"])
+            )
+            + "), against SolidCore's contract deployed by its constructor on those words "
+            "(solidCoreFromArgs), from any storage that holds the slots that constructor writes"
+        )
+        shape["excluded"][-1] = shape["excluded"][-1].replace(
+            "the constructor's slots", "the slots the constructor writes on the arguments"
+        )
     if spec_witness is not None:
         # The specification is solar-verify's export of this run's source, proved of SolidCore's
         # contract by tools/certify/spec_connect.py and composed with the bytecode by shape_gen.py:
@@ -3274,6 +4215,17 @@ def shape_json(
         shape["excluded"].append(
             "spec: solar-verify's export of the source's NatSpec, with its succeeds-if conditions; events are covered by equivalence"
         )
+        if succeeds_witness is not None:
+            if succeeds_witness["function"] != spec_witness:
+                raise Failed("the succeeds witness must be the spec witness")
+            shape["succeeds_witness"] = succeeds_witness
+            shape["excluded"].append(
+                "spec without succeeds-if conditions: the statement's allowed statuses and postcondition "
+                "are the export's, each with the driver's witness clause (tools/certify/succeeds_witness.py): "
+                f"{succeeds_witness['function']} on zero words with no value, from the constructor's slots "
+                "written with 0, from a pre-state meeting its precondition, succeeds; no other call is "
+                "required to succeed"
+            )
         # The published statement: the driver-fixed Generic.Expected (tools/certify/final.py).
         shape.update(
             {
@@ -3702,19 +4654,67 @@ def solar_runtime(solar, src, contract, extra=(), cwd=None):
     return None, f"no contract {contract} in solar's output"
 
 
+def run_name(src):
+    """The run's name for SOURCE: its stem, made a Lean identifier, and its SHA-256's first 8 hex
+    digits. The run's modules and its export's namespace (export_ns.py) are under it."""
+    src = pathlib.Path(src)
+    sha = hashlib.sha256(src.read_text().encode()).hexdigest()
+    base = re.sub(r"[^a-z0-9_]", "_", src.stem.lower()).strip("_") or "c"
+    if not base[0].isalpha():
+        base = "c_" + base
+    return f"{base}_{sha[:8]}"
+
+
+IMPORT_PATH = re.compile(r"""\bimport\s+(?:[^;"']*?\bfrom\s+)?["']([^"']+)["']""")
+COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
+
+
+def import_closure(src):
+    """SOURCE (first) and the files its imports reach, resolved as solar resolves them without
+    remappings: a path starting with ./ or ../ against the importing file's directory, any other
+    against SOURCE's directory, where solar runs. A file that does not exist is left out, for solar
+    to report."""
+    src = pathlib.Path(src).resolve()
+    seen, todo = [src], [src]
+    while todo:
+        f = todo.pop()
+        for p in IMPORT_PATH.findall(COMMENT.sub(" ", f.read_text())):
+            t = (f.parent if p.startswith(("./", "../")) else src.parent) / p
+            t = pathlib.Path(os.path.normpath(t))
+            if t.is_file() and t not in seen:
+                seen.append(t)
+                todo.append(t)
+    return seen
+
+
 def export_stages(solar, src, contract, tmp):
-    """solar's runtime bytecode of the contract and its stages, exported to TMP/gen. The manifest
-    records solar's arguments and the source's path, so solar runs in TMP on a copy of the source,
-    with both paths relative to it: the manifest is then the same wherever TMP and the source sit."""
+    """solar's runtime bytecode of the contract and its stages, exported to TMP/gen under the run's
+    own namespace (export_ns.run_prefix of run_name). The manifest records solar's arguments and the
+    sources' paths, so solar runs in TMP on a copy of the source and the files its imports reach,
+    laid out as they are relative to each other, with every path relative to TMP: the manifest is
+    then the same wherever TMP and the source sit."""
     tmp = pathlib.Path(tmp)
-    copy = pathlib.Path(src).name
-    shutil.copy(src, tmp / copy)
-    return solar_runtime(solar, copy, contract, ["-Zemit-lean-stages=gen"], cwd=tmp)
+    files = import_closure(src)
+    root = pathlib.Path(os.path.commonpath([f.parent for f in files]))
+    for f in files:
+        dest = tmp / f.relative_to(root)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(f, dest)
+    main = files[0].relative_to(root)
+    cwd = tmp / main.parent
+    gen = os.path.relpath(tmp / "gen", cwd)
+    ns = export_ns.run_prefix(run_name(src))
+    return solar_runtime(
+        solar,
+        main.name,
+        contract,
+        [f"-Zemit-lean-stages={gen}", f"-Zlean-stages-namespace={ns}"],
+        cwd=cwd,
+    )
 
 
 def gas_need(solar, src, name, contract, tmp):
     """The loop checker's gas bound for this run's export, as shape_gen.py computes it."""
-    import asm_cert
     import shape_gen
 
     gen = tmp / "gen"
@@ -3755,9 +4755,20 @@ def gas_need(solar, src, name, contract, tmp):
     )
     if rc != 0:
         raise Failed(f"certify.py cannot write the stage proofs: {err.strip()[-400:]}")
-    stages = shape_gen.last_stage((tmp / "Proofs" / "Stages.lean").read_text())
+    try:
+        stages = shape_gen.last_stage((tmp / "Proofs" / "Stages.lean").read_text())
+    except SystemExit as e:
+        raise Failed(f"the probe's stage proofs: {e.code}") from None
     last_module = "Evm" + stages["last"][3:]
     last_text = (gen / contract / f"{last_module}.lean").read_text()
+    return loop_checker_gas(last_text, bytes.fromhex(plain), stages["fuel"])
+
+
+def loop_checker_gas(last_text, code, fuel):
+    """The loop checker's gas bound for the final EVM IR on CODE at the last stage's FUEL. asm_cert
+    refuses by SystemExit (it is also a command); here a refusal is a typed result, so the run's
+    record handlers always see it: a stack with no bound (asm_cert.Unbounded) is BLOCKED, and an
+    IR that does not lay over the bytecode is REJECTED."""
     outside = asm_cert.outside(last_text)
     if outside:
         raise Blocked(
@@ -3769,10 +4780,23 @@ def gas_need(solar, src, name, contract, tmp):
                 }
             ]
         )
-    inferred = asm_cert.infer(last_text, bytes.fromhex(plain))
+    try:
+        inferred = asm_cert.infer(last_text, code)
+    except asm_cert.Unbounded as e:
+        raise Blocked(
+            [
+                {
+                    "feature": "stack bound",
+                    "where": "",
+                    "detail": str(e.code).removeprefix("error: "),
+                }
+            ]
+        ) from None
+    except SystemExit as e:
+        raise Failed(f"asm_cert.py: {e.code}") from None
     bmax = max(inferred["costs"]) if inferred["costs"] else 0
     words = inferred["top"] // 32
-    return 22100 * (stages["fuel"] * bmax) + 3 * words + words * words // 512
+    return 22100 * (fuel * bmax) + 3 * words + words * words // 512
 
 
 def loop_resources(record, src, ast, contract):
@@ -3806,8 +4830,9 @@ def loop_cuts(record, src, ast, a, work, name, src_sha):
     function solar-verify's manifest gives a loop, the manifest, loop_equiv.py's certificate and
     the base's obligation modules, built in a clone of the base. Records loop_heads, loop_cuts
     (only the functions every step completed for) and loop_cuts_blocked, and returns the extra
-    BLOCKED reasons. The run stays BLOCKED in every case: the published statement does not apply
-    loop_equiv yet."""
+    BLOCKED reasons. A function whose loop is certainly outside the source erasure's shape
+    (loop_cuts.shape_refusals) stops at step "shape" before any build. The run stays BLOCKED in
+    every case: the published statement does not apply the join yet."""
     import fixed_fuel
     import loop_cuts as lc
 
@@ -3816,6 +4841,12 @@ def loop_cuts(record, src, ast, a, work, name, src_sha):
     except fixed_fuel.Unsupported as e:
         record["loop_cuts_blocked"] = {"*": {"step": "abi", "why": str(e)}}
         return lc.reasons({}, record["loop_cuts_blocked"])
+    cdefs = [
+        n
+        for n in ast.get("nodes", [])
+        if n.get("nodeType") == "ContractDefinition" and n.get("name") == contract
+    ]
+    refused = lc.shape_refusals(cdefs[0]) if len(cdefs) == 1 else {}
 
     def tool(build):
         def get():
@@ -3876,6 +4907,7 @@ def loop_cuts(record, src, ast, a, work, name, src_sha):
             f'\nlean_lib «{name}» where\n  srcDir := "Certified"\n  globs := #[.submodules `{name}]\n',
             (lean_lib_body(name),),
         )
+        record["loop_cuts_clone"] = str(d)
         return d
 
     heads, cuts, blocked = lc.hook(
@@ -3893,7 +4925,9 @@ def loop_cuts(record, src, ast, a, work, name, src_sha):
         lake_env=lambda d: lake_jobs_env(d, dict(os.environ, LEAN_NUM_THREADS="1")),
         log=log,
         summary=loop_summaries(a.loop_summary or []).get,
+        shape=refused.get,
         keep=keep_log,
+        heads_verify=lambda: lc.heads_exporter(tool(build_solar_verify)),
     )
     record["loop_heads"] = heads
     record["loop_cuts"] = cuts
@@ -3901,10 +4935,381 @@ def loop_cuts(record, src, ast, a, work, name, src_sha):
     return lc.reasons(cuts, blocked)
 
 
+def loop_final(record, reasons, src, ast, a, work, name):
+    """The loop's published theorem (tools/certify/loop_final.py) in the loop cut hook's clone, once
+    the hook built the obligations of every loop function: the stage proofs of this run's export, the
+    fixed-fuel module, the join, final.py's statement, lake build NAME.Final and check_final with this
+    run's bytes. Records loop_final. The statement covers only the loop functions' calls, from any
+    storage (runtime only); loop_verdict then decides whether it is CERTIFIED at the bounded tier.
+    On success the loop functions' OPEN reasons become one reason naming the checked theorem; on a
+    refusal its reason is added."""
+    import fixed_fuel
+    import loop_final as lf
+
+    contract = fixed_fuel.contract_of(ast, a.contract)
+    solar = build_solar()
+    plain, err = solar_runtime(solar, src, contract)
+    clone = record.get("loop_cuts_clone")
+    if plain is None or clone is None:
+        why = (
+            "no clone from the loop cut hook"
+            if clone is None
+            else f"solar: {err.strip()[:200]}"
+        )
+        record["loop_final"] = {"refused": {"step": "internal", "why": why}}
+        return reasons + [lf.reason(lf.Refused("internal", why))]
+    out = lf.attach(
+        record,
+        run=run,
+        name=name,
+        contract=contract,
+        ast=ast,
+        solar=solar,
+        src=src,
+        work=work,
+        lean_dir=clone,
+        lake_env=lake_jobs_env(clone, dict(os.environ, LEAN_NUM_THREADS="1")),
+        plain=plain,
+        log=log,
+    )
+    if out:
+        return reasons + out
+    fnames = record["loop_final"].get("functions") or [record["loop_final"]["function"]]
+    fname = ", ".join(fnames)
+    # The envelope's reason names the function at the start of its detail (its where is a line);
+    # the loop cut hook's names it in where.
+    kept = [
+        r
+        for r in reasons
+        if not (
+            r["feature"] == "loop"
+            and any(
+                r.get("where") == f
+                or r.get("detail", "").startswith(
+                    (f"{f}: a counted for loop", f"{f}: a while loop")
+                )
+                for f in fnames
+            )
+        )
+    ]
+    # The specification the final states: solar-verify's export when the bridge proved it
+    # (loop_final.attach records it), else True.
+    fin = (record.get("loop_final") or {}).get("final", {})
+    spec_s = (
+        "specification: solar-verify's export in the fixed frame TreeLoop.ctx0"
+        + (
+            ""
+            if fin.get("vacuity") is None and fin.get("allowed_vacuity") is None
+            else " (not shown non-vacuous: "
+            + (fin.get("vacuity") or "the allowed statuses: " + fin["allowed_vacuity"])
+            + ")"
+        )
+        if fin.get("spec_bound_to_export")
+        else "specification True (declared vacuous)"
+    )
+    whose = "the loop functions'" if len(fnames) > 1 else "the loop function's"
+    return kept + [
+        {
+            "feature": "loop",
+            "where": fname,
+            "detail": f"loop final checked (Certified.{name}.Final.final, record loop_final): runtime "
+            f"only, {whose} calls only, {spec_s}",
+        }
+    ]
+
+
+# The axioms a certified final may depend on (check_final.lean's gate).
+FINAL_AXIOMS = {"propext", "Classical.choice", "Quot.sound"}
+def abi_functions(ast, contract):
+    """The calls the runtime bytecode of CONTRACT dispatches, from the solc AST: (functions by
+    selector, other entry points) where the functions are the external and public functions of
+    CONTRACT and its bases, {selector: name}, keyed by solc's functionSelector (overloads are
+    distinct entry points; an override shares its base's selector), and the other entry points are
+    public state variables' getters, fallback and receive, and any public function without a
+    selector."""
+    defs = {c.get("id"): c for c in ast.get("nodes", []) if c.get("nodeType") == "ContractDefinition"}
+    top = next(c for c in defs.values() if c.get("name") == contract)
+    fns, other = {}, []
+    for i in top.get("linearizedBaseContracts") or [top["id"]]:
+        c = defs.get(i)
+        if c is None:
+            other.append(f"a base (id {i}) outside the source's AST")
+            continue
+        for n in c.get("nodes", []):
+            if n.get("nodeType") == "FunctionDefinition":
+                if n.get("kind") in ("fallback", "receive"):
+                    other.append(f"{c.get('name')}.{n.get('kind')}")
+                elif n.get("kind") == "function" and n.get("visibility") in ("public", "external"):
+                    sel = n.get("functionSelector")
+                    if isinstance(sel, str) and re.fullmatch(r"[0-9a-fA-F]{8}", sel):
+                        if fns.setdefault(int(sel, 16), n.get("name")) != n.get("name"):
+                            other.append(f"{c.get('name')}.{n.get('name')} (selector 0x{sel} of {fns[int(sel, 16)]})")
+                    else:
+                        other.append(f"{c.get('name')}.{n.get('name')} (no selector)")
+            elif (
+                n.get("nodeType") == "VariableDeclaration"
+                and n.get("stateVariable")
+                and n.get("visibility") == "public"
+            ):
+                other.append(f"{c.get('name')}.{n.get('name')} (public getter)")
+    return fns, other
+
+
+def loop_promotion_problem(record, reasons, src, ast, a):
+    """Why the loop branch's checked final is not CERTIFIED at the bounded loop tier, or None. Every
+    condition is read from this run (its record, its reasons, the solc AST and a fresh compile),
+    per function, never from the statement's aggregate:
+    * the requested tier is certified (SPEC natspec) or compiled (SPEC none);
+    * loop_final checked Certified.NAME.Final.final: no refusal, check_final's fresh-byte line for
+      this run's bytes (whose SHA-256 is a fresh compile's now), axioms among propext,
+      Classical.choice and Quot.sound (and some), the closure replayed with nothing trusted;
+    * no reason is left but the final's own: no other envelope reason, no OPEN reason of a loop the
+      final does not cover;
+    * every loop of the source is in a loop function the final covers (source_loops), and every
+      entry point of the runtime is one of them (abi_functions): the final's parts are the calls;
+    * no NatSpec tag that applies beyond one function (a contract invariant, a constructor's or a
+      state variable's), which no part states;
+    * every spec of the export's kernel-checked inventory is a part's;
+    * the final is final.py's expected statement (term 6), binding this run's source, bytes and
+      inventory, and a stage chain from the lowered MIR to the bytecode, with a compiler;
+    * every runtime entry point is covered by selector (functionSelector), not by name, so an
+      overload no part states refuses (review 216, F1);
+    * each part states its function's exported spec, proved by the bridge with a well-typed
+      non-vacuity witness checked (its return data decodes, so the ensures or invariants reject it,
+      review 207), or True by the checked no-spec determination (translation only); at the
+      certified tier at least one part states a spec."""
+    import loop_final as lf_mod
+
+    tier = record.get("requested_tier")
+    want = {"certified": "natspec", "compiled": "none"}.get(tier)
+    if want is None or a.spec != want:
+        return f"the bounded loop tier certifies the certified or compiled tier, not {tier!r} with SPEC {a.spec}"
+    lf = record.get("loop_final") or {}
+    if not lf or lf.get("refused"):
+        return "no checked loop final"
+    fin = lf.get("final") or {}
+    if not fin.get("theorem") or not lf.get("functions") or not isinstance(lf.get("parts"), dict):
+        return "the loop final record has no theorem, functions or per-function parts"
+    axs = lf.get("axioms")
+    if not axs or not set(axs) <= FINAL_AXIOMS:
+        return f"the final's axioms are not among {sorted(FINAL_AXIOMS)}: {axs}"
+    fb = lf.get("fresh_byte") or {}
+    if not str(fb.get("check_final", "")).startswith("FRESH "):
+        return "check_final did not gate the statement's bytes on this run's (no fresh-byte line)"
+    contract = record.get("contract") or __import__("fixed_fuel").contract_of(ast, a.contract)
+    plain, err = solar_runtime(build_solar(), src, contract)
+    if plain is None or hashlib.sha256(bytes.fromhex(plain)).hexdigest() != fb.get("runtime_sha256"):
+        return "the bytes check_final bound are not a fresh compile's of this source"
+    rp = lf.get("replay") or {}
+    if not rp.get("closure") or rp.get("trusted_count") != 0:
+        return f"the final's closure replay is missing or trusts constants: {rp.get('trusted_count')}"
+    covered = set(lf["functions"])
+    own = [
+        r
+        for r in reasons
+        if r.get("feature") == "loop" and r.get("detail", "").startswith("loop final checked")
+    ]
+    left = [r for r in reasons if r not in own]
+    if len(own) != 1 or left:
+        return "other reasons remain: " + "; ".join(
+            f"{r.get('feature')} ({r.get('where')}): {r.get('detail', '')[:120]}" for r in left[:3]
+        )
+    loops = lf_mod.source_loops(ast, contract)
+    if loops["elsewhere"] or loops["functions"] - covered:
+        return "source loops the final does not cover: " + ", ".join(
+            sorted(loops["functions"] - covered) + loops["elsewhere"]
+        )
+    # Every entry point by selector (review 216, F1): a non-looping overload of a loop function is
+    # another entry point, which no part states.
+    fns, other = abi_functions(ast, contract)
+    try:
+        stated = {int(str(p.get("selector")), 16): f for f, p in lf["parts"].items()}
+    except ValueError:
+        return "a part's selector is not a hex word"
+    if len(stated) != len(lf["parts"]):
+        return "two parts state the same selector"
+    wrong = [f"{f} (0x{s:08x})" for s, f in stated.items() if fns.get(s) != f]
+    if wrong:
+        return "parts whose selector is not their function's public entry point: " + ", ".join(wrong)
+    unstated = [f"{fns[s]} (0x{s:08x})" for s in sorted(fns) if s not in stated]
+    if other or unstated:
+        return "entry points of the runtime the final does not state: " + ", ".join(
+            unstated + other
+        )
+    try:
+        wide = lf_mod.spec_inventory(ast, contract)["contract"]
+    except lf_mod.Refused as e:
+        return e.why
+    if wide:
+        return "NatSpec no part states: " + ", ".join(f"{w}: {x}" for w, x in wide[:4])
+    inv = lf.get("inventory") or {}
+    if not inv.get("theorem"):
+        return "no kernel-checked selector inventory of the export"
+    # Term 6: the final is final.py's expected statement, which binds in its type the fresh source
+    # and the export's inventory, the compiler, options, MIR and stage digests, the bytes, and per
+    # function the inhabited valid calls, Shapes.Certified and the well-typed NonVacuous or the
+    # checked absence of a spec (the inventory module in the final's closure).
+    ex = fin.get("expected") or {}
+    if fin.get("statement_kind") != "expected" or not ex:
+        return "the final is not the expected statement (statement expected)"
+    if ex.get("source_sha256") != hashlib.sha256(pathlib.Path(src).read_bytes()).hexdigest():
+        return "the expected statement binds another source than this run's"
+    if ex.get("runtime_sha256") != fb.get("runtime_sha256"):
+        return "the expected statement binds other bytes than the fresh-byte gate's"
+    if ex.get("inventory") != inv.get("specs") or ex.get("inventory_module") != inv.get("module"):
+        return "the expected statement binds another inventory than the kernel-checked one"
+    st = ex.get("stages") or []
+    if not st or st[0].get("pass") != "lower-evm-shaped" or st[-1].get("file") != "Bytecode":
+        return "the expected statement binds no stage chain from the lowered MIR to the bytecode"
+    if not (ex.get("toolchain") or {}).get("compiler"):
+        return "the expected statement binds no compiler"
+    stated = {p.get("selector") for p in lf["parts"].values()}
+    extra = [s["name"] for s in inv.get("specs", []) if s.get("selector") not in stated]
+    if extra:
+        return "the export specifies functions no part states: " + ", ".join(extra)
+    proved = 0
+    for f in lf["functions"]:
+        p = lf["parts"].get(f) or {}
+        if p.get("spec") == "proved":
+            if p.get("nonvacuous") is not True or (p.get("nonvac_witness") or {}).get("well_typed") is not True:
+                return (
+                    f"{f}: no well-typed non-vacuity witness (one whose return data decodes) refutes "
+                    f"the exported spec: {p.get('nonvacuous')}"
+                )
+            proved += 1
+        elif p.get("spec") == "none":
+            if not (p.get("no_spec") or {}).get("theorem"):
+                return f"{f}: True without the checked no-spec determination"
+        else:
+            return f"{f}: its spec is not stated ({p.get('label')})"
+    if tier == "certified" and not proved:
+        return "no part states an exported spec: translation only, not the certified tier"
+    return None
+
+
+def loop_verdict(record, reasons, src, ast, a, out_of_gas):
+    """The loop branch's verdict on its checked final: raises LoopCertified (record loop_tier) when
+    loop_promotion_problem finds nothing, the requested tier's status at the bounded tier, with the
+    unbounded tier reported beside it as not certified (the fixed-fuel out of gas, or no theorem
+    past the iteration bounds); else returns REASONS, the final's own reason saying why it is not
+    certified, and the branch's verdict stays BLOCKED (or the out of gas, REJECTED)."""
+    why = loop_promotion_problem(record, reasons, src, ast, a)
+    lf = record.get("loop_final") or {}
+    if why is not None:
+        if lf and not lf.get("refused"):
+            record["loop_tier"] = {"status": "not certified", "why": why}
+            return [
+                dict(r, detail=r["detail"] + f"; not certified: {why}")
+                if r.get("feature") == "loop" and r.get("detail", "").startswith("loop final checked")
+                else r
+                for r in reasons
+            ]
+        return reasons
+    fin, status = lf["final"], record["requested_tier"].upper()
+    bounds = {
+        f: {
+            "K_max": (p.get("iteration_bound") or {}).get("max"),
+            "valid": p.get("valid"),
+            "gas": p.get("gas"),
+        }
+        for f, p in lf["parts"].items()
+    }
+    bounded = [f for f, x in bounds.items() if x["K_max"] is not None]
+    if out_of_gas is not None:
+        unb = f"resource: out of gas (the unbounded fixed-fuel obligation): {out_of_gas}"
+    elif bounded:
+        unb = (
+            "no theorem covers loop limits past the iteration bounds ("
+            + ", ".join(f"{f}: K ≤ {bounds[f]['K_max']}" for f in bounded)
+            + ")"
+        )
+    else:
+        unb = None
+    ro = record.get("resource_obligation") or {}
+    if unb and out_of_gas is None and ro.get("verdict") == "unsupported":
+        unb += f"; the unbounded fixed-fuel obligation is unsupported: {str(ro.get('why'))[:200]}"
+    tier = {
+        "status": status,
+        "tier": "bounded",
+        "label": "bounded loop tier: for every iteration bound K ≤ Kmax, each loop function's valid calls "
+        "(Valid K: its selector, uint256 argument words, no value, any storage, the loop's limit at most K); "
+        "runtime only",
+        "theorem": fin["theorem"],
+        "statement_module": fin.get("statement_module"),
+        "bounds": bounds,
+        "parts": {f: {"spec": p.get("spec"), "label": p.get("label")} for f, p in lf["parts"].items()},
+        "axioms": lf["axioms"],
+        "fresh_byte": lf["fresh_byte"],
+        "replay": {k: lf["replay"].get(k) for k in ("closure", "replayed_count", "trusted_count")},
+        "strongest": fin.get("strongest"),
+        "excluded": fin.get("excluded"),
+        "unbounded": {"status": "not certified", "why": unb}
+        if unb
+        else {"status": "n/a", "why": "every loop's limit is a literal: the statement has no iteration bound"},
+    }
+    record["loop_tier"] = tier
+    kb = ", ".join(f"{f}: ∀ K ≤ {x['K_max']}, {x['valid']}" for f, x in bounds.items() if x["K_max"] is not None)
+    line = (
+        f"{status}: {record.get('name')}: bounded loop tier: {fin['theorem']} checked ({kb or 'literal limits'}; "
+        f"fresh bytes; axioms {', '.join(lf['axioms'])})"
+        + (f"; unbounded n: not certified ({unb[:300]})" if unb else "")
+    )
+    raise LoopCertified(status, line, tier)
+
+
+def rec_route(record, src, ast, a, work, name, contract):
+    """The recursion route (tools/certify/rec_final.py) for a contract with a self-recursive function
+    the envelope admitted (its measure written): nothing when the source has no recursion; else the
+    run is BLOCKED, with the recursion final theorem checked in the run's clone of the base (record
+    rec_final) or the route's refusal as its reason."""
+    import rec_final as rf
+
+    try:
+        r = rf.route(ast, contract)
+    except rf.Refused as e:
+        raise Blocked([rf.reason(e)]) from None
+    if r is None:
+        return
+    solar = build_solar()
+    plain, err = solar_runtime(solar, src, contract)
+    if plain is None:
+        raise Blocked([rf.reason(rf.Refused("internal", f"solar: {err.strip()[:200]}"))])
+    _, _, clone = clone_base(a, work)
+    out = rf.attach(
+        record,
+        run=run,
+        name=name,
+        contract=contract,
+        ast=ast,
+        solar=solar,
+        src=src,
+        work=work,
+        lean_dir=clone,
+        lake_env=lake_jobs_env(clone, dict(os.environ, LEAN_NUM_THREADS="1")),
+        plain=plain,
+        solc=a.solc,
+        log=log,
+    )
+    if out:
+        raise Blocked(out)
+    raise Blocked(
+        [
+            {
+                "feature": "recursion",
+                "where": r["function"],
+                "detail": f"recursion final checked (Certified.{name}.Final.final, record rec_final): "
+                f"runtime only, the calls of the statement's Valid, a Lean specification of the "
+                f"ensures (not solar-verify's export); the driver stays BLOCKED",
+            }
+        ]
+    )
+
+
 def loop_summaries(specs):
     """--loop-summary FN=MODULE:CONSTANT, each a GenObl.Summary of FN's body. It is untrusted:
     the generator checks its shape against the run's imported function, and the obligation
-    modules prove that check by kernel_rfl. Without one, the generator refuses FN."""
+    modules prove that check by kernel_rfl. Without one (the default), the generator takes the
+    erasure route for FN (eraseLoopStmt of its body)."""
     out = {}
     for spec in specs:
         fn, eq, rest = spec.partition("=")
@@ -4876,11 +6281,19 @@ def main():
     )
     ap.add_argument("--no-negatives", action="store_true")
     ap.add_argument(
+        "--refute-in-kernel",
+        action="store_true",
+        help="a decided NatSpec refutation (natspec_checks) does not stop the run: the run goes on to "
+        "spec_connect.py, whose kernel-checked refutation names the declaration it refutes; the run is "
+        "REJECTED either way (the negative controls, tools/certify/stage_neg.sh)",
+    )
+    ap.add_argument(
         "--loop-summary",
         action="append",
         metavar="FN=MODULE:CONSTANT",
         help="a GenObl.Summary of loop function FN's body for the loop cut hook (checked by the "
-        "generator against the imported function); without one the hook blocks FN",
+        "generator against the imported function); without one the generator erases FN's body "
+        "itself (eraseLoopStmt)",
     )
     ap.add_argument(
         "--probe-cache",
@@ -4913,10 +6326,7 @@ def main():
         ap.error("--constructor-args needs --tier lifecycle")
     text = src.read_text()
     src_sha = hashlib.sha256(text.encode()).hexdigest()
-    base_name = re.sub(r"[^a-z0-9_]", "_", src.stem.lower()).strip("_") or "c"
-    if not base_name[0].isalpha():
-        base_name = "c_" + base_name
-    name = f"{base_name}_{src_sha[:8]}"
+    name = run_name(src)
     record = {
         "schema": "solar-certify-generic/1",
         "name": name,
@@ -4981,9 +6391,41 @@ def main():
                 # The cut points first, so the record holds them whatever loop_resources decides;
                 # its REJECTED still decides the verdict, and BLOCKED stays the floor otherwise.
                 extra = loop_cuts(record, src, ast, a, work, name, src_sha)
-                loop_resources(record, src, ast, a.contract)
-                raise Blocked(b.reasons + extra) from b
+                __import__("loop_any_caller").from_driver(
+                    record,
+                    src,
+                    ast,
+                    a.contract,
+                    work,
+                    build_solar,
+                    build_solar_verify,
+                    log,
+                )
+                # The unbounded fixed-fuel obligation's out of gas stays the verdict, but only
+                # after the loop's final theorem, which bounds the loop's limit by K and carries
+                # its own gas bound, is built and recorded beside it.
+                out_of_gas = None
+                try:
+                    loop_resources(record, src, ast, a.contract)
+                except Failed as e:
+                    if record.get("rejected_for") != "resource: out of gas":
+                        raise
+                    out_of_gas = e
+                reasons = b.reasons + extra
+                if record.get("loop_cuts") and not record.get("loop_cuts_blocked"):
+                    reasons = loop_final(record, reasons, src, ast, a, work, name)
+                # CERTIFIED at the bounded tier (raises LoopCertified) only when the checked final
+                # passes every gate; else the reasons say why and the verdict is unchanged.
+                reasons = loop_verdict(record, reasons, src, ast, a, out_of_gas)
+                if out_of_gas is not None:
+                    raise out_of_gas
+                raise Blocked(reasons) from b
             raise
+        # Recursion (Phase 3): a function that calls itself with its measure written passed the
+        # envelope, but the erasure Lowering and the loop assembly checker do not take it: it takes
+        # the recursion route (tools/certify/rec_final.py), and the run ends BLOCKED with the checked
+        # final theorem (or the route's refusal) as its reason, as the loop route does.
+        rec_route(record, src, ast, a, work, name, contract)
         if lifecycle_open:
             record["lifecycle_open"] = lifecycle_open
             record["resources"] = (
@@ -4997,8 +6439,11 @@ def main():
             refuted, invs = natspec_checks(ast, contract)
             if invs:
                 record["invariants"] = invs
-            if refuted:
+            if refuted and not a.refute_in_kernel:
                 raise Failed(refuted)
+            if refuted:
+                # Recorded, never dropped: a run that reaches no kernel refutation is REJECTED with it.
+                record["natspec_refuted"] = refuted
         record["contract"] = contract
         record["functions"] = [
             {
@@ -5016,15 +6461,7 @@ def main():
             # The statement's non-vacuity needs a call the spec requires to succeed: a function with
             # @custom:succeeds-if. Without one the allowed statuses reject nothing, and the certified
             # tier cannot be stated non-vacuously: the run is refused before any proof.
-            witness = next(
-                (f["name"] for f in fns if f.get("mutates") and f.get("succeeds")), None
-            ) or next((f["name"] for f in fns if f.get("succeeds")), None)
-            if witness is None:
-                raise Failed(
-                    "spec: no function has @custom:succeeds-if, so the spec's allowed statuses reject nothing and "
-                    "the certified statement's non-vacuity (a revert the spec rejects) cannot hold; add succeeds-if "
-                    "conditions, or run with SPEC none"
-                )
+            witness = spec_witness(fns)
         log("== generic: build solar")
         solar = build_solar()
         # The binary must be this checkout's compiler, and the expected one when the runner names
@@ -5070,6 +6507,12 @@ def main():
             raise Blocked(
                 [
                     {
+                        "feature": "unlinked library",
+                        "where": f"byte {pc}",
+                        "detail": "the runtime bytecode has an unlinked library placeholder",
+                    }
+                    if op == "unlinked library"
+                    else {
                         "feature": "bytecode",
                         "where": f"pc {pc}",
                         "detail": f"the runtime bytecode has {op}",
@@ -5115,6 +6558,12 @@ def main():
         if reasons:
             raise Blocked(reasons)
         log(note)
+        succ = None
+        if witness == SYNTH_WITNESS:
+            succ = synth_witness(res, fns)
+            witness = succ["function"]
+            record["succeeds_witness"] = succ
+            log(f"succeeds witness (no succeeds-if): {witness} on the zero call")
         if caller == "any":
             # Only on the any route: the fixed route's record is the fixed-frame record.
             record["caller"] = caller
@@ -5129,6 +6578,13 @@ def main():
         shutil.copy(src, d / f"{name}.sol")
         (d / "options").write_text("\n".join(OPTIONS) + "\n")
         (d / "Source.lean").write_text(source_text)
+        # The C3 order of a contract with bases, from the AST the envelope read (above).
+        lin_text = linearization_module(name, contract, ast, src_sha)
+        if lin_text:
+            (d / "Linearization.lean").write_text(lin_text)
+            log(
+                "inheritance: Linearization.lean states that the frontend's C3 order is solc's"
+            )
         (d / "Lowering.lean").write_text(
             lowering_lean(
                 name,
@@ -5163,7 +6619,15 @@ def main():
         (d / "shape.json").write_text(
             json.dumps(
                 shape_json(
-                    name, contract, fns, need, spec_desc, witness, events, any_gas
+                    name,
+                    contract,
+                    fns,
+                    need,
+                    spec_desc,
+                    witness,
+                    events,
+                    any_gas,
+                    succeeds_witness=succ,
                 ),
                 indent=2,
             )
@@ -5298,6 +6762,8 @@ def main():
             tail = lines[-3:]
             hit = resource_failures(lines)
             spec_rej = spec_rejection(lines)
+            if spec_rej and not hit and record.get("natspec_refuted"):
+                record["natspec_refuted_in_kernel"] = spec_rej[0][:600]
             if spec_rej and not hit:
                 # spec_connect.py elaborated its module and a theorem of it does not check: the spec
                 # is false of the code (or beyond the tactics), named by that theorem.
@@ -5320,6 +6786,12 @@ def main():
                 "REJECTED",
                 1,
                 f"REJECTED: scripts/certify: exits {rc}: {' | '.join(tail)}",
+            )
+        if record.get("natspec_refuted"):
+            finish(
+                "REJECTED",
+                1,
+                f"REJECTED: {record['natspec_refuted']} (decided; the kernel refuted no declaration)",
             )
         rec = json.loads(inner.read_text())
         shutil.copy(inner, rec_dir / "certify-record.json")
@@ -5350,11 +6822,53 @@ def main():
             f"REJECTED: strict tier: {name} reached {reached}, below the requested tier {tier} (false: {', '.join(missing)})",
             **res,
         )
-    except Blocked as b:
+    except asm_cert.Unbounded as e:
+        # A stack-bound refusal no call site converted (loop_checker_gas and the loop resources
+        # do): still BLOCKED with its reason, never an exit without a record.
+        b = Blocked(
+            [
+                {
+                    "feature": "stack bound",
+                    "where": "",
+                    "detail": str(e.code).removeprefix("error: "),
+                }
+            ]
+        )
+        if record.get("natspec_refuted"):
+            finish(
+                "REJECTED",
+                1,
+                f"REJECTED: {record['natspec_refuted']} (decided; then BLOCKED: {b})",
+                blocked=b.reasons,
+            )
         finish("BLOCKED", 3, f"BLOCKED: {b}", blocked=b.reasons)
+    except Blocked as b:
+        if record.get("natspec_refuted"):
+            finish(
+                "REJECTED",
+                1,
+                f"REJECTED: {record['natspec_refuted']} (decided; then BLOCKED: {b})",
+                blocked=b.reasons,
+            )
+        finish("BLOCKED", 3, f"BLOCKED: {b}", blocked=b.reasons)
+    except LoopCertified as c:
+        finish(c.status, 0, c.line, loop_tier=c.tier)
     except Failed as f:
+        if record.get("natspec_refuted") and "refuted in the kernel" not in str(f):
+            finish(
+                "REJECTED",
+                1,
+                f"REJECTED: {record['natspec_refuted']} (decided; then: {f})",
+            )
         finish("REJECTED", 1, f"REJECTED: {f}")
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as e:
+        if record.get("natspec_refuted"):
+            finish(
+                "REJECTED",
+                1,
+                f"REJECTED: {record['natspec_refuted']} (decided; then the driver failed: "
+                f"{type(e).__name__}: {e})",
+            )
         finish("REJECTED", 1, f"REJECTED: driver: {type(e).__name__}: {e}")
 
 

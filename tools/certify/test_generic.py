@@ -1657,16 +1657,16 @@ class SpecGates(unittest.TestCase):
             self.assertNotIn("succeeds-if", line)
 
     def test_no_succeeds_if_refused(self):
-        src = (
-            HEAD
-            + """contract C { uint256 public x;
-    /// @custom:ensures x == 1
-    function f() external { x = 1; } }"""
+        # Without succeeds-if conditions a spec'd function is a candidate succeeds witness, chosen
+        # after the probe (test_succeeds_witness.py); with no spec'd function at all the run is
+        # refused before any build, as before.
+        f = {"name": "f", "mutates": True, "specified": False, "succeeds": False}
+        with self.assertRaises(generic.Failed) as e:
+            generic.spec_witness([f])
+        self.assertIn("spec: no function has @custom:succeeds-if", str(e.exception))
+        self.assertEqual(
+            generic.spec_witness([dict(f, specified=True)]), generic.SYNTH_WITNESS
         )
-        with tempfile.TemporaryDirectory() as t:
-            code, line = run_driver(src, "natspec", pathlib.Path(t))
-            self.assertEqual(code, 1)
-            self.assertIn("REJECTED: spec: no function has @custom:succeeds-if", line)
 
     def test_spec_none_needs_no_succeeds_if(self):
         src = (
@@ -1694,9 +1694,42 @@ class RecursionBoundary(unittest.TestCase):
     function decrement(uint256 n) public { if (n > 0) { x = n; decrement(n - 1); } }""")
         self.assertEqual(code, 3, line)
         self.assertIn(
-            "BLOCKED: recursion (1x, first line 5: unsupported: decrement can call itself",
+            "BLOCKED: recursion (1x, first line 5: unsupported: decrement can call itself "
+            "(no @custom:decreases measure",
             line,
         )
+
+    def test_self_recursion_with_measure_admitted(self):
+        # One function calling itself with its measure written: the backend stages cut it at its
+        # call frames (rec_cuts.py), so the envelope lets it through.
+        _code, line = self.blocked("""    /// @custom:decreases n
+    function sum(uint256 n) internal pure returns (uint256) { return n == 0 ? 0 : sum(n - 1) + n; }
+    function total(uint256 n) external pure returns (uint256) { require(n <= 64); return sum(n); }""")
+        self.assertNotIn("recursion", line)
+
+    def test_mutual_recursion_with_measures_refused(self):
+        code, line = (
+            self.blocked("""    /// @custom:decreases n
+    function even(uint256 n) internal pure returns (bool) { return n == 0 ? true : odd(n - 1); }
+    /// @custom:decreases n
+    function odd(uint256 n) internal pure returns (bool) { return n == 0 ? false : even(n - 1); }
+    function f(uint256 n) external pure returns (bool) { return even(n); }""")
+        )
+        self.assertEqual(code, 3, line)
+        self.assertIn(
+            "unsupported: even and odd can call each other (only one function calling itself, "
+            "with @custom:decreases, has cut points)",
+            line,
+        )
+
+    def test_overloaded_self_recursion_refused(self):
+        # The measure must belong to the one function of that name.
+        code, line = self.blocked("""    /// @custom:decreases n
+    function g(uint256 n) internal pure returns (uint256) { return n; }
+    function g(uint256 n, uint256 m) internal pure returns (uint256) { return n == 0 ? m : g(n - 1, m); }
+    function f(uint256 n) external pure returns (uint256) { return g(n, 0) + g(n); }""")
+        self.assertEqual(code, 3, line)
+        self.assertIn("unsupported: g can call itself (no @custom:decreases measure", line)
 
     def test_mutual_recursion(self):
         code, line = (
@@ -1738,6 +1771,61 @@ class RecursionBoundary(unittest.TestCase):
     function f(uint256 n) external m { x = h(n) + uint256(keccak256(abi.encode(n))) % 2; }""")
         self.assertNotIn("recursion", line)
         self.assertNotIn("BLOCKED", line)
+
+    def test_recursion_through_a_free_function(self):
+        with tempfile.TemporaryDirectory() as t:
+            code, line = run_driver(
+                HEAD
+                + "function e(uint256 n) pure returns (uint256) { return n == 0 ? 1 : e(n - 1); }\n"
+                + "contract C {\n    function f(uint256 n) external pure returns (uint256) { return e(n); }\n}\n",
+                "none",
+                pathlib.Path(t),
+            )
+        self.assertEqual(code, 3, line)
+        self.assertIn("unsupported: e can call itself", line)
+
+    def test_unreached_free_function_recursion_passes(self):
+        with tempfile.TemporaryDirectory() as t:
+            _code, line = run_driver(
+                HEAD
+                + "function e(uint256 n) pure returns (uint256) { return n == 0 ? 1 : e(n - 1); }\n"
+                + "contract C {\n    function f(uint256 n) external pure returns (uint256) { return n + 1; }\n}\n",
+                "none",
+                pathlib.Path(t),
+            )
+        self.assertNotIn("recursion", line)
+
+
+class BytecodeScan(unittest.TestCase):
+    def test_unlinked_library_placeholder(self):
+        # PUSH20 <placeholder> DELEGATECALL: the placeholder is no code, the scan goes on after it.
+        hexcode = "73" + "__$" + "ab" * 17 + "$__" + "f4"
+        self.assertEqual(
+            generic.scan_bytecode(hexcode), {"unlinked library": 1, "DELEGATECALL": 21}
+        )
+
+    def test_plain_code(self):
+        self.assertEqual(generic.scan_bytecode("6001600201f1"), {"CALL": 5})
+
+
+class ImportClosure(unittest.TestCase):
+    def test_relative_and_base_imports(self):
+        with tempfile.TemporaryDirectory() as t:
+            t = pathlib.Path(t)
+            (t / "aux" / "deep").mkdir(parents=True)
+            (t / "main.sol").write_text(
+                '// import "./ignored.sol";\nimport {A as B} from "./aux/a.sol";\nimport "base.sol";\n'
+                'import "./missing.sol";\ncontract C {}\n'
+            )
+            (t / "aux" / "a.sol").write_text('import * as D from "./deep/d.sol";\n')
+            (t / "aux" / "deep" / "d.sol").write_text('import "../a.sol";\n')
+            (t / "base.sol").write_text("")
+            (t / "ignored.sol").write_text("")
+            got = [
+                p.relative_to(t.resolve()).as_posix()
+                for p in generic.import_closure(t / "main.sol")
+            ]
+        self.assertEqual(got, ["main.sol", "aux/a.sol", "base.sol", "aux/deep/d.sol"])
 
 
 def final_py(shape, root, hexcode="6001"):
@@ -1836,7 +1924,7 @@ class ExpectedStatement(unittest.TestCase):
 
 class SpecConnectEmission(unittest.TestCase):
     """A succeeds-if over the call's environment alone leaves some of tree_succeeds's steps
-    nothing to rewrite; the emitted proof must allow that, not call the macro."""
+    nothing to rewrite; the emitted proof must allow that: tree_succeeds_try, not tree_succeeds."""
 
     def test_tolerant_succeeds_proof(self):
         import spec_connect
@@ -1854,9 +1942,9 @@ class SpecConnectEmission(unittest.TestCase):
         )
         text = "\n".join(lines)
         self.assertNotIn("tree_succeeds [", text)
-        self.assertIn("try simp only [set_tree, set_spec, M.spec, B, M.ctx, *", text)
-        self.assertIn("first | omega | (simp_all; done) | (simp_all; omega)", text)
-        self.assertNotIn("@DS@", text)
+        self.assertIn(
+            "  tree_succeeds_try [set_tree, set_spec, M.spec, B, M.ctx]\n", text
+        )
 
 
 class ResourceFailures(unittest.TestCase):
@@ -2587,6 +2675,460 @@ def solar_bins(contract, text=None, src=None):
     )
 
 
+class SpecConnectLoops(unittest.TestCase):
+    """--loops reads the loop erasure's probe lines, refuses what the loop bridge does not prove,
+    and states each loop function's premises of the loop route from a kernel check."""
+
+    def args(self, **kw):
+        return argparse.Namespace(
+            **{"any_caller": False, "tree_only": False, "ghost_fixed": False, **kw}
+        )
+
+    def test_parse_and_refusals(self):
+        import spec_connect
+
+        ok = spec_connect.parse_loop("loop C.f 0 2987308228 [256, 160] TREE .stop")
+        self.assertEqual(ok, (0, 2987308228, "[256, 160]", ".stop"))
+        self.assertIsNone(spec_connect.loop_refusal(ok, 2, ([], []), self.args()))
+        for why, word in (
+            ("noloop", "eraseLoopStmt"),
+            ("nowidths", "widthsOf"),
+            ("returns", "wordBinding"),
+        ):
+            got = spec_connect.parse_loop(f"loop C.g {why}")
+            self.assertIn(
+                word, spec_connect.loop_refusal(got, 1, ([], []), self.args())
+            )
+        self.assertIn(
+            "probe", spec_connect.loop_refusal(None, 1, ([], []), self.args())
+        )
+        self.assertIn("eight", spec_connect.loop_refusal(ok, 9, ([], []), self.args()))
+        self.assertIn(
+            "selCall",
+            spec_connect.loop_refusal(ok, 2, ([], []), self.args(any_caller=True)),
+        )
+        succ = spec_connect.parse_loop("loop C.f 1 7 [] TREE .stop")
+        self.assertIn(
+            "succeeds-if", spec_connect.loop_refusal(succ, 0, ([], []), self.args())
+        )
+        self.assertIsNone(
+            spec_connect.loop_refusal(succ, 0, ([], []), self.args(tree_only=True))
+        )
+        self.assertIn(
+            "mappings", spec_connect.loop_refusal(ok, 2, ([3], []), self.args())
+        )
+
+    def test_loop_block(self):
+        import spec_connect
+
+        for fixed in (False, True):
+            lines = spec_connect.loop_block(
+                "f", "C.f", 1, 1, 7, "[256]", ".stop", "NS", "M", "B", "u", fixed, False
+            )
+            text = "\n".join(lines)
+            self.assertIn(
+                "TreeLoop.contractLoopCheck NS.contract? NS.fuel 7 1 [256] f_tree spec 1",
+                text,
+            )
+            self.assertIn("kernel_rfl f_loop_eq f_loop? true using u", text)
+            self.assertIn("TreeLoop.LoopSpec c NS.fuel 7 [256] f_tree spec :=", text)
+            self.assertIn(
+                "loopSpec_of_check_fixed" if fixed else "loopSpec_of_check hc", text
+            )
+            self.assertIn("#print axioms f_loop_spec", text)
+            self.assertNotIn("sorry", text)
+        tree = "\n".join(
+            spec_connect.loop_block(
+                "f", "C.f", 1, 1, 7, "[256]", ".stop", "NS", "M", "B", "u", False, True
+            )
+        )
+        self.assertIn("f_loop_eq", tree)
+        self.assertNotIn("f_meets", tree)
+
+    def test_provenance(self):
+        """--loops states the spec of the bundle it names only when that bundle is the core
+        module's contract's export: named alike, of the file the contract was imported from, with
+        that file's SHA-256."""
+        import spec_connect
+
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            (root / "C.sol").write_text("contract C {}\n")
+            sha = hashlib.sha256(b"contract C {}\n").hexdigest()
+            (root / "Core").mkdir()
+            (root / "Core" / "Src.lean").write_text("import Core.Ast\n")
+            (root / "Core" / "Ast.lean").write_text(
+                'namespace X\nnamespace Y\ndef importedSourceName : String := "C.sol"\nend Y\nend X\n'
+            )
+            (root / "Lib" / "gen").mkdir(parents=True)
+            spec = (
+                'def manifest : Manifest :=\n  { source := "C.sol",\n'
+                f'    sourceSha256 := "{sha}",\n    compiler := "" }}\n'
+            )
+            (root / "Lib" / "gen" / "Spec.lean").write_text(spec)
+            self.assertEqual(
+                spec_connect.module_path(root, "gen.Spec"), root / "Lib/gen/Spec.lean"
+            )
+            sources = spec_connect.core_source(root, "Core.Src")
+            self.assertEqual(sources, [("X.Y.importedSourceName", "C.sol")])
+            manifest = spec_connect.manifest_of(spec)
+            ok = spec_connect.provenance_refusal(("C", "C"), manifest, sources, root)
+            self.assertIsNone(ok)
+            for names, man, srcs, word in (
+                (("D", "C"), manifest, sources, "not of the checked contract"),
+                (None, manifest, sources, "names"),
+                (("C", "C"), None, sources, "manifest"),
+                (("C", "C"), manifest, [], "no single importedSourceName"),
+                (("C", "C"), manifest, sources * 2, "no single importedSourceName"),
+                (
+                    ("C", "C"),
+                    manifest,
+                    [("A.importedSourceName", "D.sol")],
+                    "imported from D.sol",
+                ),
+                (("C", "C"), ("C.sol", "0" * 64), sources, "SHA-256"),
+                (
+                    ("C", "C"),
+                    ("E.sol", sha),
+                    [("A.importedSourceName", "E.sol")],
+                    "not in the checkout",
+                ),
+            ):
+                self.assertIn(
+                    word, spec_connect.provenance_refusal(names, man, srcs, root)
+                )
+
+    BUNDLE = (
+        "def C : Bundle where\n"
+        "  fuel := 0\n"
+        "  spec :=\n"
+        '  { name := "C",\n'
+        "    invariants := [\n"
+        "    (.bin .le (.lit 0) (.lit 1))],\n"
+        "    specs := [\n"
+        '    { name := "C.f",\n'
+        "      ensures := [\n"
+        "        (.bin .eq (.arg 0) (.arg 0))],\n"
+        "      succeedsIf := [] }] }\n"
+    )
+
+    def fresh_root(self, d, sha_ok=True, exports=True):
+        """A checkout with C.sol, a front end that prints an AST body (and refuses unless it runs as
+        a copy, with its caches off and Python isolated), and a solar-verify that exports BUNDLE with
+        the source's SHA-256 (or a wrong one). Returns the root, solar-verify's path and its
+        SHA-256."""
+        root = pathlib.Path(d)
+        (root / "C.sol").write_text("contract C {}\n")
+        (root / "scripts").mkdir()
+        (root / "scripts" / "harness_cache.py").write_text("# cache\n")
+        (root / "scripts" / "solc_ast_to_lean_source.py").write_text(
+            "import os, pathlib, sys\n"
+            f"if pathlib.Path(__file__).resolve().parent == pathlib.Path({str(root.resolve() / 'scripts')!r}):\n"
+            "    sys.exit('run from the checkout, not a copy')\n"
+            "if os.environ.get('CONTEST_DISABLE_CACHE') != '1' or 'CONTEST_CACHE_DIR' in os.environ:\n"
+            "    sys.exit('caches on')\n"
+            "if not sys.flags.isolated:\n"
+            "    sys.exit('not isolated')\n"
+            "if not (pathlib.Path(__file__).parent / 'harness_cache.py').is_file():\n"
+            "    sys.exit('no harness_cache.py beside the copy')\n"
+            "solc = sys.argv[sys.argv.index('--solc') + 1]\n"
+            "if open(solc, 'rb').read() != b'solc':\n"
+            "    sys.exit('not the pinned solc')\n"
+            "ns = sys.argv[sys.argv.index('--namespace') + 1]\n"
+            "print('namespace ' + ns)\n"
+            "print('def importedSourceName : String := \"/abs/C.sol\"')\n"
+            "print('def importedSourceUnit : SourceUnit := { items := [] }')\n"
+            "print('end ' + ns)\n"
+        )
+        verify = root / "fake-solar-verify"
+        verify.write_text(
+            "#!/usr/bin/env python3\n"
+            "import hashlib, sys\n"
+            f"if not {exports!r}:\n"
+            "    sys.exit('error: cannot export to Lean: no')\n"
+            "out, src = sys.argv[2], sys.argv[-1]\n"
+            "sha = hashlib.sha256(open(src, 'rb').read()).hexdigest()\n"
+            f"sha = sha if {sha_ok!r} else '0' * 64\n"
+            "text = ('def manifest : Manifest :=\\n  { source := \"' + src + '\",\\n'\n"
+            "        '    sourceSha256 := \"' + sha + '\",\\n    compiler := \"\" }\\n\\n')\n"
+            f"open(out, 'w').write(text + {self.BUNDLE!r} + '\\n/-- wf -/\\n')\n"
+        )
+        verify.chmod(0o755)
+        (root / "solc").write_bytes(b"solc")
+        return root, str(verify), hashlib.sha256(verify.read_bytes()).hexdigest()
+
+    def export(self, root, verify, vsha, spec, cname="C", data=None, solc=None):
+        """fresh_export of C.sol's bytes (or `data`) with the pinned tools of `root`."""
+        import spec_connect
+
+        exporter = spec_connect.pinned_exporter(verify, vsha)
+        self.assertNotIsInstance(exporter, str, exporter)
+        front = spec_connect.front_end(root)
+        self.assertNotIsInstance(front, str, front)
+        if solc is None:
+            solc = (str(root / "solc"), "0.8.35", hashlib.sha256(b"solc").hexdigest())
+        if data is None:
+            data = (root / "C.sol").read_bytes()
+        return spec_connect.fresh_export(
+            "C.sol", data, cname, "M", spec, exporter, solc, front, "Out.FreshSource"
+        )
+
+    def test_bundle_block(self):
+        import spec_connect
+
+        text = (
+            "x\n\n/-- The specs. -/\n"
+            + self.BUNDLE
+            + "\ntheorem C_wf : C.WF = true := by decide\n"
+        )
+        self.assertEqual(spec_connect.bundle_block(text, "C"), self.BUNDLE)
+        self.assertIsNone(spec_connect.bundle_block(text, "D"))
+
+    def test_fresh_export(self):
+        """--loops binds the bundle's contents to the source bytes: the spec module's bundle must be
+        solar-verify's export of those bytes in this run, character for character; removing the
+        ensures or the invariant is refused. The tools run as copies of the bytes hashed."""
+        spec = "/-- s -/\n" + self.BUNDLE + "\n"
+        with tempfile.TemporaryDirectory() as d:
+            root, verify, vsha = self.fresh_root(d)
+            got = self.export(root, verify, vsha, spec)
+            self.assertNotIsInstance(got, str, got)
+            block, bsha, sha, ast = got
+            self.assertEqual(block, self.BUNDLE)
+            self.assertEqual(bsha, hashlib.sha256(self.BUNDLE.encode()).hexdigest())
+            self.assertEqual(sha, hashlib.sha256(b"contract C {}\n").hexdigest())
+            self.assertIn("namespace Out.FreshSource", ast)
+            self.assertIn("importedSourceUnit", ast)
+            self.assertNotIn("importedSourceName", ast)
+            # The snapshot's bytes are exported, not the file's now.
+            other = self.export(root, verify, vsha, spec, data=b"contract C { }\n")
+            self.assertEqual(other[2], hashlib.sha256(b"contract C { }\n").hexdigest())
+            for old, new in (
+                (
+                    "      ensures := [\n        (.bin .eq (.arg 0) (.arg 0))],\n",
+                    "      ensures := [],\n",
+                ),
+                (
+                    "    invariants := [\n    (.bin .le (.lit 0) (.lit 1))],\n",
+                    "    invariants := [],\n",
+                ),
+                ("(.arg 0) (.arg 0)", "(.arg 0) (.arg 1)"),
+            ):
+                self.assertIn(old, spec)
+                why = self.export(root, verify, vsha, spec.replace(old, new))
+                self.assertIsInstance(why, str)
+                self.assertIn("not solar-verify's export of C.sol in this run", why)
+            self.assertIn("defines no bundle", self.export(root, verify, vsha, ""))
+            self.assertIn(
+                "cannot be regenerated",
+                self.export(root, verify, vsha, spec, solc="no solc"),
+            )
+            self.assertIn(
+                "changed after",
+                self.export(
+                    root,
+                    verify,
+                    vsha,
+                    spec,
+                    solc=(str(root / "solc"), "0.8.35", "0" * 64),
+                ),
+            )
+            self.assertIn("no bundle `D`", self.export(root, verify, vsha, spec, "D"))
+        with tempfile.TemporaryDirectory() as d:
+            root, verify, vsha = self.fresh_root(d, sha_ok=False)
+            self.assertIn(
+                "does not record its SHA-256", self.export(root, verify, vsha, spec)
+            )
+        with tempfile.TemporaryDirectory() as d:
+            root, verify, vsha = self.fresh_root(d, exports=False)
+            self.assertIn("does not export", self.export(root, verify, vsha, spec))
+
+    def test_pinned_exporter(self):
+        """solar-verify runs only when its bytes have the pinned SHA-256."""
+        import spec_connect
+
+        with tempfile.TemporaryDirectory() as d:
+            root, verify, vsha = self.fresh_root(d)
+            data, got = spec_connect.pinned_exporter(verify, vsha)
+            self.assertEqual((data, got), (pathlib.Path(verify).read_bytes(), vsha))
+            self.assertIn(
+                "not the pinned solar-verify",
+                spec_connect.pinned_exporter(verify, "0" * 64),
+            )
+            self.assertIn(
+                "no pinned SHA-256", spec_connect.pinned_exporter(verify, None)
+            )
+            self.assertIn(
+                "no pinned SHA-256", spec_connect.pinned_exporter(verify, "ab")
+            )
+            self.assertIn("no solar-verify", spec_connect.pinned_exporter(None, vsha))
+            self.assertIn(
+                "not a file", spec_connect.pinned_exporter(str(root / "nope"), vsha)
+            )
+            (root / "scripts" / "harness_cache.py").unlink()
+            self.assertIn("missing", spec_connect.front_end(root))
+
+    def test_snapshot_source(self):
+        """The source the manifest names is a relative path inside the checkout, read once; the
+        provenance gate checks the snapshot's bytes when given."""
+        import spec_connect
+
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as out:
+            root = pathlib.Path(d)
+            (root / "C.sol").write_bytes(b"contract C {}\n")
+            (pathlib.Path(out) / "D.sol").write_bytes(b"contract D {}\n")
+            (root / "L.sol").symlink_to(pathlib.Path(out) / "D.sol")
+            self.assertEqual(
+                spec_connect.snapshot_source(root, "C.sol"), b"contract C {}\n"
+            )
+            for src, word in (
+                (str(root / "C.sol"), "not a relative path"),
+                ("../C.sol", "not a relative path"),
+                ("a/../../C.sol", "not a relative path"),
+                ("", "not a relative path"),
+                ("L.sol", "out of the checkout"),
+                ("E.sol", "not in the checkout"),
+            ):
+                self.assertIn(word, spec_connect.snapshot_source(root, src), src)
+            sha = hashlib.sha256(b"contract C {}\n").hexdigest()
+            srcs = [("A.importedSourceName", "C.sol")]
+            self.assertIsNone(
+                spec_connect.provenance_refusal(
+                    ("C", "C"), ("C.sol", sha), srcs, root, b"contract C {}\n"
+                )
+            )
+            self.assertIn(
+                "not the export's",
+                spec_connect.provenance_refusal(
+                    ("C", "C"), ("C.sol", sha), srcs, root, b"contract C { }\n"
+                ),
+            )
+            # The gate after Lean: a file changed since the snapshot is not the receipt's bytes.
+            (root / "C.sol").write_bytes(b"contract C { uint x; }\n")
+            self.assertIn(
+                "not the export's",
+                spec_connect.provenance_refusal(("C", "C"), ("C.sol", sha), srcs, root),
+            )
+            absolute = [("A.importedSourceName", str(root / "C.sol"))]
+            self.assertIn(
+                "not a relative path",
+                spec_connect.provenance_refusal(
+                    ("C", "C"), (str(root / "C.sol"), sha), absolute, root
+                ),
+            )
+
+    def test_pinned_solc(self):
+        import spec_connect
+
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            self.assertIn("missing", spec_connect.pinned_solc(root))
+            (root / "scripts" / "refinement").mkdir(parents=True)
+            solc = root / "solc"
+            solc.write_bytes(b"solc")
+            sha = hashlib.sha256(b"solc").hexdigest()
+            (root / "scripts/refinement/gen.sh").write_text(
+                f"solc_version=0.8.35\nsolc_sha256={sha}\n"
+            )
+            self.assertEqual(
+                spec_connect.pinned_solc(root, solc), (str(solc), "0.8.35", sha)
+            )
+            solc.write_bytes(b"other")
+            self.assertIn("not the pinned solc", spec_connect.pinned_solc(root, solc))
+
+    def test_fresh_block(self):
+        """The module names this run's export as its spec and has the kernel check the spec
+        module's bundle and the checked contract against it."""
+        import spec_connect
+
+        text = "\n".join(
+            spec_connect.fresh_block(
+                "Out",
+                "NS",
+                "Lib.M.C",
+                "C",
+                "C.sol",
+                "ab" * 32,
+                self.BUNDLE,
+                "cd" * 32,
+                "0.8.35",
+                {
+                    "exporterSha256": "e" * 64,
+                    "astToolSha256": "f" * 64,
+                    "astToolCacheSha256": "1" * 64,
+                    "solcSha256": "2" * 64,
+                },
+                "NS.selector_eq",
+            )
+        )
+        self.assertIn("def exported : Bundle where\n  fuel := 0", text)
+        self.assertIn("theorem spec_is_fresh : Lib.M.C = exported := rfl", text)
+        # The canonical type checker, its instance given: no instance found at elaboration.
+        explicit = (
+            "@SolidCore.Solidity.TypeCheck.CheckedInput.contract SolidCore.Solidity.TypeCheck.SourceUnitAst\n"
+            "      SolidCore.Solidity.TypeCheck.checkedInputSourceUnit"
+        )
+        self.assertIn(
+            "theorem source_is_fresh : NS.contract? =\n    "
+            + explicit
+            + ' Out.FreshSource.importedSourceUnit "C" :=\n  rfl',
+            text,
+        )
+        self.assertNotIn(
+            " SolidCore.Solidity.TypeCheck.CheckedInput.contract Out.FreshSource", text
+        )
+        # The changed-AST negative: the kernel checks that the canonical checker on a source unit
+        # without the contract does not give the core module's contract.
+        self.assertIn(
+            "theorem source_is_fresh_discriminates : NS.contract? ≠\n    "
+            + explicit
+            + ' ({ items := [] } : SolidCore.Solidity.SourceUnit) "C" := by',
+            text,
+        )
+        self.assertIn("  rw [h, hr] at hl\n  exact Bool.false_ne_true hl", text)
+        self.assertIn(
+            "kernel_rfl contractOk_eq contractOk? true using NS.selector_eq", text
+        )
+        self.assertIn("kernel_rfl emptyOk_eq emptyOk? false using NS.selector_eq", text)
+        for k, v in (
+            ("sourceSha256", "ab" * 32),
+            ("exporterSha256", "e" * 64),
+            ("astToolSha256", "f" * 64),
+            ("astToolCacheSha256", "1" * 64),
+            ("solcSha256", "2" * 64),
+        ):
+            self.assertIn(f'def {k} : String := "{v}"', text)
+        self.assertIn('def exportedSha256 : String := "' + "cd" * 32 + '"', text)
+        self.assertIn("#print axioms source_is_fresh", text)
+        self.assertNotIn("sorry", text)
+        lines = spec_connect.loop_block(
+            "f",
+            "C.f",
+            1,
+            1,
+            7,
+            "[256]",
+            ".stop",
+            "NS",
+            "Out",
+            "Out.exported",
+            "u",
+            False,
+            False,
+        )
+        self.assertIn(
+            "tree_meets [f_tree, f_spec, Out.spec, Out.exported, Out.ctx",
+            "\n".join(lines),
+        )
+
+    def test_overloads_refused(self):
+        import spec_connect
+
+        lines = ["fn C.f 1 noerase", "fn C.g 0 noerase", "fn C.f 2 noerase"]
+        self.assertEqual(spec_connect.duplicate_names(lines), ["C.f"])
+        self.assertEqual(spec_connect.lean_string('"C.f\\"x"'), 'C.f"x')
+
+
 class SpecConnectAnyCaller(unittest.TestCase):
     """--any-caller reads the symbolic-caller probe lines and refuses what holdsFn_of_tree_from
     does not cover, rather than stating it."""
@@ -2718,9 +3260,10 @@ BASE_DRIVER = "128b674ed"
 
 
 class NoConstructorRoute(unittest.TestCase):
-    """The lifecycle kernel stage leaves the other tiers' generated text byte-identical to the
-    driver it is built on (BASE_DRIVER), and their envelope unchanged for a source without
-    constructor parameters."""
+    """The lifecycle kernel stage leaves the probe and the lakefile stanza byte-identical to the
+    driver it is built on (BASE_DRIVER), and the envelope unchanged for a source without
+    constructor parameters. The generated source check changed on purpose since (its tables and
+    proofs by library lemmas, LoweringTemplate), so it is checked there instead."""
 
     def test_identical(self):
         p = subprocess.run(
@@ -2742,16 +3285,36 @@ class NoConstructorRoute(unittest.TestCase):
             {"sig": "get()", "sel": 0x6D4CE63C, "params": []},
             {"sig": "set(uint256)", "sel": 0x60FE47B1, "params": [".uint 256"]},
         ]
-        events = [{"sig": "E(uint256)", "topic": 0x1234}]
         for m in (old, generic):
             m.out = [
-                m.lowering_lean("x_0000abcd", "C", fns, events, "core", "[]"),
-                m.lowering_lean(
-                    "x_0000abcd", "C", fns, events, "core", "[(0, 1)]", sym=True
-                ),
                 m.probe_lean("x_0000abcd", "C", fns),
                 m.lakefile_lib("x_0000abcd", "C"),
             ]
+        # The one change on purpose since: the probe compares the two trees as the stage does
+        # (Generic.Tree.agree, Stage.checkFn), not by equal canonical forms alone.
+        agree = "if Generic.Tree.agree a b then"
+        self.assertEqual(old.out[0].count("if a.canon.beq b.canon then"), 2 * len(fns))
+        old.out[0] = old.out[0].replace("if a.canon.beq b.canon then", agree)
+        self.assertEqual(generic.out[0].count(agree), 2 * len(fns))
+        # And the run's stages are exported under the run's own namespace (export_ns.py).
+        old.out[0] = old.out[0].replace(
+            "SolarTV.Export.C.", "SolarTV.Export.x_0000abcd.C."
+        )
+        # And the probe says why the erasure is undefined when a parameter or a result is not one
+        # of its words: the static ABI envelope (static_words) admits those, and the erasure decides.
+        why = (
+            '"source tree undefined (erasure)" ++ (match Generic.widthsOf fn.params fn.paramAbiCleanups with\n'
+            '        | none => ": a parameter is not a word"\n'
+            '        | some _ => if fn.returns.all Generic.wordBinding then "" else ": a result is not a word")\n'
+        )
+        self.assertEqual(old.out[0].count('"source tree undefined (erasure)"\n'), 2 * len(fns))
+        old.out[0] = old.out[0].replace('"source tree undefined (erasure)"\n', why)
+        # The other: the succeeds-witness search's runs of every function on the zero call
+        # (synth_witness), printed after the checks and nothing else changed.
+        new = generic.out[0]
+        self.assertEqual(new.count('PROBE run fn '), len(fns))
+        i, j = new.index("\n  let st0 :"), new.index("\n\nend Certified.x_0000abcd.Probe")
+        generic.out[0] = new[:i] + new[j:]
         self.assertEqual(old.out, generic.out)
         if SOLC.exists():
             src = LIFE / "NoArgCtor.sol"
@@ -2760,6 +3323,83 @@ class NoConstructorRoute(unittest.TestCase):
                 old.envelope(src.read_text(), ast, contracts, None, None, False),
                 generic.envelope(src.read_text(), ast, contracts, None, None, False),
             )
+
+
+class LoweringTemplate(unittest.TestCase):
+    """The generated modules state each Keccak table as data (KernelTable.tableOr) and prove it
+    in one line from one equation per entry, whatever the number of entries; the source check's
+    deployed_of and the lifecycle's statement are one library lemma each (Generic.shapeOf,
+    Verify.Lifecycle.lifeOf), with no tactic script."""
+
+    FNS: typing.ClassVar = [
+        {"sig": "get()", "sel": 0x6D4CE63C, "params": []},
+        {"sig": "set(uint256)", "sel": 0x60FE47B1, "params": [".uint 256"]},
+    ]
+
+    def test_lowering(self):
+        events = [{"sig": "E(uint256)", "topic": 0x1234}]
+        t = generic.lowering_lean("x_0000abcd", "C", self.FNS, events, "core", "[]")
+        for want in (
+            "import SolidCore.Refinement.KernelTable\n",
+            "import SolidCore.Refinement.Generic.Shape\n",
+            (
+                "def selectorTable : String → SolidCore.Solidity.Shared.Word :=\n"
+                "  KernelTable.tableOr SolidCore.Solidity.Source.ABI.selectorFromSignature\n"
+                '    [("get()", sel0),\n     ("set(uint256)", sel1)]\n'
+            ),
+            (
+                "theorem selector_eq : SolidCore.Solidity.Source.ABI.selectorFromSignature = "
+                "selectorTable :=\n  KernelTable.eq_tableOr ⟨selSig0_eq, selSig1_eq, trivial⟩\n"
+            ),
+            '    [("E(uint256)", 0x1234)]\n',
+            "  KernelTable.eq_tableOr ⟨topicSig0_eq, trivial⟩\n",
+            "def shape? : Option (Contract × Bool) := Generic.shapeOf fuel contract? storageLit\n",
+            "kernel_rfl shape_eq shape? (some (coreLit, true)) using selector_eq digest_eq\n",
+            "  Generic.deployed_of_shapeOf shape_eq hc\n",
+        ):
+            self.assertIn(want, t)
+        for gone in ("split", "unfold", "by\n  have"):
+            self.assertNotIn(gone, t)
+        sym = generic.lowering_lean(
+            "x_0000abcd", "C", self.FNS, events, "core", "[(0, 1)]", sym=True
+        )
+        self.assertIn("theorem check_sym_stage0", sym)
+        self.assertNotIn("check_sym_stage0", t)
+
+    def test_no_entries(self):
+        t = generic.lowering_lean("x_0000abcd", "C", [], [], "core", "[]")
+        self.assertIn("    []\n", t)
+        self.assertIn("  KernelTable.eq_tableOr trivial\n", t)
+        self.assertNotIn("digestTable", t)
+        self.assertIn("using selector_eq\n", t)
+
+    def test_lifecycle(self):
+        sigs = [{"sig": f["sig"], "sel": f["sel"]} for f in self.FNS]
+        code = bytes.fromhex("6001600055")
+        args = (
+            "Certified.T.X",
+            "M",
+            "M.importedSourceUnit",
+            "X",
+            sigs,
+            code,
+            code,
+            code,
+        )
+        t = generic.lifecycle_lean(*args, [7], [(0, 7)])
+        for want in (
+            "import Verify.Lifecycle.Life\n",
+            '    [("get()", 0x6d4ce63c),\n     ("set(uint256)", 0x60fe47b1)]\n',
+            "  KernelTable.eq_tableOr ⟨selSig0_eq, selSig1_eq, trivial⟩\n",
+            "def life? : Bool := lifeOf fuel contract? ws storageLit\n",
+            "kernel_rfl life_eq life? true using selector_eq mkIdx_eq\n",
+            "  statement_of_lifeOf deploys life_eq\n",
+        ):
+            self.assertIn(want, t)
+        self.assertNotIn("split", t)
+        r = generic.lifecycle_lean(*args, [7], [(0, 7)], refute=True)
+        self.assertIn("theorem refuted", r)
+        self.assertNotIn("selectorTable", r)
 
 
 LEAN_PATH = os.environ.get("LIFECYCLE_LEAN_PATH")
@@ -2856,27 +3496,66 @@ class LifecycleKernel(unittest.TestCase):
 
 @unittest.skipUnless(SOLC.exists(), "needs the pinned solc")
 class LifecycleEnvelope(unittest.TestCase):
-    """The examples through solc: constructor parameters stay outside the other tiers' envelope,
-    and the lifecycle tier reads their types and the immutables."""
+    """The examples through solc: static word constructor parameters enter the other tiers'
+    envelope (every argument list, Verify/Generic/CtorWords.lean) without a specification and
+    without immutables, and the lifecycle tier reads their types and the immutables."""
 
     def test_examples(self):
         want = {
-            "NoArgCtor": ([], []),
-            "ArgCtor": (["uint256", "address"], []),
-            "ImmutableCtor": (["uint256"], ["limit"]),
+            "NoArgCtor": ([], [], None),
+            "ArgCtor": (["uint256", "address"], [], [256, 160]),
+            "PairCtor": (["uint256", "uint256"], [], [256, 256]),
+            "ImmutableCtor": (["uint256"], ["limit"], "immutable limit"),
         }
-        for ex, (types, imm) in want.items():
+        for ex, (types, imm, ctor) in want.items():
             src = LIFE / f"{ex}.sol"
             ast, contracts = generic.solc_ast(str(SOLC), src)
             self.assertEqual(generic.constructor_params(ast, ex), types, ex)
             self.assertEqual(generic.immutables(ast, ex), imm, ex)
             generic.envelope(src.read_text(), ast, contracts, None, None, False, True)
-            if types:
+            if isinstance(ctor, str):
                 with self.assertRaises(generic.Blocked) as e:
                     generic.envelope(
                         src.read_text(), ast, contracts, None, None, False, False
                     )
-                self.assertIn("--tier lifecycle", str(e.exception.reasons))
+                self.assertIn(ctor, str(e.exception.reasons))
+                continue
+            _, fns, _ = generic.envelope(
+                src.read_text(), ast, contracts, None, None, False, False
+            )
+            got = fns.ctor and [q["width"] for q in fns.ctor["params"]]
+            self.assertEqual(got, ctor, ex)
+            if ctor:
+                # With a specification, constructor arguments stay refused.
+                with self.assertRaises(generic.Blocked) as e:
+                    generic.envelope(
+                        src.read_text(), ast, contracts, None, None, True, False
+                    )
+                self.assertIn("with a specification", str(e.exception.reasons))
+
+    def test_ctor_param_refusals(self):
+        """Constructor parameters outside the static words are refused, each with its type."""
+        cases = {
+            "string memory s": "a dynamic constructor argument",
+            "bytes memory b": "a dynamic constructor argument",
+            "uint256[] memory xs": "a dynamic constructor argument",
+            "bool f": "only uintN and address words",
+            "int256 i": "only uintN and address words",
+            "bytes32 h": "only uintN and address words",
+            "uint256[2] memory p": "a static array, not one static word",
+        }
+        with tempfile.TemporaryDirectory() as d:
+            for decl, why in cases.items():
+                src = pathlib.Path(d) / "C.sol"
+                src.write_text(
+                    "pragma solidity ^0.8.0;\ncontract C {\n    uint256 public x;\n"
+                    f"    constructor({decl}) {{ x = 1; }}\n"
+                    "    function get() external view returns (uint256) { return x; }\n}\n"
+                )
+                ast, contracts = generic.solc_ast(str(SOLC), src)
+                with self.assertRaises(generic.Blocked) as e:
+                    generic.envelope(src.read_text(), ast, contracts, None, None, False, False)
+                self.assertIn(why, str(e.exception.reasons), decl)
 
     def test_runtime_loop_is_open_not_rejected(self):
         """A runtime loop (LoopRuntime: Counter's shape) does not stop the lifecycle tier: it is
@@ -2934,10 +3613,10 @@ class LifecycleEnvelope(unittest.TestCase):
                     )
                 self.assertEqual(opened, [], ex)
                 feats = [r["feature"] for r in e.exception.reasons]
+                # The base constructor is a creation root, so its loop blocks too.
+                self.assertIn("loop", feats)
                 if ex == "LoopBaseCtor":
-                    self.assertIn("inheritance", feats)
-                else:
-                    self.assertIn("loop", feats)
+                    self.assertIn("inheritance: base constructor arguments", feats)
 
     def test_creation_reach_unresolved_is_conservative(self):
         """A base-constructor invocation (or any call creation_reach cannot resolve) marks the
@@ -2947,6 +3626,15 @@ class LifecycleEnvelope(unittest.TestCase):
         cdef = next(n for n in ast["nodes"] if n.get("name") == "LoopBaseCtor")
         _, unresolved = generic.creation_reach(cdef)
         self.assertTrue(unresolved)
+        # With the linearization, the base constructor is a root and its loop is reached.
+        lin, _ = generic.linearization(ast, cdef)
+        reach, unresolved = generic.creation_reach(cdef, lin)
+        self.assertFalse(unresolved)
+        base = next(n for n in ast["nodes"] if n.get("name") == "LoopBase")
+        loop = next(
+            n for n in generic.walk(base) if n.get("nodeType") == "ForStatement"
+        )
+        self.assertIn(id(loop), reach)
         src = LIFE / "LoopRuntime.sol"
         ast, _ = generic.solc_ast(str(SOLC), src)
         cdef = next(n for n in ast["nodes"] if n.get("name") == "LoopRuntime")
@@ -3642,6 +4330,108 @@ sys.exit(1)
             self.assertEqual(one, two)
 
 
+RETURNS = HERE / "testdata" / "asm_cert_returns"
+
+
+def returns_program():
+    """testdata/asm_cert_returns: a final EVM IR whose stack heights have no bound (test_asm_cert)."""
+    m = json.loads((RETURNS / "manifest.json").read_text())
+    return (RETURNS / "Evm5.lean").read_text(), m["bytecode"]
+
+
+class StackBoundRefusal(unittest.TestCase):
+    """asm_cert.infer refuses a stack with no bound by SystemExit (it is also a command). In the
+    driver the refusal is a typed BLOCKED result (loop_checker_gas), and a run that meets it, on
+    the checked-in returns fixture, still seals its record: never an exit past the handlers."""
+
+    def test_the_bound_is_blocked_by_name(self):
+        text, code = returns_program()
+        with self.assertRaises(generic.Blocked) as e:
+            generic.loop_checker_gas(text, bytes.fromhex(code), 1)
+        (r,) = e.exception.reasons
+        self.assertEqual(r["feature"], "stack bound")
+        self.assertIn("the cycle bb3 -> bb4 -> bb3 gains stack words", r["detail"])
+        self.assertFalse(r["detail"].startswith("error: "))
+
+    def test_a_layout_mismatch_is_rejected(self):
+        text, _ = returns_program()
+        with self.assertRaises(generic.Failed) as e:
+            generic.loop_checker_gas(text, bytes.fromhex("00"), 1)
+        self.assertIn("asm_cert.py: error:", str(e.exception))
+
+    def run_main(self, root, gas_need):
+        """generic.main on a loop-free source with the build replaced and gas_need GAS_NEED: the
+        exit code and the sealed record (None when there is none)."""
+        _, code = returns_program()
+        solar = root / "solar"
+        solar.write_text(f"#!{sys.executable}\nprint('solar 0.0.0')\n")
+        solar.chmod(0o755)
+        src = root / "C.sol"
+        src.write_text(
+            HEAD + "contract C { uint256 x; function f() external { x = 1; } }\n"
+        )
+        argv = [
+            "generic.py",
+            str(src),
+            "none",
+            "--solidity-lean",
+            "/nonexistent",
+            "--work",
+            str(root / "w"),
+            "--record-dir",
+            str(root / "r"),
+            "--solc",
+            str(SOLC),
+        ]
+        patches = [
+            unittest.mock.patch.object(sys, "argv", argv),
+            unittest.mock.patch.object(generic, "build_solar", lambda: solar),
+            unittest.mock.patch.object(generic, "solar_problem", lambda *a: None),
+            unittest.mock.patch.object(generic, "artifact_problem", lambda *a: None),
+            unittest.mock.patch.object(generic, "build_provenance", lambda *a: {}),
+            unittest.mock.patch.object(
+                generic, "solar_runtime", lambda *a, **k: (code, "")
+            ),
+            unittest.mock.patch.object(generic, "gas_need", gas_need),
+        ]
+        with contextlib.ExitStack() as stack:
+            for q in patches:
+                stack.enter_context(q)
+            stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+            stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+            with self.assertRaises(SystemExit) as e:
+                generic.main()
+        rec = root / "r" / "record.json"
+        return e.exception.code, json.loads(rec.read_text()) if rec.exists() else None
+
+    def check_blocked(self, gas_need):
+        with tempfile.TemporaryDirectory() as t:
+            code, rec = self.run_main(pathlib.Path(t), gas_need)
+        self.assertEqual(code, 3)
+        self.assertIsNotNone(rec)
+        self.assertEqual(rec["status"], "BLOCKED")
+        (r,) = rec["blocked"]
+        self.assertEqual(r["feature"], "stack bound")
+        self.assertIn("bb3 -> bb4 -> bb3", r["detail"])
+
+    @unittest.skipUnless(SOLC.exists(), "needs the pinned solc")
+    def test_the_run_seals_a_blocked_record(self):
+        text, code = returns_program()
+        self.check_blocked(
+            lambda *a: generic.loop_checker_gas(text, bytes.fromhex(code), 1)
+        )
+
+    @unittest.skipUnless(SOLC.exists(), "needs the pinned solc")
+    def test_an_unconverted_refusal_still_seals_one(self):
+        # A call site that leaves asm_cert.infer's SystemExit alone: main's handler still records it.
+        text, code = returns_program()
+
+        def bare(*a):
+            generic.asm_cert.infer(text, bytes.fromhex(code))
+
+        self.check_blocked(bare)
+
+
 class RegeneratedThreads(unittest.TestCase):
     """regenerated.sh compares a regenerated manifest with the committed one: the options'
     thread count, the host's, never makes two exports of one contract differ, whether the
@@ -3788,6 +4578,191 @@ class InputsFilterAgrees(unittest.TestCase):
     def test_moved_from_another_contract(self):
         self.g("mv", "Certified/m_2/A.lean", "Certified/n_0000abcd/Source2.lean")
         self.assertEqual(self.both(), (None, None))
+
+
+
+class LoopVerdict(unittest.TestCase):
+    """generic.loop_verdict: CERTIFIED at the bounded loop tier only from a checked final that passes
+    every gate, with the unbounded tier reported beside it; anything else keeps the branch's verdict."""
+
+    PLAIN = "6080"
+
+    def setUp(self):
+        import argparse
+        import hashlib
+        import tempfile
+
+        self.tmp = tempfile.TemporaryDirectory()
+        self.src = pathlib.Path(self.tmp.name) / "s.sol"
+        self.src.write_text("contract T {}\n")
+        fn = lambda name, sel, doc=None: {
+            "nodeType": "FunctionDefinition", "name": name, "kind": "function", "visibility": "public",
+            "functionSelector": sel, "body": {"nodeType": "WhileStatement"},
+            **({"documentation": {"text": doc}} if doc else {})}
+        self.ast = {"nodes": [{"nodeType": "ContractDefinition", "id": 1, "name": "T", "linearizedBaseContracts": [1],
+                               "nodes": [fn("f", "fd0011a5", " @custom:ensures result == n")]}]}
+        self.a = argparse.Namespace(spec="natspec", contract="T")
+        self.part = {"signature": "f(uint256)", "selector": "0xfd0011a5", "spec": "proved", "label": "x",
+                     "nonvacuous": True, "nonvac_witness": {"well_typed": True, "output_words": [1]},
+                     "valid": "V.valid K", "iteration_bound": {"var": "K", "max": 7}, "gas": "g"}
+        self.record = {
+            "name": "t_1", "requested_tier": "certified", "contract": "T",
+            "loop_final": {
+                "functions": ["f"],
+                "final": {
+                    "theorem": "Certified.t_1.Final.final", "strongest": False, "statement_kind": "expected",
+                    "expected": {
+                        "source_sha256": hashlib.sha256(self.src.read_bytes()).hexdigest(),
+                        "runtime_sha256": hashlib.sha256(bytes.fromhex(self.PLAIN)).hexdigest(),
+                        "inventory": [{"name": "T.f", "selector": "0xfd0011a5"}],
+                        "inventory_module": "t_1.LoopSpecInventory",
+                        "toolchain": {"compiler": "0.8.38+commit.unknown.solar.0.3.0"},
+                        "stages": [{"file": "Stage0", "pass": "lower-evm-shaped"}, {"file": "Bytecode", "pass": "assemble"}],
+                    },
+                },
+                "axioms": ["propext", "Classical.choice", "Quot.sound"],
+                "fresh_byte": {"check_final": "FRESH x", "runtime_sha256": hashlib.sha256(bytes.fromhex(self.PLAIN)).hexdigest()},
+                "replay": {"closure": 10, "replayed_count": 10, "trusted_count": 0},
+                "parts": {"f": self.part},
+                "inventory": {"theorem": "Certified.t_1.LoopSpecInventory.inventory", "module": "t_1.LoopSpecInventory",
+                              "specs": [{"name": "T.f", "selector": "0xfd0011a5"}]},
+            },
+        }
+        self.reasons = [{"feature": "loop", "where": "f", "detail": "loop final checked (Certified.t_1.Final.final, record loop_final): runtime only"}]
+        self.saved = generic.solar_runtime, generic.build_solar
+        generic.solar_runtime = lambda *x, **k: (self.PLAIN, "")
+        generic.build_solar = lambda: "solar"
+
+    def tearDown(self):
+        generic.solar_runtime, generic.build_solar = self.saved
+        self.tmp.cleanup()
+
+    def verdict(self, record=None, reasons=None, oog=None, ast=None):
+        return generic.loop_verdict(record or self.record, reasons or self.reasons, str(self.src), ast or self.ast, self.a, oog)
+
+    def test_certified_bounded_with_unbounded_reported(self):
+        with self.assertRaises(generic.LoopCertified) as e:
+            self.verdict(oog=generic.Failed("resource: out of gas: the fixed bound is at least 2^64"))
+        c = e.exception
+        self.assertEqual(c.status, "CERTIFIED")
+        self.assertEqual(c.tier["tier"], "bounded")
+        self.assertEqual(c.tier["bounds"], {"f": {"K_max": 7, "valid": "V.valid K", "gas": "g"}})
+        self.assertEqual(c.tier["unbounded"]["status"], "not certified")
+        self.assertIn("out of gas", c.tier["unbounded"]["why"])
+        self.assertIn("unbounded n: not certified", c.line)
+        self.assertIs(self.record["loop_tier"], c.tier)
+
+    def test_without_out_of_gas_the_unbounded_tier_is_still_not_certified(self):
+        with self.assertRaises(generic.LoopCertified) as e:
+            self.verdict()
+        self.assertEqual(e.exception.tier["unbounded"]["status"], "not certified")
+        self.assertIn("K ≤ 7", e.exception.tier["unbounded"]["why"])
+
+    def test_refusals_keep_the_verdict(self):
+        import copy
+
+        def m(f):
+            r = copy.deepcopy(self.record)
+            f(r["loop_final"])
+            return r
+
+        cases = {
+            "refused final": m(lambda lf: lf.update(refused={"step": "spec", "why": "x"})),
+            "extra axiom": m(lambda lf: lf.update(axioms=["propext", "sorryAx"])),
+            "no axioms": m(lambda lf: lf.update(axioms=[])),
+            "no fresh line": m(lambda lf: lf["fresh_byte"].update(check_final=None)),
+            "other bytes": m(lambda lf: lf["fresh_byte"].update(runtime_sha256="0" * 64)),
+            "trusted replay": m(lambda lf: lf["replay"].update(trusted_count=3)),
+            "no inventory": m(lambda lf: lf.pop("inventory")),
+            "unstated export spec": m(lambda lf: lf["inventory"]["specs"].append({"name": "T.g", "selector": "0x01"})),
+            "vacuous spec": m(lambda lf: lf["parts"]["f"].update(nonvacuous="no witness")),
+            "ABI-only witness": m(lambda lf: lf["parts"]["f"].update(nonvac_witness={"well_typed": False})),
+            "no witness record": m(lambda lf: lf["parts"]["f"].pop("nonvac_witness")),
+            "refused part": m(lambda lf: lf["parts"]["f"].update(spec="refused")),
+            "unchecked True": m(lambda lf: lf["parts"]["f"].update(spec="none", no_spec=None)),
+            "translation only at certified": m(lambda lf: lf["parts"]["f"].update(
+                spec="none", no_spec={"theorem": "Certified.t_1.LoopSpecInventory.f_no_spec"})),
+            # Term 6: the final must be the expected statement, binding this run's artifacts.
+            "not the expected statement": m(lambda lf: lf["final"].pop("statement_kind")),
+            "no expected record": m(lambda lf: lf["final"].pop("expected")),
+            "another source": m(lambda lf: lf["final"]["expected"].update(source_sha256="0" * 64)),
+            "other bytes bound": m(lambda lf: lf["final"]["expected"].update(runtime_sha256="0" * 64)),
+            "another inventory": m(lambda lf: lf["final"]["expected"].update(inventory=[])),
+            "no stage chain": m(lambda lf: lf["final"]["expected"].update(stages=[])),
+            "no compiler": m(lambda lf: lf["final"]["expected"].update(toolchain={})),
+            "a part's wrong selector": m(lambda lf: lf["parts"]["f"].update(selector="0x01020304")),
+        }
+        for k, rec in cases.items():
+            with self.subTest(k):
+                out = self.verdict(record=rec)
+                self.assertIsInstance(out, list)
+        # Another reason left beside the final's (an uncovered loop's OPEN reason, an envelope reason).
+        more = self.reasons + [{"feature": "loop", "where": "line 9", "detail": "g: a while loop ... (OPEN)"}]
+        out = self.verdict(reasons=more)
+        self.assertIn("not certified: other reasons remain", out[0]["detail"])
+        self.assertEqual(self.record["loop_tier"]["status"], "not certified")
+
+    def test_coverage_of_the_source(self):
+        import copy
+
+        fn = copy.deepcopy(self.ast["nodes"][0]["nodes"][0])
+        for name, node in {
+            "a second loop function": dict(fn, name="g", functionSelector="01020304"),
+            "an uncovered entry point": dict(fn, name="g", functionSelector="01020304", body={"nodeType": "Block"}),
+            "a selector clash": dict(fn, name="g", body={"nodeType": "Block"}),
+            "a public getter": {"nodeType": "VariableDeclaration", "name": "x", "stateVariable": True, "visibility": "public"},
+            "a fallback": {"nodeType": "FunctionDefinition", "kind": "fallback", "body": {"nodeType": "Block"}},
+            "a constructor spec": {"nodeType": "FunctionDefinition", "kind": "constructor", "name": "",
+                                   "documentation": {"text": " @custom:ensures x == 0"}, "body": {"nodeType": "Block"}},
+        }.items():
+            with self.subTest(name):
+                ast = copy.deepcopy(self.ast)
+                ast["nodes"][0]["nodes"].append(node)
+                self.assertIsInstance(self.verdict(ast=ast), list)
+        ast = copy.deepcopy(self.ast)
+        ast["nodes"][0]["documentation"] = {"text": " @custom:invariant x <= 1"}
+        self.assertIsInstance(self.verdict(ast=ast), list)
+
+    def test_entry_points_by_selector(self):
+        """Review 216 F1: coverage keys on functionSelector. A non-looping overload of the loop
+        function, f(uint256,uint256) beside the looping f(uint256), is another entry point no part
+        states: the final is not certified. An override (same selector in a base) is not."""
+        import copy
+
+        ast = copy.deepcopy(self.ast)
+        ast["nodes"][0]["nodes"].append(
+            {"nodeType": "FunctionDefinition", "name": "f", "kind": "function", "visibility": "public",
+             "functionSelector": "13d1aa2e", "body": {"nodeType": "Block"}})
+        out = self.verdict(ast=ast)
+        self.assertIsInstance(out, list)
+        self.assertIn("entry points of the runtime the final does not state: f (0x13d1aa2e)", out[0]["detail"])
+        self.assertIn("f (0x13d1aa2e)", self.record["loop_tier"]["why"])
+        # The same function inherited from a base with the same selector is one entry point.
+        ast = copy.deepcopy(self.ast)
+        base = copy.deepcopy(ast["nodes"][0])
+        base.update(id=2, name="B", linearizedBaseContracts=[2])
+        base["nodes"][0].pop("documentation")
+        base["nodes"][0]["body"] = {"nodeType": "Block"}
+        ast["nodes"][0]["linearizedBaseContracts"] = [1, 2]
+        ast["nodes"].append(base)
+        with self.assertRaises(generic.LoopCertified):
+            self.verdict(ast=ast)
+        self.assertEqual(generic.abi_functions(ast, "T"), ({0xfd0011a5: "f"}, []))
+
+    def test_compiled_tier_takes_translation_only(self):
+        import copy
+
+        rec = copy.deepcopy(self.record)
+        rec["requested_tier"] = "compiled"
+        rec["loop_final"]["parts"]["f"].update(spec="none", no_spec={"theorem": "t"})
+        rec["loop_final"]["inventory"]["specs"] = []
+        rec["loop_final"]["final"]["expected"]["inventory"] = []
+        self.a.spec = "none"
+        ast = copy.deepcopy(self.ast)
+        ast["nodes"][0]["nodes"][0].pop("documentation")
+        with self.assertRaises(generic.LoopCertified) as e:
+            self.verdict(record=rec, ast=ast)
+        self.assertEqual(e.exception.status, "COMPILED")
 
 
 if __name__ == "__main__":

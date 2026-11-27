@@ -1,0 +1,27 @@
+{
+  "functions": [
+    {"function": 2, "entry": null, "returns": false, "rebuilt": false, "unsupported": null, "blocks": [
+      {"block": 0, "start": [0, 0], "layout": [], "floating": true, "continues": null},
+      {"block": 1, "start": [1, 0], "layout": [], "floating": true, "continues": null},
+      {"block": 2, "start": [2, 0], "layout": [], "floating": true, "continues": null},
+      {"block": 3, "start": [3, 0], "layout": [], "floating": true, "continues": null}
+    ], "calls": [
+    ]},
+    {"function": 1, "entry": 4, "returns": false, "rebuilt": false, "unsupported": null, "blocks": [
+      {"block": 0, "start": [4, 3], "layout": [], "floating": true, "continues": null},
+      {"block": 1, "start": [7, 0], "layout": [], "floating": true, "continues": null},
+      {"block": 2, "start": [5, 0], "layout": [], "floating": true, "continues": null}
+    ], "calls": [
+      {"block": 2, "return": 6, "below": []}
+    ]},
+    {"function": 0, "entry": 8, "returns": true, "rebuilt": false, "unsupported": null, "blocks": [
+      {"block": 0, "start": [8, 0], "layout": ["v0", "ret"], "floating": false, "continues": null},
+      {"block": 1, "start": [13, 0], "layout": ["junk", "ret"], "floating": false, "continues": null},
+      {"block": 2, "start": [9, 0], "layout": ["v0", "ret"], "floating": false, "continues": null},
+      {"block": 3, "start": [12, 0], "layout": [], "floating": true, "continues": null},
+      {"block": 4, "start": [11, 0], "layout": ["v9", "ret"], "floating": false, "continues": null}
+    ], "calls": [
+      {"block": 2, "return": 10, "below": ["v0", "ret"]}
+    ]}
+  ]
+}

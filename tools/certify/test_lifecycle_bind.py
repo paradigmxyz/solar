@@ -192,9 +192,10 @@ class SourceModuleImport(unittest.TestCase):
             self.imports(life(binding(BIND))),
             [
                 "Verify.Lifecycle.CreationFrame",
-                "Verify.Lifecycle.Route",
+                "Verify.Lifecycle.Life",
                 "Verify.Lifecycle.KernelIndex",
                 "SolidCore.Refinement.KernelRfl",
+                "SolidCore.Refinement.KernelTable",
                 f"{NAME}.Source",
                 "Contracts.VerifyCounter.Source",
                 "Verify.LoopSource.Equiv.CounterCtx",
@@ -266,7 +267,7 @@ class ComposedPinnedApi(unittest.TestCase):
     file and namespace below; the smoke box at 822e0c6c failed on Verify.Lifecycle.Deploys, which
     does not exist (Deploys is SolidCore.Refinement's)."""
 
-    # name -> where it is declared at solidity-lean 822e0c6c
+    # name -> where it is declared at solidity-lean 16728c1a (as at 822e0c6c)
     PINNED: typing.ClassVar[dict[str, str]] = {
         "SolidCore.Verify.Generic.runtimeCode": "Verify/Generic/Expected.lean:190 (namespace SolidCore.Verify.Generic)",
         "Verify.Lifecycle.Statement": "Verify/Lifecycle/Route.lean:101 (namespace Verify.Lifecycle)",
@@ -316,15 +317,16 @@ class ComposedPinnedApi(unittest.TestCase):
         self.assertEqual(template, set(self.PINNED), sorted(template))
         self.assertEqual(
             (HERE / "solidity-lean.rev").read_text().strip(),
-            "822e0c6c363bfc9fa686c3338c57743dc73cfd2e",
+            "16728c1ade1dd0733a358dcf874dd12ef193b11f",
         )
 
     def test_reachable_through_imports(self):
-        """Composed imports NAME.Lifecycle, which imports Verify.Lifecycle.Route, which imports
-        SolidCore.Refinement.Deploy; Expected comes through the binding's expected.module."""
+        """Composed imports NAME.Lifecycle, which imports Verify.Lifecycle.Life, which imports
+        Verify.Lifecycle.Route and through it SolidCore.Refinement.Deploy; Expected comes through
+        the binding's expected.module."""
         t = generic.composed_lean(NAME, binding(BIND))
         self.assertIn(f"import {NAME}.Lifecycle\n", t)
-        self.assertIn("import Verify.Lifecycle.Route\n", life(binding(BIND)))
+        self.assertIn("import Verify.Lifecycle.Life\n", life(binding(BIND)))
 
 
 class CreatedByControls(unittest.TestCase):
@@ -460,7 +462,9 @@ class Wiring(unittest.TestCase):
     def test_driver_checks_source_then_composes(self):
         src = (HERE / "generic.py").read_text()
         i = src.index("def lifecycle_run(")
-        body = src[i : src.index("\n# The edge the loop-resource generator", i)]
+        body = src[
+            i : src.index("\n# What the lifecycle tier's loop subedge leaves open", i)
+        ]
         self.assertLess(
             body.index('"SourceSame"'), body.index("kq = lifecycle_kernel(")
         )

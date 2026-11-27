@@ -42,11 +42,11 @@ class Positive(unittest.TestCase):
         text = generic.lowering_lean("who_1", "Who", [WHO], [], "core", "[]", sym=True)
         self.assertIn("import SolidCore.Refinement.Generic.StageFrom", text)
         self.assertIn(
-            "Generic.checkSym fuel mirFuel coreLit SolarTV.Export.Who.stage0 fns = true",
+            "Generic.checkSym fuel mirFuel coreLit SolarTV.Export.who_1.Who.stage0 fns = true",
             text,
         )
         self.assertIn(
-            "Generic.checkValue mirFuel coreLit SolarTV.Export.Who.stage0 fns .allSym = true",
+            "Generic.checkValue mirFuel coreLit SolarTV.Export.who_1.Who.stage0 fns .allSym = true",
             text,
         )
         self.assertIn("theorem check_stage0", text)

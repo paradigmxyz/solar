@@ -39,7 +39,7 @@
  "source_ast": {
   "file": "Certified/c_1/Source.lean",
   "namespace": "Certified.c_1.Src",
-  "contract": "SimpleStorage"
+  "contract": "C"
  },
  "allowed_export": true,
  "spec_export": {
@@ -49,7 +49,7 @@
  "nonvacuous": "Certified.c_1.Shape.nonvacuous",
  "statement": "expected",
  "source_unit": "Certified.c_1.Src.importedSourceUnit",
- "source_contract": "SimpleStorage",
+ "source_contract": "C",
  "storage": "Certified.c_1.Lowering.storageLit",
  "entries": [
   {

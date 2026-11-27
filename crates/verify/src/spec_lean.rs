@@ -27,7 +27,7 @@
 //! steps: they are not part of a function's external spec and are not exported; the trusted ones
 //! (`@custom:assume`, `@custom:trusted`) are listed in the module's `trusted`.
 use crate::{
-    prog::{Contract, Func, Program, Spec},
+    prog::{Contract, EnumMember, Func, Program, Spec, StateVar},
     ty::{Ty, parse_ty_text},
     walk,
 };
@@ -181,7 +181,8 @@ struct SpecFnOut {
 struct Cx<'p, 'a> {
     p: &'p Program<'a>,
     c: &'p Contract<'a>,
-    layout: &'p FxHashMap<String, Slot>,
+    /// The storage slot of each of `c.state`'s variables, by position (None: not in storage).
+    layout: &'p [Option<Slot>],
     bytes_keys: &'p [String],
     /// The function whose spec this is, if any.
     f: Option<&'p Func<'a>>,
@@ -194,6 +195,14 @@ struct Cx<'p, 'a> {
     allow_result: bool,
     fns: Vec<SpecFnOut>,
     visiting: Vec<String>,
+    /// The contract whose declarations the spec being exported is written in (None: at file
+    /// level). Its names resolve there, as Solidity resolves that contract's code: an enum (see
+    /// `Program::enum_member`), a global, a state variable or a spec function. A state variable
+    /// is then read in `c`'s layout, which must have that same variable under that name, and any
+    /// name that resolves differently in `c` is refused (see `state_var`).
+    scope: Option<String>,
+    /// The file-level constants' declarations: the state a spec written at file level sees.
+    file_consts: &'p [Span],
 }
 
 fn paren(s: &str) -> String {
@@ -282,7 +291,7 @@ impl<'p, 'a> Cx<'p, 'a> {
             "this" => return Ok(Val::Term(".env .self".into())),
             _ => {}
         }
-        if let Some(sv) = self.c.state.iter().find(|s| s.name == n) {
+        if let Some(sv) = self.state_var(n, sp)? {
             if sv.ghost_decl.is_some() {
                 return Ok(Val::Ghost { name: n.into(), keys: vec![], ty: sv.ty.clone() });
             }
@@ -301,7 +310,7 @@ impl<'p, 'a> Cx<'p, 'a> {
             if self.bytes_keys.iter().any(|b| b == n) {
                 return Err((sp, format!("`{n}` has a `bytesN` mapping key")));
             }
-            let s = self.layout.get(n).ok_or((sp, format!("no storage slot for `{n}`")))?;
+            let s = self.slot(sv).ok_or((sp, format!("no storage slot for `{n}`")))?;
             return Ok(Val::Place {
                 place: format!(".slot {}", s.slot),
                 offset: format!(".lit {}", s.offset),
@@ -309,6 +318,99 @@ impl<'p, 'a> Cx<'p, 'a> {
             });
         }
         Err((sp, format!("unknown name `{n}` in a spec")))
+    }
+
+    /// Whether `n` names a bound variable, a parameter, a return value or a state variable where
+    /// the spec is written (the names `ident` reads, in its order), which a member access on `n`
+    /// then reads rather than a global or an enum. A state variable of that name in `c` but not
+    /// where the spec is written (or the reverse) is refused (`state_var`).
+    fn shadowed(&self, n: &str, sp: Span) -> R<bool> {
+        Ok(self.bound.iter().any(|b| b == n)
+            || (!self.in_fn
+                && self.f.is_some_and(|f| {
+                    f.params.iter().any(|p| p.0 == n)
+                        || f.rets.iter().any(|r| r.0 == n)
+                        || (n == "result" && self.allow_result)
+                }))
+            || self.state_var(n, sp)?.is_some())
+    }
+
+    /// The state variable `n` names where the spec is written (`scope`: that contract's state,
+    /// its bases' included; at file level, the file's constants), which the export then reads in
+    /// `c`'s layout. That is sound only when `c`'s variable of that name, the one `layout` and
+    /// `c.state` give, is the same declaration; otherwise (a variable `c` alone declares, such as
+    /// a derived contract's `S Color` or `S msg`, or a constant of `c` that shadows a file-level
+    /// one) the name means one thing where the spec is written and another in `c`, and is refused.
+    ///
+    /// A name two declarations of the hierarchy share (a base's private variable and a derived
+    /// contract's of the same name, which Solidity allows) is refused in either contract: which
+    /// one it means depends on where it is written, which this lookup does not model.
+    fn state_var(&self, n: &str, sp: Span) -> R<Option<&'p StateVar<'a>>> {
+        let c = self.c;
+        let target = unique_state(c, n, self.file_consts, sp)?;
+        let here = match self.scope.as_deref() {
+            Some(s) if s == c.name => return Ok(target),
+            Some(s) => {
+                let d = self
+                    .p
+                    .contract(s)
+                    .ok_or((sp, format!("no contract `{s}` to resolve `{n}` in")))?;
+                unique_state(d, n, self.file_consts, sp)?
+            }
+            None => c.state.iter().find(|v| v.name == n && self.file_consts.contains(&v.span)),
+        };
+        match (here, target) {
+            (None, None) => Ok(None),
+            (Some(a), Some(b)) if a.span == b.span => Ok(Some(b)),
+            _ => {
+                let what = |v: Option<&StateVar<'_>>| match v {
+                    None => "no state variable",
+                    Some(_) => "a state variable",
+                };
+                let what_there = match (here, target) {
+                    (Some(_), Some(_)) => "another state variable",
+                    _ => what(target),
+                };
+                Err((
+                    sp,
+                    format!(
+                        "`{n}` names {} where the spec is written ({}) but {what_there} in `{}`",
+                        what(here),
+                        self.scope
+                            .as_deref()
+                            .map_or("at file level".to_string(), |s| format!("in `{s}`")),
+                        c.name
+                    ),
+                ))
+            }
+        }
+    }
+
+    /// The slot of `sv`, a variable of `c.state`: the slot of that declaration, not of another
+    /// of the same name.
+    fn slot(&self, sv: &StateVar<'a>) -> Option<&'p Slot> {
+        let i = self.c.state.iter().position(|v| std::ptr::eq(v, sv))?;
+        self.layout.get(i)?.as_ref()
+    }
+
+    /// What `b.m` is in the declarations of `scope` when `b` is no variable there: an enum
+    /// member's index, a supported global, or why it is refused (None: neither an enum nor a global
+    /// there).
+    fn member_in(&self, scope: Option<&str>, b: &str, m: &str) -> Option<Result<String, String>> {
+        match self.p.enum_member(scope, b, m) {
+            // An enum member, such as `Color.Blue`, is its index: the value `(.enum k)` reads
+            // from storage.
+            EnumMember::Index(i) => return Some(Ok(format!(".lit {i}"))),
+            EnumMember::Refused(why) => return Some(Err(why)),
+            EnumMember::NotVisible => {}
+        }
+        match (b, m) {
+            ("msg", "sender") => Some(Ok(".env .sender".into())),
+            ("msg", "value") => Some(Ok(".env .value".into())),
+            ("block", "timestamp") => Some(Ok(".env .timestamp".into())),
+            ("msg" | "block" | "tx", _) => Some(Err(format!("`{b}.{m}` not exported"))),
+            _ => None,
+        }
     }
 
     fn index(&mut self, b: Val, key: String, sp: Span) -> R<Val> {
@@ -433,12 +535,48 @@ impl<'p, 'a> Cx<'p, 'a> {
                         _ => Err((sp, format!("member `.{m}` of a type not exported"))),
                     };
                 }
-                if let ExprKind::Ident(b) = &base.kind {
-                    match (b.as_str(), m) {
-                        ("msg", "sender") => return Ok(Val::Term(".env .sender".into())),
-                        ("msg", "value") => return Ok(Val::Term(".env .value".into())),
-                        ("block", "timestamp") => return Ok(Val::Term(".env .timestamp".into())),
-                        _ => {}
+                // A name a variable shadows where the spec is written reads that variable, below.
+                // Otherwise an enum visible there comes first, as in Solidity, then the globals.
+                if let ExprKind::Ident(b) = &base.kind
+                    && !self.shadowed(b.as_str(), base.span)?
+                {
+                    let b = b.as_str();
+                    match self.member_in(self.scope.as_deref(), b, m) {
+                        Some(Ok(t)) => {
+                            // A spec inherited from a base is exported for `c` too: refused when
+                            // `b.m` means something else there (an enum `c`'s hierarchy declares
+                            // over a global, or another enum member's index).
+                            let c = self.c.name.as_str();
+                            if self.scope.as_deref() != Some(c) {
+                                let there = self.member_in(Some(c), b, m);
+                                if there.as_ref().is_none_or(|x| x.as_ref() != Ok(&t)) {
+                                    return Err((
+                                        sp,
+                                        format!(
+                                            "`{b}.{m}` means `{t}` where the spec is written but not in `{c}`"
+                                        ),
+                                    ));
+                                }
+                            }
+                            return Ok(Val::Term(t));
+                        }
+                        Some(Err(why)) => return Err((sp, why)),
+                        None => {}
+                    }
+                    // An enum declared where this spec cannot see it, such as in another contract.
+                    if let Some(d) = self.p.enum_decls.iter().find(|d| d.name == b) {
+                        let at = d
+                            .container
+                            .as_deref()
+                            .map_or("at file level".to_string(), |c| format!("in `{c}`"));
+                        let here = self
+                            .scope
+                            .as_deref()
+                            .map_or("at file level".to_string(), |c| format!("in `{c}`"));
+                        return Err((
+                            sp,
+                            format!("enum `{b}` is declared {at}, not visible {here}"),
+                        ));
                     }
                 }
                 match self.expr(base)? {
@@ -532,6 +670,26 @@ impl<'p, 'a> Cx<'p, 'a> {
                     .iter()
                     .find(|f| f.name == n && f.params.len() == argv.len())
                     .ok_or((sp, format!("call of `{n}` not exported")))?;
+                // The function is the one `c` runs (an override, as an internal call dispatches),
+                // of a function declared where the spec is written.
+                if self.scope.as_deref() != Some(c.name.as_str()) {
+                    let here =
+                        self.scope.as_deref().and_then(|s| self.p.contract(s)).is_some_and(|d| {
+                            d.funcs
+                                .iter()
+                                .chain(&d.overridden)
+                                .any(|g| g.name == n && g.params.len() == argv.len())
+                        });
+                    if !here {
+                        return Err((
+                            sp,
+                            format!(
+                                "spec function `{n}` is not declared where the spec is written, only in `{}`",
+                                c.name
+                            ),
+                        ));
+                    }
+                }
                 let mut ts = vec![];
                 for a in &argv {
                     ts.push(paren(&self.term(a)?));
@@ -565,11 +723,14 @@ impl<'p, 'a> Cx<'p, 'a> {
         let ret = lean_ty(ret, sp)?;
         self.visiting.push(f.name.clone());
         let saved = (std::mem::take(&mut self.bound), self.in_fn, self.allow_result);
+        // The body is written where the spec function is declared.
+        let scope = std::mem::replace(&mut self.scope, self.p.scope_at(f.item.header.span));
         self.bound = f.params.iter().map(|p| p.0.clone()).collect();
         self.in_fn = true;
         self.allow_result = false;
         let b = self.term(body);
         (self.bound, self.in_fn, self.allow_result) = saved;
+        self.scope = scope;
         self.visiting.pop();
         let body = b?;
         self.fns.push(SpecFnOut { name: f.name.clone(), params, ret, body, opaque: f.opaque });
@@ -593,20 +754,50 @@ fn fuel(fns: &[SpecFnOut]) -> usize {
     depth.values().copied().max().unwrap_or(0)
 }
 
-/// Lays out a contract's state variables.
-fn layout(p: &Program<'_>, c: &Contract<'_>, sp: Span) -> R<FxHashMap<String, Slot>> {
-    let vars: Vec<_> = c
-        .state
-        .iter()
-        .filter(|s| !s.ghost && !s.constant && !s.immutable && !s.transient)
-        .collect();
-    let tys: Vec<Ty> = vars.iter().map(|s| s.ty.clone()).collect();
+/// Lays out a contract's state variables: the slot of each of `c.state`'s, by position (None for
+/// one not in storage). Keyed by declaration, not name: a base's private variable and a derived
+/// contract's of the same name each keep their own slot.
+fn layout(p: &Program<'_>, c: &Contract<'_>, sp: Span) -> R<Vec<Option<Slot>>> {
+    let stored = |s: &StateVar<'_>| !s.ghost && !s.constant && !s.immutable && !s.transient;
+    let tys: Vec<Ty> = c.state.iter().filter(|s| stored(s)).map(|s| s.ty.clone()).collect();
     let (pos, _) = pack(p, &tys, sp)?;
-    Ok(vars
+    let mut pos = pos.into_iter();
+    Ok(c.state
         .iter()
-        .zip(pos)
-        .map(|(s, (slot, offset))| (s.name.clone(), Slot { slot, offset, ty: s.ty.clone() }))
+        .map(|s| {
+            stored(s).then(|| {
+                let (slot, offset) = pos.next().expect("a position for each stored variable");
+                Slot { slot, offset, ty: s.ty.clone() }
+            })
+        })
         .collect())
+}
+
+/// The state variable `n` names in `c`'s hierarchy, if any: a contract's declaration shadows a
+/// file-level constant (`file_consts`) of that name. Refused when two declarations of the
+/// hierarchy share the name (entries with equal spans are one variable).
+fn unique_state<'p, 'a>(
+    c: &'p Contract<'a>,
+    n: &str,
+    file_consts: &[Span],
+    sp: Span,
+) -> R<Option<&'p StateVar<'a>>> {
+    let at_file = |s: &StateVar<'_>| file_consts.contains(&s.span);
+    let own = c.state.iter().any(|s| s.name == n && !at_file(s));
+    let mut vars = c.state.iter().filter(|s| s.name == n && (!own || !at_file(s)));
+    let first = vars.next();
+    if let Some(a) = first
+        && vars.any(|b| b.span != a.span)
+    {
+        return Err((
+            sp,
+            format!(
+                "`{n}` names more than one state variable in `{}`'s hierarchy (such as a base's private variable and another of that name)",
+                c.name
+            ),
+        ));
+    }
+    Ok(first)
 }
 
 /// Whether `f`'s body may assign `name`: an assignment, increment or `delete` of it anywhere in
@@ -664,6 +855,14 @@ fn list(ts: &[String]) -> String {
 /// Exports `program`'s specs, or the first construct that cannot be exported.
 pub(crate) fn export(program: &Program<'_>, unit: &SourceUnit<'_>, opts: &Opts) -> R<String> {
     let mut bytes_keys = vec![];
+    let file_consts: Vec<Span> = unit
+        .items
+        .iter()
+        .filter_map(|it| match &it.kind {
+            ItemKind::Variable(v) => Some(v.span),
+            _ => None,
+        })
+        .collect();
     for item in unit.items.iter() {
         if let ItemKind::Contract(c) = &item.kind {
             for it in c.body.iter() {
@@ -710,10 +909,23 @@ pub(crate) fn export(program: &Program<'_>, unit: &SourceUnit<'_>, opts: &Opts) 
             allow_result: false,
             fns: vec![],
             visiting: vec![],
+            scope: None,
+            file_consts: &file_consts,
         };
         // Contract invariants, then struct invariants over every stored value of the struct.
         let mut invs = vec![];
         for s in &c.invariants {
+            // Each is written on the contract of the hierarchy that declares it: the first, bases
+            // first, whose own invariants include it (None, file level, if none does).
+            cx.scope = c
+                .lin
+                .iter()
+                .find(|cn| {
+                    program
+                        .contract(cn)
+                        .is_some_and(|d| d.invariants.iter().any(|t| t.span == s.span))
+                })
+                .cloned();
             invs.push(cx.term(s.expr)?);
         }
         for sv in c.state.iter().filter(|s| !s.ghost && !s.constant && !s.immutable) {
@@ -740,7 +952,9 @@ pub(crate) fn export(program: &Program<'_>, unit: &SourceUnit<'_>, opts: &Opts) 
             };
             let Some(sinvs) = program.struct_invs.get(&sn) else { continue };
             for s in sinvs {
-                invs.push(struct_inv(&mut cx, &sv.name, &sn, key.as_ref(), s)?);
+                // Written on the struct, where it is declared.
+                cx.scope = program.scope_at(s.span);
+                invs.push(struct_inv(&mut cx, sv, &sn, key.as_ref(), s)?);
             }
         }
         // Function specs, for every external entry point.
@@ -885,7 +1099,14 @@ pub(crate) fn export(program: &Program<'_>, unit: &SourceUnit<'_>, opts: &Opts) 
 fn specs_of<'p, 'a>(cx: &mut Cx<'p, 'a>, list: &[Spec<'a>], post: bool) -> R<Vec<String>> {
     cx.allow_old = post;
     cx.allow_result = post;
-    let r = list.iter().map(|s| cx.term(s.expr)).collect::<R<Vec<_>>>();
+    // Each is written where its tag is, such as on a function of a base or an interface.
+    let r = list
+        .iter()
+        .map(|s| {
+            cx.scope = cx.p.scope_at(s.span);
+            cx.term(s.expr)
+        })
+        .collect::<R<Vec<_>>>();
     cx.allow_old = false;
     cx.allow_result = false;
     r
@@ -903,13 +1124,13 @@ fn struct_inside(ty: &Ty) -> Option<String> {
 /// (keyed by `key`): its field names read the stored fields.
 fn struct_inv<'p, 'a>(
     cx: &mut Cx<'p, 'a>,
-    var: &str,
+    var: &StateVar<'a>,
     sn: &str,
     key: Option<&Ty>,
     s: &Spec<'a>,
 ) -> R<String> {
     let sp = s.span;
-    let base = cx.layout.get(var).ok_or((sp, format!("no slot for `{var}`")))?;
+    let base = cx.slot(var).ok_or((sp, format!("no slot for `{}`", var.name)))?;
     let place = match key {
         None => format!(".slot {}", base.slot),
         Some(_) => format!(".entry (.slot {}) (.var \"__key\")", base.slot),

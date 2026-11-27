@@ -5,7 +5,7 @@ What the stages of this directory were compiled from and by. `stages` lists each
 stage's file, its definition, the pass whose output it is, and the SHA-256 of the file.
 -/
 
-namespace SolarTV.Export.SimpleStorage.Manifest
+namespace SolarTV.Export.simplestorage_928cc159.SimpleStorage.Manifest
 
 def sources : List (String × String) :=
   [("Certified/simplestorage_928cc159/simplestorage_928cc159.sol", "928cc1594907cb4d56183be7565db8b60bee77c2ffc9fc731083bf31dc1bc082")]
@@ -18,7 +18,8 @@ def arguments : List String :=
    "--evm-version",
    "osaka",
    "--emit=bin-runtime",
-   "-Zemit-lean-stages=Certified/simplestorage_928cc159/gen"]
+   "-Zemit-lean-stages=Certified/simplestorage_928cc159/gen",
+   "-Zlean-stages-namespace=SolarTV.Export.simplestorage_928cc159"]
 
 def evmVersion : String := "osaka"
 
@@ -31,13 +32,13 @@ def stages : List (String × String × String × String) :=
    ("Evm2", "evm2", "block-layout", "1f23b1ab5a1f7afb817f161c6d58720f42fa7e3a3e267bbc1e5fb60fc41e4741"),
    ("Evm3", "evm3", "terminal-dedup", "3b3169645b8c364cca4e3215d18c7a3330daeca564fe044a2ddd397d8b99e296"),
    ("Evm4", "evm4", "cfg-simplify-early", "24bd2cf0aa153aff8819f0c71982c2f604e83abe5a850c64d9f513ff1b417fd1"),
-   ("Evm5", "evm5", "share-reverts", "4143110cd2e9fcf87d59ecb8b1f44273c1853bb2ad8fc2d8bd26407952680d29"),
-   ("Evm6", "evm6", "block-layout", "e24382088347866307050ce6a1697e4d781a638aa5405f2771f2a7fb9f5053d6"),
-   ("Bytecode", "bytecode", "assemble", "4c948143177bcffe1c843a81c2273db62a0d608db3c83ac722f74a23e7a19f0b")]
+   ("Evm5", "evm5", "share-reverts", "6db74450e838ebe6692745b6348a924406aac49b8a282b23427e3a48f838966d"),
+   ("Evm6", "evm6", "block-layout", "6ea66037dfcf46d108fc687155dff031a2a98a271af19f4dc323733b4519d027"),
+   ("Bytecode", "bytecode", "assemble", "3eaf16881d006e6e71b70fc70dfa454e321d570d682718d5792d94627e610962")]
 
 def bytecodeHex : String :=
   "346030575f3560e01c80634e70b1dc14602757806360fe47b11460345780636d4ce63c036030575b5f545f5260205ff35b5f5ffd5b602436106030576004355f55"
 
 def bytecodeSha256 : String := "6e95f821ecc2c71682bb59cd089429e0ab967f2cb33da8a32ffbce7135e9d402"
 
-end SolarTV.Export.SimpleStorage.Manifest
+end SolarTV.Export.simplestorage_928cc159.SimpleStorage.Manifest

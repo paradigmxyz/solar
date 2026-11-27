@@ -447,8 +447,21 @@ print(v)
 plain="$(bin_runtime "solar's output" <<<"$json")" || die "$source has no contract $contract with runtime bytecode (above)"
 check_hex "the runtime bytecode solar emits for $contract" "$plain"
 rm -rf "$dir/gen"
+# A run whose shape.json names its export's namespace (export_ns: the driver's runs, under
+# SolarTV.Export.NAME) is exported under it, so its modules never meet another export of a contract
+# with the same name in one Lean environment.
+nsopt=()
+if [[ -f "$dir/shape.json" ]]; then
+    export_ns="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("export_ns", ""))' "$dir/shape.json")" ||
+        die "cannot read $dir/shape.json"
+    if [[ -n "$export_ns" ]]; then
+        [[ "${export_ns##*.}" == "$contract" || "${export_ns##*.}" == "«$contract»" ]] ||
+            die "shape.json: export_ns $export_ns is not a namespace of $contract"
+        nsopt=("-Zlean-stages-namespace=${export_ns%.*}")
+    fi
+fi
 status=0
-exported_json="$(compile "-Zemit-lean-stages=$dir/gen" 2>"$dir/.export.log")" || status=$?
+exported_json="$(compile "-Zemit-lean-stages=$dir/gen" ${nsopt[@]+"${nsopt[@]}"} 2>"$dir/.export.log")" || status=$?
 if [[ $status -ne 0 ]]; then
     grep -E '^error' -A3 "$dir/.export.log" >&2 || cat "$dir/.export.log" >&2
     rm -f "$dir/.export.log"
@@ -838,7 +851,7 @@ PYEOF
     fi
     # The checked SolidCore source AST, when shape.json names it, must be the front end's AST of
     # this run's source (tools/certify/source_bind.sh), else the run fails.
-    rm -f "$lean_dir/.lake/certify-$name.json.source"
+    rm -f "$lean_dir/.lake/certify-$name.json.source" "$lean_dir/.lake/certify-$name.json.linearization"
     if python3 -c 'import json,sys; sys.exit(0 if "source_ast" in json.load(open(sys.argv[1])) else 1)' "$dir/shape.json"; then
         capture sa_lines "the source_ast of $dir/shape.json" \
             python3 -c 'import json,sys; a=json.load(open(sys.argv[1]))["source_ast"]; print(a["file"], a["namespace"], a["contract"])' "$dir/shape.json"
@@ -849,6 +862,31 @@ PYEOF
             { cat "$log" >&2; die "the checked source AST of $name cannot be bound to this run's source (above)"; }
         cat "$log"
         sed -n 's/^source: //p' "$log" > "$lean_dir/.lake/certify-$name.json.source"
+        # The Lean frontend flattens an inherited contract over its own C3 order. For a contract
+        # with bases, Certified/NAME/Linearization.lean states that this order is solc's
+        # linearizedBaseContracts, the order the driver's envelope checked
+        # (Certified.NAME.Linearization.linearization_eq, by decide). It is regenerated here from
+        # this run's source with the pinned solc (tools/certify/linearization_bind.sh), compared
+        # byte for byte, built and audited. This fails closed: a contract with bases and no module, a
+        # different module, a module for a contract without bases, or an order the driver does not
+        # certify fails the run.
+        bash "$here/linearization_bind.sh" "$lean_dir" "$source" "$(dirname "$sfile")" "$name" "$scontract" > "$log" 2>&1 ||
+            { cat "$log" >&2; die "the C3 order of $scontract cannot be bound to this run's source (above)"; }
+        cat "$log"
+        lin_line="$(sed -n 's/^linearization: //p' "$log")"
+        [[ -n "$lin_line" ]] || die "linearization_bind.sh reports no result for $scontract"
+        if [[ "$lin_line" != none:* ]]; then
+            [[ "$lin_line" == *": $name.Linearization" ]] || die "linearization_bind.sh names another module: $lin_line"
+            printf '%s: ' "$name.Linearization"
+            if ! guarded "$log" "$name.Linearization" env LEAN_NUM_THREADS="$CERTIFY_LAKE_JOBS" lake "-KleanMemory=$memory" build "$name.Linearization"; then
+                grep -E '^error' -A12 "$log" | head -40 >&2 || tail -40 "$log" >&2
+                die "$name.Linearization does not check: the frontend's C3 order of $scontract is not shown to be solc's"
+            fi
+            tail -n 1 "$log"
+            audit "$lean_dir/.lake/certify-linearization-$name.out" "$name.Linearization" -- "Certified.$name.Linearization.linearization_eq"
+            lin_line="proved: Certified.$name.Linearization.linearization_eq (${lin_line%: *})"
+        fi
+        printf '%s\n' "$lin_line" > "$lean_dir/.lake/certify-$name.json.linearization"
     fi
     rm -f "$dir/Final.lean" "$dir/Statement.lean"
     final_thm="$(python3 "$here/final.py" "$dir/shape.json" --name "$name" --contract "$contract" \
@@ -915,7 +953,7 @@ PYEOF
         fi
         echo "$lean_dir/lakefile.lean"; echo "$lean_dir/lake-manifest.json"; echo "$lean_dir/lean-toolchain"
         # What the driver wrote before the build and reads after it.
-        for f in "$final_record" "$lean_dir/.lake/certify-$name.json.binding" "$lean_dir/.lake/certify-vacuous-$name"                 "$lean_dir/.lake/certify-$name.json.source" "$dir/Statement.lean" "$dir/Final.lean"                 "$lean_dir/.lake/certify-headline-$name.out" "$lean_dir/.lake/certify-audit-$name.out"; do
+        for f in "$final_record" "$lean_dir/.lake/certify-$name.json.binding" "$lean_dir/.lake/certify-vacuous-$name"                 "$lean_dir/.lake/certify-$name.json.source" "$lean_dir/.lake/certify-$name.json.linearization" "$dir/Statement.lean" "$dir/Final.lean"                 "$lean_dir/.lake/certify-headline-$name.out" "$lean_dir/.lake/certify-audit-$name.out"; do
             if [[ -e "$f" ]]; then echo "$f"; fi
         done
         printf '%s\n' "$root/scripts/certify"
@@ -1208,6 +1246,10 @@ try:
     source_ast = open(out + ".source").read().strip() or None
 except OSError:
     source_ast = None
+try:
+    linearization = open(out + ".linearization").read().strip() or None
+except OSError:
+    linearization = None
 statuses["source"] = source_ast or "not bound: the checked SolidCore source AST is not regenerated from the source in this run"
 if final:
     # The published statement is about running the exact bytes (Target.runWith), so execution is
@@ -1244,6 +1286,9 @@ record = {
     "vacuous": (final["statuses"].get("vacuity", "not checked") if final else "not checked: no published statement"),
     "vc_vacuous": vacuous,
     "source_ast": source_ast,
+    # An inherited contract's C3 theorem (Certified/NAME/Linearization.lean), or "none: ..." for a
+    # contract without bases; null when the statement names no source AST.
+    "linearization": linearization,
     "assembly_statement": exec_stmt,
     "assembly_hypotheses": premises(exec_stmt) if exec_stmt else None,
     "negative_tests": negatives == "1",
