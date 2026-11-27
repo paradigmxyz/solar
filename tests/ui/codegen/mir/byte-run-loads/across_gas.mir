@@ -1,0 +1,37 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=byte-run-loads
+//@ filecheck:
+@module AcrossGas
+
+// A word read before a `gas` read must not replace a read after it: the later read may expand
+// memory, and its cost belongs after the gas observation.
+
+// CHECK-LABEL: fn @fused(
+// CHECK-NOT: {{^[-+]}}
+fn @fused(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload arg0
+    v1 = gas
+    v2 = add arg0, 1
+    v3 = mload v2
+    v4 = byte 0, v0
+    v5 = byte 0, v3
+    v6 = shl v4, 8
+    v7 = or v6, v5
+    v8 = add v7, v1
+    ret v8
+}
+
+// CHECK-LABEL: fn @shared(
+// CHECK-NOT: {{^[-+]}}
+fn @shared(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload arg0
+    v1 = byte 0, v0
+    v2 = gas
+    v3 = add arg0, 1
+    v4 = mload v3
+    v5 = byte 0, v4
+    v6 = add v1, v5
+    v7 = add v6, v2
+    ret v7
+}

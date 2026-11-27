@@ -32,7 +32,8 @@
 //! touches a byte of memory the original code did not already touch and never
 //! grows memory further than it already grew. The result is a pure value
 //! computation; the reads it removes observed no state the remaining read does
-//! not observe.
+//! not observe. A `gas` read ends a run and a shared group like a side effect,
+//! so the pass never removes a read that would expand memory after one.
 //!
 //! A run is at most one word long and every interior node must be used only by
 //! the run, so the rewrite is unconditionally fewer instructions and smaller
@@ -116,15 +117,17 @@ fn run_function(func: &mut Function) -> (bool, bool) {
     }
     let uses = super::egraph::use_counts(func);
     let mut changed = false;
-    // A side-effecting instruction may store into the range being read, so
-    // only instructions since the last one can take part in a run.
+    // A side-effecting instruction may store into the range being read, and a
+    // `gas` read observes the cost of the reads after it, so only instructions
+    // since the last one can take part in a run.
     let mut window = FxHashSet::default();
     let mut leaves = Vec::new();
     for block in func.blocks.indices().collect::<Vec<_>>() {
         window.clear();
         for index in 0..func.blocks[block].instructions.len() {
             let inst = func.blocks[block].instructions[index];
-            if func.inst(inst).kind.has_side_effects() {
+            let kind = &func.inst(inst).kind;
+            if kind.has_side_effects() || kind.observes_gas() {
                 window.clear();
                 continue;
             }
@@ -167,7 +170,7 @@ fn fuse(
         let position = position as u64;
         // The byte at `offset + k` contributes at bit `8 * (run - 1 - k)`.
         if leaf.base != first.base
-            || leaf.offset != first.offset + position
+            || first.offset.checked_add(position) != Some(leaf.offset)
             || leaf.shift != 8 * (run as u64 - 1 - position)
         {
             return false;
@@ -308,9 +311,10 @@ fn share_reads(func: &mut Function) -> bool {
         window.clear();
         instructions.clone_from(&func.blocks[block].instructions);
         for &inst in &instructions {
-            // A store may change what a later read sees, so a group cannot
-            // span one.
-            if func.inst(inst).kind.has_side_effects() {
+            // A store may change what a later read sees, and a `gas` read
+            // observes the cost of later reads, so a group cannot span either.
+            let kind = &func.inst(inst).kind;
+            if kind.has_side_effects() || kind.observes_gas() {
                 changed |= rewrite_groups(func, &groups);
                 groups.clear();
                 bases.clear();

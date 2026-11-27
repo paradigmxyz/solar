@@ -18,3 +18,19 @@ fn @wrapping_shift(arg0: i256) -> i256 {
     v8 = or v7, v5
     ret v8
 }
+
+// Both reads sit at the largest constant offset, so the offset of a second byte after them
+// does not fit in 64 bits. The run must be left alone.
+// CHECK-LABEL: fn @offset_overflow(
+// CHECK-NOT: shr
+fn @offset_overflow(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 0xffffffffffffffff
+    v1 = mload v0
+    v2 = mload v0
+    v3 = byte 0, v1
+    v4 = byte 0, v2
+    v5 = shl v3, 8
+    v6 = or v5, v4
+    ret v6
+}
