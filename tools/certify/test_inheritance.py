@@ -403,6 +403,30 @@ class Linearization(unittest.TestCase):
         with self.assertRaises(generic.Failed):
             generic.linearization_module("n_0123abcd", "Z", ast, "ab" * 32)
 
+    def test_lifecycle_tier_refuses_bases(self):
+        """The lifecycle route never reaches scripts/certify's C3 check: a contract with bases is
+        BLOCKED there by name, before anything runs."""
+        _, ast, _ = parsed(DIAMOND)
+        with self.assertRaises(generic.Blocked) as cm:
+            generic.lifecycle_run(
+                None,
+                {},
+                None,
+                None,
+                "ab" * 32,
+                "n_0123abcd",
+                "D",
+                ast,
+                None,
+                None,
+                [],
+                None,
+            )
+        self.assertEqual(
+            [r["feature"] for r in cm.exception.reasons],
+            ["inheritance: lifecycle tier"],
+        )
+
     def test_linearization_module_refuses_unchecked_order(self):
         """No module without the theorem: an order the driver does not certify raises."""
         _, ast, _ = parsed(DIAMOND)

@@ -3386,6 +3386,20 @@ def lifecycle_run(
     """--tier lifecycle: the creation stages, ending UNSUPPORTED-lifecycle (exit 4) at the first
     stage with no kernel proof, REJECTED (exit 1) at a stage that disagrees or a creation the
     kernel refutes, CERTIFIED (exit 0) only when the kernel proves the generated lifecycle module."""
+    if linearization_module(name, contract, ast, src_sha):
+        # This route builds its own modules and never reaches scripts/certify, which is what binds,
+        # builds and audits an inherited contract's C3 theorem (Linearization.lean): refused here
+        # rather than certified over a flattening nothing checked.
+        raise Blocked(
+            [
+                {
+                    "feature": "inheritance: lifecycle tier",
+                    "where": "",
+                    "detail": f"{contract} has bases, and the lifecycle tier does not build its C3 "
+                    "theorem (Certified/NAME/Linearization.lean) yet",
+                }
+            ]
+        )
     types = constructor_params(ast, contract)
     ws = constructor_words(types, a.constructor_args)
     bind_file = getattr(a, "lifecycle_bind", None)
