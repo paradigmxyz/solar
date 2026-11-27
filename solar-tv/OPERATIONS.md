@@ -201,6 +201,10 @@ each sample in order at the supplied function name and zero-based block and
 instruction indices. Direct MIR validation without a priced trace retains the
 isolated window requirement. The surrounding MIR transitions use an interpreter
 work bound.
+The emitted Cancun WETH and Morpho call boundaries have proofs for every
+paid frame budget in the word domain. They use staged memory and concrete
+child policies for recovery or the return-true token. The full ABI path
+across all caller inputs and budgets still needs a parent invariant.
 Recursive ABI tuples, dynamic/fixed arrays, bytes and function words preserve
 allocation, header and selector store order in object, slice and scratch modes.
 Decoders preserve signed length checks, canonicality, enum rejection and

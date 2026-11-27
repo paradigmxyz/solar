@@ -2799,6 +2799,51 @@ fixture leaves the saved corpus tally at 2,123 of 2,228.
 | `target/tv-integer-cleanup-current/signed-replay.json` | `2224777738a73d2b2a81a462be0716ee3a3b4f29f606c0a05aaa720a5b46c464` |
 | `target/tv-integer-cleanup-current/signed-sha256.txt` | `3a209b335f24d087b1ddc32ecac947c3cc0fefc6e92d41ce8f6c38938b5f8b83` |
 
+##### Paid call boundaries in the emitted images
+
+`FundedTrace` composes ordinary EVM transitions over symbolic frame gas.
+It tracks the budget needed to admit a path separately from the gas it
+ultimately debits. The kernel binds the two adjacent opcodes to the
+frozen runtime for each cut below. The local proofs accept any gas
+balance below 2^256 that meets the admission bound. They assume a
+reached frame with the checked stack shape and staged memory, Cancun
+pricing, a supported depth and the admitted child.
+
+| Boundary | Before and after GAS PCs | Minimum warm gas | Net debit |
+| --- | --- | ---: | ---: |
+| WETH `permit` recovery | 1542, 1473 | 3,149 | 3,102 |
+| Morpho `flashLoan` transfer | 3661, 3598 | 118 | 118 |
+| Morpho `flashLoan` repayment | 3161, 3110 | 118 | 118 |
+
+The recovery proof uses the actual `ECRECOVER` precompile and accepts
+arbitrary staged signature bytes. The two Morpho token proofs execute
+the exact admitted return-true bytecode. Both compose the GAS sample,
+call admission, forwarded cap, child and resumed parent frame. Rust
+replay uses the original runtime bytes and checks the child status
+and residual gas one below the warm threshold, at the threshold and
+at 500,000 entry gas. The generated theorems use only
+`propext`, `Classical.choice` and `Quot.sound`.
+
+Rust also checks the whole FlashLoan path with a fixture token that
+stores its child GAS reading before returning true. At 500,000 entry
+gas both runs succeed with the same log. The original commits 464,473
+in token slot zero and the rewrite commits 464,487. Unrestricted
+refinement over arbitrary token code therefore fails. The paid cuts
+leave the parent invariant from ABI entry to terminal under the stated
+policy open, including the callback's earlier GAS sample.
+
+```sh
+PYTHONPATH=solar-tv LEAN_NUM_THREADS=1 uv run --project solar-tv python \
+  solar-tv/tools/check_funded_call_cuts.py \
+  --worlds target/tv-integer-cleanup-bytecode-probe \
+  --compiler target/tv-pinned-corpus.wa91PI/tv-serial-solar \
+  --replay target/tv-pinned-corpus.wa91PI/solar-tv-replay \
+  --output target/tv-gas-outline
+```
+
+The `target/tv-gas-outline/funded-cuts.json` receipt has SHA-256
+`d311d2e0f907c2d0370c6861c186ee0ae1a39d2da72ca8b340b3f0bf05172199`.
+
 ### Full corpus after guarded MIR effect proofs
 
 The serial audit at `cb7b029051` ran `evaluate --all --timeout 3 --seed 0`
@@ -4008,6 +4053,74 @@ ordinary audit.
 | `gas-interactions.json` | `06ebc15c3705c07467d7aa2669e15baf176c2d969a9c3f0b5721a7931921dd03` |
 | `rounded-results.json` | `17cdae482711020fd1bcf22835dec85071e30cbde5768dacc33ce596c15132ce` |
 | `remaining.json` | `32bfe902de2208c22697003e061bb3a16ec53c7519f9c8441989c5f399f36861` |
+
+### Outlined Morpho prefix and continuation
+
+The ordinary EVM region checker verifies the six previously open Morpho
+`outline` captures for `bb119`, `bb146`, `bb174`, `bb207`, `bb235` and
+`bb275`. All six select sites in the same frozen before/after pair. An
+independent Rust IR export binds each call to helper `bb491`, its unique
+return label and the original branch to `bb90`. The kernel checks the
+source-entry bound over 15,164 provenance states and 173 resolved
+returns. The maximum source height is 30 and the proposed cut bound is
+32. The local certificate checks the exact return-stack permutation,
+the original live guard stack, and the ordered memory and storage
+requests for all shared replies.
+
+The certificate assumes sufficient gas, a shared context for the
+unchanged code and abstract label correspondence. Physical relocation
+and the price of the extra transfers remain open. An assembled
+regression uses both outcomes of the guard. Independent Rust replay
+agrees on both outputs and detects a changed return rotation.
+
+The saved join reaches **2,180 of 2,228** with 48 open. Each closed
+capture matches the report's checked label set and both original
+capture hashes. This joins checked retries to the frozen audit.
+
+| Artifact in `target/tv-gas-outline/` | SHA-256 |
+| --- | --- |
+| `outline.json` | `9b4b04726966c9f35cbbff29984ce7015d8240a1c39242249f5ede5699ee41f0` |
+| `remaining.json` | `3895297a8faa55a5a0d9e2d63af48240279ca05ade468beb6a3202947f82c392` |
+
+### Morpho PUSH schedules and a redundant MIR check
+
+For three `reorder-pushes` captures, the stack schedule proof now
+simplifies the unpriced interaction tree directly. Lean proves that
+this tree is the projection of the original priced effect tree. At
+each cut the simplifier uses the kernel-checked entry stack bound,
+including the initial height before any new word is pushed. The
+proof checks the live stack, the arguments to `KECCAK256` and
+`SLOAD` where present, and all shared replies. The compiler hook
+and corpus runner try this route for `reorder-pushes`.
+
+The three positive reports cover `bb491`, `bb94` and `bb414`.
+The two remaining captures encounter unmodeled relocation or an
+opaque code or call continuation. The certificates assume sufficient
+funding and shared execution of the surrounding code.
+
+The `check-elim` capture of Morpho `mulDivUp` now closes as a
+compositional effect tree. On the path to the erased division guard,
+the first comparison already established a nonzero denominator.
+The kernel checks the result and the ordered revert writes for all
+input words and shared replies. Rust replay of the original MIR on
+both sides returns 9 for `(6, 7, 5)` and Panic(17) in the three
+fixtures for zero denominator, multiplication overflow and addition
+overflow.
+
+The saved join reaches **2,184 of 2,228**, with 44 open. The largest
+remaining groups are MIR `integer-cleanup` (12), EVM `block-cse` (5),
+MIR `memory-dse` (5), MIR `check-elim` (4) and MIR `cse` (3).
+Two of the five `reorder-pushes` captures remain open. The 22 outstanding GAS-blocked
+MIR IDs remain part of this total.
+
+| Artifact in `target/tv-gas-outline/` | SHA-256 |
+| --- | --- |
+| `reorder-fixed/morpho-blue-bb491.json` | `0368787167b32aa4f5970a4efb47910b1ddc7aa5f39760f153f1d11f195e82ad` |
+| `reorder-fixed/morpho-blue-bb94.json` | `d6acc9fe2005c4d62775b5f367932ebfee6c402aadaeca9f79d12c76e168d1cc` |
+| `reorder-fixed/morpho-blue-bb414.json` | `6c62cb30b099f0e07622ac065e59a6681b3fde4603d884c8b6aae86aeb4ff64d` |
+| `mul-div-up.json` | `435d36597f10d8b99a227b4ec73a740d38ed3ee3d49c60104447a8f1cb1de180` |
+| `mul-div-up-rust.json` | `30e1d222e92d7dcd39991499a038cf00756e79f513dd699c5fa9c1d8ec10e1d8` |
+| `remaining-after-guards.json` | `2842fb4bdcc22478c846c91cd90ab7a40d815dca233b85a45b4ad12c1f535f1c` |
 
 ### MIR CFG checks after an import timeout
 
