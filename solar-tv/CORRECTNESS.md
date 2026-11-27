@@ -4386,6 +4386,99 @@ scoped certificates bring the combined count to **2,212 of 2,228**, with
 | `target/tv-memory-dse-final/conditional-coverage.json` | `439abd466c677f2b6200a0f4163ccb939b94a8b63c62efc9732ed8a25f4276d2` |
 | `target/tv-memory-dse-final/rust-replay.json` | `ab6e6b1d94950af758d1ca00ee94a3f7c8455c7a156fd9c84102390323257978` |
 
+### Complete pinned MIR CSE with checked caller heaps
+
+The default serial sweep verifies 45 of 48 captures. The three
+unsupported checks select `createMarket`, `setAuthorizationWithSig`
+and `_accrueInterest` from a single Morpho Blue before/after pair.
+The serial `evaluate --all --pass cse --timeout 40 --seed 0
+--valid-heap --require-verified` sweep verifies **48 of 48**. All capture
+IDs and both raw MIR hashes match the frozen census. The ABI, creation
+bytecode and runtime bytecode match between plain and instrumented
+compilation for all three contracts.
+
+| Contract | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: |
+| Solady WETH | 4 | 0 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 6 | 0 | 0 | 0 |
+| Morpho Blue | 38 | 0 | 0 | 0 |
+| Total | 48 | 0 | 0 | 0 |
+
+The initialized-heap CSE certificates check the active words and their
+preservation between producers and removed reloads. The resulting
+normalized action graphs retain GAS, messages and state effects under
+shared replies. The proof assumes defined typed inputs and aligned
+memory within 64 KiB. The typed exporter still binds raw operands
+and steps to the checked graph and address ranges.
+
+In the authorization capture, forwarding a reload exposes the same
+immutable calldata word checked during ABI decoding. A second width
+projection checks the unsigned guard on that word. It proves the 160-bit
+mask and boolean widening identities after forwarding, so both sides
+reduce to the same typed actions. Widening the admitted range by one
+loses the corresponding certificate in the regression.
+
+Both captured MIR modules have eight direct call sites for
+`_accrueInterest`. The checker retains all incoming edges up to each
+site. Each public wrapper advances its cursor by 160 bytes through the
+market decoder and preserves the cursor until the internal call.
+Lean checks that a successful direct activation installs arguments and
+locals while carrying this cursor into the callee. A regression
+inserts a write of zero to byte 64 before a synthetic call. It loses
+the caller certificate and Rust independently returns 17 before CSE
+and 7 after CSE on that malformed logical heap.
+
+For each CSE snapshot's emitted runtime, Lean and Rust check the
+heap-producing dispatch prefixes for `createMarket`,
+`setAuthorizationWithSig` and the eight public routes below. The
+prefixes establish the cursor at 288. The authorization cut relocates
+from PC 6695 to 6639. All other cuts are at PC 1442. The prefixes have
+the same exact debit on both sides for matching selectors, zero call
+value and the recorded calldata bounds. Rust confirms each debit and
+out-of-gas one unit below it.
+
+| Public route to `_accrueInterest` | Prefix gas |
+| --- | ---: |
+| `accrueInterest` | 185 |
+| `setFee` | 240 |
+| `supply` | 176 |
+| `withdraw` | 280 |
+| `borrow` | 236 |
+| `repay` | 222 |
+| `withdrawCollateral` | 258 |
+| `liquidate` | 220 |
+
+Pinned Rust replay runs the exact MIR pair with initialized heaps and
+the two emitted snapshot runtimes. It exercises market creation with
+a nonzero IRM and a child storage write, successful signed
+authorization, two authorization rejection cases, and interest
+accrual through both the public wrapper and the internal MIR body.
+The before and after observations match within each MIR fixture and
+the emitted pairs agree on status, return bytes, refunds, accounts
+and logs. The funded emitted creation and authorization fixtures use
+118 and 67 less gas respectively after CSE. General metering and
+correspondence from the emitted prefixes to every subsequent action
+remain separate obligations.
+
+The saved default corpus audit remains at **2,207 of 2,228**. With
+the five scoped memory-DSE certificates and these three scoped CSE
+certificates, the combined count is **2,215 of 2,228**, with 13
+captures awaiting a certificate.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Pinned compiler | `f996616dcf2ebacf05fc5cc439f4814dc38fe953fad90b698754281c59ef139c` |
+| Compiler launcher | `c935a2bf85933ee1790810177538c159d5a974d89f383b5efb73e88236f5d165` |
+| Pinned Rust replay | `1c08fa6d66c19b52b661c4db7c93fc1d257948cb592d9856d09a237c174bca0c` |
+| Input manifest | `b08af7eb00ac67a5ef1200d50273beedc48d5517838ed67504bd1a76ba96b7b7` |
+| Final MIR checker on Lean 4.34.1 | `6771a05cae5ece48a085d038514e779ac73e5bd15ed1445c61729fa8bc84f971` |
+| Checker during the emitted entry runs | `31234cc11ab85787637e978bc86a02a7d7b5e149ae50cc6eeccabfec781b411c` |
+| `target/tv-cse-complete/baseline/results.json` | `1cc89d206fb345867a54b9002ae1be508bbd833490ff230bb533e8eaff03863d` |
+| `target/tv-cse-complete/fresh/results.json` | `f144589bb9a7df25e6d2ab73ac6696d246286114337d859c969537f2b7cf0a68` |
+| `target/tv-cse-complete/heap-entry-reports.json` | `315c77d1a1643ab75e27ed70df14029356ebb1105885cec83ba421bfb0440a6b` |
+| `target/tv-cse-complete/rust-replay.json` | `37fe7bb7ac7dc3cd1ae23c3f191c0c221bba045082c1c3dafadf11bb9561a346` |
+| `target/tv-cse-complete/conditional-coverage.json` | `f6cca646a7371fc277d32a840f38da0b79abdb20395825674d781187bb24c7b7` |
+
 ### MIR CFG checks after an import timeout
 
 The earlier three-second census timed out on 23 Morpho MIR `cfg-simplify`
