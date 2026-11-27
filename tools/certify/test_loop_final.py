@@ -659,5 +659,122 @@ class WhileSpec(unittest.TestCase):
             self.assertNotIn(bad, out)
 
 
+HORN_EXPORT = '''/-- The specs of `Horn`. -/
+def Horn : Bundle where
+  fuel := 0
+  spec :=
+  { name := "Horn",
+    fns := [
+    ],
+    invariants := [
+    ],
+    ghosts := [],
+    specs := [
+    { name := "Horn.ok_transfer",
+      selector := 0xfd0011a5,
+      params := [(.uint 256)],
+      rets := [(.uint 256)],
+      payable := false,
+      requires := [],
+      ensures := [
+        (.bin .eq (.ret 0) (.arg 0))],
+      succeedsIf := [] }] }
+
+/-- Every spec function call resolves and nests within the fuel. -/
+theorem Horn_wf : Horn.WF = true := by decide +kernel
+'''
+
+
+def _fn(name, sel, doc=None, loop=True, kind="function", vis="public"):
+    body = {"nodeType": "Block", "statements": [{"nodeType": "WhileStatement"}] if loop else []}
+    n = {"nodeType": "FunctionDefinition", "name": name, "kind": kind, "visibility": vis,
+         "functionSelector": f"{sel:08x}", "body": body}
+    if doc:
+        n["documentation"] = {"nodeType": "StructuredDocumentation", "text": doc}
+    return n
+
+
+def _ast(*fns, cdoc=None, extra=()):
+    c = {"nodeType": "ContractDefinition", "id": 1, "name": "Horn", "linearizedBaseContracts": [1],
+         "contractKind": "contract", "nodes": [*fns, *extra]}
+    if cdoc:
+        c["documentation"] = {"nodeType": "StructuredDocumentation", "text": cdoc}
+    return {"nodeType": "SourceUnit", "nodes": [c]}
+
+
+OK, BAD = 0xFD0011A5, 0x12345678
+PROVED = {"loop_spec": "Certified.h.LoopSpec.ok_transfer_loop_spec", "index": 0}
+
+
+class SpecGate(unittest.TestCase):
+    """Review 206: a part is True only by the checked no-spec determination; a function with a spec,
+    or a tag that may carry one, that the bridge does not prove refuses the whole final."""
+
+    parts = [{"fname": "ok_transfer", "sel": OK}, {"fname": "bad_transfer", "sel": BAD}]
+
+    def ast(self, **kw):
+        return _ast(_fn("ok_transfer", OK, " @custom:ensures result == n"), _fn("bad_transfer", BAD, kw.get("bad_doc")),
+                    cdoc=kw.get("cdoc"))
+
+    def test_inventory_parses_the_export(self):
+        self.assertEqual(loop_final.export_inventory(HORN_EXPORT, "Horn"), [("Horn.ok_transfer", OK)])
+        with self.assertRaises(loop_final.Refused) as e:
+            loop_final.export_inventory(HORN_EXPORT, "Other")
+        self.assertEqual(e.exception.step, "inventory")
+
+    def test_proved_and_checked_none(self):
+        inv = loop_final.export_inventory(HORN_EXPORT, "Horn")
+        none = loop_final.spec_gate(self.ast(), "Horn", self.parts, {"ok_transfer": PROVED, "bad_transfer": None}, inv)
+        self.assertEqual([p["fname"] for p in none], ["bad_transfer"])
+        text = loop_final.inventory_module("h", "Horn", "ab" * 32, inv, none)
+        self.assertIn('= [("Horn.ok_transfer", 0xfd0011a5)] := by', text)
+        self.assertIn("theorem bad_transfer_no_spec", text)
+        self.assertIn('s.name != "Horn.bad_transfer" && s.selector != 0x12345678', text)
+        self.assertIn("theorem no_invariants", text)
+        self.assertNotIn("ok_transfer_no_spec", text)
+
+    def test_refusals_refuse_the_whole_final(self):
+        inv = loop_final.export_inventory(HORN_EXPORT, "Horn")
+        cases = [
+            # the bridge refused a specified function (succeeds-if, a failing theorem)
+            (self.ast(), {"ok_transfer": "spec_connect.py --loops refuses: succeeds-if", "bad_transfer": None}),
+            # the export lists a function the bridge result calls absent
+            (self.ast(), {"ok_transfer": None, "bad_transfer": None}),
+            # a tag on the function that the export does not list
+            (self.ast(bad_doc=" @custom:succeeds-if n > 0"), {"ok_transfer": PROVED, "bad_transfer": None}),
+            (self.ast(bad_doc=" @inheritdoc Base"), {"ok_transfer": PROVED, "bad_transfer": None}),
+            # a contract-level tag (an invariant) no part states
+            (self.ast(cdoc=" @custom:invariant x <= 1"), {"ok_transfer": PROVED, "bad_transfer": None}),
+            # a function missing from the bridge's result
+            (self.ast(), {"ok_transfer": PROVED}),
+        ]
+        for ast, specs in cases:
+            with self.subTest(specs=specs), self.assertRaises(loop_final.Refused) as e:
+                loop_final.spec_gate(ast, "Horn", self.parts, specs, inv)
+            self.assertEqual(e.exception.step, "spec")
+
+    def test_proved_spec_must_be_listed(self):
+        with self.assertRaises(loop_final.Refused):
+            loop_final.spec_gate(self.ast(), "Horn", self.parts[:1], {"ok_transfer": PROVED}, [])
+
+    def test_witness_is_well_typed(self):
+        body = "∃ σ a0, a0 < 2 ^ 256 ∧ call = { calldata := Abi.calldata 1 [a0], callvalue := 0, storage := σ }"
+        f = {"valid_body": body, "bounded": False}
+        text = loop_final.nonvac_module("h", "Horn", OK, 1, f, 0, nrets=2, word=1)
+        out = "[" + ", ".join(map(str, ([0] * 31 + [1]) * 2)) + "]"
+        self.assertIn(f"⟨true, {out}, [], fun _ => 1⟩", text)
+        self.assertIn(f"(words {out}) = some [1, 1]", text)
+        # The decoding is never what refutes the postcondition (review 207).
+        self.assertNotIn("revert hdec", text)
+        self.assertIn("⟨true, [], [], fun _ => 1⟩", loop_final.nonvac_module("h", "Horn", OK, 1, f, 0))
+
+    def test_source_loops(self):
+        ast = _ast(_fn("ok_transfer", OK), _fn("bad_transfer", BAD), _fn("plain", 1, loop=False),
+                   _fn("helper", 2, loop=True, vis="internal"))
+        self.assertEqual(loop_final.source_loops(ast, "Horn"), {"functions": {"ok_transfer", "bad_transfer", "helper"}, "elsewhere": []})
+        mod = {"nodeType": "ModifierDefinition", "name": "m", "body": {"nodeType": "ForStatement"}}
+        self.assertEqual(loop_final.source_loops(_ast(extra=[mod]), "Horn")["elsewhere"], ["Horn.m"])
+
+
 if __name__ == "__main__":
     unittest.main()

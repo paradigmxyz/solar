@@ -4580,5 +4580,137 @@ class InputsFilterAgrees(unittest.TestCase):
         self.assertEqual(self.both(), (None, None))
 
 
+
+class LoopVerdict(unittest.TestCase):
+    """generic.loop_verdict: CERTIFIED at the bounded loop tier only from a checked final that passes
+    every gate, with the unbounded tier reported beside it; anything else keeps the branch's verdict."""
+
+    PLAIN = "6080"
+
+    def setUp(self):
+        import argparse
+        import hashlib
+
+        fn = lambda name, sel, doc=None: {
+            "nodeType": "FunctionDefinition", "name": name, "kind": "function", "visibility": "public",
+            "functionSelector": sel, "body": {"nodeType": "WhileStatement"},
+            **({"documentation": {"text": doc}} if doc else {})}
+        self.ast = {"nodes": [{"nodeType": "ContractDefinition", "id": 1, "name": "T", "linearizedBaseContracts": [1],
+                               "nodes": [fn("f", "fd0011a5", " @custom:ensures result == n")]}]}
+        self.a = argparse.Namespace(spec="natspec", contract="T")
+        self.part = {"signature": "f(uint256)", "selector": "0xfd0011a5", "spec": "proved", "label": "x",
+                     "nonvacuous": True, "nonvac_witness": {"well_typed": True, "output_words": [1]},
+                     "valid": "V.valid K", "iteration_bound": {"var": "K", "max": 7}, "gas": "g"}
+        self.record = {
+            "name": "t_1", "requested_tier": "certified", "contract": "T",
+            "loop_final": {
+                "functions": ["f"], "final": {"theorem": "Certified.t_1.Final.final", "strongest": False},
+                "axioms": ["propext", "Classical.choice", "Quot.sound"],
+                "fresh_byte": {"check_final": "FRESH x", "runtime_sha256": hashlib.sha256(bytes.fromhex(self.PLAIN)).hexdigest()},
+                "replay": {"closure": 10, "replayed_count": 10, "trusted_count": 0},
+                "parts": {"f": self.part},
+                "inventory": {"theorem": "Certified.t_1.LoopSpecInventory.inventory",
+                              "specs": [{"name": "T.f", "selector": "0xfd0011a5"}]},
+            },
+        }
+        self.reasons = [{"feature": "loop", "where": "f", "detail": "loop final checked (Certified.t_1.Final.final, record loop_final): runtime only"}]
+        self.saved = generic.solar_runtime, generic.build_solar
+        generic.solar_runtime = lambda *x, **k: (self.PLAIN, "")
+        generic.build_solar = lambda: "solar"
+
+    def tearDown(self):
+        generic.solar_runtime, generic.build_solar = self.saved
+
+    def verdict(self, record=None, reasons=None, oog=None, ast=None):
+        return generic.loop_verdict(record or self.record, reasons or self.reasons, "s.sol", ast or self.ast, self.a, oog)
+
+    def test_certified_bounded_with_unbounded_reported(self):
+        with self.assertRaises(generic.LoopCertified) as e:
+            self.verdict(oog=generic.Failed("resource: out of gas: the fixed bound is at least 2^64"))
+        c = e.exception
+        self.assertEqual(c.status, "CERTIFIED")
+        self.assertEqual(c.tier["tier"], "bounded")
+        self.assertEqual(c.tier["bounds"], {"f": {"K_max": 7, "valid": "V.valid K", "gas": "g"}})
+        self.assertEqual(c.tier["unbounded"]["status"], "not certified")
+        self.assertIn("out of gas", c.tier["unbounded"]["why"])
+        self.assertIn("unbounded n: not certified", c.line)
+        self.assertIs(self.record["loop_tier"], c.tier)
+
+    def test_without_out_of_gas_the_unbounded_tier_is_still_not_certified(self):
+        with self.assertRaises(generic.LoopCertified) as e:
+            self.verdict()
+        self.assertEqual(e.exception.tier["unbounded"]["status"], "not certified")
+        self.assertIn("K ≤ 7", e.exception.tier["unbounded"]["why"])
+
+    def test_refusals_keep_the_verdict(self):
+        import copy
+
+        def m(f):
+            r = copy.deepcopy(self.record)
+            f(r["loop_final"])
+            return r
+
+        cases = {
+            "refused final": m(lambda lf: lf.update(refused={"step": "spec", "why": "x"})),
+            "extra axiom": m(lambda lf: lf.update(axioms=["propext", "sorryAx"])),
+            "no axioms": m(lambda lf: lf.update(axioms=[])),
+            "no fresh line": m(lambda lf: lf["fresh_byte"].update(check_final=None)),
+            "other bytes": m(lambda lf: lf["fresh_byte"].update(runtime_sha256="0" * 64)),
+            "trusted replay": m(lambda lf: lf["replay"].update(trusted_count=3)),
+            "no inventory": m(lambda lf: lf.pop("inventory")),
+            "unstated export spec": m(lambda lf: lf["inventory"]["specs"].append({"name": "T.g", "selector": "0x01"})),
+            "vacuous spec": m(lambda lf: lf["parts"]["f"].update(nonvacuous="no witness")),
+            "ABI-only witness": m(lambda lf: lf["parts"]["f"].update(nonvac_witness={"well_typed": False})),
+            "no witness record": m(lambda lf: lf["parts"]["f"].pop("nonvac_witness")),
+            "refused part": m(lambda lf: lf["parts"]["f"].update(spec="refused")),
+            "unchecked True": m(lambda lf: lf["parts"]["f"].update(spec="none", no_spec=None)),
+            "translation only at certified": m(lambda lf: lf["parts"]["f"].update(
+                spec="none", no_spec={"theorem": "Certified.t_1.LoopSpecInventory.f_no_spec"})),
+        }
+        for k, rec in cases.items():
+            with self.subTest(k):
+                out = self.verdict(record=rec)
+                self.assertIsInstance(out, list)
+        # Another reason left beside the final's (an uncovered loop's OPEN reason, an envelope reason).
+        more = self.reasons + [{"feature": "loop", "where": "line 9", "detail": "g: a while loop ... (OPEN)"}]
+        out = self.verdict(reasons=more)
+        self.assertIn("not certified: other reasons remain", out[0]["detail"])
+        self.assertEqual(self.record["loop_tier"]["status"], "not certified")
+
+    def test_coverage_of_the_source(self):
+        import copy
+
+        fn = copy.deepcopy(self.ast["nodes"][0]["nodes"][0])
+        for name, node in {
+            "a second loop function": dict(fn, name="g", functionSelector="01020304"),
+            "an uncovered entry point": dict(fn, name="g", body={"nodeType": "Block"}),
+            "a public getter": {"nodeType": "VariableDeclaration", "name": "x", "stateVariable": True, "visibility": "public"},
+            "a fallback": {"nodeType": "FunctionDefinition", "kind": "fallback", "body": {"nodeType": "Block"}},
+            "a constructor spec": {"nodeType": "FunctionDefinition", "kind": "constructor", "name": "",
+                                   "documentation": {"text": " @custom:ensures x == 0"}, "body": {"nodeType": "Block"}},
+        }.items():
+            with self.subTest(name):
+                ast = copy.deepcopy(self.ast)
+                ast["nodes"][0]["nodes"].append(node)
+                self.assertIsInstance(self.verdict(ast=ast), list)
+        ast = copy.deepcopy(self.ast)
+        ast["nodes"][0]["documentation"] = {"text": " @custom:invariant x <= 1"}
+        self.assertIsInstance(self.verdict(ast=ast), list)
+
+    def test_compiled_tier_takes_translation_only(self):
+        import copy
+
+        rec = copy.deepcopy(self.record)
+        rec["requested_tier"] = "compiled"
+        rec["loop_final"]["parts"]["f"].update(spec="none", no_spec={"theorem": "t"})
+        rec["loop_final"]["inventory"]["specs"] = []
+        self.a.spec = "none"
+        ast = copy.deepcopy(self.ast)
+        ast["nodes"][0]["nodes"][0].pop("documentation")
+        with self.assertRaises(generic.LoopCertified) as e:
+            self.verdict(record=rec, ast=ast)
+        self.assertEqual(e.exception.status, "COMPILED")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

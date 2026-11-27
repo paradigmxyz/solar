@@ -36,15 +36,22 @@ erasure-inferred route). NAME.LoopNonVac proves that the exported postcondition 
 valid call at every iteration bound (the call with zero arguments from the storage [(1, 0)], and a
 success that writes 1 to every slot): the specification's half of final.py's NonVacuous. The
 bridge takes no succeeds-if conditions on the loop route, so the allowed statuses accept every
-revert; the statement declares that (allowed_vacuity) and is not the strongest status. A source
-with no spec of the loop function keeps the True specification, declared vacuous, and so does one
-the bridge refuses, with the refusal in the declaration and the record.
+revert; the statement declares that (allowed_vacuity) and is not the strongest status.
+
+A part states True only by a checked no-spec determination (spec_gate, review 206): the solc AST
+has no NatSpec tag that may carry a spec on the function or one that applies to every function
+(spec_inventory), and NAME.LoopSpecInventory proves by decide over this run's export (of this run's source
+bytes) that the bundle has no invariant and no entry with the function's name or selector, beside
+NAME.LoopSpecInventory.inventory, the export's whole spec list by name and selector. Such a
+part is labelled translation only in shape.json, final.json and record loop_final.parts. A function
+with a spec, or with a tag that may carry one, that the export or the bridge does not prove refuses
+the whole final at step "spec": it is never a True part.
 
 Several loop functions (Refused "functions" before): each function F gets its own part,
 NAME.Loop.F.{Resources,Valid,Join,NonVac}, with loop_resources.py's numbers restricted to the loop
 F's calls reach (its selector), its own iteration bound K ≤ Kmax and its own valid calls; one
 spec_connect.py run connects every function's exported spec in NAME.LoopSpec (a function it refuses
-is dropped and keeps True, declared vacuous, as one loop function does); NAME.LoopJoin imports every
+is dropped and the rest are connected again, then spec_gate refuses the final); NAME.LoopJoin imports every
 join, and shape.json's parts make final.py state the conjunction, one conjunct per loop function.
 
 The while route ("while-inferred", loop_cuts.py step 3w): the join applies final_of_whileW (no spec)
@@ -70,7 +77,10 @@ Refusals are precise and never a weaker proof (Refused, with the step that refus
 "route": a function on the summary route, or the hook did not complete; "functions": no loop
 function; "resources": loop_resources.py's Unsupported; "abi": a parameter that is not
 uint256; "stages": the export's stage proofs do not compose from stage0 to the resources' final
-EVM IR; "exporter": no pinned solar-verify; "receipt": the receipt is missing or not this run's;
+EVM IR; "exporter": no pinned solar-verify; "spec": the export or the bridge does not prove a function's
+spec (or the source may carry one the export lacks); "inventory": NAME.LoopSpecInventory does not
+parse or check; "functions" also: a source loop outside every loop function with obligations;
+"receipt": the receipt is missing or not this run's;
 "replay": the kernel replay of the closure fails or is not accounted for.
 """
 
@@ -109,6 +119,9 @@ FRAME = "SolidCore.Spec.TreeLoop.ctx0"
 FRAME_MODULE = "Verify.Spec.TreeLoopFrame"
 # The non-vacuity witness's storage: every slot 0, slot 1 present (review 154's [(1, 0)]).
 WITNESS_STORAGE = "[(1, 0)]"
+# The witness's return words a function with returns tries, in order (each decodes as any uint,
+# int, bool or address).
+NONVAC_WORDS = (1, 0, 2)
 FUEL = loop_cuts.LOOP_FUEL
 SOURCE_SEM = "SolidCore.Refinement.Generic.Loop.solidCoreRuntime"
 ORACLE = "SolidCore.Refinement.Shapes.oracle"
@@ -584,13 +597,23 @@ def witness_call(valid_body, nargs):
     return lit.replace("storage := σ", f"storage := {WITNESS_STORAGE}")
 
 
-def nonvac_module(name, contract, sel, nargs, facts, index, m=None):
+def witness_output(nrets, word):
+    """The witness's return data: NRETS ABI words, each WORD (below 256)."""
+    return [b for _ in range(nrets) for b in [0] * 31 + [word]]
+
+
+def nonvac_module(name, contract, sel, nargs, facts, index, m=None, nrets=0, word=1):
     """NAME.LoopNonVac: the exported postcondition, in the fixed frame, rejects a result of a valid
     call at every iteration bound: the loop function's call with zero arguments from
-    WITNESS_STORAGE, finishing with a success that writes 1 to every slot. INDEX is the loop
-    function's spec in the bundle. Untrusted: Lean checks it, and the driver declares the vacuity
-    instead when it does not check. M: the part's modules (modules)."""
+    WITNESS_STORAGE, finishing with a success that writes 1 to every slot and returns NRETS words
+    WORD. The witness is well typed (review 207): its return data decodes as the function's returns
+    (decodeWords, checked by decide), so the proof must refute the exported ensures or invariants
+    themselves, never the decoding. INDEX is the loop function's spec in the bundle. Untrusted: Lean
+    checks it, and the driver declares the vacuity instead when it does not check. M: the part's
+    modules (modules)."""
     m = m or modules(name)
+    out = "[" + ", ".join(map(str, witness_output(nrets, word))) + "]"
+    rets = "[" + ", ".join([str(word)] * nrets) + "]"
     B, _, post = spec_terms(name, contract)
     V = f"Certified.{m['valid']}.valid"
     call = witness_call(facts["valid_body"], nargs)
@@ -615,8 +638,8 @@ import Verify.ShapeBundle
 # {contract}: the exported postcondition rejects something on the loop's valid calls
 
 `post_rejects`: for {doc}, the call with zero arguments from the storage {WITNESS_STORAGE} is valid,
-and a success that writes 1 to every slot (and returns no data, which a function with returns
-does not decode) does not meet `{B}`'s postcondition in the fixed frame
+and a success that writes 1 to every slot and returns {nrets} word(s) {word} (which decode as the
+function's returns) does not meet `{B}`'s postcondition in the fixed frame
 `{FRAME}`: the specification's half of the published statement's NonVacuous.
 -/
 
@@ -627,7 +650,7 @@ open SolarTV SolidCore.Refinement SolidCore.Spec
 theorem post_rejects{binder} :
     ∃ (call : SolarTV.Call) (obs : SolarTV.Observable), ({V}{kapp}) call ∧
       ¬ ({post}) call obs := by
-  refine ⟨{call}, ⟨true, [], [], fun _ => 1⟩, ⟨{WITNESS_STORAGE}, {zeros},
+  refine ⟨{call}, ⟨true, {out}, [], fun _ => 1⟩, ⟨{WITNESS_STORAGE}, {zeros},
     by and_intros <;> first | decide | exact Nat.zero_le _ | rfl⟩, fun h => ?_⟩
   have hpre : Pre {B} ({B}.spec.specs[{index}]'(by decide)) {FRAME}
       ⟨SolidCore.Refinement.slotValue {WITNESS_STORAGE}, Ghost.zero, 1⟩ {call} [{zeros}] := by
@@ -641,10 +664,13 @@ theorem post_rejects{binder} :
     · simp [{unfold}]
     · simp [{unfold}]
   obtain ⟨rets, hdec, hens, -⟩ := (h _ (List.getElem_mem _) _ _ hpre).1 rfl
+  -- The return data decodes: the rejection below is the ensures' or the invariants', not the ABI's.
+  have hw : decodeWords ({B}.spec.specs[{index}]'(by decide)).rets (words {out}) = some {rets} := by
+    decide +kernel
+  have hr := Option.some.inj (hdec.symm.trans hw)
+  subst hr
   simp [{unfold}] at hens
-  all_goals first
-    | (revert hens; decide)
-    | (revert hdec; simp [{B}, SolidCore.Spec.decodeWords, SolidCore.Spec.words])
+  all_goals (revert hens; decide)
 
 /-- info: 'Certified.{m['nonvac']}.post_rejects' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
@@ -1003,12 +1029,22 @@ def spec_step(
 
 
 def shape(
-    name, contract, fname, sig, facts, spec=None, nonvac=False, m=None, route="erasure"
+    name,
+    contract,
+    fname,
+    sig,
+    facts,
+    spec=None,
+    nonvac=False,
+    m=None,
+    route="erasure",
+    no_spec=None,
 ):
     """shape.json for final.py. SPEC: spec_step's record (the exported spec in the fixed frame), a
     refusal string (True, declared vacuous with the refusal) or None (no spec of the loop function).
     NONVAC: True when NAME.LoopNonVac checked, else why there is no witness. M: the part's modules
-    (modules); ROUTE: the function's loop route."""
+    (modules); ROUTE: the function's loop route. NO_SPEC: with SPEC None, the checked no-spec
+    determination (attach's record of NAME.LoopSpecInventory), which labels the part translation only."""
     m = m or modules(name)
     pi, ex = facts["per_iteration_gas"], facts["exit_gas"]
     bounded = facts["bounded"]
@@ -1081,6 +1117,20 @@ def shape(
     }
     if bounded:
         s["iteration_bound"] = {"var": "K", "max": facts["Kmax"]}
+    if spec is None and no_spec:
+        s["spec"] = (
+            f"translation only: {fname} has no specification (no NatSpec tag on it or the contract, "
+            f"and no entry with its name or selector in this run's export: {no_spec['theorem']}); True"
+        )
+        s["vacuity"] = (
+            f"translation only: {fname} has no specification ({no_spec['theorem']}), so the allowed "
+            "statuses and the postcondition are True and the statement is translation (equivalence), "
+            "termination and resources only"
+        )
+        s["excluded"] = [
+            "spec: none (True), translation only; see vacuity" if e.startswith("spec:") else e
+            for e in s["excluded"]
+        ]
     if spec is None:
         return s
     if isinstance(spec, str):
@@ -1235,7 +1285,15 @@ def write(
         if isinstance(pspec, dict):
             try:
                 files[m["nonvac"]] = nonvac_module(
-                    name, contract, psel, len(pparams), facts, pspec["index"], m
+                    name,
+                    contract,
+                    psel,
+                    len(pparams),
+                    facts,
+                    pspec["index"],
+                    m,
+                    p.get("nrets", 0),
+                    p.get("nonvac_word", 1),
                 )
             except Refused as e:
                 if p["nonvac"] is True:
@@ -1245,7 +1303,18 @@ def write(
                 else:
                     record.setdefault("loop_final_nonvac", e.why)
         shapes.append(
-            shape(name, contract, fname, p["sig"], facts, pspec, p["nonvac"], m, route)
+            shape(
+                name,
+                contract,
+                fname,
+                p["sig"],
+                facts,
+                pspec,
+                p["nonvac"],
+                m,
+                route,
+                p.get("no_spec"),
+            )
         )
     if multi:
         files[f"{name}.LoopJoin"] = parts_join_module(
@@ -1399,6 +1468,236 @@ def acceptance_problem(record, src, lean_dir, name, contract, exporter_sha):
     )
 
 
+LOOP_NODES = {"ForStatement", "WhileStatement", "DoWhileStatement"}
+# A NatSpec tag that may carry a specification: any @custom: tag, and @inheritdoc (the spec of a base).
+SPEC_TAG = re.compile(r"@custom:[A-Za-z0-9_-]+|@inheritdoc\b")
+
+
+def doc_text(node):
+    """The NatSpec text solc's AST attaches to NODE (a StructuredDocumentation or, in older ASTs, a
+    string), or ''."""
+    d = node.get("documentation")
+    if isinstance(d, dict):
+        return d.get("text") or ""
+    return d if isinstance(d, str) else ""
+
+
+def spec_inventory(ast, contract):
+    """The source side of the no-spec determination, read from the solc AST (not from solar-verify):
+    {"functions": {F: tags}, "contract": [(where, tag)]} for CONTRACT and every contract it
+    inherits (linearizedBaseContracts). "functions" holds each function's own NatSpec tags that may
+    carry a spec (SPEC_TAG); "contract" every such tag that applies beyond one function: on a
+    contract, a state variable, a modifier, an event or a constructor."""
+    defs = {
+        c.get("id"): c
+        for c in ast.get("nodes", [])
+        if c.get("nodeType") == "ContractDefinition"
+    }
+    top = next((c for c in defs.values() if c.get("name") == contract), None)
+    if top is None:
+        raise Refused("spec", f"no contract {contract} in the AST")
+    fns, wide = {}, []
+    for cid in top.get("linearizedBaseContracts") or [top.get("id")]:
+        c = defs.get(cid)
+        if c is None:
+            raise Refused("spec", f"a base of {contract} (id {cid}) is not in the source's AST")
+        wide += [(c.get("name"), tag) for tag in SPEC_TAG.findall(doc_text(c))]
+        for n in c.get("nodes", []):
+            tags = SPEC_TAG.findall(doc_text(n))
+            if (
+                n.get("nodeType") == "FunctionDefinition"
+                and n.get("kind") == "function"
+                and n.get("name")
+            ):
+                fns.setdefault(n["name"], []).extend(tags)
+            elif tags:
+                wide += [(f"{c.get('name')}.{n.get('name') or n.get('kind') or n.get('nodeType')}", tag) for tag in tags]
+    return {"functions": fns, "contract": wide}
+
+
+def export_inventory(text, contract):
+    """The specs of the bundle CONTRACT in solar-verify's export TEXT, in order: [(name, selector)].
+    Parsed here, untrusted: inventory_module states exactly this list and the kernel checks it."""
+    m = re.search(rf"^def {re.escape(contract)} : Bundle where$(.*?)^/-- Every spec", text, re.M | re.S)
+    if not m:
+        raise Refused("inventory", f"the export has no bundle {contract}")
+    body = m.group(1)
+    specs = body[body.index("specs := [") :] if "specs := [" in body else ""
+    inv = [
+        (n, int(s, 16))
+        for n, s in re.findall(r'\{ name := "([^"]+)",\s*selector := (0x[0-9a-fA-F]+),', specs)
+    ]
+    if specs.count("selector :=") != len(inv):
+        raise Refused("inventory", "the export's spec list does not parse as name/selector entries")
+    return inv
+
+
+def inventory_module(name, contract, src_sha, inventory, nospec):
+    """NAME.LoopSpecInventory, the export's selector inventory, kernel-checked: this run's export
+    (NAME.gen.C.Spec, of the source bytes SRC_SHA) specifies exactly INVENTORY ([(name, selector)],
+    in order). With True parts (NOSPEC: their {"fname", "sel"}), it also has no contract invariant,
+    and for each such function no entry with its name or selector."""
+    S = f"Certified.{name}.gen.{contract}.Spec"
+    B = f"{S}.{contract}"
+    lst = ", ".join(f'("{n}", 0x{s:08x})' for n, s in inventory)
+    thms = []
+    for p in nospec:
+        fid = re.sub(r"[^A-Za-z0-9_]", "_", p["fname"])
+        thms.append(
+            f"""/-- {p['fname']} (selector 0x{p['sel']:08x}) has no spec in the export: no entry with its name or selector. -/
+theorem {fid}_no_spec :
+    ({B}.spec.specs.all fun s => s.name != "{contract}.{p['fname']}" && s.selector != 0x{p['sel']:08x}) = true := by
+  decide +kernel
+"""
+        )
+    if nospec:
+        thms.insert(
+            0,
+            f"""/-- The export has no contract invariant (no spec that applies to every function). -/
+theorem no_invariants : {B}.spec.invariants = [] := by
+  decide +kernel
+""",
+        )
+    body = "\n".join(thms)
+    return f"""import {name}.gen.{contract}.Spec
+
+-- Generated by solar's tools/certify/loop_final.py from this run's export; do not edit.
+
+/-!
+# {contract}: the export's spec inventory
+
+Which functions this run's export of the source specifies, by name and selector. A part of the
+published statement states True (translation only) only for a function this inventory lacks.
+-/
+
+namespace Certified.{name}.LoopSpecInventory
+
+/-- The export is of this run's source bytes. -/
+theorem source_is_fresh : {S}.manifest.sourceSha256 = "{src_sha}" := by
+  decide +kernel
+
+/-- Every spec of the export, by name and selector, in order. -/
+theorem inventory : {B}.spec.specs.map (fun s => (s.name, s.selector)) = [{lst}] := by
+  decide +kernel
+
+{body}
+end Certified.{name}.LoopSpecInventory
+"""
+
+
+def source_loops(ast, contract):
+    """Where the source loops, from the solc AST: {"functions": {F}, "elsewhere": [where]} over
+    CONTRACT and the contracts it inherits (by the enclosing function's name), every library and
+    every free function; "elsewhere" names a loop in a modifier, a free or library function, or a
+    base's function the scored contract overrides."""
+    defs = {c.get("id"): c for c in ast.get("nodes", []) if c.get("nodeType") == "ContractDefinition"}
+    top = next((c for c in defs.values() if c.get("name") == contract), None)
+    if top is None:
+        raise Refused("functions", f"no contract {contract} in the AST")
+
+    def has(n):
+        if n.get("nodeType") in LOOP_NODES:
+            return True
+        return any(
+            has(v)
+            for x in n.values()
+            for v in (x if isinstance(x, list) else [x])
+            if isinstance(v, dict)
+        )
+
+    fns, elsewhere, seen = set(), [], set()
+    for cid in top.get("linearizedBaseContracts") or [top.get("id")]:
+        c = defs.get(cid)
+        if c is None:
+            elsewhere.append(f"a base (id {cid}) outside the source's AST")
+            continue
+        for n in c.get("nodes", []):
+            if n.get("nodeType") == "FunctionDefinition" and n.get("kind") == "function":
+                loops = has(n)
+                if loops and n.get("name") in seen:
+                    elsewhere.append(f"{c.get('name')}.{n.get('name')} (overridden)")
+                elif loops:
+                    fns.add(n.get("name"))
+                seen.add(n.get("name"))
+            elif has(n):
+                elsewhere.append(f"{c.get('name')}.{n.get('name') or n.get('kind') or n.get('nodeType')}")
+    for n in ast.get("nodes", []):
+        if n.get("nodeType") == "FunctionDefinition" and has(n):
+            elsewhere.append(f"free function {n.get('name')}")
+        if n.get("nodeType") == "ContractDefinition" and n.get("contractKind") == "library" and has(n):
+            elsewhere.append(f"library {n.get('name')}")
+    return {"functions": fns, "elsewhere": elsewhere}
+
+
+def spec_gate(ast, contract, parts, specs, inventory):
+    """The per-function decision on SPECS (spec_step's {F: record, None, or the bridge's refusal})
+    against INVENTORY (export_inventory, the export's specs by name and selector): a function the
+    export specifies must have its spec proved by the bridge, and one the bridge refused refuses the
+    whole final (it never becomes a True part); a function the export does not specify is a True
+    part only when the source has no NatSpec tag that may carry a spec either (spec_inventory: on the
+    function, or one that applies to every function). Returns the True parts; raises Refused("spec")."""
+    inv = spec_inventory(ast, contract)
+    names = {n for n, _ in inventory}
+    sels = {s for _, s in inventory}
+    none = []
+    for p in parts:
+        f, s = p["fname"], specs.get(p["fname"], "missing from the bridge's result")
+        listed = f"{contract}.{f}" in names or p["sel"] in sels
+        if isinstance(s, dict) and listed:
+            continue
+        if isinstance(s, dict):
+            raise Refused("spec", f"{f}: the bridge proved a spec the export's inventory does not list")
+        if isinstance(s, str):
+            raise Refused(
+                "spec",
+                f"{f}: the spec bridge does not prove its spec, and a function with a spec is never "
+                f"stated True: {s}",
+            )
+        if listed:
+            raise Refused(
+                "spec",
+                f"{f}: the export lists a spec of it (name or selector 0x{p['sel']:08x}) that the "
+                "bridge was never given: no True part for a specified function",
+            )
+        tags = inv["functions"].get(f, [])
+        if tags or inv["contract"]:
+            where = [f"{f}: {x}" for x in tags] + [f"{w}: {x}" for w, x in inv["contract"]]
+            raise Refused(
+                "spec",
+                f"{f}: the export has no spec of it but the source has NatSpec tags that may carry "
+                f"one ({', '.join(where[:4])}): no True part for a function that may have a spec",
+            )
+        none.append(p)
+    return none
+
+
+def part_record(p, sh, multi):
+    """record loop_final.parts[F] for the part P of the statement SH (shape.json): the spec it states,
+    read per function (proved by the bridge, or True by the checked no-spec determination: translation
+    only), its non-vacuity, its valid calls, its iteration bound and its gas bound."""
+    s = next(x for x in sh["parts"] if x["function"] == p["fname"]) if multi else sh
+    spec = p["spec"]
+    if isinstance(spec, dict):
+        kind, label = "proved", f"solar-verify's export, proved by {spec['loop_spec']}"
+    elif spec is None and p.get("no_spec"):
+        kind, label = "none", f"translation only (True): no spec, {p['no_spec']['theorem']}"
+    else:
+        kind, label = "refused", f"not stated: {spec}"
+    return {
+        "signature": p["sig"],
+        "selector": f"0x{p['sel']:08x}",
+        "spec": kind,
+        "label": label,
+        "loop_spec": spec.get("loop_spec") if isinstance(spec, dict) else None,
+        "no_spec": p.get("no_spec"),
+        "nonvacuous": p["nonvac"],
+        "nonvac_witness": p.get("nonvac_witness"),
+        "valid": s.get("valid"),
+        "iteration_bound": s.get("iteration_bound"),
+        "gas": s.get("gas"),
+    }
+
+
 def reason(e, where=""):
     """The run's BLOCKED reason for a refusal."""
     return {
@@ -1441,6 +1740,15 @@ def attach(
     d = lean_dir / "Certified" / name
     try:
         fnames = loop_functions(record)
+        # Every source loop is in a loop function with obligations: a function solar-verify gave no
+        # loop heads (a failing spec, zero heads) or the hook dropped never vanishes from the final.
+        loops = source_loops(ast, contract)
+        if loops["elsewhere"] or loops["functions"] - set(fnames):
+            raise Refused(
+                "functions",
+                "source loops without obligations: "
+                + ", ".join(sorted(loops["functions"] - set(fnames)) + loops["elsewhere"]),
+            )
         multi = len(fnames) > 1
         cdef = next(
             c
@@ -1464,6 +1772,7 @@ def attach(
                     "sig": f"{fname}({','.join(params)})",
                     "sel": int(fdef["functionSelector"], 16),
                     "params": params,
+                    "nrets": len((fdef.get("returnParameters") or {}).get("parameters") or []),
                 }
             )
         tmp = pathlib.Path(work) / "loop-final"
@@ -1522,27 +1831,44 @@ def attach(
         # bridge keeps True and is recorded, but a missing or foreign exporter or receipt refuses
         # the final.
         verify, verify_pin = spec_exporter(run)
-        try:
-            specs = spec_step(
-                run=lambda c, cwd=None, env=None: run(c, cwd=cwd, env=env),
-                lean_dir=lean_dir,
-                name=name,
-                contract=contract,
-                fnames=fnames,
-                whiles={f for f in fnames if loop_route(record, f) == "while-inferred"},
-                ast=ast,
-                src=src,
-                verify=verify,
-                lean_cmd=" ".join([*loop_cuts.LAKE, "env", "lean"]),
-                build=build,
-                env=lake_env,
-            )
-        except Refused as e:
-            if e.step != "spec":
-                raise
-            specs = {f: e.why for f in fnames}
+        # Any refusal of the export or the bridge refuses the final: a part is True only by the
+        # checked no-spec determination below (spec_gate, NAME.LoopSpecInventory), never by a refusal.
+        specs = spec_step(
+            run=lambda c, cwd=None, env=None: run(c, cwd=cwd, env=env),
+            lean_dir=lean_dir,
+            name=name,
+            contract=contract,
+            fnames=fnames,
+            whiles={f for f in fnames if loop_route(record, f) == "while-inferred"},
+            ast=ast,
+            src=src,
+            verify=verify,
+            lean_cmd=" ".join([*loop_cuts.LAKE, "env", "lean"]),
+            build=build,
+            env=lake_env,
+        )
+        # The export's selector inventory, kernel-checked, decides every part (spec_gate).
+        spec_file = d / "gen" / contract / "Spec.lean"
+        inventory = export_inventory(spec_file.read_text(), contract)
+        nospec = spec_gate(ast, contract, parts, specs, inventory)
+        inv_file = d / "LoopSpecInventory.lean"
+        inv_file.write_text(inventory_module(name, contract, sha(src), inventory, nospec))
+        why = build([f"{name}.LoopSpecInventory"])
+        if why:
+            raise Refused("inventory", f"the export's spec inventory does not check: {why}")
+        inv_mod = f"Certified.{name}.LoopSpecInventory"
+        no_spec = {
+            p["fname"]: {
+                "module": f"{name}.LoopSpecInventory",
+                "theorem": f"{inv_mod}.{re.sub(r'[^A-Za-z0-9_]', '_', p['fname'])}_no_spec",
+                "selector": f"0x{p['sel']:08x}",
+                "module_sha256": sha(inv_file),
+            }
+            for p in nospec
+        }
         for p in parts:
             p["spec"], p["nonvac"] = specs[p["fname"]], False
+            p["no_spec"] = no_spec.get(p["fname"])
         common = {
             "contract": contract,
             "gen_dir": g,
@@ -1551,11 +1877,23 @@ def attach(
             "parts": parts,
         }
         if any(isinstance(p["spec"], dict) for p in parts):
-            write(lean_dir / "Certified", name, record, **common)
             for p in parts:
-                if isinstance(p["spec"], dict):
+                if not isinstance(p["spec"], dict):
+                    continue
+                # A well-typed witness: return words the ensures must reject, tried in order.
+                for w in NONVAC_WORDS if p["nrets"] else NONVAC_WORDS[:1]:
+                    p["nonvac_word"] = w
+                    write(lean_dir / "Certified", name, record, **common)
                     why = build([modules(name, p["fname"] if multi else None)["nonvac"]])
-                    p["nonvac"] = True if why is None else f"the witness does not check: {why}"
+                    if why is None:
+                        break
+                p["nonvac"] = True if why is None else f"the witness does not check: {why}"
+                p["nonvac_witness"] = {
+                    "args": [0] * len(p["params"]),
+                    "storage": WITNESS_STORAGE,
+                    "output_words": [p["nonvac_word"]] * p["nrets"],
+                    "well_typed": why is None,
+                }
         sh, files = write(lean_dir / "Certified", name, record, **common)
         rc, out, err = run(
             [
@@ -1616,6 +1954,9 @@ def attach(
                 raise Refused("receipt", accepted)
             accepted = json.loads((d / "LoopSpec.lean.receipt.json").read_text())
         axioms = re.search(r"axioms \[([^\]]*)\]", out)
+        fresh_line = next((l for l in out.splitlines() if l.startswith("FRESH ")), None)
+        if fresh_line is None:
+            raise Refused("check", "check_final printed no fresh-byte line for this run's bytes")
         one = (lambda k: parts[0][k]) if not multi else (lambda k: {p["fname"]: p[k] for p in parts})
         record["loop_final"] = {
             "function": fnames[0],
@@ -1631,6 +1972,21 @@ def attach(
             "files": files,
             "final": json.loads((d / "final.json").read_text()),
             "axioms": axioms.group(1).split(", ") if axioms else None,
+            "fresh_byte": {
+                "check_final": fresh_line,
+                "runtime_sha256": hashlib.sha256(bytes.fromhex(plain)).hexdigest(),
+                "bytes": len(plain) // 2,
+            },
+            # Per function, never the aggregate: the spec it states (proved by the bridge, or True
+            # only by the checked no-spec determination: translation only), its bound and valid calls.
+            "parts": {p["fname"]: part_record(p, sh, multi) for p in parts},
+            "no_spec": no_spec,
+            "inventory": {
+                "module": f"{name}.LoopSpecInventory",
+                "theorem": f"{inv_mod}.inventory",
+                "specs": [{"name": n, "selector": f"0x{s:08x}"} for n, s in inventory],
+                "module_sha256": sha(inv_file),
+            },
         }
         log(f"loop final {', '.join(fnames)}: Certified.{name}.Final.final checked")
         return []

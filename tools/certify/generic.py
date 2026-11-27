@@ -22,6 +22,16 @@ Exit status and the last line printed:
      certified
   1  ERROR: <message>: the driver or a step failed
 
+A source the envelope blocks only on its loops takes the loop branch (loop_cuts, loop_resources,
+loop_final). It is CERTIFIED (exit 0, the requested tier's status) at the bounded loop tier exactly
+when loop_verdict accepts the checked loop final: check_final accepted Certified.NAME.Final.final with
+this run's fresh bytes and only propext, Classical.choice and Quot.sound, its closure replayed, it
+covers every function of the contract's ABI and every source loop, and each part states its function's
+exported spec (proved by the bridge, non-vacuous) or True by the checked no-spec determination. The
+statement is bounded: each part holds for every K ≤ Kmax on its valid calls (Valid K), which the
+record's loop_tier names. The unbounded tier (every loop limit n) is reported beside it, never
+dropped: "unbounded n: not certified", with the fixed-fuel resource result (out of gas) as its reason.
+
 --tier lifecycle (with --constructor-args W,... for a constructor with static word parameters) is
 about the creation, not the calls: solar's init code with the ABI-encoded arguments appended is run
 by EthLib, which must succeed and return the runtime bytes (solar's bin-runtime, with immutables
@@ -159,6 +169,15 @@ class Blocked(Exception):
 
 class Failed(Exception):
     pass
+
+
+class LoopCertified(Exception):
+    """The loop branch's verdict at the bounded loop tier (loop_verdict): STATUS (the requested tier's,
+    CERTIFIED or COMPILED), the run's last LINE, and TIER, the record's loop_tier."""
+
+    def __init__(self, status, line, tier):
+        super().__init__(line)
+        self.status, self.line, self.tier = status, line, tier
 
 
 def spec_rejection(lines):
@@ -4920,9 +4939,9 @@ def loop_final(record, reasons, src, ast, a, work, name):
     """The loop's published theorem (tools/certify/loop_final.py) in the loop cut hook's clone, once
     the hook built the obligations of every loop function: the stage proofs of this run's export, the
     fixed-fuel module, the join, final.py's statement, lake build NAME.Final and check_final with this
-    run's bytes. Records loop_final. The run stays BLOCKED either way: the statement covers only the
-    loop function's calls, from any storage (runtime only), with the specification declared vacuous.
-    On success the loop function's OPEN reasons become one reason naming the checked theorem; on a
+    run's bytes. Records loop_final. The statement covers only the loop functions' calls, from any
+    storage (runtime only); loop_verdict then decides whether it is CERTIFIED at the bounded tier.
+    On success the loop functions' OPEN reasons become one reason naming the checked theorem; on a
     refusal its reason is added."""
     import fixed_fuel
     import loop_final as lf
@@ -4997,6 +5016,203 @@ def loop_final(record, reasons, src, ast, a, work, name):
             f"only, {whose} calls only, {spec_s}",
         }
     ]
+
+
+# The axioms a certified final may depend on (check_final.lean's gate).
+FINAL_AXIOMS = {"propext", "Classical.choice", "Quot.sound"}
+def abi_functions(ast, contract):
+    """The calls the runtime bytecode of CONTRACT dispatches, from the solc AST: (functions by name,
+    other entry points) where the functions are the external and public functions of CONTRACT and
+    its bases, and the other entry points are public state variables' getters, fallback and receive."""
+    defs = {c.get("id"): c for c in ast.get("nodes", []) if c.get("nodeType") == "ContractDefinition"}
+    top = next(c for c in defs.values() if c.get("name") == contract)
+    fns, other = set(), []
+    for i in top.get("linearizedBaseContracts") or [top["id"]]:
+        c = defs.get(i)
+        if c is None:
+            other.append(f"a base (id {i}) outside the source's AST")
+            continue
+        for n in c.get("nodes", []):
+            if n.get("nodeType") == "FunctionDefinition":
+                if n.get("kind") in ("fallback", "receive"):
+                    other.append(f"{c.get('name')}.{n.get('kind')}")
+                elif n.get("kind") == "function" and n.get("visibility") in ("public", "external"):
+                    fns.add(n.get("name"))
+            elif (
+                n.get("nodeType") == "VariableDeclaration"
+                and n.get("stateVariable")
+                and n.get("visibility") == "public"
+            ):
+                other.append(f"{c.get('name')}.{n.get('name')} (public getter)")
+    return fns, other
+
+
+def loop_promotion_problem(record, reasons, src, ast, a):
+    """Why the loop branch's checked final is not CERTIFIED at the bounded loop tier, or None. Every
+    condition is read from this run (its record, its reasons, the solc AST and a fresh compile),
+    per function, never from the statement's aggregate:
+    * the requested tier is certified (SPEC natspec) or compiled (SPEC none);
+    * loop_final checked Certified.NAME.Final.final: no refusal, check_final's fresh-byte line for
+      this run's bytes (whose SHA-256 is a fresh compile's now), axioms among propext,
+      Classical.choice and Quot.sound (and some), the closure replayed with nothing trusted;
+    * no reason is left but the final's own: no other envelope reason, no OPEN reason of a loop the
+      final does not cover;
+    * every loop of the source is in a loop function the final covers (source_loops), and every
+      entry point of the runtime is one of them (abi_functions): the final's parts are the calls;
+    * no NatSpec tag that applies beyond one function (a contract invariant, a constructor's or a
+      state variable's), which no part states;
+    * every spec of the export's kernel-checked inventory is a part's;
+    * each part states its function's exported spec, proved by the bridge with a well-typed
+      non-vacuity witness checked (its return data decodes, so the ensures or invariants reject it,
+      review 207), or True by the checked no-spec determination (translation only); at the
+      certified tier at least one part states a spec."""
+    import loop_final as lf_mod
+
+    tier = record.get("requested_tier")
+    want = {"certified": "natspec", "compiled": "none"}.get(tier)
+    if want is None or a.spec != want:
+        return f"the bounded loop tier certifies the certified or compiled tier, not {tier!r} with SPEC {a.spec}"
+    lf = record.get("loop_final") or {}
+    if not lf or lf.get("refused"):
+        return "no checked loop final"
+    fin = lf.get("final") or {}
+    if not fin.get("theorem") or not lf.get("functions") or not isinstance(lf.get("parts"), dict):
+        return "the loop final record has no theorem, functions or per-function parts"
+    axs = lf.get("axioms")
+    if not axs or not set(axs) <= FINAL_AXIOMS:
+        return f"the final's axioms are not among {sorted(FINAL_AXIOMS)}: {axs}"
+    fb = lf.get("fresh_byte") or {}
+    if not str(fb.get("check_final", "")).startswith("FRESH "):
+        return "check_final did not gate the statement's bytes on this run's (no fresh-byte line)"
+    contract = record.get("contract") or __import__("fixed_fuel").contract_of(ast, a.contract)
+    plain, err = solar_runtime(build_solar(), src, contract)
+    if plain is None or hashlib.sha256(bytes.fromhex(plain)).hexdigest() != fb.get("runtime_sha256"):
+        return "the bytes check_final bound are not a fresh compile's of this source"
+    rp = lf.get("replay") or {}
+    if not rp.get("closure") or rp.get("trusted_count") != 0:
+        return f"the final's closure replay is missing or trusts constants: {rp.get('trusted_count')}"
+    covered = set(lf["functions"])
+    own = [
+        r
+        for r in reasons
+        if r.get("feature") == "loop" and r.get("detail", "").startswith("loop final checked")
+    ]
+    left = [r for r in reasons if r not in own]
+    if len(own) != 1 or left:
+        return "other reasons remain: " + "; ".join(
+            f"{r.get('feature')} ({r.get('where')}): {r.get('detail', '')[:120]}" for r in left[:3]
+        )
+    loops = lf_mod.source_loops(ast, contract)
+    if loops["elsewhere"] or loops["functions"] - covered:
+        return "source loops the final does not cover: " + ", ".join(
+            sorted(loops["functions"] - covered) + loops["elsewhere"]
+        )
+    fns, other = abi_functions(ast, contract)
+    if other or fns - covered:
+        return "entry points of the runtime the final does not state: " + ", ".join(
+            sorted(fns - covered) + other
+        )
+    try:
+        wide = lf_mod.spec_inventory(ast, contract)["contract"]
+    except lf_mod.Refused as e:
+        return e.why
+    if wide:
+        return "NatSpec no part states: " + ", ".join(f"{w}: {x}" for w, x in wide[:4])
+    inv = lf.get("inventory") or {}
+    if not inv.get("theorem"):
+        return "no kernel-checked selector inventory of the export"
+    stated = {p.get("selector") for p in lf["parts"].values()}
+    extra = [s["name"] for s in inv.get("specs", []) if s.get("selector") not in stated]
+    if extra:
+        return "the export specifies functions no part states: " + ", ".join(extra)
+    proved = 0
+    for f in lf["functions"]:
+        p = lf["parts"].get(f) or {}
+        if p.get("spec") == "proved":
+            if p.get("nonvacuous") is not True or (p.get("nonvac_witness") or {}).get("well_typed") is not True:
+                return (
+                    f"{f}: no well-typed non-vacuity witness (one whose return data decodes) refutes "
+                    f"the exported spec: {p.get('nonvacuous')}"
+                )
+            proved += 1
+        elif p.get("spec") == "none":
+            if not (p.get("no_spec") or {}).get("theorem"):
+                return f"{f}: True without the checked no-spec determination"
+        else:
+            return f"{f}: its spec is not stated ({p.get('label')})"
+    if tier == "certified" and not proved:
+        return "no part states an exported spec: translation only, not the certified tier"
+    return None
+
+
+def loop_verdict(record, reasons, src, ast, a, out_of_gas):
+    """The loop branch's verdict on its checked final: raises LoopCertified (record loop_tier) when
+    loop_promotion_problem finds nothing, the requested tier's status at the bounded tier, with the
+    unbounded tier reported beside it as not certified (the fixed-fuel out of gas, or no theorem
+    past the iteration bounds); else returns REASONS, the final's own reason saying why it is not
+    certified, and the branch's verdict stays BLOCKED (or the out of gas, REJECTED)."""
+    why = loop_promotion_problem(record, reasons, src, ast, a)
+    lf = record.get("loop_final") or {}
+    if why is not None:
+        if lf and not lf.get("refused"):
+            record["loop_tier"] = {"status": "not certified", "why": why}
+            return [
+                dict(r, detail=r["detail"] + f"; not certified: {why}")
+                if r.get("feature") == "loop" and r.get("detail", "").startswith("loop final checked")
+                else r
+                for r in reasons
+            ]
+        return reasons
+    fin, status = lf["final"], record["requested_tier"].upper()
+    bounds = {
+        f: {
+            "K_max": (p.get("iteration_bound") or {}).get("max"),
+            "valid": p.get("valid"),
+            "gas": p.get("gas"),
+        }
+        for f, p in lf["parts"].items()
+    }
+    bounded = [f for f, x in bounds.items() if x["K_max"] is not None]
+    if out_of_gas is not None:
+        unb = f"resource: out of gas (the unbounded fixed-fuel obligation): {out_of_gas}"
+    elif bounded:
+        unb = (
+            "no theorem covers loop limits past the iteration bounds ("
+            + ", ".join(f"{f}: K ≤ {bounds[f]['K_max']}" for f in bounded)
+            + ")"
+        )
+    else:
+        unb = None
+    ro = record.get("resource_obligation") or {}
+    if unb and out_of_gas is None and ro.get("verdict") == "unsupported":
+        unb += f"; the unbounded fixed-fuel obligation is unsupported: {str(ro.get('why'))[:200]}"
+    tier = {
+        "status": status,
+        "tier": "bounded",
+        "label": "bounded loop tier: for every iteration bound K ≤ Kmax, each loop function's valid calls "
+        "(Valid K: its selector, uint256 argument words, no value, any storage, the loop's limit at most K); "
+        "runtime only",
+        "theorem": fin["theorem"],
+        "statement_module": fin.get("statement_module"),
+        "bounds": bounds,
+        "parts": {f: {"spec": p.get("spec"), "label": p.get("label")} for f, p in lf["parts"].items()},
+        "axioms": lf["axioms"],
+        "fresh_byte": lf["fresh_byte"],
+        "replay": {k: lf["replay"].get(k) for k in ("closure", "replayed_count", "trusted_count")},
+        "strongest": fin.get("strongest"),
+        "excluded": fin.get("excluded"),
+        "unbounded": {"status": "not certified", "why": unb}
+        if unb
+        else {"status": "n/a", "why": "every loop's limit is a literal: the statement has no iteration bound"},
+    }
+    record["loop_tier"] = tier
+    kb = ", ".join(f"{f}: ∀ K ≤ {x['K_max']}, {x['valid']}" for f, x in bounds.items() if x["K_max"] is not None)
+    line = (
+        f"{status}: {record.get('name')}: bounded loop tier: {fin['theorem']} checked ({kb or 'literal limits'}; "
+        f"fresh bytes; axioms {', '.join(lf['axioms'])})"
+        + (f"; unbounded n: not certified ({unb[:300]})" if unb else "")
+    )
+    raise LoopCertified(status, line, tier)
 
 
 def rec_route(record, src, ast, a, work, name, contract):
@@ -6156,6 +6372,9 @@ def main():
                 reasons = b.reasons + extra
                 if record.get("loop_cuts") and not record.get("loop_cuts_blocked"):
                     reasons = loop_final(record, reasons, src, ast, a, work, name)
+                # CERTIFIED at the bounded tier (raises LoopCertified) only when the checked final
+                # passes every gate; else the reasons say why and the verdict is unchanged.
+                reasons = loop_verdict(record, reasons, src, ast, a, out_of_gas)
                 if out_of_gas is not None:
                     raise out_of_gas
                 raise Blocked(reasons) from b
@@ -6590,6 +6809,8 @@ def main():
                 blocked=b.reasons,
             )
         finish("BLOCKED", 3, f"BLOCKED: {b}", blocked=b.reasons)
+    except LoopCertified as c:
+        finish(c.status, 0, c.line, loop_tier=c.tier)
     except Failed as f:
         if record.get("natspec_refuted") and "refuted in the kernel" not in str(f):
             finish(
