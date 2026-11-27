@@ -19,6 +19,92 @@ from validator.common import Program, Unsupported
 
 
 class MirCfgTests(unittest.TestCase):
+    def test_specialization_checks_every_direct_caller(self):
+        original = """@module ReadArgument
+fn @read_word(arg0: i256) -> i256 {
+  bb0:
+    v0 = calldataload arg0
+    ret v0
+}
+fn @first() -> i256 {
+  bb0:
+    v0 = icall @read_word, 4
+    ret v0
+}
+fn @second() -> i256 {
+  bb0:
+    v0 = icall @read_word, 4
+    ret v0
+}
+"""
+        specialized = original.replace("calldataload arg0", "calldataload 4")
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{side}.mir" for side in ("before", "after"))
+            args = (
+                (before, after),
+                SOLAR,
+                native.default(SOLAR),
+                "cancun",
+                60,
+                "read_word",
+            )
+            before.write_text(original)
+            after.write_text(specialized)
+            result = mir_cfg.check(*args, specialize=True)
+            self.assertEqual(result.status, "verified")
+            proof = result.program.import_evidence["correspondence"]["read_word"]
+            self.assertEqual(len(proof["specialized_arguments"]["direct_sites"]), 2)
+
+            for path in (before, after):
+                prefix, second = path.read_text().split("fn @second", 1)
+                path.write_text(
+                    prefix
+                    + "fn @second"
+                    + second.replace("@read_word, 4", "@read_word, 36")
+                )
+            with self.assertRaisesRegex(Unsupported, "every direct call"):
+                mir_cfg.check(*args, specialize=True)
+
+    def test_immutable_staging_checks_the_store_address(self):
+        original = """@module Staging
+@immutables
+  HASH: bytes32
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = chainid
+    storeimmutable HASH, v0
+    ret
+}
+"""
+        lowered = original.replace(
+            "[constructor]", "[constructor, creation_only]"
+        ).replace("storeimmutable HASH, v0", "mstore 192, v0")
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{side}.mir" for side in ("before", "after"))
+            before.write_text(original)
+            after.write_text(lowered)
+            args = (
+                (before, after),
+                SOLAR,
+                native.default(SOLAR),
+                "cancun",
+                60,
+                "constructor",
+            )
+            result = mir_cfg.check(*args, lowering="lower-immutables")
+            self.assertEqual(result.status, "verified")
+            proof = result.program.import_evidence["correspondence"]["constructor"]
+            self.assertEqual(proof["immutable_staging"], [(0, 192)])
+
+            after.write_text(lowered.replace("mstore 192", "mstore 224"))
+            with self.assertRaisesRegex(
+                Unsupported, "changed a different typed action"
+            ):
+                mir_cfg.check(*args, lowering="lower-immutables")
+
     def test_indvar_simplify_checks_both_cursors(self):
         original = """@module TwoCursors
 fn @copy(arg0: i256, arg1: i256, arg2: i256) -> i256 {

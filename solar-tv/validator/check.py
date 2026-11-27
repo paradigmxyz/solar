@@ -653,6 +653,7 @@ def check_mir_lowering(paths, solar, replay, version, timeout, function, verbose
         dead_arguments,
         lower_arithmetic,
         lower_checks,
+        lower_immutables,
         lower_integers,
         lower_mapping_slots,
         lower_memory_objects,
@@ -668,6 +669,7 @@ def check_mir_lowering(paths, solar, replay, version, timeout, function, verbose
         mir_schedule.check,
         merge_aborts.check,
         lower_integers.check,
+        lower_immutables.check,
         lower_mapping_slots.check,
         lower_arithmetic.check,
         lower_checks.check,
@@ -1560,6 +1562,27 @@ def main() -> int:
                 except (Unsupported, OSError, subprocess.TimeoutExpired) as retry:
                     if args.verbose:
                         print(f"MIR CFG proof: {retry}", file=sys.stderr)
+                    if isinstance(retry, Unsupported) and not args.valid_heap:
+                        try:
+                            fallback = mir_cfg.check(
+                                (args.before, args.after),
+                                solar,
+                                rust_replay,
+                                version,
+                                args.timeout,
+                                args.function,
+                                specialize=True,
+                            )
+                        except (
+                            Unsupported,
+                            OSError,
+                            subprocess.TimeoutExpired,
+                        ) as specialization:
+                            if args.verbose:
+                                print(
+                                    f"MIR private specialization: {specialization}",
+                                    file=sys.stderr,
+                                )
         status = (
             "timeout"
             if isinstance(error, subprocess.TimeoutExpired)

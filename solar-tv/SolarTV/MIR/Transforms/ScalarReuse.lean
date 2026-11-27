@@ -164,6 +164,13 @@ theorem negate_equality {width : Nat} (a b : BitVec width) :
       MIR.compare .eq (MIR.compare .eq a b) 0 = MIR.compare .ne a b := by
   by_cases same : a = b <;> simp [MIR.compare, same]
 
+theorem select_mul (flag : BitVec 1) (word : Word) :
+    MIR.eval .mul word ((MIR.compare .eq flag 0).setWidth 256) =
+      (if flag = 1 then 0 else word) ∧
+    MIR.eval .mul ((MIR.compare .eq flag 0).setWidth 256) word =
+      (if flag = 1 then 0 else word) := by
+  rcases BitVec.eq_zero_or_eq_one flag with rfl | rfl <;> simp [MIR.eval, MIR.compare]
+
 theorem negate_cut {width : Nat} (word lower : BitVec width)
     (fits : lower.toNat + 1 < 2^width) :
     MIR.compare .eq (MIR.compare .lt lower word) 0 =

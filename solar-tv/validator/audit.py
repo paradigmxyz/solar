@@ -538,6 +538,27 @@ def record(
                     ]
                 )
             if any(
+                check.get("specialized_arguments")
+                for check in program.import_evidence["correspondence"].values()
+            ):
+                assumptions.append(
+                    "private MIR specialization applies to activations through the complete unchanged direct-call inventory; the kernel checks the literal operands and their typed argument reads; arbitrary standalone callee arguments are outside this scope"
+                )
+            if any(
+                check.get("immutable_staging")
+                for check in program.import_evidence["correspondence"].values()
+            ):
+                assumptions.append(
+                    "constructor-only full-word immutable staging under the fixed frame-free MIR layout; the kernel checks runtime closure and exact memory-action equality at the bound slots; physical deployment patching is outside the certificate"
+                )
+            if any(
+                check.get("inline_carriers")
+                for check in program.import_evidence["correspondence"].values()
+            ):
+                assumptions.append(
+                    "defined typed slice arguments and immutable SSA pointer carriers; unchanged assignments and their dominating uses bind the hoisted pure projections to the loop"
+                )
+            if any(
                 check.get("guarded_widths")
                 for check in program.import_evidence["correspondence"].values()
             ):

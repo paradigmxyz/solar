@@ -22,6 +22,7 @@ from . import (
     prune,
     scalar_checks,
     scalar_reuse,
+    specialized_arguments,
     state_read_reuse,
     type_prune,
     width_guards,
@@ -1189,6 +1190,7 @@ def check(
     lowering=None,
     valid_heap=False,
     width_checks=False,
+    specialize=False,
 ):
     from .check import PRELUDE, ROOT, build_model, run
 
@@ -1211,6 +1213,8 @@ def check(
         from . import lower_alloc
 
         helper_adapter = lower_alloc
+    elif lowering == "lower-immutables":
+        from . import lower_immutables
 
     texts, models, interfaces, declarations = [], [], [], []
     for path in paths:
@@ -1274,7 +1278,9 @@ def check(
         if function is None and helper is None:
             raise Unsupported("MIR module proof needs the checked private helper")
 
-    if interfaces[0] != interfaces[1]:
+    if lowering == "lower-immutables":
+        immutable_scope = lower_immutables.bind(models[0], tables, interfaces, function)
+    elif interfaces[0] != interfaces[1]:
         raise Unsupported("MIR CFG proof changed shared declarations or interfaces")
     nonfresh = (
         lower_alloc.nonfresh_activations(models[0])
@@ -1390,10 +1396,27 @@ set_option maxHeartbeats 2000000
         i = len(checked)
         source = a
         expansions = {}
+        specialization_code = ""
+        if specialize and name == function:
+            binding = specialized_arguments.bind(
+                models[0], tables, name, f"specialized{i}"
+            )
+            if binding is None:
+                raise Unsupported(
+                    "MIR specialization needs literal arguments at every direct call"
+                )
+            constants, expansions["specialized_arguments"], specialization_code = (
+                binding
+            )
+            source, b = (
+                specialized_arguments.substitute_arguments(body, constants)
+                for body in (a, b)
+            )
         private_projection = None
         affine_code = ""
         if (
             lowering is None
+            and not specialize
             and a != b
             and (affine := affine_loop.project(a, b, f"affine{i}"))
         ):
@@ -1431,6 +1454,17 @@ set_option maxHeartbeats 2000000
                     helper["id"] if helper else None,
                     allow_floor=a["id"] not in nonfresh,
                 )
+            elif lowering == "lower-immutables":
+                expanded = []
+                if name == function:
+                    source, expanded, code = lower_immutables.project(
+                        a, *immutable_scope, f"immutable{i}"
+                    )
+                    if not dead_ssa.same_definitions(source, b):
+                        raise Unsupported(
+                            "immutable staging changed a different typed action"
+                        )
+                    specialization_code += code
             elif helper_adapter is not None:
                 source, expanded = helper_adapter.materialize_pair(
                     a, b, helper["id"] if helper else None
@@ -1448,6 +1482,7 @@ set_option maxHeartbeats 2000000
                     "lower-memory-zero": "memory_zero_expansions",
                     "lower-checks": "guard_expansions",
                     "lower-alloc": "allocation_expansions",
+                    "lower-immutables": "immutable_staging",
                 }[lowering]
                 expansions[field] = expanded
         (first, first_checks), (second, second_checks) = map(
@@ -1497,6 +1532,7 @@ set_option maxHeartbeats 2000000
             + second_index_code
         )
         body_code += affine_code
+        body_code += specialization_code
         if private_projection is not None:
             body_code += private_cursor.certificate(i, private_projection[1])
         for side, graph in enumerate((old, new)):
@@ -1580,11 +1616,24 @@ set_option maxHeartbeats 2000000
                         version,
                         empty_targets=empty_targets,
                     )
-                    normalized.append(reduced)
-                    scalar_stats.append(stats)
                     body_code += scalar_reuse.certificate(
                         f"scalar{i}_{side}", projected, sites
                     )
+                    pruned, literal_count = scalar_reuse.literal_edges(reduced)
+                    if literal_count:
+                        reduced, extra, sites = scalar_reuse.normalize(
+                            pruned,
+                            scalar_definitions,
+                            version,
+                            empty_targets=empty_targets,
+                        )
+                        stats = dict(Counter(stats) + Counter(extra))
+                        stats["pruned_literal_edges"] = literal_count
+                        body_code += scalar_reuse.certificate(
+                            f"literalScalars{i}_{side}", pruned, sites
+                        )
+                    normalized.append(reduced)
+                    scalar_stats.append(stats)
                 old, new = map(import_graph, normalized)
                 try:
                     pairs = pairing(old, new)
@@ -1602,6 +1651,29 @@ set_option maxHeartbeats 2000000
                         width_stats = widths
                         old, new = projected
                         body_code += width_code
+                if pairs is None:
+                    carriers = [
+                        scalar_reuse.inline_carriers(body) for body in normalized
+                    ]
+                    if any(stats for _, stats, _ in carriers):
+                        projected = tuple(import_graph(body) for body, _, _ in carriers)
+                        try:
+                            pairs = pairing(*projected)
+                        except Unsupported:
+                            pass
+                        else:
+                            old, new = projected
+                            expansions["inline_carriers"] = [
+                                stats for _, stats, _ in carriers
+                            ]
+                            body_code += """
+#print axioms MIR.DeadSlice.extract
+#print axioms MIR.PhaseShaping.full_word_casts
+"""
+                            for side, (_, _, sites) in enumerate(carriers):
+                                body_code += scalar_reuse.certificate(
+                                    f"carriers{i}_{side}", normalized[side], sites
+                                )
                 if pairs is None:
                     first_state_use = read_only is None
                     if first_state_use:
@@ -1805,6 +1877,7 @@ set_option maxHeartbeats 2000000
             "lower-memory-zero": "kernel-checked-memory-zero",
             "lower-checks": "kernel-checked-conditional-checks",
             "lower-alloc": "kernel-checked-allocation-lowering",
+            "lower-immutables": "kernel-checked-immutable-staging",
         }.get(
             lowering,
             "kernel-checked-private-cursor-store"
@@ -1813,6 +1886,8 @@ set_option maxHeartbeats 2000000
             if heap_used
             else "kernel-checked-affine-induction"
             if affine_used
+            else "kernel-checked-private-specialization"
+            if specialize
             else "kernel-checked-typed-jump-chain",
         ),
         "functions": sorted(checked),

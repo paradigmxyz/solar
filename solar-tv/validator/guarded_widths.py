@@ -223,6 +223,24 @@ class Guards:
                     )
         return None
 
+    def narrow_comparison(self, inst, block):
+        op = inst["operation"]
+        if inst["type"] != FLAG or op["kind"] != "ne":
+            return None
+        for word, widened in (op["args"], op["args"][::-1]):
+            if word["type"] != WORD or word["kind"] not in DEFINED_WORDS:
+                continue
+            _, producer = self.definition(widened)
+            if (
+                widened["type"] == WORD
+                and producer.get("kind") == "word"
+                and producer["args"][0]["type"] == FLAG
+                and producer["args"][0]["kind"] in DEFINED_WORDS
+                and (bound := self.bound(word, block, 2))
+            ):
+                return word, producer["args"][0], bound, widened == op["args"][0]
+        return None
+
 
 def masked_shift(inst, guards, tag):
     op = inst["operation"]
@@ -310,6 +328,21 @@ theorem {tag} (old incoming : Word) :
 """
 
 
+def narrow_equation(tag, bound, reverse):
+    expression = bound.expression
+    widened = "(flag.setWidth 256)"
+    left, right = (widened, expression) if reverse else (expression, widened)
+    facts = "\n".join(f"  {line}" for line in bound.proof)
+    return f"""
+theorem {tag} (flag : BitVec 1) {bound.inputs} {" ".join(bound.premises)} :
+    MIR.compare .ne {left} {right} = MIR.compare .ne flag (MIR.compare .ne {expression} 0) := by
+{facts}
+  have small : {expression}.toNat < 2 := by omega
+  exact (MIR.GuardedWidths.compare_bool {expression} flag small).{"2" if reverse else "1"}
+#print axioms {tag}
+"""
+
+
 def normalize(body, name):
     blocks = body["blocks"]
     if len(blocks) > 1024:
@@ -321,6 +354,34 @@ def normalize(body, name):
     for index, block in enumerate(blocks):
         instructions = []
         for inst in block["instructions"]:
+            if narrowed := guards.narrow_comparison(inst, index):
+                word, flag, bound, reverse = narrowed
+                instructions.extend(
+                    [
+                        {
+                            "result": fresh,
+                            "type": FLAG,
+                            "operation": {
+                                "kind": "ne",
+                                "args": [word, literal(0, WORD)],
+                            },
+                        },
+                        {
+                            **inst,
+                            "operation": {
+                                "kind": "ne",
+                                "args": [flag, scalar_checks.local(fresh, FLAG)],
+                            },
+                        },
+                    ]
+                )
+                fresh += 1
+                sites.update(bound.sites)
+                proofs.append(
+                    narrow_equation(f"{name}Compare{len(proofs)}", bound, reverse)
+                )
+                stats["boolean_comparisons"] += 1
+                continue
             if blend := packed_blend(inst, guards):
                 old, incoming, keep = blend
                 low = (2**256 - 1) ^ keep

@@ -41,6 +41,7 @@ AXIOMS = """
 #print axioms MIR.ScalarReuse.below_one
 #print axioms MIR.ScalarReuse.nonmax_tests
 #print axioms MIR.ScalarReuse.widened_zero_test
+#print axioms MIR.ScalarReuse.select_mul
 #print axioms MIR.ScalarReuse.negate_equality
 #print axioms MIR.ScalarReuse.negate_cut
 #print axioms MIR.ScalarReuse.widened_sub_xor
@@ -391,6 +392,135 @@ def zero_test(op, retained):
     return op, None
 
 
+def select_product(inst, retained):
+    op = inst["operation"]
+    if inst["type"] != WORD or op.get("name") != "mul":
+        return inst
+    for value, multiplier in (op["args"], op["args"][::-1]):
+        flag = widened_input(definition(multiplier, retained), multiplier)
+        if flag is None or flag["type"] != FLAG or value["type"] != WORD:
+            continue
+        zero = literal(0, WORD)
+        test = definition(flag, retained)
+        if test.get("name") == "eq" and literal(0, FLAG) in test["args"]:
+            bit = next(
+                (part for part in test["args"] if part != literal(0, FLAG)), None
+            )
+            if bit is not None and bit["type"] == FLAG:
+                return {
+                    **inst,
+                    "operation": {"kind": "select", "args": [bit, zero, value]},
+                }
+    return inst
+
+
+def literal_edges(body):
+    """Project checked literal decisions before recalculating reachable phi inputs."""
+    blocks, pruned = [], 0
+    for block in body["blocks"]:
+        term = block["terminator"]
+        if term["kind"] == "branch" and term["args"] in (
+            [literal(0, FLAG)],
+            [literal(1, FLAG)],
+        ):
+            target = (
+                term["then"] if term["args"] == [literal(1, FLAG)] else term["else"]
+            )
+            block = {
+                **block,
+                "terminator": {"kind": "jump", "target": target, "args": []},
+            }
+            pruned += 1
+        blocks.append(block)
+    if not pruned:
+        return body, 0
+    successors = [phi_edges.targets(block["terminator"]) for block in blocks]
+    _, predecessors = dominance(successors)
+    for index, block in enumerate(blocks):
+        if index in predecessors:
+            phis = [
+                {
+                    **phi,
+                    "incoming": [
+                        arm for arm in phi["incoming"] if arm[0] in predecessors[index]
+                    ],
+                }
+                for phi in block["phis"]
+            ]
+            blocks[index] = {**block, "phis": phis}
+    return {**body, "blocks": blocks}, pruned
+
+
+def inline_carriers(body):
+    """Defer projection of immutable SSA carriers to each use."""
+    blocks = body["blocks"]
+    successors = [phi_edges.targets(block["terminator"]) for block in blocks]
+    dom, _ = dominance(successors)
+    aliases, stats, owners = {}, Counter(), {}
+    for index in sorted(dom, key=lambda block: (len(dom[block]), block)):
+        for inst in blocks[index]["instructions"]:
+            ty, op, result = inst["type"], inst["operation"], inst["result"]
+            if result is None:
+                continue
+            args = substitute(op["args"], aliases)
+            if (
+                op["kind"] == "extract_value"
+                and op["index"] == 0
+                and op["aggregate_type"]["kind"] == "slice"
+                and ty["kind"] == "pointer"
+                and ty["location"] == op["aggregate_type"]["location"]
+                and args[0]["kind"] == "arg"
+                and args[0]["type"] == op["aggregate_type"]
+            ):
+                aliases[result] = {"kind": "slice_base", "type": ty, "args": args}
+                stats["slice_bases"] += 1
+            elif (
+                op["kind"] == "low_bits"
+                and op["bits"] == 256
+                and ty == WORD
+                and args[0]["kind"] in {"arg", "local", "slice_base"}
+                and args[0]["type"]["kind"] == "pointer"
+                and args[0]["type"]["bits"] == 256
+            ):
+                aliases[result] = {"kind": "pointer_carrier", "type": ty, "args": args}
+                stats["pointer_carriers"] += 1
+            else:
+                continue
+            owners[result] = index
+    if not aliases:
+        return body, {}, ""
+    sites = set()
+    projected = []
+    for index, block in enumerate(blocks):
+        if index not in dom:
+            projected.append(block)
+            continue
+        if aliases.keys() & set(dead_ssa.reads(block["phis"], reject_undefined=False)):
+            return body, {}, ""
+        for source in (
+            set(dead_ssa.reads(block, reject_undefined=False)) & aliases.keys()
+        ):
+            owner = owners[source]
+            if owner != index:
+                if owner not in dom[index]:
+                    return body, {}, ""
+                sites.add((owner, index))
+        projected.append(
+            substitute(
+                {
+                    **block,
+                    "instructions": [
+                        inst
+                        for inst in block["instructions"]
+                        if inst["result"] not in aliases
+                    ],
+                },
+                aliases,
+            )
+        )
+    return {**body, "blocks": projected}, dict(stats), sites
+
+
 def complemented_branch(term, retained):
     if term["kind"] != "branch":
         return None
@@ -652,6 +782,10 @@ def normalize(body, definitions, fork, *, empty_targets=None):
         for original in block["instructions"]:
             inst = substitute(original, aliases)
             result = inst["result"]
+            selected = select_product(inst, retained)
+            if selected != inst:
+                inst = selected
+                stats["select_products"] += 1
             op = inst["operation"]
             if scalar_checks.inactive(op):
                 stats["inactive_checks"] += 1

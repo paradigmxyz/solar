@@ -41,6 +41,20 @@ theorem widen_bool (word : Word) (small : word.toNat < 2) :
   rw [widened]
   exact MIR.Effects.bool_of_bound word (by omega)
 
+theorem compare_bool (word : Word) (flag : BitVec 1) (small : word.toNat < 2) :
+    MIR.compare .ne word (flag.setWidth 256) = MIR.compare .ne flag (MIR.compare .ne word 0) ∧
+    MIR.compare .ne (flag.setWidth 256) word = MIR.compare .ne flag (MIR.compare .ne word 0) := by
+  let bit := MIR.compare .ne word 0
+  have widen : bit.setWidth 256 = word := widen_bool word small
+  have narrow (a b : BitVec 1) :
+      MIR.compare .ne (a.setWidth 256) (b.setWidth 256) = MIR.compare .ne b a ∧
+      MIR.compare .ne (b.setWidth 256) (a.setWidth 256) = MIR.compare .ne b a := by
+    rcases BitVec.eq_zero_or_eq_one a with rfl | rfl <;>
+      rcases BitVec.eq_zero_or_eq_one b with rfl | rfl <;> decide
+  change MIR.compare .ne word (flag.setWidth 256) = MIR.compare .ne flag bit ∧
+    MIR.compare .ne (flag.setWidth 256) word = MIR.compare .ne flag bit
+  simpa only [widen] using narrow bit flag
+
 theorem shl_mask (word amount : Word) (bits : Nat) (fits : bits ≤ 256)
     (discarded : 256 ≤ bits + amount.toNat) :
     MIR.shift .shl (MIR.eval .and word (BitVec.ofNat 256 (2^bits-1))) amount =
