@@ -1,4 +1,4 @@
-use super::item::FunctionFlags;
+use super::{PARSER_RECURSION_LIMIT, item::FunctionFlags};
 use crate::{PResult, Parser};
 use solar_ast::{token::*, *};
 use solar_interface::kw;
@@ -16,8 +16,13 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             .parse_spanned(Self::parse_basic_ty_kind)
             .map(|(span, kind)| Type { span, kind })?;
 
-        // Parse suffixes.
+        // Parse suffixes. Each one adds a level to the type, which later passes walk recursively.
+        let mut suffixes = 0;
         while self.eat(TokenKind::OpenDelim(Delimiter::Bracket)) {
+            suffixes += 1;
+            if self.recursion_depth + suffixes > PARSER_RECURSION_LIMIT {
+                return Err(self.recursion_limit_reached("type"));
+            }
             let size = if self.check_noexpect(TokenKind::CloseDelim(Delimiter::Bracket)) {
                 None
             } else {
