@@ -434,7 +434,7 @@ def evaluate_case(
                 target, record = candidate
         if (
             row["layer"] == "evmir"
-            and row["pass"] == "stack-reschedule"
+            and row["pass"] in {"reorder-pushes", "stack-reschedule"}
             and region
             and record["status"] in {"unsupported", "timeout", "inconclusive"}
         ):

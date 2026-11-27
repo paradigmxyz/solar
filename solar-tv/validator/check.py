@@ -1245,7 +1245,7 @@ def main() -> int:
                         }
                     )
                 ):
-                    from . import source_identity
+                    from . import outline, source_identity
 
                     result = None
                     if (
@@ -1270,6 +1270,18 @@ def main() -> int:
                             ]
                             result = evm_region.check_universal(
                                 *contextual, args.timeout
+                            )
+                        except Unsupported:
+                            pass
+                    if result is None and args.stack_height is None:
+                        try:
+                            result = outline.check(
+                                (args.before, args.after),
+                                solar,
+                                rust_replay,
+                                version,
+                                args.timeout,
+                                args.region,
                             )
                         except Unsupported:
                             pass
@@ -1673,6 +1685,8 @@ def main() -> int:
                     record["region"]["stack_height"] = None
                     if args.stack_height is not None:
                         record["region"]["requested_stack_height"] = args.stack_height
+                if result.program and result.program.scope == "outlined-prefix":
+                    record["region"]["proof"] = result.program.import_evidence["kind"]
         if args.report:
             audit.write(args.report, record)
     except OSError as error:

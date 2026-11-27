@@ -78,7 +78,7 @@ impl<'a> EvmSnapshot<'a> {
             .collect::<BTreeMap<_, _>>();
         let structural =
             self.before.blocks.iter().map(|b| b.label).ne(module.blocks.iter().map(|b| b.label));
-        let schedule = pass == "stack-reschedule"
+        let schedule = matches!(pass, "stack-reschedule" | "reorder-pushes")
             && !gcx.sess.opts.unstable.solar_tv_capture
             && std::env::var_os("SOLAR_TV_GAS").is_none();
         let mut checked = false;

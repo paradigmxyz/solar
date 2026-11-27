@@ -741,6 +741,14 @@ def record(
                     "universally quantified shared per-label PUSH/JUMPI charges; identical terminal and physical successor; logical relocation context, no physical code-placement or whole-contract claim",
                 ]
             )
+        elif program and program.scope == "outlined-prefix":
+            assumptions.extend(
+                [
+                    "independently exported call sites, helper and resumed guards; compiler parser and exporter binding remain trusted",
+                    "kernel-checked entry stack bound, arbitrary shared replies, exact live stack and resolved continuation",
+                    "unchanged prefix and suffix under shared context; sufficient gas; physical transfer costs and relocations remain open",
+                ]
+            )
         elif program and program.scope == "stack-schedule":
             assumptions.extend(
                 [

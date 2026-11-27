@@ -134,9 +134,10 @@ def stack_proof(
         hypotheses = ", ".join(f"h{i}" for i in range(offset + 1))
         if bounded:
             lines = ["try simp only [List.length_cons] at fits"]
+            lines.append("have h0 : ¬1024 < stack.length := by omega")
             lines += [
                 f"have h{i} : ¬1024 < stack.length + {i} := by omega"
-                for i in range(offset + 1)
+                for i in range(1, offset + 1)
             ]
             return "\n".join([*lines, solve.format(hypotheses=hypotheses)])
         lines = ["by_cases huge : stack.length > 1024"]

@@ -127,6 +127,24 @@ class EffectPrefixTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertEqual(record["status"], "unsupported")
 
+    def test_entry_bound_covers_a_reordered_storage_read(self):
+        before = self.directory / "before.evmir"
+        after = self.directory / "after.evmir"
+        setup = "  push 32\n  push 0\n  keccak256\n  sload\n"
+        mask = "  push 0\n  not\n  push 96\n  shr\n"
+        tail = "  and\n  push 0\n  mstore\n  push 32\n  push 0\n  return\n"
+        header = "@module StorageSchedule\nbb0:\n"
+        before.write_text(header + setup + mask + "  swap 1\n" + tail)
+        after.write_text(header + mask + setup + tail)
+        result, record = self.cli(
+            [before, after], "--stack-schedule", "bb0", "--entry-stack"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(record["region"]["proof"], "kernel-checked-stack-schedule")
+        self.assertEqual(
+            record["import_correspondence"][0]["source_stack_bound"]["max_height"], 3
+        )
+
     def entry(self, path, *, broken=False):
         text = path.read_text().replace("[stack=6]", "[stack=0]")
         # Concrete safe memory pointers propose a witness, never a proof precondition.

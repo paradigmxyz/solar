@@ -22,7 +22,7 @@ from .common import Program, Unsupported
 
 GUARD = re.compile(r"push bb(\d+)")
 SIMP = (
-    ", EVM.StackSchedule.trace, EVM.StackSchedule.project, EVM.StackSchedule.Refines, "
+    ", EVM.StackSchedule.trace, EVM.StackSchedule.expand, EVM.StackSchedule.Refines, "
     "EVM.StackSchedule.revertExit, EVM.Effects.request, aborts, prices, "
     "Evm.lt, Evm.gt, Evm.slt, Evm.sgt, Evm.and, Evm.or, Evm.xor, Evm.eq, Bool.beq_comm, "
     "BitVec.add_assoc, EVM.StackSchedule.add_left_comm, BitVec.and_comm, BitVec.or_comm, BitVec.xor_comm"

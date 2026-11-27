@@ -27,6 +27,90 @@ def project (finish : Effects.Exit → Trace) : Effects.Tree → Trace
   | .done _ exit => finish exit
   | .request _ effect next => .request effect fun reply => project finish (next reply)
 
+/-- Execute the projection without evaluating prices that will be erased.
+The effect keys still include every operand and the storage sentry. -/
+def expand (ctx : Context) (fork : Fork) (finish : Effects.Exit → Trace) :
+    List Effects.Op → Stack → Trace
+  | [], stack =>
+    if stack.length > 1024 then .fault else finish (.continuation stack)
+  | .scalar op :: ops, stack =>
+    match stepChecked ctx op stack with
+    | .error _ => .fault
+    | .ok next => expand ctx fork finish ops next
+  | .effect opcode inputs outputs :: ops, stack =>
+    if stack.length < inputs || stack.length - inputs + outputs > 1024 || stack.length > 1024 then
+      .fault
+    else .request (Effects.request fork opcode inputs outputs stack) fun word =>
+      expand ctx fork finish ops (if outputs == 1 then word :: stack.drop inputs else stack.drop inputs)
+  | .guard label _ _ :: ops, condition :: rest =>
+    if rest.length + 1 + 1 > 1024 then .fault else
+      if condition = 0 then expand ctx fork finish ops rest else finish (.jump label rest)
+  | .guard .. :: _, [] => .fault
+  | .reserve scratch :: ops, stack =>
+    if stack.length + scratch > 1024 then .fault else expand ctx fork finish ops stack
+
+theorem project_expand (ctx : Context) (fork : Fork) (finish : Effects.Exit → Trace)
+    (ops : List Effects.Op) (stack : Stack) (charge : Nat) :
+    project finish (Effects.expand ctx fork ops stack charge) = expand ctx fork finish ops stack := by
+  induction ops generalizing stack charge with
+  | nil => simp only [Effects.expand,expand]; split <;> rfl
+  | cons op ops ih =>
+    cases op with
+    | scalar operation =>
+      cases stepped : stepChecked ctx operation stack with
+      | error failure => simp [Effects.expand, expand, stepped, project]
+      | ok next => simpa only [Effects.expand, expand, stepped] using ih next (charge + Gas.pureCost operation fork)
+    | effect opcode inputs outputs =>
+      simp only [Effects.expand, expand]
+      split
+      · rfl
+      · simp only [project, ih]
+    | guard label pushCharge jumpCharge =>
+      cases stack with
+      | nil => rfl
+      | cons condition rest =>
+        simp only [Effects.expand, expand]
+        split
+        · rfl
+        · split
+          · exact ih _ _
+          · rfl
+    | reserve scratch =>
+      simp only [Effects.expand, expand]
+      split
+      · rfl
+      · exact ih _ _
+
+theorem expand_scalar {ctx : Context} {fork : Fork} {finish : Effects.Exit → Trace}
+    {op : Op} {ops : List Effects.Op} {stack next : Stack}
+    (checked : stepChecked ctx op stack = .ok next) :
+    expand ctx fork finish (.scalar op :: ops) stack = expand ctx fork finish ops next := by
+  simp only [expand, checked]
+
+theorem step_fits {ctx : Context} {op : Op} {stack next : Stack}
+    (stepped : step ctx op stack = some next) (before : stack.length ≤ 1024)
+    (after : next.length ≤ 1024) : stepChecked ctx op stack = .ok next := by
+  simp [stepChecked, stepped, Nat.not_lt_of_ge before, Nat.not_lt_of_ge after]
+
+theorem expand_effect {ctx : Context} {fork : Fork} {finish : Effects.Exit → Trace}
+    {opcode inputs outputs : Nat} {ops : List Effects.Op} {stack : Stack}
+    (under : inputs ≤ stack.length) (room : stack.length - inputs + outputs ≤ 1024)
+    (fits : stack.length ≤ 1024) :
+    expand ctx fork finish (.effect opcode inputs outputs :: ops) stack =
+      .request (Effects.request fork opcode inputs outputs stack) fun word =>
+        expand ctx fork finish ops (if outputs == 1 then word :: stack.drop inputs else stack.drop inputs) := by
+  simp [expand, Nat.not_lt_of_ge under, Nat.not_lt_of_ge room, Nat.not_lt_of_ge fits]
+
+theorem expand_reserve {ctx : Context} {fork : Fork} {finish : Effects.Exit → Trace}
+    {scratch : Nat} {ops : List Effects.Op} {stack : Stack} (fits : stack.length + scratch ≤ 1024) :
+    expand ctx fork finish (.reserve scratch :: ops) stack = expand ctx fork finish ops stack := by
+  simp [expand, Nat.not_lt_of_ge fits]
+
+theorem expand_nil {ctx : Context} {fork : Fork} {finish : Effects.Exit → Trace}
+    {stack : Stack} (fits : stack.length ≤ 1024) :
+    expand ctx fork finish [] stack = finish (.continuation stack) := by
+  simp [expand, Nat.not_lt_of_ge fits]
+
 @[simp] theorem project_ite (finish : Effects.Exit → Trace)
     (condition : Prop) [Decidable condition] (yes no : Effects.Tree) :
     project finish (if condition then yes else no) =
@@ -42,13 +126,24 @@ def revertExit (label : Nat) : Effects.Exit → Trace
 
 def trace (ctx : Context) (fork : Fork) (aborts : Nat → Option (List Effects.Op))
     (ops : List Effects.Op) (stack : Stack) : Trace :=
-  project (fun exit =>
+  expand ctx fork (fun exit =>
     match exit with
     | .jump label words =>
       match aborts label with
-      | some body => project (revertExit label) (Effects.expand ctx fork body words 0)
+      | some body => expand ctx fork (revertExit label) body words
       | none => .done (.live exit)
-    | .continuation _ => .done (.live exit)) (Effects.expand ctx fork ops stack 0)
+    | .continuation _ => .done (.live exit)) ops stack
+
+theorem trace_project (ctx : Context) (fork : Fork) (aborts : Nat → Option (List Effects.Op))
+    (ops : List Effects.Op) (stack : Stack) :
+    trace ctx fork aborts ops stack = project (fun exit =>
+      match exit with
+      | .jump label words =>
+        match aborts label with
+        | some body => project (revertExit label) (Effects.expand ctx fork body words 0)
+        | none => .done (.live exit)
+      | .continuation _ => .done (.live exit)) (Effects.expand ctx fork ops stack 0) := by
+  simp only [trace, project_expand]
 
 /-- Source stack faults impose no outcome requirement. Any matched request
 keeps its complete argument list and every possible response. -/
