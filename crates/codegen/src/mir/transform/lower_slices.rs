@@ -12,6 +12,8 @@
 //! backend accepts no slice value. Builtins that consume slices must run through `lower-builtins`
 //! first: replacing their slices with pointers would lose the lengths, and memory slices could
 //! then be mistaken for objects with length headers. Reject such consumers before any edits.
+//! Tail calls to functions with slice parameters or results are rejected too: only `icall` sites
+//! are expanded, and tail calls appear only later, in `lower-evm-shaped`.
 //!
 //! Slice-typed `select` and `phi` first split into pointer and length operations. An internal
 //! slice parameter becomes a pointer and a length word. A returned slice whose producer is a real
@@ -62,6 +64,21 @@ impl MirPass for LowerSlices {
             analyses.fail(
                 gcx.dcx()
                     .err("`lower-slices` requires lowered builtin slice operands; run `lower-builtins` first")
+                    .emit(),
+            );
+            return false;
+        }
+        if module.functions.iter().any(|func| {
+            func.blocks.iter().any(|block| {
+                matches!(&block.terminator, Some(Terminator::TailCall { function, .. }) if {
+                    let callee = &module.functions[*function];
+                    callee.params.iter().chain(callee.return_components()).any(Self::is_slice)
+                })
+            })
+        }) {
+            analyses.fail(
+                gcx.dcx()
+                    .err("`lower-slices` does not support tail calls to functions with slice parameters or results")
                     .emit(),
             );
             return false;

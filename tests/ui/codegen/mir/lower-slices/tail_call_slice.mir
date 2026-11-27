@@ -1,0 +1,15 @@
+//@ compile-flags: -Zmir-pipeline=lower-slices
+@module TailCallSlice
+
+// `lower-slices` expands slices only at `icall` sites, so a slice tail call must be rejected.
+//~? ERROR: `lower-slices` does not support tail calls to functions with slice parameters or results
+fn @f(arg0: slice<calldata>) -> i256 {
+  bb0:
+    tail_call @g, arg0
+}
+
+fn @g(arg0: slice<calldata>) -> i256 {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    ret v0
+}
