@@ -1,0 +1,24 @@
+warning[5470]: `memoryguard` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier
+   ╭▸ ROOT/tests/ui/parser/yul/memoryguard_identifier.sol:LL:CC
+   │
+LL │         assembly { function memoryguard() {} }
+   ╰╴                            ━━━━━━━━━━━
+
+warning[5470]: `memoryguard` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier
+   ╭▸ ROOT/tests/ui/parser/yul/memoryguard_identifier.sol:LL:CC
+   │
+LL │         assembly { function f(memoryguard) {} }
+   ╰╴                              ━━━━━━━━━━━
+
+warning[5470]: `memoryguard` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier
+   ╭▸ ROOT/tests/ui/parser/yul/memoryguard_identifier.sol:LL:CC
+   │
+LL │         assembly { function f() -> memoryguard {} }
+   ╰╴                                   ━━━━━━━━━━━
+
+warning[5470]: `memoryguard` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier
+   ╭▸ ROOT/tests/ui/parser/yul/memoryguard_identifier.sol:LL:CC
+   │
+LL │         assembly { let memoryguard }
+   ╰╴                       ━━━━━━━━━━━
+

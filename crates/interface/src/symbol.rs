@@ -346,7 +346,8 @@ impl Symbol {
     /// builtin that `evm_version` does not have yet.
     ///
     /// `dupn`, `swapn` and `exchange` (EIP-8024) are reserved from Amsterdam, but no supported EVM
-    /// version has them yet, so they are reserved unconditionally.
+    /// version has them yet, so they are reserved unconditionally. The parser handles
+    /// `memoryguard`, which depends on the Yul dialect.
     ///
     /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.38/liblangutil/Token.cpp#L172-L188>
     #[inline]
