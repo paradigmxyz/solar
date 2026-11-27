@@ -140,7 +140,9 @@ Channel IDs and voucher digests use the constant reserve address and `block.chai
 chain ID 31337 the vouchers signed by the default sender are static; `cases.py` holds them and says
 how to regenerate them. They also bind the case to the default sender key, so it needs Anvil's
 default chain ID. Post-call checks require the payee to hold 600,000 units, the sender
-99.4 million, and the reserve zero, and both channel states to read back as zero.
+99.4 million, and the reserve zero, and both channel states to read back as zero. These check the
+end state, so gas and successful transactions are the only evidence for `topUp`, `settle`, and
+`requestClose`.
 
 ## Tempo Earn gas
 

@@ -2024,7 +2024,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="tempo-channel-reserve",
         description="Tempo TIP-20 channel reserve: open, top up, settle and close",
-        min_solc="0.8.20",
+        min_solc="0.8.29",
         project=PROJECTS["tempo-tips-verify"],
         source="src/TIP20ChannelReserve.sol",
         contract_name="TIP20ChannelReserve",
