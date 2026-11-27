@@ -2257,7 +2257,7 @@ theorem refuted : ¬ Deploys (initArgs init ws) code storageLit :=
   not_deploys_of_refutes frameFuel refutesB_eq
 
 /-- info: '{ns}.refuted' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
+#guard_msgs (whitespace := lax) in
 #print axioms refuted
 
 end {ns}
@@ -2295,7 +2295,7 @@ theorem statement : ∃ c, contract? = .ok c ∧ Statement fuel c init code ws s
   statement_of_lifeOf deploys life_eq
 
 /-- info: '{ns}.statement' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
+#guard_msgs (whitespace := lax) in
 #print axioms statement
 {same}
 end {ns}
@@ -2554,11 +2554,11 @@ theorem deploysAt : Deploys (initArgs init ws) code storageLit :=
   deploys_at allB_eq atB_eq
 
 /-- info: '{ns}.deploysAll' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
+#guard_msgs (whitespace := lax) in
 #print axioms deploysAll
 
 /-- info: '{ns}.deploysAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
+#guard_msgs (whitespace := lax) in
 #print axioms deploysAt
 
 end {ns}

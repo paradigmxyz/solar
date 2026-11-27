@@ -1101,7 +1101,7 @@ def from_block(
         f"    (by simpa [fn_{fid}] using {fid}_meets_from) {fid}_value_refuses",
         "",
         f"/-- info: '{mod}.{fid}_holds_from' depends on axioms: [propext, Classical.choice, Quot.sound] -/",
-        "#guard_msgs in",
+        "#guard_msgs (whitespace := lax) in",
         f"#print axioms {fid}_holds_from",
         "",
     ]
@@ -1839,7 +1839,7 @@ def main():
                 f"  exact {fid}_holds_in World.closed{use_hyp} hc step{hstep}",
                 "",
                 f"/-- info: '{args.module_name}.{fid}_holds' depends on axioms: [propext, Classical.choice, Quot.sound] -/",
-                "#guard_msgs in",
+                "#guard_msgs (whitespace := lax) in",
                 f"#print axioms {fid}_holds",
                 "",
             ]

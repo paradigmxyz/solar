@@ -1657,16 +1657,16 @@ class SpecGates(unittest.TestCase):
             self.assertNotIn("succeeds-if", line)
 
     def test_no_succeeds_if_refused(self):
-        src = (
-            HEAD
-            + """contract C { uint256 public x;
-    /// @custom:ensures x == 1
-    function f() external { x = 1; } }"""
+        # Without succeeds-if conditions a spec'd function is a candidate succeeds witness, chosen
+        # after the probe (test_succeeds_witness.py); with no spec'd function at all the run is
+        # refused before any build, as before.
+        f = {"name": "f", "mutates": True, "specified": False, "succeeds": False}
+        with self.assertRaises(generic.Failed) as e:
+            generic.spec_witness([f])
+        self.assertIn("spec: no function has @custom:succeeds-if", str(e.exception))
+        self.assertEqual(
+            generic.spec_witness([dict(f, specified=True)]), generic.SYNTH_WITNESS
         )
-        with tempfile.TemporaryDirectory() as t:
-            code, line = run_driver(src, "natspec", pathlib.Path(t))
-            self.assertEqual(code, 1)
-            self.assertIn("REJECTED: spec: no function has @custom:succeeds-if", line)
 
     def test_spec_none_needs_no_succeeds_if(self):
         src = (
@@ -2846,6 +2846,12 @@ class NoConstructorRoute(unittest.TestCase):
         old.out[0] = old.out[0].replace(
             "SolarTV.Export.C.", "SolarTV.Export.x_0000abcd.C."
         )
+        # The other: the succeeds-witness search's runs of every function on the zero call
+        # (synth_witness), printed after the checks and nothing else changed.
+        new = generic.out[0]
+        self.assertEqual(new.count('PROBE run fn '), len(fns))
+        i, j = new.index("\n  let st0 :"), new.index("\n\nend Certified.x_0000abcd.Probe")
+        generic.out[0] = new[:i] + new[j:]
         self.assertEqual(old.out, generic.out)
         if SOLC.exists():
             src = LIFE / "NoArgCtor.sol"

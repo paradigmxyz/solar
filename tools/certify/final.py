@@ -89,7 +89,8 @@ import json
 import re
 import sys
 
-import succeeds_witness
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
+import succeeds_witness  # noqa: E402
 
 NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_.?'!]*$")
 # A statement input: a term without tactics, commands or type ascriptions (no newline, colon,
