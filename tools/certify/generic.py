@@ -1774,8 +1774,8 @@ import {name}.gen.{contract}.Stage0
 /-!
 # {contract}: the generic source check, generated
 
-{intro_doc} §check_stage0§ and
-§checkValue_stage0§ are the generic check on solar's first lowered MIR, by the kernel's evaluation.
+{intro_doc} §check_stage0§ and §checkValue_stage0§
+are the generic check on solar's first lowered MIR, by the kernel's evaluation.
 -/
 
 namespace {ns}
