@@ -70,8 +70,8 @@ pub extern "C" fn solidity_reset() {
 /// pointers allocated with `solidity_alloc` to its output parameters. The two output pointers
 /// must be distinct: writing the same allocation to both transfers its ownership twice.
 ///
-/// The callback may run on compiler threads other than the caller's, but never concurrently: calls
-/// are serialized.
+/// The callback may run on compiler threads other than the caller's, but never concurrently within
+/// one `solidity_compile` call: calls are serialized.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn solidity_compile(
     input: *const c_char,
