@@ -70,7 +70,8 @@ theorem gas_le : SolidCore.Refinement.Solar.AssembleLoop.gasBoundL cert 4 ≤ 19
 /-- SolidCore type checks the contract. -/
 theorem contract_ok : ∃ c, Certified.simplestorage_928cc159.Lowering.contract? = .ok c := by
   have h := Certified.simplestorage_928cc159.Lowering.shape_eq
-  unfold Certified.simplestorage_928cc159.Lowering.shape? SolidCore.Refinement.Generic.shapeOf at h
+  unfold Certified.simplestorage_928cc159.Lowering.shape? at h
+  try unfold SolidCore.Refinement.Generic.shapeOf at h
   split at h
   · next c hc => exact ⟨c, hc⟩
   · simp at h

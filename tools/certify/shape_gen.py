@@ -48,12 +48,18 @@ def fail(msg):
 
 
 def contract_ok_lean(ns):
-    """`contract_ok`: SolidCore type checks the contract, read off the Lowering module's `shape_eq`."""
+    """`contract_ok`: SolidCore type checks the contract, read off the Lowering module's `shape_eq`.
+    A Lowering module defines `shape?` either through `Generic.shapeOf` (the current template) or
+    as the same match inline (archived records, such as Certified/record/acc4-flag, which do not
+    import it): `shapeOf` is unfolded only when it is there (`unfold` fails on a name it cannot
+    resolve or a hypothesis it does not change), and either way the match on `contract?` is what
+    `split` takes apart, so a Lowering of neither form fails."""
     return (
         f"/-- SolidCore type checks the contract. -/\n"
         f"theorem contract_ok : ∃ c, {ns}.contract? = .ok c := by\n"
         f"  have h := {ns}.shape_eq\n"
-        f"  unfold {ns}.shape? SolidCore.Refinement.Generic.shapeOf at h\n"
+        f"  unfold {ns}.shape? at h\n"
+        f"  try unfold SolidCore.Refinement.Generic.shapeOf at h\n"
         f"  split at h\n  · next c hc => exact ⟨c, hc⟩\n  · simp at h\n"
     )
 
