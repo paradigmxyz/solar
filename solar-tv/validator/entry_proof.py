@@ -44,7 +44,7 @@ def lean(directory, name, source, timeout, *, module=False, namespace=None):
         "env",
         "lean",
         "-j1",
-        "--memory=2048",
+        "--memory=4096",
         f"--root={directory}",
     ]
     if module:
