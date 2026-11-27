@@ -4553,6 +4553,91 @@ one is EVM IR `peephole-early`, and one each is MIR `call-cleanup`,
 | `target/tv-indvar-word-final/extSloads-stride64.json` | `5a009a38b86beb2b94448264e89159f88a586852d82620e34fdc4dcdbf3d6872` |
 | `target/tv-indvar-word-final/coverage.json` | `0403462cfabc961648afa9409bc06ec18b3d689c462c7badbf40b34639490e37` |
 
+### Complete pinned MIR capture coverage
+
+The default validator verifies all 17 captures for the six selected MIR
+passes in the pinned Solady WETH, OpenZeppelin ERC20Mock and Morpho Blue
+corpus. The serial rerun uses a 40-second budget and seed zero. Each
+capture ID and both IR fingerprints match the frozen audit. The cases
+also match the frozen archive, input and output fingerprints. Enabling
+capture preserves ABI, creation bytecode and runtime bytecode.
+The rerun uses the pinned serial retry toolchain recorded below.
+
+| MIR pass | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: |
+| `call-cleanup` | 1/1 | 0 | 0 | 0 |
+| `licm` | 1/1 | 0 | 0 | 0 |
+| `lower-immutables` | 1/1 | 0 | 0 | 0 |
+| `sccp` | 12/12 | 0 | 0 | 0 |
+| `specialize` | 1/1 | 0 | 0 | 0 |
+| `word-sequence-early` | 1/1 | 0 | 0 | 0 |
+
+The six new certificates cover these changes.
+
+- `call-cleanup` checks the word comparison against the i1 comparison
+  in Morpho `setAuthorization`. Only operands proved to be zero or one
+  lose their widening. Lean checks the bound, both operand orders of
+  the comparison, and the identical word written to storage and the
+  event buffer.
+- `licm` checks the hoisted slice-base extraction and full-width pointer
+  casts in Morpho `extSloads`. The operands are defined typed arguments
+  or SSA values that dominate their uses. No pointee is read by these
+  projections. The kernel checks the projections, dominance witnesses
+  and the matching cyclic graph of ordered calldata, storage and memory
+  actions.
+- `lower-immutables` checks the Morpho constructor's semantic store
+  against its full-word memory write at byte 192. The constructor is
+  absent from the checked runtime call closure. The memory-action
+  equality uses the fixed frame-free staging layout; arbitrary backend
+  placements and deployment placeholder patching are separate
+  obligations.
+- `sccp` checks WETH `permit` after eliminating constant branches
+  and restricting phi groups to reachable predecessors. The remaining
+  effects, including the GAS sample and precompile call, are compared
+  with a shared handler in logical, unpriced execution.
+- `specialize` checks Morpho `decode_calldata_type` at all ten direct
+  call sites in the two independently exported modules. Each passes
+  offset 4 and the targeted callee has no entry binding of its own.
+  The kernel checks the inventory of supplied literals, the typed
+  argument-read equation, and the specialized body's control flow and
+  effects. The proof scope is activations through those callers.
+- `word-sequence-early` checks the boolean multiply against the
+  zero-arm select in ERC20Mock `store_storage_bytes` for both flag values
+  and arbitrary words. The cyclic CFG proof preserves the storage
+  writes and failure paths under the shared action model.
+
+The pinned Rust EVM replay executes the WETH runtimes from the exact
+SCCP snapshots. A signed permit succeeds on both sides, and invalid or
+expired permits revert with the same bytes. The concrete successful
+call uses 21 less gas after SCCP. Independent Rust MIR replay compares
+short and multiword storage overwrites, empty and populated storage
+loads, constructor initialization and rejection, authorization set,
+clear and rejection, and clean or dirty market decoding at offset 4.
+The constructor's domain separator matches the separately computed
+hash. Moving the store to byte 224 loses the proof and changes the
+replayed memory. Changing one decoder caller to offset 36 loses the
+caller-inventory certificate. Rust replay at that offset returns
+different decoded words, as expected outside the admitted call domain.
+
+Joining the six default proofs with the saved full audit gives
+**2,217 of 2,228** default certificates. Including the eight scoped
+memory-DSE and CSE certificates gives **2,225 of 2,228**. The remaining
+three captures are all EVM IR, with two in `late-word` and one in
+`peephole-early`.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Pinned compiler | `f996616dcf2ebacf05fc5cc439f4814dc38fe953fad90b698754281c59ef139c` |
+| Compiler launcher | `c935a2bf85933ee1790810177538c159d5a974d89f383b5efb73e88236f5d165` |
+| Pinned Rust replay | `1c08fa6d66c19b52b661c4db7c93fc1d257948cb592d9856d09a237c174bca0c` |
+| Input manifest | `b08af7eb00ac67a5ef1200d50273beedc48d5517838ed67504bd1a76ba96b7b7` |
+| Checker on Lean 4.34.1 | `0e0f7dab33d00d7fa726477ae07c39f083f24f5fc82a18b92a9e538f04228825` |
+| `target/tv-mir-final/fresh/results.json` | `8b95b36de1535bbb8083ece480a1fda7c9bf0e6db5013ad29f437dba69c8fb35` |
+| `target/tv-mir-final/rust-replay.json` | `21f4aa28ae2e8e632b41d5bcaff2e81d23e761107ccfd695bfd1b7e4b23ea57a` |
+| `target/tv-mir-final/immutable-slot224.json` | `5ca20bb9dc333491a1e8bbb8067d9ad5a9fa7c876d634b6498120a949bfbee2c` |
+| `target/tv-mir-final/specialized-caller36.json` | `16101383f5649d4b8b7f985dc519e14ccae06f15623be01f7098db26f052c97e` |
+| `target/tv-mir-final/coverage.json` | `a7560aa0051020062c7e2ffb9a9d8354a478a1a686765921a940a1aa3d4a5eb6` |
+
 ### MIR CFG checks after an import timeout
 
 The earlier three-second census timed out on 23 Morpho MIR `cfg-simplify`
