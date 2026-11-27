@@ -1,0 +1,10 @@
+error: recursion limit reached
+   ╭▸ ROOT/tests/ui/parser/yul/recursion_limit_expr.sol:LL:CC
+   │
+LL │ …f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(
+   │                                                     ┬━
+   │                                                     │
+   ╰╴                                                    while parsing Yul expression
+
+error: aborting due to 1 previous error
+

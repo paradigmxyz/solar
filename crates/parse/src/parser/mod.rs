@@ -83,6 +83,9 @@ pub struct Parser<'sess, 'ast, 'cb> {
     recursion_depth: usize,
     /// Depth of the expression tree under construction, see [`Parser::bump_expr_depth`].
     expr_depth: usize,
+    /// Height of the tallest type parsed so far inside the type under construction, see
+    /// [`Parser::parse_type`].
+    type_height: usize,
     /// Callback invoked after a top-level import directive is parsed.
     #[allow(clippy::type_complexity)]
     import_callback:
@@ -187,6 +190,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             recover_incomplete_input: sess.opts.unstable.recover_incomplete_input,
             recursion_depth: 0,
             expr_depth: 0,
+            type_height: 0,
             import_callback: None,
         };
         parser.bump();

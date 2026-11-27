@@ -1,0 +1,10 @@
+error: recursion limit reached
+   ╭▸ ROOT/tests/ui/parser/yul/recursion_limit_object.yul:LL:CC
+   │
+LL │ object "a" { code {} object "a" { code {} object "a" { code {} object "a" { code {} object "a" { code {} object "a" { code {} object "…
+   │                    ┬ ━━━━━━
+   │                    │
+   ╰╴                   while parsing Yul object
+
+error: aborting due to 1 previous error
+
