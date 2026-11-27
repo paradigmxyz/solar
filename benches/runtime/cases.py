@@ -571,6 +571,25 @@ PROJECTS = {
         "tempo-zones.json.gz",
         (Source("tempoxyz/zones", "700069eb8a40fce7e1f7a4bf0fc5703bcc692c43"),),
     ),
+    "tempo-tips-verify": Project(
+        "tempo-tips-verify",
+        "tempo-tips-verify.json.gz",
+        (
+            Source("tempoxyz/tempo", "0c061d9178d982863fe5e57c5863374c4215eecc"),
+            Source("tempoxyz/tempo-std", "c6c89f5aaf17ff9fabc3e76d05a8e5ebc1e05318"),
+        ),
+    ),
+    "tempo-earn": Project(
+        "tempo-earn",
+        "tempo-earn.json.gz",
+        (
+            Source("tempoxyz/earn", "d7d85f560d07d9827858ae4dd528c76debe713a5"),
+            Source(
+                "OpenZeppelin/openzeppelin-contracts",
+                "e4f70216d759d8e6a64144a9e1f7bbeed78e7079",
+            ),
+        ),
+    ),
 }
 
 
@@ -620,6 +639,37 @@ def source(name: str) -> str:
 
 ZONES_TOKEN = "0x20c0000000000000000000000000000000000001"
 ZONES_KEY_X = "0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+CHANNEL_RESERVE_VERIFIER = "0x5165300000000000000000000000000000000000"
+# Used by no other case, so its token balance starts at zero for every compiler.
+CHANNEL_PAYEE = "0x00000000000000000000000000000000c0ffee01"
+CHANNEL_NONCE_HASHES = tuple(f"0x{n:064x}" for n in (1, 2))
+CHANNEL_SALT = f"0x{1:064x}"
+CHANNEL_DESCRIPTORS = tuple(
+    f"({DEFAULT_SENDER},{CHANNEL_PAYEE},{DEFAULT_SENDER},{ZONES_TOKEN},{CHANNEL_SALT},"
+    f"{ZERO_ADDRESS},{nonce_hash})"
+    for nonce_hash in CHANNEL_NONCE_HASHES
+)
+CHANNEL_TUPLE = "(address,address,address,address,bytes32,address,bytes32)"
+# Channel IDs and voucher digests use the constant reserve address and `block.chainid`, so they
+# are the same on every deployment of Anvil's chain ID 31337. To regenerate them, call
+# `computeChannelId` and `getVoucherDigest` on any deployment, then sign each digest with
+# `cast wallet sign --no-hash` and the default sender's key.
+CHANNEL_IDS = (
+    "0x1827bbdd355d0f6be6f390fb40bc52499745c547804a2e4e0b5fc90ae2c0623f",
+    "0x30d4c8e02cd432feef75ed0146ad85614245731e141d2e486bf5c4c695320b5e",
+)
+CHANNEL_VOUCHER_250000 = (
+    "0xbbea7b62bf176c14a7d9c4b06b143d20e79c719bf2da0d1a07fdf841febc88ac"
+    "1ad20bb258ca57c6eecbed870b80adefd8fbd90111d702f227910b0283a154861c"
+)
+CHANNEL_VOUCHER_600000 = (
+    "0xdfbf8c3527b917e94642d0785fc27b5127e1b6e1663466d40e0f13ffc8b015d2"
+    "328783f19b7e5b7435c38b7f8bcc899feac50dc49e7b68b35e2223fdad14440d1b"
+)
+CHANNEL_OPEN = (
+    "open(address,address,address,uint96,bytes32,address)",
+    (CHANNEL_PAYEE, DEFAULT_SENDER, ZONES_TOKEN, "1000000", CHANNEL_SALT, ZERO_ADDRESS),
+)
 
 
 TEST_CASES: Sequence[TestCase] = (
@@ -1968,6 +2018,72 @@ TEST_CASES: Sequence[TestCase] = (
             RuntimeCheck("deposit-count", "depositCount()(uint64)"),
             RuntimeCheck("deposit-queue", "currentDepositQueueHash()(bytes32)"),
             RuntimeCheck("encryption-key-count", "encryptionKeyCount()(uint256)"),
+        ),
+        suite="repository",
+    ),
+    TestCase(
+        test_id="tempo-channel-reserve",
+        description="Tempo TIP-20 channel reserve: open, top up, settle and close",
+        min_solc="0.8.20",
+        project=PROJECTS["tempo-tips-verify"],
+        source="src/TIP20ChannelReserve.sol",
+        contract_name="TIP20ChannelReserve",
+        gas_calls=(
+            GasCall(
+                "nonce-hash-1",
+                "setExpiringNonceHashForTest(bytes32)",
+                (CHANNEL_NONCE_HASHES[0],),
+            ),
+            GasCall("open", *CHANNEL_OPEN),
+            GasCall(
+                "top-up",
+                f"topUp({CHANNEL_TUPLE},uint96)",
+                (CHANNEL_DESCRIPTORS[0], "500000"),
+            ),
+            GasCall(
+                "settle",
+                f"settle({CHANNEL_TUPLE},uint96,bytes)",
+                (CHANNEL_DESCRIPTORS[0], "250000", CHANNEL_VOUCHER_250000),
+            ),
+            GasCall(
+                "request-close",
+                f"requestClose({CHANNEL_TUPLE})",
+                (CHANNEL_DESCRIPTORS[0],),
+            ),
+            GasCall(
+                "close",
+                f"close({CHANNEL_TUPLE},uint96,uint96,bytes)",
+                (CHANNEL_DESCRIPTORS[0], "600000", "600000", CHANNEL_VOUCHER_600000),
+            ),
+            GasCall(
+                "nonce-hash-2",
+                "setExpiringNonceHashForTest(bytes32)",
+                (CHANNEL_NONCE_HASHES[1],),
+            ),
+            GasCall("open-second", *CHANNEL_OPEN),
+            GasCall(
+                "close-refund",
+                f"close({CHANNEL_TUPLE},uint96,uint96,bytes)",
+                (CHANNEL_DESCRIPTORS[1], "0", "0", "0x"),
+            ),
+        ),
+        suite="repository",
+    ),
+    TestCase(
+        test_id="tempo-earn-vault",
+        description="Tempo Earn vault deposits and redemptions through a hold engine",
+        min_solc="0.8.36",
+        project=PROJECTS["tempo-earn"],
+        source="TempoEarn.sol",
+        source_code=(TESTDATA_ROOT / "runtime/TempoEarn.sol").read_text(),
+        source_path="testdata/runtime/TempoEarn.sol",
+        contract_name="TempoEarn",
+        settings_profile="runtime",
+        gas_calls=(
+            GasCall("deposit-new-holder", "deposit(uint256)", ("500000000",)),
+            GasCall("deposit-returning", "deposit(uint256)", ("100000000",)),
+            GasCall("redeem-partial", "redeem(uint256)", ("100000000",)),
+            GasCall("withdraw-exact", "withdrawExact(uint256)", ("100000000",)),
         ),
         suite="repository",
     ),

@@ -19,7 +19,7 @@ ZKsync paths. The focused runtime suites compile only the selected test or produ
 and its imports.
 
 The test-bearing archives are Forge Std, Morpho Blue, OpenZeppelin, PRBMath, Seaport, Solady,
-Solarray, Solmate, Tempo Zones, and v4-core. The runtime suite currently exercises OpenZeppelin
+Solarray, Solmate, Tempo Earn, Tempo Zones, and v4-core. The runtime suite currently exercises OpenZeppelin
 and Solady test entrypoints; the other test trees remain whole-project inputs in the `projects` suite.
 
 Runtime workload definitions and upstream revisions are documented in
@@ -52,3 +52,33 @@ uv run --project tools/compiler-diff compiler-diff runtime -- \
   --solar /absolute/path/to/solar --solc /absolute/path/to/solc \
   --mode compile-time --projects tempo-zones --compile-repeats 3
 ```
+
+## Tempo TIPs verify
+
+`tempo-tips-verify.json.gz` captures the compiler input of `forge build` for the `src/` tree of
+[`tips/verify`](https://github.com/tempoxyz/tempo/tree/0c061d9178d982863fe5e57c5863374c4215eecc/tips/verify)
+in `tempoxyz/tempo`: 4 sources of its own, including the Solidity reference of the TIP-1034 channel
+reserve and the abstract `ZoneFactory.sol`, and the 17 `tempo-std` files they import. It keeps the
+upstream via-IR pipeline, optimizer, and remappings, with the EVM target Forge 1.9.0 picked (Osaka),
+and the same `settings.metadata` and `"": ["ast"]` changes as the Tempo Zones archive; set both again
+after regenerating. The tests and scripts are not in it. Sources are inline, and each matches its
+pinned Git object: `tempo` at `0c061d9178d982863fe5e57c5863374c4215eecc`, and `tempo-std` at
+`c6c89f5aaf17ff9fabc3e76d05a8e5ebc1e05318`, the `tips/verify/lib/tempo-std` submodule.
+
+Capture it with `forge build --build-info` in a copy of `tips/verify` without its `test/` directory,
+with `tempo-std` initialized and `FOUNDRY_SOLC` set to solc 0.8.39; the archive is the build info's
+`input`.
+
+## Tempo Earn
+
+`tempo-earn.json.gz` holds the sources that [`tempoxyz/earn`](https://github.com/tempoxyz/earn/tree/d7d85f560d07d9827858ae4dd528c76debe713a5)'s
+`EarnVault`, `HoldEngine`, `EarnVaultMocks.sol`, and `EarnVaultTestDeployer.sol` import: 22 Earn
+sources, including the two test helpers, and 24 OpenZeppelin 5.3.0 files
+(`e4f70216d759d8e6a64144a9e1f7bbeed78e7079`), 46 in all. Settings follow Earn's `foundry.toml`: via-IR,
+200 optimizer runs, and its remappings, with Cancun as the EVM target, and the same
+`settings.metadata` and `"": ["ast"]` changes as the other archives. It is not Earn's whole Forge
+input: that has 337 sources, takes solc 0.8.39 over three minutes, and Forge rewrites `new EarnVault()`
+in test sources to `deployCode` cheatcode calls. The archive keeps the files as they are in Git, each
+checked against the pinned `earn` and `openzeppelin-contracts` objects. The runtime case
+[`tempo-earn-vault`](../../benches/runtime/README.md#tempo-earn-gas) layers
+[`TempoEarn.sol`](../runtime/TempoEarn.sol) over it.
