@@ -259,6 +259,44 @@ class MirAbiTests(unittest.TestCase):
         self.assertIn("Live memory contents or active size changed", result.stdout)
         self.assertIn("Rust interpreter: matched", result.stdout)
 
+    def test_packed_model_clears_the_tail_only_with_msize(self):
+        world = storage.fixture()
+        world["memory"] = {
+            "data": "0x"
+            + (
+                bytes(64) + (128).to_bytes(32, "big") + bytes(32) + bytes([255]) * 128
+            ).hex(),
+            "size": 256,
+        }
+        pipeline = "lower-builtins,lower-slices,lower-memory-objects"
+        # The object takes 128–223: its length word, the literal's word at 160 and the
+        # scalar's word at 162, which ends the payload at 194. The word after it, 194–225,
+        # lies mostly below the free memory pointer at 224, so a clear there is observable.
+        encode = 'v0 = abi_encode_packed (data hex"0102", uint256 7)\n'
+        # Without MSIZE, the model leaves 194–223 as they were: the lowering has no clear,
+        # and adding one is a counterexample.
+        plain = state.module(encode + "ret 0")
+        after = self.lowered_pair(plain, pipeline, world)
+        cleared = after.replace("    ret 0", "    mstore 194, 0\n    ret 0")
+        result, _ = self.pair(plain, cleared, fixture=world, status=1)
+        self.assertIn("Live memory contents or active size changed", result.stdout)
+        self.assertIn("Rust interpreter: matched", result.stdout)
+        # With MSIZE, the model clears 194–225: the lowering has the clear, and dropping
+        # it is a counterexample.
+        observed = state.module(encode + "v1 = msize\nret v1")
+        after = self.lowered_pair(observed, pipeline, world)
+        lines = after.splitlines(keepends=True)
+        clears = [
+            index
+            for index, line in enumerate(lines)
+            if line.strip().startswith("mstore ") and line.strip().endswith(", 0")
+        ]
+        self.assertEqual(len(clears), 1, after)
+        kept = "".join(line for index, line in enumerate(lines) if index != clears[0])
+        result, _ = self.pair(observed, kept, fixture=world, status=1)
+        self.assertIn("Live memory contents or active size changed", result.stdout)
+        self.assertIn("Rust interpreter: matched", result.stdout)
+
     def test_recursive_layout_budget_remains_explicit(self):
         layout = "array<1, " * 34 + "uint256" + ">" * 34
         source = state.module(

@@ -132,7 +132,7 @@ def packedReferenceProgram (cfg : Config) (parts : List PackedInput) (hash : Boo
       | .static _ => pure ()
       cursor := cursor+BitVec.ofNat 256 piece.length
   let last ← packedStaticSegment cursor pending.reverse
-  if !hash && !aligned then abiStore last 0
+  if cfg.readsMsize && !hash && !aligned then abiStore last 0
   if hash then
     abiMemory fun memory => do
       let memory ← expand memory start.toNat total
@@ -141,7 +141,7 @@ def packedReferenceProgram (cfg : Config) (parts : List PackedInput) (hash : Boo
 
 def abiPackedValues (cfg : Config) (frame : Frame) (parts : List PackedInput) (hash : Bool) (args : List Value) : Step := do
   if parts.all (fun part => match part with | .bytes .. | .array .. => false | _ => true) then
-    abiPacked frame parts hash (← args.mapM Value.word)
+    abiPacked frame parts hash (← args.mapM Value.word) cfg.readsMsize
   else
     match (packedReferenceProgram cfg parts hash args).run ⟨frame,2048⟩ with
     | .error (.unsupported reason) => .error reason

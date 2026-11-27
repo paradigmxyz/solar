@@ -847,7 +847,9 @@ solar-tv/solar-tv mir solar-tv/examples/mir/precompile-builtins/{before,broken}.
 ```
 
 Packed encodings accept literals, scalars and byte references, retaining each
-unaligned word store and selecting scratch from the whole write footprint. They are bounded
+unaligned word store and selecting scratch from the whole write footprint. As in the
+compiler, an unhashed encoding that does not end on a word also clears the word after it
+only when some function of the module reads `MSIZE`. They are bounded
 to 2,048 parts and 64 KiB of data. Memory objects and slices, calldata slices and
 storage bytes keep ordered header reads, overlapping copies and dirty word tails.
 Hashes may borrow and restore a memory object's header. Packed arrays retain

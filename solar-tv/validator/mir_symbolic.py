@@ -103,6 +103,7 @@ def translate(text, function, executable, version, timeout):
         for body in functions.values():
             acyclic(body["blocks"])
         work = call_work(functions, model["entry_id"])
+        msize = "true" if mir_state.reads_msize(model) else "false"
         definitions = {
             row["name"]: row for row in native.catalog(executable, timeout)["evmir"]
         }
@@ -164,7 +165,7 @@ def translate(text, function, executable, version, timeout):
     )
     header = mir.interface_attributes(header)
     source = (
-        f"let cfg : MIR.State.Config := ⟨.{version},environment,context,[{','.join(available)}],false,128,none,[],{{}},[],debug,none⟩\n"
+        f"let cfg : MIR.State.Config := ⟨.{version},environment,context,[{','.join(available)}],false,128,none,[],{{}},[],debug,none,{msize}⟩\n"
         f"MIR.State.execute {fuel} cfg {code} {model['entry_id']} {{frame with arguments := {arguments}, locals := []}}"
     )
     return Program(

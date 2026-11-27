@@ -220,7 +220,9 @@ Packed encodings admit literals, scalar words, byte references and word arrays,
 including fixed/nested layouts with explicit strides. Object headers and slice
 lengths are resolved before allocation, payload copies preserve aliasing and
 cleanup order, and hash borrowing retains its header restoration. Trailing
-stores and partial-word footprints remain observable. Real conversion-pass pairs are
+stores and partial-word footprints remain observable. The word after an
+unhashed encoding that does not end on a word is cleared only in a module that
+reads `MSIZE`, which the MIR export reports for the whole module. Real conversion-pass pairs are
 kernel-checked and independently replayed from the original MIR on both sides.
 Lowered function-pointer dispatchers are ordinary MIR functions; a real
 dispatcher inlining pair and wrong-callee counterexample exercise that path.

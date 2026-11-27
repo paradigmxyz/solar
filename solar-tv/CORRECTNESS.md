@@ -5805,7 +5805,9 @@ a separate local certificate with a shared incoming budget.
 The `setAuthorizationWithSig` certificate checks the two expansions in the
 actual MIR pair. Its packed object proof preserves the length word, the
 overlapping payload stores, dirty tail bytes, and the free-memory pointer
-update for arbitrary domain and digest words. The STATICCALL proof keeps the
+update for arbitrary domain and digest words. It uses the packed model without
+the tail clear, so the checker requires a module that never reads `MSIZE`. The
+STATICCALL proof keeps the
 cleared output word, request, child result, returndata, journal, and remaining
 gas. It requires a paid GAS sample that covers the incoming message budget.
 The checker compares the remaining MIR, including the success and revert

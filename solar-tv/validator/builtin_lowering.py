@@ -719,6 +719,12 @@ def check(
             not final_call and version != "amsterdam",
             "unsupported signing expansion target",
         )
+        # The signing envelope proof uses the packed model without the tail clear, which
+        # holds only in a module that never reads MSIZE.
+        require(
+            not any(mir_state.reads_msize(model) for model in models),
+            "signing expansion in a module that reads MSIZE",
+        )
         callees = unchanged_callees(function, bodies, declarations)
         helpers = []
         kind = "contextual-signing-expansion"

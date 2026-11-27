@@ -28,7 +28,7 @@ def store (ext : EVM.State.Config) (journal : Journal) (frame : EVM.State.Frame)
   if exhausted ext frame price then
     return .inl ⟨.outOfGas,[],journal,0,0⟩
   let cfg : MIR.State.Config := ⟨ext.fork,frame.environment,ext.block,[0x55],false,
-    128,some ext,[],{},[],false,none⟩
+    128,some ext,[],{},[],false,none,false⟩
   let mir : MIR.State.Frame := {world := journal,memory := frame.memory,arguments := []}
   match ← MIR.State.storageOperation cfg mir false true [slot,word] with
   | .returned (none,next) =>

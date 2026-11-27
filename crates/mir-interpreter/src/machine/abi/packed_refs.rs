@@ -2,6 +2,8 @@
 //! each payload when its copy occurs, retaining aliases with prior output writes.
 //! Memory copies have snapshot semantics; storage copies retain whole dirty
 //! words and header checks. A restored header borrow has no final memory write.
+//! The word after an unhashed encoding that does not end on a word is cleared
+//! only in a module that reads MSIZE, as the compiler does.
 
 use super::{
     packed::{Piece, word_stores},
@@ -189,7 +191,8 @@ impl Run<'_, '_, '_> {
             }
         }
         let end = self.packed_static_segment(cursor, &pending)?;
-        if !hash && !aligned {
+        if self.machine.reads_msize && !hash && !aligned {
+            // mstore(end, 0)
             limit(self.memory.store(end, U256::ZERO))?;
         }
         if hash {

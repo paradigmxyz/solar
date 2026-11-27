@@ -532,12 +532,18 @@ impl Memory {
 /// Runs functions of one lowered module.
 pub(crate) struct Machine<'a> {
     module: &'a Module,
+    /// Whether any function of the module reads `MSIZE`, as the compiler decides it. Only then
+    /// does a packed encoding that does not end on a word clear the word after it.
+    reads_msize: bool,
 }
 
 impl<'a> Machine<'a> {
     /// Runs `module`'s functions as they are.
     pub(crate) fn new(module: &'a Module) -> Self {
-        Self { module }
+        let reads_msize = module.functions.iter().any(|func| {
+            func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize))
+        });
+        Self { module, reads_msize }
     }
 
     /// Runs `function` on `args` and `memory` within `limits`. With a `host`, the run also reads
