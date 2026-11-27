@@ -167,6 +167,29 @@ def abi(ast, contract, fname):
     return int(f["functionSelector"], 16), len(f["parameters"]["parameters"])
 
 
+# loop_equiv.py's namespace of the certificate it writes, which the hook gives each function its own
+# (cut_namespace): a contract with several loop functions imports every function's Cut module in one
+# environment (loop_final.py's parts statement), so one fixed name would collide.
+CUT_NS = "Verify.LoopSource.Equiv.Generated"
+
+
+def cut_namespace(name, fname):
+    """The namespace of FNAME's cut certificate in the run NAME."""
+    return f"Certified.{name}.Loops.{fname}.CutCert"
+
+
+def retarget_cut(path, name, fname):
+    """Move loop_equiv.py's certificate at PATH into FNAME's own namespace (cut_namespace). The
+    certificate is untrusted data; only its name changes."""
+    text = pathlib.Path(path).read_text()
+    old = (f"namespace {CUT_NS}\n", f"end {CUT_NS}\n")
+    if any(text.count(o) != 1 for o in old):
+        raise Stop("cut", f"loop_equiv.py's certificate is not in namespace {CUT_NS}")
+    ns = cut_namespace(name, fname)
+    text = text.replace(old[0], f"namespace {ns}\n").replace(old[1], f"end {ns}\n")
+    pathlib.Path(path).write_text(text)
+
+
 def gen_driver(name, contract, fname, sel, nargs, summary=None):
     """The module that runs the base's obligation generator for FNAME in the run's clone.
 
@@ -197,8 +220,8 @@ def gen_driver(name, contract, fname, sel, nargs, summary=None):
         f"  {GEN_MODULE}.run",
         f"    {{ stage0 := {export_ns.of_run(name, contract)}.stage0",
         f'      stage0Name := "{export_ns.of_run(name, contract)}.stage0"',
-        "      cut := Verify.LoopSource.Equiv.Generated.cut",
-        '      cutName := "Verify.LoopSource.Equiv.Generated.cut"',
+        f"      cut := {cut_namespace(name, fname)}.cut",
+        f'      cutName := "{cut_namespace(name, fname)}.cut"',
         f"      contract? := {checked}",
         f"      contractName := {json.dumps(checked)}",
         f"      sel := {sel:#010x}",
@@ -548,6 +571,7 @@ def hook(
                 stage0 = tmp / "gen" / contract / "Stage0.lean"
             cut_file = loops / f"LoopCut.{fname}.lean"
             cut(run, heads_file, stage0, fname, sel, nargs, cut_file)
+            retarget_cut(cut_file, name, fname)
             if clone is None:
                 clone = lean_dir()
             files, measure, route = obligations(
