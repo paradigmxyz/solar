@@ -58,9 +58,21 @@ def frontend(lean_dir, src, solc):
     copy = fe / f"{base}_{sha[:8]}.sol"
     shutil.copy(src, copy)
     r = subprocess.run(
-        [sys.executable, str(pathlib.Path(lean_dir) / "scripts/solc_ast_to_lean_source.py"), str(copy),
-         "--contract", "RecSum", "--solc", solc, "--namespace", NAMESPACE, "--body-only"],
-        capture_output=True, text=True,
+        [
+            sys.executable,
+            str(pathlib.Path(lean_dir) / "scripts/solc_ast_to_lean_source.py"),
+            str(copy),
+            "--contract",
+            "RecSum",
+            "--solc",
+            solc,
+            "--namespace",
+            NAMESPACE,
+            "--body-only",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if r.returncode != 0:
         raise SystemExit(f"rec_source: front end failed: {r.stderr.strip()[-400:]}")
@@ -72,11 +84,17 @@ def module_text(sha, body):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("source")
     ap.add_argument("--solidity-lean", required=True)
-    ap.add_argument("--solc", default=os.environ.get(
-        "SOLC", str(pathlib.Path.home() / ".cache/solc" / f"solc-{SOLC_VERSION}")))
+    ap.add_argument(
+        "--solc",
+        default=os.environ.get(
+            "SOLC", str(pathlib.Path.home() / ".cache/solc" / f"solc-{SOLC_VERSION}")
+        ),
+    )
     ap.add_argument("--write", action="store_true")
     a = ap.parse_args(argv)
     sha, body = frontend(a.solidity_lean, a.source, a.solc)
@@ -94,14 +112,21 @@ def main(argv=None):
     if have != want:
         for i, (x, y) in enumerate(zip(have.splitlines(), want.splitlines()), 1):
             if x != y:
-                print(f"rec_source: REFUSED: {MODULE} is not the front end's AST of {a.source}: line {i}: "
-                      f"module {x[:120]!r}, source {y[:120]!r}", file=sys.stderr)
+                print(
+                    f"rec_source: REFUSED: {MODULE} is not the front end's AST of {a.source}: line {i}: "
+                    f"module {x[:120]!r}, source {y[:120]!r}",
+                    file=sys.stderr,
+                )
                 return 1
-        print(f"rec_source: REFUSED: {MODULE} is not the front end's AST of {a.source}: lengths differ",
-              file=sys.stderr)
+        print(
+            f"rec_source: REFUSED: {MODULE} is not the front end's AST of {a.source}: lengths differ",
+            file=sys.stderr,
+        )
         return 1
-    print(f"rec_source: bound: {MODULE} is the front end's AST of {a.source} ({sha}); the source "
-          "stage is Verify.Phase3.RecSource.Join.source_to_bytecode")
+    print(
+        f"rec_source: bound: {MODULE} is the front end's AST of {a.source} ({sha}); the source "
+        "stage is Verify.Phase3.RecSource.Join.source_to_bytecode"
+    )
     return 0
 
 

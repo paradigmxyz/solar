@@ -510,13 +510,20 @@ class Shape:
         return f"{self.kind}(k={self.k}, j={self.j})"
 
     def guard(self):
-        return f"(Measured.nonzero {self.k})" if self.kind == "rotated" else "Measured.always"
+        return (
+            f"(Measured.nonzero {self.k})"
+            if self.kind == "rotated"
+            else "Measured.always"
+        )
 
     def measure(self):
         if self.kind == "dec":
             return f"(MeasuredDec.dec {self.k})", f"(MeasuredDec.dec_lt {self.k})"
         if self.kind == "up":
-            return f"(Measured.up {self.k} {self.j})", f"(Measured.up_lt {self.k} {self.j})"
+            return (
+                f"(Measured.up {self.k} {self.j})",
+                f"(Measured.up_lt {self.k} {self.j})",
+            )
         return f"(Measured.down {self.k})", f"(Measured.down_lt {self.k})"
 
     def iter_have(self):
@@ -556,7 +563,9 @@ class Shape:
         """The lower measure at the header stack NST an iteration returns with."""
         k = self.k
         if len(nst) != n:
-            raise Unsupported("an iteration returns to the header with another stack depth")
+            raise Unsupported(
+                "an iteration returns to the header with another stack depth"
+            )
         w = ("var", f"w{k}")
         if self.kind == "up":
             if nst[self.j] != ("var", f"w{self.j}"):
@@ -569,8 +578,18 @@ class Shape:
             ne = "(MeasuredDec.ne_of_pos hk)" if self.form == "pos" else "hk"
             steps = {
                 ("op", "sub", w, lit(1)): f"MeasuredDec.sub_one_lt {ne}",
-                ("op", "add", w, lit(WORD - 1)): f"MeasuredDec.add_ones_lt {ne} (by decide)",
-                ("op", "add", lit(WORD - 1), w): f"MeasuredDec.add_ones_lt' {ne} (by decide)",
+                (
+                    "op",
+                    "add",
+                    w,
+                    lit(WORD - 1),
+                ): f"MeasuredDec.add_ones_lt {ne} (by decide)",
+                (
+                    "op",
+                    "add",
+                    lit(WORD - 1),
+                    w,
+                ): f"MeasuredDec.add_ones_lt' {ne} (by decide)",
             }
             if nst[k] not in steps:
                 raise Unsupported(
@@ -707,7 +726,7 @@ def generate(
             f"the final EVM IR is outside the loop checker's fragment: {outside}"
         )
     BLOCKS = asm_cert.parse_program(text)
-    H, B, X, E = ob["header"], ob["B"], ob["X"], ob["E"]
+    H, _B, X, E = ob["header"], ob["B"], ob["X"], ob["E"]
     if X < 1:
         raise Unsupported("the exit takes no block")
     facts = {"cv": 0, "cds": 4 + 32 * nargs, "sel": sel}
@@ -808,7 +827,9 @@ def emit(
         return f"ends_of_halts {app}"
 
     if shape.kind == "rotated":
-        done_lines = [f"      exact absurd (Measured.down_zero (w := w{shape.k}) hμ0) hg"]
+        done_lines = [
+            f"      exact absurd (Measured.down_zero (w := w{shape.k}) hμ0) hg"
+        ]
     else:
         dn = Tree(mod, H, {}, [], "ends_next", done_leaf)
         done_lines = [f"      {shape.done_have()}"] + dn.walk(
@@ -952,7 +973,9 @@ def emit(
     Measured.initial_storage_le hK"""
         gen_hyps += " hst"
     inh = ", ".join(
-        ["by decide"] * nargs + (["Nat.zero_le K"] if lkind != "const" else []) + ["rfl"]
+        ["by decide"] * nargs
+        + (["Nat.zero_le K"] if lkind != "const" else [])
+        + ["rfl"]
     )
     zeros = "".join("0, " for _ in range(nargs))
     inh_term = f"⟨_, [], {zeros}{inh}⟩"
@@ -1175,7 +1198,9 @@ def restricted_fuel(blocks, facts):
             return
         seen.add(key)
         if depth > len(blocks):
-            raise Unsupported("an entry path of the restricted calls does not reach a loop")
+            raise Unsupported(
+                "an entry path of the restricted calls does not reach a loop"
+            )
         entry.add(b)
         for _ch, _js, end in outcomes(blocks[b], st, f"s{depth}", facts):
             if end[0] == "halt":
@@ -1210,11 +1235,15 @@ def restricted_fuel(blocks, facts):
     nodes = entry | reach
     if any(w in comp and w != h for u in nodes - comp for w in rsucc[u]):
         raise Unsupported("the restricted loop has more than one entry block")
-    inner = [[w for w in ws if not (w == h and u in comp)] for u, ws in enumerate(rsucc)]
+    inner = [
+        [w for w in ws if not (w == h and u in comp)] for u, ws in enumerate(rsucc)
+    ]
     latches = [u for u in comp if h in succ[u]]
     body = fixed_fuel.longest(inner, h, lambda v: 1, nodes=comp)
     B = max(body[u] for u in latches)
-    total = max(fixed_fuel.longest(inner, 0, lambda v: 1 + (B if v == h else 0)).values())
+    total = max(
+        fixed_fuel.longest(inner, 0, lambda v: 1 + (B if v == h else 0)).values()
+    )
     X = max(fixed_fuel.longest(inner, h, lambda v: 1).values())
     return {"header": h, "B": B, "X": X, "E": total - B - X, "F": total}
 

@@ -353,7 +353,13 @@ class Shapes(unittest.TestCase):
         }
         cases = [
             (
-                {"nodeType": "WhileStatement", "body": {"nodeType": "Block", "statements": [{"nodeType": "Break"}]}},
+                {
+                    "nodeType": "WhileStatement",
+                    "body": {
+                        "nodeType": "Block",
+                        "statements": [{"nodeType": "Break"}],
+                    },
+                },
                 "break in the loop",
             ),
             ({"nodeType": "DoWhileStatement", "body": {}}, "do-while loop"),
@@ -548,17 +554,22 @@ class DriverCall(unittest.TestCase):
         self.assertLess(fin, block.index("raise out_of_gas"))
 
 
-
 # --- Step 3b: the discovered-invariant route (agent 179) -------------------------------------
 
 
 class Infer(unittest.TestCase):
     def test_the_driver_module_runs_one_geninfer_step_on_the_gen_config(self):
-        t = lc.infer_driver("n", "Bump", "bump", SEL, 1, 'exportLeaves cfg "/x/leaves.json"')
+        t = lc.infer_driver(
+            "n", "Bump", "bump", SEL, 1, 'exportLeaves cfg "/x/leaves.json"'
+        )
         self.assertIn("import Verify.Phase3.Route.GenInfer\n", t)
         self.assertIn("def cfg : Verify.LoopSource.Equiv.GenObl.Config :=", t)
         self.assertIn("summary? := none", t)
-        self.assertTrue(t.rstrip().endswith('Verify.Phase3.Route.GenInfer.exportLeaves cfg "/x/leaves.json"'))
+        self.assertTrue(
+            t.rstrip().endswith(
+                'Verify.Phase3.Route.GenInfer.exportLeaves cfg "/x/leaves.json"'
+            )
+        )
         self.assertNotIn("GenObl.run", t)
 
     def fake(self, d, export_rc=0, infer_rc=0, emit_rc=0):
@@ -571,15 +582,43 @@ class Infer(unittest.TestCase):
                     (pathlib.Path(d) / "leaves.json").write_text("{}")
                 return export_rc, "", "export refused" if export_rc else ""
             if emit_rc:
-                return emit_rc, "", "loop obligations: refused: sequent 3 has a traced counterexample"
-            return 0, json.dumps({"format": lc.GEN_FORMAT, "route": "erasure-inferred", "modules": ["n/Loops/bump/Obl"], "measure": "m"}), ""
+                return (
+                    emit_rc,
+                    "",
+                    "loop obligations: refused: sequent 3 has a traced counterexample",
+                )
+            return (
+                0,
+                json.dumps(
+                    {
+                        "format": lc.GEN_FORMAT,
+                        "route": "erasure-inferred",
+                        "modules": ["n/Loops/bump/Obl"],
+                        "measure": "m",
+                    }
+                ),
+                "",
+            )
 
         def run(cmd, env=None):
             calls.append(("run", pathlib.Path(cmd[2]).name))
             if infer_rc:
-                return infer_rc, json.dumps({"discovery": "undecided", "engines": {"spacer": {"verdict": "undecided"}}}), "no invariant"
+                return (
+                    infer_rc,
+                    json.dumps(
+                        {
+                            "discovery": "undecided",
+                            "engines": {"spacer": {"verdict": "undecided"}},
+                        }
+                    ),
+                    "no invariant",
+                )
             out = cmd[cmd.index("--emit-candidate") + 1]
-            pathlib.Path(out).write_text(json.dumps({"I_lean": "[]", "mu_lean": "(WExpr.arg 1)", "source": "spacer"}))
+            pathlib.Path(out).write_text(
+                json.dumps(
+                    {"I_lean": "[]", "mu_lean": "(WExpr.arg 1)", "source": "spacer"}
+                )
+            )
             return 0, "{}", ""
 
         return calls, run, lean_run
@@ -588,13 +627,26 @@ class Infer(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             calls, run, lean_run = self.fake(d)
             r = lc.infer(run, lean_run, d, "n", "Bump", "bump", SEL, 1)
-            self.assertEqual(calls, [("lean", "InferExport.lean"), ("run", "loop_infer.py"), ("lean", "InferEmit.lean")])
+            self.assertEqual(
+                calls,
+                [
+                    ("lean", "InferExport.lean"),
+                    ("run", "loop_infer.py"),
+                    ("lean", "InferEmit.lean"),
+                ],
+            )
             self.assertEqual(lc.gen_result(r["out"])[2], "erasure-inferred")
-            self.assertIn("emit cfg [] (WExpr.arg 1)", (pathlib.Path(d) / "InferEmit.lean").read_text())
+            self.assertIn(
+                "emit cfg [] (WExpr.arg 1)",
+                (pathlib.Path(d) / "InferEmit.lean").read_text(),
+            )
 
     def test_each_failure_stops_with_the_diagnosis(self):
-        for kw, frag in ((dict(export_rc=2), "leaves export"), (dict(infer_rc=2), "undecided"),
-                         (dict(emit_rc=2), "GenInfer refuses")):
+        for kw, frag in (
+            ({"export_rc": 2}, "leaves export"),
+            ({"infer_rc": 2}, "undecided"),
+            ({"emit_rc": 2}, "GenInfer refuses"),
+        ):
             with tempfile.TemporaryDirectory() as d:
                 _, run, lean_run = self.fake(d, **kw)
                 with self.assertRaises(lc.Stop) as e:
@@ -603,9 +655,17 @@ class Infer(unittest.TestCase):
                 self.assertIn(frag, e.exception.why)
 
     def test_the_triggers_are_the_generators_sequent_refusals(self):
-        self.assertEqual(set(lc.INFER_TRIGGERS), {"no accepted measure", "the source tree disagrees with the MIR"})
+        self.assertEqual(
+            set(lc.INFER_TRIGGERS),
+            {"no accepted measure", "the source tree disagrees with the MIR"},
+        )
         # A source outside the erasure, or a cut that does not match the MIR, never reaches the route.
-        self.assertFalse(any(t in "eraseLoopStmt is none" or t in "cut.check is none" for t in lc.INFER_TRIGGERS))
+        self.assertFalse(
+            any(
+                t in "eraseLoopStmt is none" or t in "cut.check is none"
+                for t in lc.INFER_TRIGGERS
+            )
+        )
         self.assertIn("erasure-inferred", lc.ROUTES)
 
 
@@ -633,8 +693,14 @@ class WhileRoute(Shapes):
         idx = {"nodeType": "IndexAccess"}
         for body, part in [
             ([{"nodeType": "Break"}], "break in the loop"),
-            ([self.inc("m", "--", sub=idx)], "`--` on something other than a uint256 local"),
-            ([self.inc("x", "--", ty="uint8")], "`--` on something other than a uint256 local"),
+            (
+                [self.inc("m", "--", sub=idx)],
+                "`--` on something other than a uint256 local",
+            ),
+            (
+                [self.inc("x", "--", ty="uint8")],
+                "`--` on something other than a uint256 local",
+            ),
             ([self.counted()], "nested loop"),
         ]:
             with self.subTest(part=part):
@@ -642,7 +708,10 @@ class WhileRoute(Shapes):
                 self.assertIn(part, w)
         ws = self.why(self.cdef(self.whl([self.inc("i")]), self.whl([self.inc("i")])))
         self.assertTrue(all("2 loops in bump" in w for w in ws))
-        self.assertEqual(lc.while_functions({"nodes": [self.cdef(self.whl([]), self.whl([]))]}, "C"), {})
+        self.assertEqual(
+            lc.while_functions({"nodes": [self.cdef(self.whl([]), self.whl([]))]}, "C"),
+            {},
+        )
 
     SRC = b"""contract C {
     function f(uint256 n) public pure returns (uint256) {
@@ -660,12 +729,19 @@ class WhileRoute(Shapes):
         texts = lc.loop_annotations(self.SRC, {"src": f"{start}:20:0"})
         self.assertEqual(texts, ["i <= n"])
         # The source header of f: i, then n and _ret0 (words 1, 2, 3 over the call's word 0).
-        probe = {"n": 1, "names": ["i", "n", "_ret0"],
-                 "steps": [["bin", "add", ["arg", 1], ["lit", 1]], ["arg", 2], ["arg", 3]],
-                 "inits": [["lit", 0], ["arg", 0], ["lit", 0]]}
+        probe = {
+            "n": 1,
+            "names": ["i", "n", "_ret0"],
+            "steps": [["bin", "add", ["arg", 1], ["lit", 1]], ["arg", 2], ["arg", 3]],
+            "inits": [["lit", 0], ["arg", 0], ["lit", 0]],
+        }
         self.assertEqual(
             lc.annotated_candidate(texts, probe),
-            [["le", ["arg", 1], ["arg", 2]], ["eq", ["arg", 2], ["arg", 0]], ["eq", ["arg", 3], ["lit", 0]]],
+            [
+                ["le", ["arg", 1], ["arg", 2]],
+                ["eq", ["arg", 2], ["arg", 0]],
+                ["eq", ["arg", 3], ["lit", 0]],
+            ],
         )
         self.assertEqual(
             lc.annotated_candidate(["i > 3 && 2 == n"], probe)[:2],
@@ -677,7 +753,9 @@ class WhileRoute(Shapes):
         self.assertEqual(lc.loop_annotations(self.SRC, {"src": "0:1:0"}), [])
 
     def test_while_driver(self):
-        text = lc.while_driver("H", "Horn", "ok_transfer", 0xFD0011A5, 1, 'probe cfg "s" "m"')
+        text = lc.while_driver(
+            "H", "Horn", "ok_transfer", 0xFD0011A5, 1, 'probe cfg "s" "m"'
+        )
         self.assertIn(f"import {lc.WHILE_MODULE}\n", text)
         self.assertIn(f"def main : IO UInt32 :=\n  {lc.WHILE_MODULE}.probe cfg", text)
         self.assertIn("summary? := none", text)

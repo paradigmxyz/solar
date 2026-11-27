@@ -9,8 +9,8 @@ import unittest
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-import generic  # noqa: E402
-import rec_final  # noqa: E402
+import generic
+import rec_final
 
 SOLC = pathlib.Path.home() / ".cache/solc/solc-0.8.35"
 # A solidity-lean checkout with the pinned exports, when SOLIDITY_LEAN_DIR names one.
@@ -57,7 +57,11 @@ def ast_of(text):
 
 
 def cdef(ast, name):
-    return next(n for n in ast["nodes"] if n.get("nodeType") == "ContractDefinition" and n.get("name") == name)
+    return next(
+        n
+        for n in ast["nodes"]
+        if n.get("nodeType") == "ContractDefinition" and n.get("name") == name
+    )
 
 
 def graph_cycles(ast, name):
@@ -90,7 +94,9 @@ class Route(unittest.TestCase):
         ast = generic.solc_ast(str(SOLC), RECSUM)[0]
         r = rec_final.route(ast, "RecSum")
         self.assertEqual(r, {"function": "sum", "measure": "n"})
-        self.assertIs(rec_final.program("RecSum", "sum"), rec_final.PROGRAMS[("RecSum", "sum")])
+        self.assertIs(
+            rec_final.program("RecSum", "sum"), rec_final.PROGRAMS[("RecSum", "sum")]
+        )
 
     def test_other_program_is_refused(self):
         ast = ast_of(OTHER)
@@ -110,7 +116,10 @@ class Shape(unittest.TestCase):
         self.assertNotEqual(s["proof_module"], s["spec_modules"][0])
 
 
-@unittest.skipUnless((P2 / "Verify/Phase3/RecSum/gen/RecSum").is_dir(), "needs solidity-lean's pinned export")
+@unittest.skipUnless(
+    (P2 / "Verify/Phase3/RecSum/gen/RecSum").is_dir(),
+    "needs solidity-lean's pinned export",
+)
 class Export(unittest.TestCase):
     def test_pinned_export_matches_itself_and_refuses_a_change(self):
         prog = rec_final.PROGRAMS[("RecSum", "sum")]
@@ -120,7 +129,11 @@ class Export(unittest.TestCase):
             for f in pinned.glob("*.lean"):
                 (pathlib.Path(d) / f.name).write_bytes(f.read_bytes())
             ev = pathlib.Path(d) / "Evm6.lean"
-            ev.write_text(ev.read_text().replace(".op (.stack (.push 1)),", ".op (.stack (.push 2)),", 1))
+            ev.write_text(
+                ev.read_text().replace(
+                    ".op (.stack (.push 1)),", ".op (.stack (.push 2)),", 1
+                )
+            )
             self.assertIn("Evm6.lean", rec_final.export_problem(d, P2, prog))
 
     def test_manifest_argument_order_only(self):
@@ -132,8 +145,13 @@ class Export(unittest.TestCase):
             m = pathlib.Path(d) / "Manifest.lean"
             t = m.read_text()
             # The driver passes the source first: the same arguments in another order are the same export.
-            moved = t.replace('  ["-Ogas",', '  ["RecSum.sol",\n   "-Ogas",', 1).replace(
-                '   "-Zemit-lean-stages=gen",\n   "RecSum.sol"]', '   "-Zemit-lean-stages=gen"]', 1)
+            moved = t.replace(
+                '  ["-Ogas",', '  ["RecSum.sol",\n   "-Ogas",', 1
+            ).replace(
+                '   "-Zemit-lean-stages=gen",\n   "RecSum.sol"]',
+                '   "-Zemit-lean-stages=gen"]',
+                1,
+            )
             self.assertNotEqual(moved, t)
             m.write_text(moved)
             self.assertIsNone(rec_final.export_problem(d, P2, prog))

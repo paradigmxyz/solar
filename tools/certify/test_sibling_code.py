@@ -108,7 +108,9 @@ class SiblingCode(unittest.TestCase):
         lin, why = generic.linearization(ast, cdef)
         self.assertIsNone(why)
         inline, _ = generic.sibling_code(ast, cdef, lin)
-        self.assertEqual([(u["name"], n["name"]) for n, u in inline], [("Spin", "spin")])
+        self.assertEqual(
+            [(u["name"], n["name"]) for n, u in inline], [("Spin", "spin")]
+        )
         self.assertIn("loop", [f for f, _ in envelope("BaseReaches.sol", "Derived")])
 
     def test_inlined_code_meets_the_envelope(self):
@@ -145,7 +147,9 @@ class StatementBindsTarget(unittest.TestCase):
         from test_generic import expected_shape, final_py
 
         with tempfile.TemporaryDirectory() as t:
-            code, err, _ = final_py(expected_shape(source_contract="C"), pathlib.Path(t))
+            code, err, _ = final_py(
+                expected_shape(source_contract="C"), pathlib.Path(t)
+            )
             self.assertEqual(code, 0, err)
         with tempfile.TemporaryDirectory() as t:
             code, err, _ = final_py(

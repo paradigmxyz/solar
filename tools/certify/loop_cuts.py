@@ -295,10 +295,15 @@ def heads_exporter(verify):
     (loop_equiv.py reads only how many loops a function has)."""
     try:
         pin = json.loads((HERE / "solar-verify.pin").read_text())
-        exe = HERE.parent.parent / (os.environ.get("CERTIFY_SPEC_VERIFY_BINARY") or pin["binary"])
-        if exe.is_file() and hashlib.sha256(exe.read_bytes()).hexdigest() == pin["sha256"]:
+        exe = HERE.parent.parent / (
+            os.environ.get("CERTIFY_SPEC_VERIFY_BINARY") or pin["binary"]
+        )
+        if (
+            exe.is_file()
+            and hashlib.sha256(exe.read_bytes()).hexdigest() == pin["sha256"]
+        ):
             return exe
-    except (OSError, ValueError, KeyError, TypeError):
+    except OSError, ValueError, KeyError, TypeError:
         pass
     return verify()
 
@@ -311,7 +316,8 @@ def failing_functions(manifest):
         if f.get("status") != "verified":
             fails = "; ".join(str(x) for x in f.get("failures") or [])
             out[f["function"].split(".")[-1]] = (
-                f"solar-verify reports {f.get('status')}" + (f": {fails}" if fails else "")
+                f"solar-verify reports {f.get('status')}"
+                + (f": {fails}" if fails else "")
             )
     return out
 
@@ -399,8 +405,13 @@ def obligations(
         )
     if annotations is not None and summary is None:
         if not (lean_dir / WHILE_FILE).is_file():
-            raise Stop("obligations", f"the solidity-lean base has no {WHILE_FILE} for the while route")
-        rc2, out2, err2 = run([*LAKE, "build", WHILE_MODULE], cwd=lean_dir, env=lake_env)
+            raise Stop(
+                "obligations",
+                f"the solidity-lean base has no {WHILE_FILE} for the while route",
+            )
+        rc2, out2, err2 = run(
+            [*LAKE, "build", WHILE_MODULE], cwd=lean_dir, env=lake_env
+        )
         if rc2 != 0:
             raise Stop(
                 "obligations",
@@ -409,7 +420,9 @@ def obligations(
             )
         w = while_route(
             run,
-            lambda f: run([*LAKE, "env", "lean", "--run", str(f)], cwd=lean_dir, env=lake_env),
+            lambda f: run(
+                [*LAKE, "env", "lean", "--run", str(f)], cwd=lean_dir, env=lake_env
+            ),
             fd,
             name,
             contract,
@@ -420,7 +433,9 @@ def obligations(
             annotations=annotations,
         )
         rc, out, err = 0, w["out"], ""
-        (fd / "while-route.json").write_text(json.dumps({k: v for k, v in w.items() if k != "out"}))
+        (fd / "while-route.json").write_text(
+            json.dumps({k: v for k, v in w.items() if k != "out"})
+        )
     else:
         rc, out, err = run(
             [*LAKE, "env", "lean", "--run", str(fd / "Gen.lean")],
@@ -436,7 +451,9 @@ def obligations(
                 "for the discovered-invariant route",
                 kept(f"{name}.Loops.{fname}.Gen", out + err),
             )
-        rc2, out2, err2 = run([*LAKE, "build", INFER_MODULE], cwd=lean_dir, env=lake_env)
+        rc2, out2, err2 = run(
+            [*LAKE, "build", INFER_MODULE], cwd=lean_dir, env=lake_env
+        )
         if rc2 != 0:
             raise Stop(
                 "obligations",
@@ -445,7 +462,9 @@ def obligations(
             )
         inferred = infer(
             run,
-            lambda f: run([*LAKE, "env", "lean", "--run", str(f)], cwd=lean_dir, env=lake_env),
+            lambda f: run(
+                [*LAKE, "env", "lean", "--run", str(f)], cwd=lean_dir, env=lake_env
+            ),
             fd,
             name,
             contract,
@@ -587,7 +606,9 @@ def hook(
                 stage0,
                 summary(fname),
                 annotations=(
-                    loop_annotations(src_bytes, whiles[fname]) if fname in whiles else None
+                    loop_annotations(src_bytes, whiles[fname])
+                    if fname in whiles
+                    else None
                 ),
             )
             cuts[fname] = {
@@ -809,7 +830,9 @@ def while_functions(ast, contract):
     return {
         fname: node
         for node, fname, why in shapes
-        if why is None and count[fname] == 1 and node.get("nodeType") == "WhileStatement"
+        if why is None
+        and count[fname] == 1
+        and node.get("nodeType") == "WhileStatement"
     }
 
 
@@ -823,12 +846,16 @@ def infer_driver(name, contract, fname, sel, nargs, call):
     head, rest = text.split("def main : IO UInt32 :=\n", 1)
     first, cfg = rest.split("\n", 1)
     assert first.strip() == f"{GEN_MODULE}.run", first
-    head = head.replace(f"import {GEN_MODULE}\n", f"import {GEN_MODULE}\nimport {INFER_MODULE}\n", 1)
+    head = head.replace(
+        f"import {GEN_MODULE}\n", f"import {GEN_MODULE}\nimport {INFER_MODULE}\n", 1
+    )
     return (
         head
         + "open SolidCore.Refinement.Generic Verify.LoopSource.Equiv.Inv\n\n"
         + "def cfg : Verify.LoopSource.Equiv.GenObl.Config :=\n"
-        + cfg.rstrip("\n").replace("\n    ", "\n  ").replace("    { stage0", "  { stage0", 1)
+        + cfg.rstrip("\n")
+        .replace("\n    ", "\n  ")
+        .replace("    { stage0", "  { stage0", 1)
         + "\n\n"
         + f"def main : IO UInt32 :=\n  {INFER_MODULE}.{call}\n"
     )
@@ -843,7 +870,14 @@ def infer(run, lean_run, fd, name, contract, fname, sel, nargs, z3=None, why="")
     fd = pathlib.Path(fd)
     leaves = fd / "leaves.json"
     (fd / "InferExport.lean").write_text(
-        infer_driver(name, contract, fname, sel, nargs, f"exportLeaves cfg {json.dumps(str(leaves))}")
+        infer_driver(
+            name,
+            contract,
+            fname,
+            sel,
+            nargs,
+            f"exportLeaves cfg {json.dumps(str(leaves))}",
+        )
     )
     rc, out, err = lean_run(fd / "InferExport.lean")
     if rc != 0 or not leaves.is_file():
@@ -851,7 +885,14 @@ def infer(run, lean_run, fd, name, contract, fname, sel, nargs, z3=None, why="")
     cand = fd / "candidate.json"
     env = dict(os.environ, **({"Z3": z3} if z3 else {}))
     rc, out, err = run(
-        [sys.executable, "-I", str(HERE / "loop_infer.py"), str(leaves), "--emit-candidate", str(cand)],
+        [
+            sys.executable,
+            "-I",
+            str(HERE / "loop_infer.py"),
+            str(leaves),
+            "--emit-candidate",
+            str(cand),
+        ],
         env=env,
     )
     report = {}
@@ -870,7 +911,9 @@ def infer(run, lean_run, fd, name, contract, fname, sel, nargs, z3=None, why="")
         )
     c = json.loads(cand.read_text())
     (fd / "InferEmit.lean").write_text(
-        infer_driver(name, contract, fname, sel, nargs, f"emit cfg {c['I_lean']} {c['mu_lean']}")
+        infer_driver(
+            name, contract, fname, sel, nargs, f"emit cfg {c['I_lean']} {c['mu_lean']}"
+        )
     )
     rc, out, err = lean_run(fd / "InferEmit.lean")
     if rc != 0:
@@ -885,7 +928,9 @@ def infer(run, lean_run, fd, name, contract, fname, sel, nargs, z3=None, why="")
 # --- step 3w: the while route ------------------------------------------------------------------
 
 ANNOTATION = re.compile(r"@custom:invariant\s+(.+?)\s*$")
-ATOM = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*|\d+)\s*(<=|>=|==|<|>)\s*([A-Za-z_][A-Za-z0-9_]*|\d+)\s*$")
+ATOM = re.compile(
+    r"^\s*([A-Za-z_][A-Za-z0-9_]*|\d+)\s*(<=|>=|==|<|>)\s*([A-Za-z_][A-Za-z0-9_]*|\d+)\s*$"
+)
 
 
 def loop_annotations(src_bytes, loop):
@@ -932,8 +977,13 @@ def annotated_candidate(texts, probe):
             if a is None or b is None:
                 return None
             I.append(
-                {"<=": ["le", a, b], "<": ["lt", a, b], ">=": ["le", b, a], ">": ["lt", b, a],
-                 "==": ["eq", a, b]}[op]
+                {
+                    "<=": ["le", a, b],
+                    "<": ["lt", a, b],
+                    ">=": ["le", b, a],
+                    ">": ["lt", b, a],
+                    "==": ["eq", a, b],
+                }[op]
             )
     for j, (st, w0) in enumerate(zip(probe["steps"], probe["inits"])):
         if st == ["arg", base + j]:
@@ -948,12 +998,16 @@ def while_driver(name, contract, fname, sel, nargs, call):
     head, rest = text.split("def main : IO UInt32 :=\n", 1)
     first, cfg = rest.split("\n", 1)
     assert first.strip() == f"{GEN_MODULE}.run", first
-    head = head.replace(f"import {GEN_MODULE}\n", f"import {GEN_MODULE}\nimport {WHILE_MODULE}\n", 1)
+    head = head.replace(
+        f"import {GEN_MODULE}\n", f"import {GEN_MODULE}\nimport {WHILE_MODULE}\n", 1
+    )
     return (
         head
         + "open SolidCore.Refinement.Generic Verify.LoopSource.Equiv.Inv\n\n"
         + "def cfg : Verify.LoopSource.Equiv.GenObl.Config :=\n"
-        + cfg.rstrip("\n").replace("\n    ", "\n  ").replace("    { stage0", "  { stage0", 1)
+        + cfg.rstrip("\n")
+        .replace("\n    ", "\n  ")
+        .replace("    { stage0", "  { stage0", 1)
         + "\n\n"
         + f"def main : IO UInt32 :=\n  {WHILE_MODULE}.{call}\n"
     )
@@ -963,7 +1017,14 @@ def _infer(run, leaves, cand, z3, candidate=None):
     """loop_infer.py on LEAVES, writing CAND; with CANDIDATE (a JSON file), that invariant is
     screened (and a measure found) instead of discovered. Returns (rc, report, stderr)."""
     env = dict(os.environ, **({"Z3": z3} if z3 else {}))
-    cmd = [sys.executable, "-I", str(HERE / "loop_infer.py"), str(leaves), "--emit-candidate", str(cand)]
+    cmd = [
+        sys.executable,
+        "-I",
+        str(HERE / "loop_infer.py"),
+        str(leaves),
+        "--emit-candidate",
+        str(cand),
+    ]
     if candidate is not None:
         cmd += ["--candidate", str(candidate)]
     rc, out, err = run(cmd, env=env)
@@ -978,14 +1039,22 @@ def _infer(run, leaves, cand, z3, candidate=None):
     return rc, report, err
 
 
-def while_route(run, lean_run, fd, name, contract, fname, sel, nargs, z3=None, annotations=()):
+def while_route(
+    run, lean_run, fd, name, contract, fname, sel, nargs, z3=None, annotations=()
+):
     """Step 3w in the function's directory FD. Returns {"out" (the emit step's JSON line),
     "source_invariant", "invariant", "probe"}; raises Stop("while", ...) with the step's reason."""
     fd = pathlib.Path(fd)
     src_leaves, mir_leaves = fd / "while-source.json", fd / "while-leaves.json"
     (fd / "WhileProbe.lean").write_text(
-        while_driver(name, contract, fname, sel, nargs,
-                     f"probe cfg {json.dumps(str(src_leaves))} {json.dumps(str(mir_leaves))}")
+        while_driver(
+            name,
+            contract,
+            fname,
+            sel,
+            nargs,
+            f"probe cfg {json.dumps(str(src_leaves))} {json.dumps(str(mir_leaves))}",
+        )
     )
     rc, out, err = lean_run(fd / "WhileProbe.lean")
     if rc != 0 or not src_leaves.is_file() or not mir_leaves.is_file():
@@ -1023,8 +1092,14 @@ def while_route(run, lean_run, fd, name, contract, fname, sel, nargs, z3=None, a
         )
     mc = json.loads(mir_cand.read_text())
     (fd / "WhileEmit.lean").write_text(
-        while_driver(name, contract, fname, sel, nargs,
-                     f"emit cfg {sc['I_lean']} {sc['mu_lean']} {mc['I_lean']} {mc['mu_lean']}")
+        while_driver(
+            name,
+            contract,
+            fname,
+            sel,
+            nargs,
+            f"emit cfg {sc['I_lean']} {sc['mu_lean']} {mc['I_lean']} {mc['mu_lean']}",
+        )
     )
     rc, out, err = lean_run(fd / "WhileEmit.lean")
     if rc != 0:
@@ -1035,8 +1110,15 @@ def while_route(run, lean_run, fd, name, contract, fname, sel, nargs, z3=None, a
         )
     return {
         "out": out,
-        "source_invariant": {"source": source, "I": sc.get("I_math"), "mu": sc.get("mu_math")},
-        "invariant": {"source": mc.get("source"), "I": mc.get("I_math"), "mu": mc.get("mu_math")},
+        "source_invariant": {
+            "source": source,
+            "I": sc.get("I_math"),
+            "mu": sc.get("mu_math"),
+        },
+        "invariant": {
+            "source": mc.get("source"),
+            "I": mc.get("I_math"),
+            "mu": mc.get("mu_math"),
+        },
         "probe": {"exit": probe.get("exit"), "names": probe.get("names")},
     }
-

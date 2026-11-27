@@ -99,7 +99,9 @@ def shape(pass_name, funcs):
         if g["blocks"] and cp.mir_headers(g)[0]:
             raise Unsupported(f"{pass_name}: a loop in @{g['name']} beside recursion")
     if any(callee != F for _, _, callee, _ in cp.mir_calls(fn)):
-        raise Unsupported(f"{pass_name}: @{fn['name']} calls other functions than itself")
+        raise Unsupported(
+            f"{pass_name}: @{fn['name']} calls other functions than itself"
+        )
     sites = [(F, b, k) for b, k, callee, _ in cp.mir_calls(fn) if callee == F]
     outer = []
     for f, g in enumerate(funcs):
@@ -120,7 +122,9 @@ def shape(pass_name, funcs):
         if len(t) > 4 and t[4] != "[]":
             raise Unsupported(f"{pass_name}: a recursive call with several results")
         if len(t) > 5 and t[5] != "none":
-            raise Unsupported(f"{pass_name}: a recursive call that publishes its results")
+            raise Unsupported(
+                f"{pass_name}: a recursive call that publishes its results"
+            )
     if not fn["params"]:
         raise Unsupported(f"{pass_name}: a recursive function without parameters")
     return F, sites, outer
@@ -143,7 +147,9 @@ class EvmView:
 
         def pos(ident, what):
             if ids.count(ident) != 1:
-                raise Unsupported(f"{pass_name}: {what} bb{ident} is not one block of the program")
+                raise Unsupported(
+                    f"{pass_name}: {what} bb{ident} is not one block of the program"
+                )
             return ids.index(ident)
 
         fm = fmaps.get(F)
@@ -151,16 +157,22 @@ class EvmView:
             raise Unsupported(f"{pass_name}: no schedule map of the recursive function")
         b0 = next((x for x in fm["blocks"] if x["block"] == 0), None)
         if b0 is None or b0["start"] is None or b0["start"][1] != 0:
-            raise Unsupported(f"{pass_name}: the recursive function's entry starts no scheduled block")
+            raise Unsupported(
+                f"{pass_name}: the recursive function's entry starts no scheduled block"
+            )
         self.entry = pos(b0["start"][0], "the recursive function's entry")
         # Top of the stack first.
         self.entry_layout = list(reversed(b0["layout"]))
         self.ret, self.below = {}, {}
         for site in sites + outer:
             f, b, k = site
-            calls = [c for c in fmaps.get(f, {}).get("calls", []) if c.get("block") == b]
+            calls = [
+                c for c in fmaps.get(f, {}).get("calls", []) if c.get("block") == b
+            ]
             if k >= len(calls):
-                raise Unsupported(f"{pass_name}: the schedule map records no return of a call in bb{b}")
+                raise Unsupported(
+                    f"{pass_name}: the schedule map records no return of a call in bb{b}"
+                )
             self.ret[site] = pos(calls[k]["return"], "the return block")
             self.below[site] = list(reversed(calls[k]["below"]))
         for x in self.entry_layout:
@@ -170,14 +182,20 @@ class EvmView:
             raise Unsupported(f"{pass_name}: the entry layout holds no return address")
         for site in sites:
             if self.below[site].count("ret") != 1:
-                raise Unsupported(f"{pass_name}: a recursive call keeps no return address below it")
+                raise Unsupported(
+                    f"{pass_name}: a recursive call keeps no return address below it"
+                )
         for site in outer:
             if "ret" in self.below[site]:
-                raise Unsupported(f"{pass_name}: an outer caller keeps a return address")
+                raise Unsupported(
+                    f"{pass_name}: an outer caller keeps a return address"
+                )
         for site in sites + outer:
             for x in self.below[site]:
                 if x != "ret" and not re.fullmatch(r"v\d+", x):
-                    raise Unsupported(f"{pass_name}: a call keeps {x} below its arguments")
+                    raise Unsupported(
+                        f"{pass_name}: a call keeps {x} below its arguments"
+                    )
 
 
 def stack(syms, word, label, tail):
@@ -225,17 +243,32 @@ def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
     fb = cp.parse_mir(tb) if kb == "mir" else None
     for fs in (fa, fb):
         if fs is not None and shape(pass_name, fs) != (F, sites, outer):
-            raise Unsupported(f"{pass_name}: the recursion's call sites differ across the pass")
+            raise Unsupported(
+                f"{pass_name}: the recursion's call sites differ across the pass"
+            )
     if kb != "mir" and schedule is None:
         raise Unsupported(f"{pass_name}: no Schedule.json from the exporter")
-    va = EvmView(pass_name, cp.parse_evm(ta), schedule, F, sites, outer) if ka != "mir" else None
-    vb = EvmView(pass_name, cp.parse_evm(tb), schedule, F, sites, outer) if kb != "mir" else None
+    va = (
+        EvmView(pass_name, cp.parse_evm(ta), schedule, F, sites, outer)
+        if ka != "mir"
+        else None
+    )
+    vb = (
+        EvmView(pass_name, cp.parse_evm(tb), schedule, F, sites, outer)
+        if kb != "mir"
+        else None
+    )
     names = {s: f"r{n}" for n, s in enumerate(sites)}
     names.update({s: f"o{n}" for n, s in enumerate(outer)})
     Fr = f"{p}_Fr"
     ca = MIR_CFG if ka == "mir" else EVM_CFG
     cb = MIR_CFG if kb == "mir" else EVM_CFG
-    LIST, ENV, WD, STK = "List MIR.Lowered.Return", "MIR.Lowered.Env", "EvmRules.Word", "EVM.Stack"
+    LIST, ENV, WD, STK = (
+        "List MIR.Lowered.Return",
+        "MIR.Lowered.Env",
+        "EvmRules.Word",
+        "EVM.Stack",
+    )
     kind = "mm" if kb == "mir" else ("me" if ka == "mir" else "ee")
     out = []
 
@@ -249,7 +282,9 @@ def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
                 mp = cand
                 break
         if mp is None:
-            raise Unsupported(f"{pass_name}: no parameter of the recursive function is kept below every recursive call (no measure)")
+            raise Unsupported(
+                f"{pass_name}: no parameter of the recursive function is kept below every recursive call (no measure)"
+            )
     w = max((len(v.below[s]) for v in views for s in sites), default=0)
 
     def bnd(tail, word):
@@ -260,26 +295,34 @@ def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
         enter = f"(f == {F} && b == 0)"
         res = " || ".join(f"b == {blk}" for blk in sorted({s[1] for s in sites}))
         resume = f"(f == {F} && ({res}))"
-        return name, [f"{name}_enter", f"{name}_resume"], (
-            f"def {name} : {MIR_CFG} → Bool := fun x =>\n"
-            f"  match x.2.1 with\n"
-            f"  | .enter f _ b => {enter}\n"
-            f"  | .resume f b .. => {resume}\n\n"
-            f"theorem {name}_enter (rs : {LIST}) (f p b : Nat) (env : {ENV}) (s : State) :\n"
-            f"    {name} (rs, .enter f p b, env, s) = {enter} := rfl\n\n"
-            f"theorem {name}_resume (rs : {LIST}) (f b : Nat) (is : List MIR.Lowered.Inst) "
-            f"(t : MIR.Lowered.Terminator) (env : {ENV}) (s : State) :\n"
-            f"    {name} (rs, .resume f b is t, env, s) = {resume} := rfl\n\n"
+        return (
+            name,
+            [f"{name}_enter", f"{name}_resume"],
+            (
+                f"def {name} : {MIR_CFG} → Bool := fun x =>\n"
+                f"  match x.2.1 with\n"
+                f"  | .enter f _ b => {enter}\n"
+                f"  | .resume f b .. => {resume}\n\n"
+                f"theorem {name}_enter (rs : {LIST}) (f p b : Nat) (env : {ENV}) (s : State) :\n"
+                f"    {name} (rs, .enter f p b, env, s) = {enter} := rfl\n\n"
+                f"theorem {name}_resume (rs : {LIST}) (f b : Nat) (is : List MIR.Lowered.Inst) "
+                f"(t : MIR.Lowered.Terminator) (env : {ENV}) (s : State) :\n"
+                f"    {name} (rs, .resume f b is t, env, s) = {resume} := rfl\n\n"
+            ),
         )
 
     def evm_cut(side, v):
         name = f"{p}_cut{side}"
         tests = [v.entry] + sorted({v.ret[s] for s in sites})
         test = " || ".join(f"b == {i}" for i in tests)
-        return name, [f"{name}_mk"], (
-            f"def {name} : {EVM_CFG} → Bool := fun x => {test.replace('b ==', 'x.1 ==')}\n\n"
-            f"theorem {name}_mk (b : Nat) (st : {STK}) (s : State) :\n"
-            f"    {name} (b, st, s) = ({test}) := rfl\n\n"
+        return (
+            name,
+            [f"{name}_mk"],
+            (
+                f"def {name} : {EVM_CFG} → Bool := fun x => {test.replace('b ==', 'x.1 ==')}\n\n"
+                f"theorem {name}_mk (b : Nat) (st : {STK}) (s : State) :\n"
+                f"    {name} (b, st, s) = ({test}) := rfl\n\n"
+            ),
         )
 
     cut_a, unf_a, t = mir_cut("A") if ka == "mir" else evm_cut("A", va)
@@ -299,9 +342,13 @@ def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
         return sorted(cp.live_after_call(fa[f], s) | cp.live_after_call(fb[f], s))
 
     if kind == "mm" and len(fa[F]["params"]) != len(fb[F]["params"]):
-        raise Unsupported(f"{pass_name}: the recursive function's parameters differ across the pass")
+        raise Unsupported(
+            f"{pass_name}: the recursive function's parameters differ across the pass"
+        )
     if kind == "ee" and va.entry_layout != vb.entry_layout:
-        raise Unsupported(f"{pass_name}: the recursive function's entry layout differs across the pass")
+        raise Unsupported(
+            f"{pass_name}: the recursive function's entry layout differs across the pass"
+        )
     P = "'"
 
     # Stack texts.
@@ -324,7 +371,9 @@ def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
         if kind == "mm":
             eqs = " ".join(f"(h{i} : c' {x} = c {x})" for i, x in enumerate(live(s)))
             if o:
-                ctors.append(f"  | {names[s]} (c c' : {ENV}) {eqs} :\n      {Fr} [{fra(s, 'c')}] [{frb(s, 'c' + P)}]")
+                ctors.append(
+                    f"  | {names[s]} (c c' : {ENV}) {eqs} :\n      {Fr} [{fra(s, 'c')}] [{frb(s, 'c' + P)}]"
+                )
             else:
                 ctors.append(
                     f"  | {names[s]} (c c' : {ENV}) (rs rs' : {LIST}) {eqs} (t : {Fr} rs rs') :\n"
@@ -355,12 +404,19 @@ def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
                     f"      (t : {Fr} L T L' T') :\n"
                     f"      {Fr} {W(va.ret[s])} ({ee_below(va, s, 'L', 'T')}) {W(vb.ret[s])} ({ee_below(vb, s, 'L' + P, 'T' + P)})"
                 )
-    sig = {"mm": f"{LIST} → {LIST} → Prop", "me": f"{LIST} → {WD} → {STK} → Prop",
-           "ee": f"{WD} → {STK} → {WD} → {STK} → Prop"}[kind]
+    sig = {
+        "mm": f"{LIST} → {LIST} → Prop",
+        "me": f"{LIST} → {WD} → {STK} → Prop",
+        "ee": f"{WD} → {STK} → {WD} → {STK} → Prop",
+    }[kind]
     out.append(
         "/-- The call frames below a configuration of the recursive function, related frame by frame: one\n"
         "constructor per call site, a recursive site's over the frames below it"
-        + ("" if kind == "mm" else ", with the stack below each frame\nbounded by the measure, so that no segment overflows the 1024-word stack")
+        + (
+            ""
+            if kind == "mm"
+            else ", with the stack below each frame\nbounded by the measure, so that no segment overflows the 1024-word stack"
+        )
         + ". -/\n"
         f"inductive {Fr} : {sig}\n" + "\n".join(ctors) + "\n\n"
     )
@@ -369,41 +425,105 @@ def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
     rels = []
     if kind == "mm":
         par = [f"env' {y} = env {x}" for x, y in zip(fa[F]["params"], fb[F]["params"])]
-        sv, tv = [("rs", LIST), ("env", ENV), ("s", "State")], [("rs'", LIST), ("env'", ENV)]
-        rels.append(dict(src_vars=sv, tgt_vars=tv, src=f"(rs, .enter {F} 0 0, env, s)", tgt=f"(rs', .enter {F} 0 0, env', s)",
-                         conds=par + [f"{Fr} rs rs'"], kind="entry"))
+        sv, tv = (
+            [("rs", LIST), ("env", ENV), ("s", "State")],
+            [("rs'", LIST), ("env'", ENV)],
+        )
+        rels.append(
+            {
+                "src_vars": sv,
+                "tgt_vars": tv,
+                "src": f"(rs, .enter {F} 0 0, env, s)",
+                "tgt": f"(rs', .enter {F} 0 0, env', s)",
+                "conds": par + [f"{Fr} rs rs'"],
+                "kind": "entry",
+            }
+        )
         for s in sites:
             d = dst_of(fa, s)
-            eqs = [f"env' {x} = env {x}" for x in sorted(set(live(s)) | ({d} if d is not None else set()))]
-            rels.append(dict(src_vars=sv, tgt_vars=tv, src=f"(rs, {resume_pos(fa, s)}, env, s)", tgt=f"(rs', {resume_pos(fb, s)}, env', s)",
-                             conds=eqs + [f"{Fr} rs rs'"], kind="resume", site=s))
+            eqs = [
+                f"env' {x} = env {x}"
+                for x in sorted(set(live(s)) | ({d} if d is not None else set()))
+            ]
+            rels.append(
+                {
+                    "src_vars": sv,
+                    "tgt_vars": tv,
+                    "src": f"(rs, {resume_pos(fa, s)}, env, s)",
+                    "tgt": f"(rs', {resume_pos(fb, s)}, env', s)",
+                    "conds": eqs + [f"{Fr} rs rs'"],
+                    "kind": "resume",
+                    "site": s,
+                }
+            )
     elif kind == "me":
         sv, tv = [("rs", LIST), ("env", ENV), ("s", "State")], [("L", WD), ("T", STK)]
-        rels.append(dict(src_vars=sv, tgt_vars=tv, src=f"(rs, .enter {F} 0 0, env, s)",
-                         tgt=f"({vb.entry}, {me_entry('env', 'L', 'T')}, s)",
-                         conds=[bnd("T", f"env {mp}"), f"{Fr} rs L T"], kind="entry"))
+        rels.append(
+            {
+                "src_vars": sv,
+                "tgt_vars": tv,
+                "src": f"(rs, .enter {F} 0 0, env, s)",
+                "tgt": f"({vb.entry}, {me_entry('env', 'L', 'T')}, s)",
+                "conds": [bnd("T", f"env {mp}"), f"{Fr} rs L T"],
+                "kind": "entry",
+            }
+        )
         for s in sites:
             d = dst_of(fa, s)
             if d is None:
-                raise Unsupported(f"{pass_name}: a recursive call whose result no value binds")
-            rels.append(dict(src_vars=sv, tgt_vars=tv, src=f"(rs, {resume_pos(fa, s)}, env, s)",
-                             tgt=f"({vb.ret[s]}, (env {d}) :: {me_below(s, 'env', 'L', 'T')}, s)",
-                             conds=[bnd("T", f"env {mp}"), f"{Fr} rs L T"], kind="resume", site=s))
+                raise Unsupported(
+                    f"{pass_name}: a recursive call whose result no value binds"
+                )
+            rels.append(
+                {
+                    "src_vars": sv,
+                    "tgt_vars": tv,
+                    "src": f"(rs, {resume_pos(fa, s)}, env, s)",
+                    "tgt": f"({vb.ret[s]}, (env {d}) :: {me_below(s, 'env', 'L', 'T')}, s)",
+                    "conds": [bnd("T", f"env {mp}"), f"{Fr} rs L T"],
+                    "kind": "resume",
+                    "site": s,
+                }
+            )
     else:
         ews = word_vars(va.entry_layout)
-        rels.append(dict(src_vars=[(f"a{i}", WD) for i in ews] + [("L", WD), ("T", STK), ("s", "State")],
-                         tgt_vars=[("L'", WD), ("T'", STK)],
-                         src=f"({va.entry}, {ee_entry(va, 'L', 'T')}, s)",
-                         tgt=f"({vb.entry}, {ee_entry(vb, 'L' + P, 'T' + P)}, s)",
-                         conds=[bnd("T", f"a{mp}"), bnd("T'", f"a{mp}"), f"{Fr} L T L' T'"], kind="entry"))
+        rels.append(
+            {
+                "src_vars": [(f"a{i}", WD) for i in ews]
+                + [("L", WD), ("T", STK), ("s", "State")],
+                "tgt_vars": [("L'", WD), ("T'", STK)],
+                "src": f"({va.entry}, {ee_entry(va, 'L', 'T')}, s)",
+                "tgt": f"({vb.entry}, {ee_entry(vb, 'L' + P, 'T' + P)}, s)",
+                "conds": [bnd("T", f"a{mp}"), bnd("T'", f"a{mp}"), f"{Fr} L T L' T'"],
+                "kind": "entry",
+            }
+        )
         for s in sites:
-            rels.append(dict(src_vars=[("r", WD)] + [(f"w{i}", WD) for i in word_vars(va.below[s], vb.below[s])]
-                             + [("L", WD), ("T", STK), ("s", "State")],
-                             tgt_vars=[("L'", WD), ("T'", STK)],
-                             src=f"({va.ret[s]}, r :: {ee_below(va, s, 'L', 'T')}, s)",
-                             tgt=f"({vb.ret[s]}, r :: {ee_below(vb, s, 'L' + P, 'T' + P)}, s)",
-                             conds=[bnd("T", f"w{mp}"), bnd("T'", f"w{mp}"), f"{Fr} L T L' T'"], kind="resume", site=s))
-    init = dict(src_vars=[], tgt_vars=[], src=cp.init_term(ka, A), tgt=cp.init_term(kb, B), conds=[], kind="init")
+            rels.append(
+                {
+                    "src_vars": [("r", WD)]
+                    + [(f"w{i}", WD) for i in word_vars(va.below[s], vb.below[s])]
+                    + [("L", WD), ("T", STK), ("s", "State")],
+                    "tgt_vars": [("L'", WD), ("T'", STK)],
+                    "src": f"({va.ret[s]}, r :: {ee_below(va, s, 'L', 'T')}, s)",
+                    "tgt": f"({vb.ret[s]}, r :: {ee_below(vb, s, 'L' + P, 'T' + P)}, s)",
+                    "conds": [
+                        bnd("T", f"w{mp}"),
+                        bnd("T'", f"w{mp}"),
+                        f"{Fr} L T L' T'",
+                    ],
+                    "kind": "resume",
+                    "site": s,
+                }
+            )
+    init = {
+        "src_vars": [],
+        "tgt_vars": [],
+        "src": cp.init_term(ka, A),
+        "tgt": cp.init_term(kb, B),
+        "conds": [],
+        "kind": "init",
+    }
     allrels = [init] + rels
 
     def body(r):
@@ -415,7 +535,8 @@ def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
         "/-- The relations at the first configurations, at the recursive function's entry and at each point it\n"
         "resumes after a recursive call, each over every depth of recursion through the frame relation. -/\n"
         f"def {p}_rels (call : Call) : List ({ca} → {cb} → Prop) :=\n  ["
-        + ",\n   ".join(f"fun x x' => {body(r)}" for r in allrels) + "]\n\n"
+        + ",\n   ".join(f"fun x x' => {body(r)}" for r in allrels)
+        + "]\n\n"
     )
 
     # Relation lemmas: an outer call (from the first segment), a recursive call (the pushed frame's
@@ -432,8 +553,11 @@ def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
         if kind == "mm":
             lv = live(s)
             par = list(zip(fa[F]["params"], fb[F]["params"]))
-            concl = " ∧ ".join([f"y = ([{frb(s, 'c' + P)}], .enter {F} 0 0, env', s)"]
-                               + [f"env' {y} = env {x}" for x, y in par] + [f"c' {x} = c {x}" for x in lv])
+            concl = " ∧ ".join(
+                [f"y = ([{frb(s, 'c' + P)}], .enter {F} 0 0, env', s)"]
+                + [f"env' {y} = env {x}" for x, y in par]
+                + [f"c' {x} = c {x}" for x in lv]
+            )
             hp = [f"hp{i}" for i in range(len(par))]
             hc = [f"hc{i}" for i in range(len(lv))]
             out.append(
@@ -473,8 +597,11 @@ def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
         if kind == "mm":
             lv = live(s)
             par = list(zip(fa[F]["params"], fb[F]["params"]))
-            concl = " ∧ ".join([f"y = ({frb(s, 'c' + P)} :: rs', .enter {F} 0 0, env', s)"]
-                               + [f"env' {y} = env {x}" for x, y in par] + [f"c' {x} = c {x}" for x in lv])
+            concl = " ∧ ".join(
+                [f"y = ({frb(s, 'c' + P)} :: rs', .enter {F} 0 0, env', s)"]
+                + [f"env' {y} = env {x}" for x, y in par]
+                + [f"c' {x} = c {x}" for x in lv]
+            )
             hp = [f"hp{i}" for i in range(len(par))]
             hc = [f"hc{i}" for i in range(len(lv))]
             out.append(
@@ -549,7 +676,11 @@ def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
     def fuel(kind_, text):
         if kind_ == "mir":
             fs = cp.parse_mir(text)
-            return sum(len(f["blocks"]) for f in fs) + sum(len(cp.mir_calls(f)) for f in fs) + 2
+            return (
+                sum(len(f["blocks"]) for f in fs)
+                + sum(len(cp.mir_calls(f)) for f in fs)
+                + 2
+            )
         return len(cp.parse_evm(text)) + 1
 
     fuel_a, fuel_b = fuel(ka, ta), fuel(kb, tb)
@@ -572,7 +703,10 @@ def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
             f"  refine ⟨{fuel_a}, ?_⟩\n"
         )
         if r["kind"] == "init":
-            out.append(head + f"  rec_seg [{unf}] [{', '.join(mk_outer[s] for s in outer)}]\n\n")
+            out.append(
+                head
+                + f"  rec_seg [{unf}] [{', '.join(mk_outer[s] for s in outer)}]\n\n"
+            )
             continue
         hF = f"h{len(r['conds']) - 1}"
         lines = [head]
@@ -587,15 +721,27 @@ def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
             elif kind == "me":
                 pat = "c junk hj"
             else:
-                pat = " ".join([f"q{i}" for i in word_vars(va.below[s], vb.below[s])] + ["T0", "T0'", "hj", "hj'"])
-            lines.append(f"  | {names[s]} {pat.strip()} =>\n    rec_seg [{unf}] [{', '.join(calls)}]\n")
+                pat = " ".join(
+                    [f"q{i}" for i in word_vars(va.below[s], vb.below[s])]
+                    + ["T0", "T0'", "hj", "hj'"]
+                )
+            lines.append(
+                f"  | {names[s]} {pat.strip()} =>\n    rec_seg [{unf}] [{', '.join(calls)}]\n"
+            )
         for s in sites:
             if kind == "mm":
-                pat = "c c' rs0 rs0' " + "".join(f"e{i} " for i in range(len(live(s)))) + "t"
+                pat = (
+                    "c c' rs0 rs0' "
+                    + "".join(f"e{i} " for i in range(len(live(s))))
+                    + "t"
+                )
             elif kind == "me":
                 pat = "c rs0 L0 T0 hb t"
             else:
-                pat = " ".join([f"q{i}" for i in word_vars(va.below[s], vb.below[s])] + ["L0", "L0'", "T0", "T0'", "hb", "hb'", "t"])
+                pat = " ".join(
+                    [f"q{i}" for i in word_vars(va.below[s], vb.below[s])]
+                    + ["L0", "L0'", "T0", "T0'", "hb", "hb'", "t"]
+                )
             lines.append(
                 f"  | {names[s]} {pat} =>\n"
                 f"    have b0 := @{mk_resume[s]} call {holes} t\n"
@@ -609,7 +755,9 @@ def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
             vs = [x for x, _ in r["src_vars"] + r["tgt_vars"]]
             hs = [f"h{i}" for i in range(len(r["conds"]))]
             pat = "⟨" + ", ".join(vs + ["rfl", "rfl"] + hs) + "⟩"
-            lines.append(f"  · obtain {pat} := holds\n    exact {segs[n]} o call {' '.join(vs + hs)}".rstrip())
+            lines.append(
+                f"  · obtain {pat} := holds\n    exact {segs[n]} o call {' '.join(vs + hs)}".rstrip()
+            )
         return lines
 
     out.append(
@@ -620,7 +768,8 @@ def stage_body(gen, a, b, heartbeats=2000000, recdepth=None):
         f"  intro P mem x x' holds\n"
         f"  simp only [{p}_rels, List.mem_cons, List.not_mem_nil, or_false] at mem\n"
         f"  rcases mem with {' | '.join(['rfl'] * len(allrels))}\n"
-        + "\n".join(case_lines()) + "\n\n"
+        + "\n".join(case_lines())
+        + "\n\n"
     )
     out.append(
         f"/-- {A} and {B} simulated through their cut points at the recursive function's entry and\n"

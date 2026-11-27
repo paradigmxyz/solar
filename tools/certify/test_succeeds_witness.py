@@ -14,8 +14,8 @@ import unittest
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-import generic  # noqa: E402
-import succeeds_witness  # noqa: E402
+import generic
+import succeeds_witness
 
 FINAL = HERE / "final.py"
 BASE = json.loads((HERE / "testdata" / "final_caller_shape.json").read_text())
@@ -41,13 +41,35 @@ def run_final(shape):
         d = pathlib.Path(d)
         (d / "shape.json").write_text(json.dumps(shape))
         p = subprocess.run(
-            [sys.executable, "-I", str(FINAL), str(d / "shape.json"), "--name", "c_1", "--contract", "C",
-             "--hex", "6080604052", "--out", str(d / "Final.lean"), "--statement-out",
-             str(d / "Statement.lean"), "--record", str(d / "record.json")],
-            check=False, capture_output=True, text=True,
+            [
+                sys.executable,
+                "-I",
+                str(FINAL),
+                str(d / "shape.json"),
+                "--name",
+                "c_1",
+                "--contract",
+                "C",
+                "--hex",
+                "6080604052",
+                "--out",
+                str(d / "Final.lean"),
+                "--statement-out",
+                str(d / "Statement.lean"),
+                "--record",
+                str(d / "record.json"),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
         )
-        get = lambda f: (d / f).read_text() if (d / f).exists() else None  # noqa: E731
-        return p.returncode, p.stdout + p.stderr, get("Statement.lean"), get("record.json")
+        get = lambda f: (d / f).read_text() if (d / f).exists() else None
+        return (
+            p.returncode,
+            p.stdout + p.stderr,
+            get("Statement.lean"),
+            get("record.json"),
+        )
 
 
 class Choice(unittest.TestCase):
@@ -56,7 +78,10 @@ class Choice(unittest.TestCase):
         self.assertEqual(generic.spec_witness(fns), "b")
 
     def test_synthesized_without_succeeds_if(self):
-        self.assertEqual(generic.spec_witness([fn("a"), fn("v", mutates=False)]), generic.SYNTH_WITNESS)
+        self.assertEqual(
+            generic.spec_witness([fn("a"), fn("v", mutates=False)]),
+            generic.SYNTH_WITNESS,
+        )
 
     def test_refused_without_any_spec(self):
         with self.assertRaises(generic.Failed) as e:
@@ -64,10 +89,20 @@ class Choice(unittest.TestCase):
         self.assertIn("no function has @custom:succeeds-if", str(e.exception))
 
     def test_search_takes_a_succeeding_mutating_spec_function(self):
-        fns = [fn("v", mutates=False, sel=7), fn("u", specified=False, sel=8), fn("m", sel=9)]
-        res = {"run fn v(uint256)": "success", "run fn u(uint256)": "success", "run fn m(uint256)": "success"}
+        fns = [
+            fn("v", mutates=False, sel=7),
+            fn("u", specified=False, sel=8),
+            fn("m", sel=9),
+        ]
+        res = {
+            "run fn v(uint256)": "success",
+            "run fn u(uint256)": "success",
+            "run fn m(uint256)": "success",
+        }
         w = generic.synth_witness(res, fns)
-        self.assertEqual(w, {"function": "m", "sel": 9, "arity": 1, "args": [0], "storage": []})
+        self.assertEqual(
+            w, {"function": "m", "sel": 9, "arity": 1, "args": [0], "storage": []}
+        )
         res["run fn m(uint256)"] = "revert"
         self.assertEqual(generic.synth_witness(res, fns)["function"], "v")
 
@@ -84,7 +119,9 @@ class Choice(unittest.TestCase):
         s = generic.shape_json("c_1", "C", fns, 100, "spec", "set", succeeds_witness=SW)
         self.assertEqual(s["succeeds_witness"], SW)
         with self.assertRaises(generic.Failed):
-            generic.shape_json("c_1", "C", fns, 100, "spec", "other", succeeds_witness=SW)
+            generic.shape_json(
+                "c_1", "C", fns, 100, "spec", "other", succeeds_witness=SW
+            )
 
 
 class Clause(unittest.TestCase):
@@ -95,7 +132,12 @@ class Clause(unittest.TestCase):
         self.assertIn("obs.success = true", t)
 
     def test_only_the_zero_call(self):
-        for bad in ({**SW, "args": [1]}, {**SW, "storage": [5]}, {**SW, "arity": 2}, {**SW, "extra": 1}):
+        for bad in (
+            {**SW, "args": [1]},
+            {**SW, "storage": [5]},
+            {**SW, "arity": 2},
+            {**SW, "extra": 1},
+        ):
             with self.assertRaises(ValueError):
                 succeeds_witness.strengthen("X", bad, "S", B, CTX)
 
@@ -104,7 +146,9 @@ class Statement(unittest.TestCase):
     def test_both_halves_strengthened(self):
         rc, err, stmt, rec = run_final(dict(BASE, succeeds_witness=SW))
         self.assertEqual(rc, 0, err)
-        allowed = next(l for l in stmt.splitlines() if l.strip().startswith("Allowed _ :="))
+        allowed = next(
+            l for l in stmt.splitlines() if l.strip().startswith("Allowed _ :=")
+        )
         post = next(l for l in stmt.splitlines() if l.strip().startswith("Post _ :="))
         clause = "(call = ⟨_root_.SolidCore.Refinement.Abi.calldata 1627429335 (List.replicate 1 0), 0,"
         for line, base in ((allowed, "bundleAllowed"), (post, "bundlePost")):

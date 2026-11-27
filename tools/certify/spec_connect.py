@@ -551,7 +551,9 @@ def parse_loop(line):
 def parse_while(line):
     """A probe line `while NAME NSI SEL [w, ...] N TREE t` as (nsi, sel, widths, tree, n), or
     `while NAME WHY` as (WHY, None, None, None, None)."""
-    m = re.fullmatch(r"while \S+ (\d+) (\d+) (\[[^\]]*\]) (\d+) TREE (.*)", line, re.DOTALL)
+    m = re.fullmatch(
+        r"while \S+ (\d+) (\d+) (\[[^\]]*\]) (\d+) TREE (.*)", line, re.DOTALL
+    )
     if m:
         return int(m.group(1)), int(m.group(2)), m.group(3), m.group(5), int(m.group(4))
     m = re.fullmatch(r"while \S+ (\w+)", line)
@@ -1532,7 +1534,9 @@ def main():
         )
         + ("import Verify.LoopSource.Proof.EraseLoop\n" if args.loops else "")
         + ("import Verify.LoopSource.Invariant.Final\n" if whiles else "")
-        + "".join(f"import {m}\n" for m in dict.fromkeys(m for m, _ in whiles.values())),
+        + "".join(
+            f"import {m}\n" for m in dict.fromkeys(m for m, _ in whiles.values())
+        ),
     )
     with tempfile.NamedTemporaryFile(
         "w", suffix=".lean", dir=args.cwd, delete=False
@@ -1682,7 +1686,9 @@ def main():
                     continue
                 why = loop_refusal(w[:4], int(parts[2]), spec_slots, args)
                 if why:
-                    refused.append(f"{name}: {why.replace('loop bridge', 'while bridge')}")
+                    refused.append(
+                        f"{name}: {why.replace('loop bridge', 'while bridge')}"
+                    )
                     continue
                 fns.append(
                     (k, name, ident(name), int(parts[2]), w[1], w[3], ([], []), 0, w[2])
@@ -1727,8 +1733,10 @@ def main():
                 continue
         fns.append((k, name, ident(name), n, sel, tree, slots, nsi, None))
     for name in whiles:
-        if (not only or name in only) and ident(name) not in while_fids and not any(
-            r.startswith(f"{name}: ") for r in refused
+        if (
+            (not only or name in only)
+            and ident(name) not in while_fids
+            and not any(r.startswith(f"{name}: ") for r in refused)
         ):
             refused.append(
                 f"{name}: --while names a function the export has no spec of, or one the generic stage erases"
@@ -1765,11 +1773,7 @@ def main():
             "import Verify.Spec.TreeSucceedsTry",
             *(["import Verify.Spec.TreeLoopCheck"] if any(x[8] for x in fns) else []),
             *(["import Verify.LoopSource.Invariant.Final"] if while_fids else []),
-            *[
-                f"import {whiles[x[1]][0]}"
-                for x in fns
-                if x[2] in while_fids
-            ],
+            *[f"import {whiles[x[1]][0]}" for x in fns if x[2] in while_fids],
             "import Verify.VC.KernelIdx",
             "import SolidCore.Refinement.KernelRfl",
             *(["import SolidCore.Solidity.Checked"] if source_def is not None else []),

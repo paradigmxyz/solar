@@ -24,14 +24,23 @@ import rec_cuts
 
 DATA = HERE / "testdata" / "rec_cuts" / "RecSum"
 PAIRS = [("Stage0", "Mir1"), ("Mir1", "Sched")] + [
-    (a, b) for a, b in zip(["Sched", "Evm1", "Evm2", "Evm3", "Evm4", "Evm5"], ["Evm1", "Evm2", "Evm3", "Evm4", "Evm5", "Evm6"])
+    (a, b)
+    for a, b in zip(
+        ["Sched", "Evm1", "Evm2", "Evm3", "Evm4", "Evm5"],
+        ["Evm1", "Evm2", "Evm3", "Evm4", "Evm5", "Evm6"],
+    )
 ]
 
 
 def stage(module):
     text = (DATA / f"{module}.lean").read_text()
     kind, passname = re.search(r"kind=(\w+) index=\d+ pass=([\w-]+)", text).groups()
-    return {"def": re.search(r"^def (\w+)", text, re.M)[1], "file": f"{module}.lean", "kind": kind, "pass": passname}
+    return {
+        "def": re.search(r"^def (\w+)", text, re.MULTILINE)[1],
+        "file": f"{module}.lean",
+        "kind": kind,
+        "pass": passname,
+    }
 
 
 class Shape(unittest.TestCase):
@@ -50,7 +59,13 @@ class Shape(unittest.TestCase):
         for a, b in PAIRS:
             body = rec_cuts.stage_body(DATA, stage(a), stage(b))
             p = stage(b)["def"]
-            for name in (f"inductive {p}_Fr", f"def {p}_rels", f"theorem {p}_mkC0", f"theorem {p}_mkR0", f"def {p}_sim"):
+            for name in (
+                f"inductive {p}_Fr",
+                f"def {p}_rels",
+                f"theorem {p}_mkC0",
+                f"theorem {p}_mkR0",
+                f"def {p}_sim",
+            ):
                 self.assertIn(name, body, (a, b, name))
             self.assertIn("rec_seg", body)
             self.assertNotIn("sorry", body)
@@ -78,24 +93,37 @@ class Refusals(unittest.TestCase):
 
     def test_mutual_recursion(self):
         # total calls sum and sum calls total: two functions on one cycle.
-        d = self.mutate(lambda t: t.replace(".call (some 7) 0 [.value 6]", ".call (some 7) 1 []").replace(
-            ".call (some 8) 0 [.value 18]", ".call (some 8) 0 [.value 18], .call none 0 [.value 18]"))
+        d = self.mutate(
+            lambda t: t.replace(
+                ".call (some 7) 0 [.value 6]", ".call (some 7) 1 []"
+            ).replace(
+                ".call (some 8) 0 [.value 18]",
+                ".call (some 8) 0 [.value 18], .call none 0 [.value 18]",
+            )
+        )
         funcs = cutpoints.parse_mir((d / "Stage0.lean").read_text())
-        with self.assertRaisesRegex(rec_cuts.Unsupported, "mutual recursion|is itself called|calls other functions"):
+        with self.assertRaisesRegex(
+            rec_cuts.Unsupported,
+            "mutual recursion|is itself called|calls other functions",
+        ):
             rec_cuts.shape("t", funcs)
 
     def test_loop_beside_recursion(self):
         # bb1's leave becomes a jump back to bb0: a loop in the recursive function.
         d = self.mutate(lambda t: t.replace(".leave [.const 0]", ".jump 0", 1))
         funcs = cutpoints.parse_mir((d / "Stage0.lean").read_text())
-        with self.assertRaisesRegex(rec_cuts.Unsupported, "a loop in @sum beside recursion"):
+        with self.assertRaisesRegex(
+            rec_cuts.Unsupported, "a loop in @sum beside recursion"
+        ):
             rec_cuts.shape("t", funcs)
 
     def test_no_measure(self):
         # A schedule that keeps nothing of the argument below the recursive call: no measure.
         d = self.mutate(lambda t: t)
         s = d / "Schedule.json"
-        s.write_text(s.read_text().replace('"below": ["v0", "ret"]', '"below": ["ret"]'))
+        s.write_text(
+            s.read_text().replace('"below": ["v0", "ret"]', '"below": ["ret"]')
+        )
         with self.assertRaisesRegex(rec_cuts.Unsupported, "no measure"):
             rec_cuts.stage_body(d, stage("Mir1"), stage("Sched"))
 

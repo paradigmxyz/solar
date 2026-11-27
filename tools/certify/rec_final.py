@@ -84,16 +84,24 @@ PROGRAMS = {
             "is success",
             "proof": "Verify.Phase3.RecSource.Cert.shape_ok",
             "excluded": [
-                "calls: total(a) with a <= 64, no value, any storage; calls with a > 64 (the source "
-                "reverts) and other call data are outside the statement",
-                "gas: the bound is 618800 * (2 * a + 4) + 9 (at most 81681609); below it the bytecode may "
-                "run out of gas, which equivalence admits as a failure that changes nothing",
+                (
+                    "calls: total(a) with a <= 64, no value, any storage; calls with a > 64 (the source "
+                    "reverts) and other call data are outside the statement"
+                ),
+                (
+                    "gas: the bound is 618800 * (2 * a + 4) + 9 (at most 81681609); below it the bytecode may "
+                    "run out of gas, which equivalence admits as a failure that changes nothing"
+                ),
                 "frame: one caller (Target.message's), the runtime code only; deployment is not covered",
-                "source model trusted: SolidCore's checked RecSum (Verify.Phase3.RecSource.contract?, the "
-                "front end's AST of the source, bound by rec_source.py) is the meaning of RecSum.sol "
-                "(frontend trust boundary)",
-                "proof route: the recursion proofs (RecSource.Runs.sum_runs, RecSource.Gas.fn_steps) are "
-                "RecSum's own; the route refuses any other recursive body",
+                (
+                    "source model trusted: SolidCore's checked RecSum (Verify.Phase3.RecSource.contract?, the "
+                    "front end's AST of the source, bound by rec_source.py) is the meaning of RecSum.sol "
+                    "(frontend trust boundary)"
+                ),
+                (
+                    "proof route: the recursion proofs (RecSource.Runs.sum_runs, RecSource.Gas.fn_steps) are "
+                    "RecSum's own; the route refuses any other recursive body"
+                ),
             ],
         },
     },
@@ -110,7 +118,11 @@ class Refused(Exception):
 
 def reason(e, where=""):
     """The run's BLOCKED reason for a refusal."""
-    return {"feature": "recursion", "where": where, "detail": f"recursion final: {e.step}: {e.why}"}
+    return {
+        "feature": "recursion",
+        "where": where,
+        "detail": f"recursion final: {e.step}: {e.why}",
+    }
 
 
 def _doc(n):
@@ -125,13 +137,19 @@ def route(ast, contract):
     import generic
 
     cdef = next(
-        (n for n in ast.get("nodes", []) if n.get("nodeType") == "ContractDefinition" and n.get("name") == contract),
+        (
+            n
+            for n in ast.get("nodes", [])
+            if n.get("nodeType") == "ContractDefinition" and n.get("name") == contract
+        ),
         None,
     )
     if cdef is None:
         return None
     variables = {
-        n["id"] for n in generic.walk(ast) if n.get("nodeType") == "VariableDeclaration" and "id" in n
+        n["id"]
+        for n in generic.walk(ast)
+        if n.get("nodeType") == "VariableDeclaration" and "id" in n
     }
     # The graph the envelope reads (generic.envelope): CDEF's linearization and the sibling library
     # and free functions it runs inline.
@@ -146,12 +164,26 @@ def route(ast, contract):
     if values:
         raise Refused("recursion", "a call through an internal function value")
     if len(cycles) != 1 or len(cycles[0][0]) != 1:
-        raise Refused("recursion", "not exactly one function calling itself: " + "; ".join(" and ".join(n) for n, _ in cycles))
+        raise Refused(
+            "recursion",
+            "not exactly one function calling itself: "
+            + "; ".join(" and ".join(n) for n, _ in cycles),
+        )
     fname = cycles[0][0][0]
-    fns = [n for n in generic.walk(ast) if n.get("nodeType") == "FunctionDefinition" and n.get("name") == fname]
-    m = re.search(r"@custom:decreases\s+(\S[^\n]*)", _doc(fns[0])) if len(fns) == 1 else None
+    fns = [
+        n
+        for n in generic.walk(ast)
+        if n.get("nodeType") == "FunctionDefinition" and n.get("name") == fname
+    ]
+    m = (
+        re.search(r"@custom:decreases\s+(\S[^\n]*)", _doc(fns[0]))
+        if len(fns) == 1
+        else None
+    )
     if m is None:
-        raise Refused("recursion", f"{fname} calls itself without a @custom:decreases measure")
+        raise Refused(
+            "recursion", f"{fname} calls itself without a @custom:decreases measure"
+        )
     return {"function": fname, "measure": m.group(1).strip()}
 
 
@@ -171,7 +203,17 @@ def program(contract, fname):
 def bind_source(src, lean_dir, solc, run):
     """rec_source.py's binding of the program's Ast module to SRC (its front end's AST, byte for
     byte), or Refused("source")."""
-    rc, out, err = run([sys.executable, str(HERE / "rec_source.py"), str(src), "--solidity-lean", str(lean_dir), "--solc", str(solc)])
+    rc, out, err = run(
+        [
+            sys.executable,
+            str(HERE / "rec_source.py"),
+            str(src),
+            "--solidity-lean",
+            str(lean_dir),
+            "--solc",
+            str(solc),
+        ]
+    )
     if rc != 0:
         raise Refused("source", (err or out).strip()[-300:])
     return out.strip()
@@ -183,11 +225,21 @@ def _manifest_key(data):
     order; every other line (sources and their digests, compiler, each stage's digest, the bytecode)
     is compared byte for byte."""
     text = data.decode()
-    m = re.search(r"^def arguments : List String :=\n  \[(.*?)\]\n", text, re.M | re.S)
+    m = re.search(
+        r"^def arguments : List String :=\n  \[(.*?)\]\n",
+        text,
+        re.MULTILINE | re.DOTALL,
+    )
     if m is None:
         return data
     args = sorted(re.findall(r'"((?:[^"\\]|\\.)*)"', m.group(1)))
-    return (text[: m.start()] + "def arguments (sorted) : " + json.dumps(args) + "\n" + text[m.end():]).encode()
+    return (
+        text[: m.start()]
+        + "def arguments (sorted) : "
+        + json.dumps(args)
+        + "\n"
+        + text[m.end() :]
+    ).encode()
 
 
 def export_problem(gen_dir, lean_dir, prog):
@@ -197,7 +249,11 @@ def export_problem(gen_dir, lean_dir, prog):
 
     def files(d):
         return {
-            p.name: (_manifest_key(p.read_bytes()) if p.name == "Manifest.lean" else p.read_bytes())
+            p.name: (
+                _manifest_key(p.read_bytes())
+                if p.name == "Manifest.lean"
+                else p.read_bytes()
+            )
             for p in pathlib.Path(d).glob("*.lean")
         }
 
@@ -227,11 +283,25 @@ def write_statement(d, name, contract, prog, plain, run):
     d = pathlib.Path(d)
     d.mkdir(parents=True, exist_ok=True)
     (d / "shape.json").write_text(json.dumps(shape(prog), indent=2) + "\n")
-    rc, out, err = run([
-        sys.executable, str(HERE / "final.py"), str(d / "shape.json"), "--name", name, "--contract", contract,
-        "--hex", plain, "--out", str(d / "Final.lean"), "--statement-out", str(d / "Statement.lean"),
-        "--record", str(d / "final.json"),
-    ])
+    rc, out, err = run(
+        [
+            sys.executable,
+            str(HERE / "final.py"),
+            str(d / "shape.json"),
+            "--name",
+            name,
+            "--contract",
+            contract,
+            "--hex",
+            plain,
+            "--out",
+            str(d / "Final.lean"),
+            "--statement-out",
+            str(d / "Statement.lean"),
+            "--record",
+            str(d / "final.json"),
+        ]
+    )
     if rc != 0:
         raise Refused("statement", f"final.py refuses: {(err or out).strip()[-300:]}")
     return json.loads((d / "final.json").read_text())
@@ -240,7 +310,22 @@ def write_statement(d, name, contract, prog, plain, run):
 # --- the driver's hook ---------------------------------------------------------------------------
 
 
-def attach(record, *, run, name, contract, ast, solar, src, work, lean_dir, lake_env, plain, solc, log):
+def attach(
+    record,
+    *,
+    run,
+    name,
+    contract,
+    ast,
+    solar,
+    src,
+    work,
+    lean_dir,
+    lake_env,
+    plain,
+    solc,
+    log,
+):
     """The recursion route in the driver's clone LEAN_DIR. Records record["rec_final"]; returns []
     when the final theorem checked, else the run's BLOCKED reason (a refusal names its step)."""
     import generic
@@ -260,17 +345,33 @@ def attach(record, *, run, name, contract, ast, solar, src, work, lean_dir, lake
         tmp.mkdir(parents=True)
         fresh, err = generic.export_stages(solar, src, contract, tmp)
         if fresh != plain:
-            raise Refused("export", "the stage export's runtime bytes are not this run's")
+            raise Refused(
+                "export", "the stage export's runtime bytes are not this run's"
+            )
         why = export_problem(tmp / "gen" / contract, lean_dir, prog)
         if why:
             raise Refused("export", why)
         fin = write_statement(d, name, contract, prog, plain, run)
-        rc, out, err = run([*loop_cuts.LAKE, "build", f"{name}.Final"], cwd=lean_dir, env=lake_env)
-        if rc != 0:
-            raise Refused("build", f"lake cannot build {name}.Final: {(out + err).strip()[-300:]}")
         rc, out, err = run(
-            [*loop_cuts.LAKE, "env", "lean", "--run", str(HERE / "check_final.lean"), name, prog["proof_module"], plain],
-            cwd=lean_dir, env=lake_env,
+            [*loop_cuts.LAKE, "build", f"{name}.Final"], cwd=lean_dir, env=lake_env
+        )
+        if rc != 0:
+            raise Refused(
+                "build", f"lake cannot build {name}.Final: {(out + err).strip()[-300:]}"
+            )
+        rc, out, err = run(
+            [
+                *loop_cuts.LAKE,
+                "env",
+                "lean",
+                "--run",
+                str(HERE / "check_final.lean"),
+                name,
+                prog["proof_module"],
+                plain,
+            ],
+            cwd=lean_dir,
+            env=lake_env,
         )
         if rc != 0:
             raise Refused("check", f"check_final refuses: {(out + err).strip()[-300:]}")
@@ -295,5 +396,7 @@ def attach(record, *, run, name, contract, ast, solar, src, work, lean_dir, lake
         log(f"recursion final: REFUSED at {e.step}: {e.why}")
         return [reason(e)]
     except (OSError, ValueError, KeyError, StopIteration) as e:
-        record["rec_final"] = {"refused": {"step": "internal", "why": f"{type(e).__name__}: {e}"}}
+        record["rec_final"] = {
+            "refused": {"step": "internal", "why": f"{type(e).__name__}: {e}"}
+        }
         return [reason(Refused("internal", f"{type(e).__name__}: {e}"))]

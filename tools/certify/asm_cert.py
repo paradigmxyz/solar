@@ -490,7 +490,8 @@ def infer(program_text, code, dyn=False, bail=None, heads=None):
 def ty_le(known, want):
     """`Assemble.tyLe`: each word WANT types, KNOWN types the same."""
     return all(
-        w is None or (known[i] if i < len(known) else None) == w for i, w in enumerate(want)
+        w is None or (known[i] if i < len(known) else None) == w
+        for i, w in enumerate(want)
     )
 
 
@@ -603,7 +604,18 @@ def outside(program_text, dyn=False):
 
 # The instructions a block of a recursive function may run besides its jumps and its call
 # (AssembleRec.stackOnly): stack operations and ends.
-FRAME_TAGS = ("push", "dup", "swap", "stack", "jump", "jumpi", "jumpDyn", "stop", "ret", "revert")
+FRAME_TAGS = (
+    "push",
+    "dup",
+    "swap",
+    "stack",
+    "jump",
+    "jumpi",
+    "jumpDyn",
+    "stop",
+    "ret",
+    "revert",
+)
 
 
 def call_of(instrs):
@@ -636,7 +648,11 @@ def infer_frames(program_text, code, heads, entry):
         for i in instrs:
             if i[0] == "pushLabel" and i[1] not in rets:
                 rets.append(i[1])
-    env = any(i[0] == "effect" and i[1] in ("caller", "keccak256") for bl in blocks for i in bl)
+    env = any(
+        i[0] == "effect" and i[1] in ("caller", "keccak256")
+        for bl in blocks
+        for i in bl
+    )
     reads = any(i[0] == "env" for bl in blocks for i in bl)
 
     def ends_dyn(b):
@@ -691,7 +707,7 @@ def infer_frames(program_text, code, heads, entry):
                 continue
             need, high, ty = ent[b]
             edges, _, _ = run_block(blocks, turned, rets, b, need, ty[:need])
-            f, h1, ty1 = edges[-1]
+            _f, h1, ty1 = edges[-1]
             t = call_of(blocks[b])[0]
             if h1 < hneed or not ty_le(ty1, hty):
                 raise SystemExit(
@@ -727,8 +743,14 @@ def infer_frames(program_text, code, heads, entry):
                 h_dyn, ty_dyn = edges[-1][1], edges[-1][2]
                 edges = edges[: len(edges) - len(rets)]
                 for t, (keep, _) in calls.items():
-                    out.append((t, h_dyn + len(keep), high + h_dyn - need,
-                                ty_pad(ty_dyn, h_dyn) + keep))
+                    out.append(
+                        (
+                            t,
+                            h_dyn + len(keep),
+                            high + h_dyn - need,
+                            ty_pad(ty_dyn, h_dyn) + keep,
+                        )
+                    )
             elif ends_dyn(b):
                 for t in rets:
                     if t in frame:
@@ -758,7 +780,11 @@ def infer_frames(program_text, code, heads, entry):
                 new = (h, hi, tty)
                 old = ent[t]
                 if old is not None:
-                    new = (min(old[0], new[0]), max(old[1], new[1]), meet(old[2], new[2]))
+                    new = (
+                        min(old[0], new[0]),
+                        max(old[1], new[1]),
+                        meet(old[2], new[2]),
+                    )
                 if new != old:
                     ent[t], changed = new, True
         if not changed:

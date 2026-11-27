@@ -38,13 +38,38 @@ def run(shape):
         d = pathlib.Path(d)
         (d / "shape.json").write_text(json.dumps(shape))
         p = subprocess.run(
-            [sys.executable, "-I", str(FINAL), str(d / "shape.json"), "--name", "pair_1",
-             "--contract", "C", "--hex", HEX, "--out", str(d / "Final.lean"),
-             "--statement-out", str(d / "Statement.lean"), "--record", str(d / "record.json")],
-            check=False, capture_output=True, text=True,
+            [
+                sys.executable,
+                "-I",
+                str(FINAL),
+                str(d / "shape.json"),
+                "--name",
+                "pair_1",
+                "--contract",
+                "C",
+                "--hex",
+                HEX,
+                "--out",
+                str(d / "Final.lean"),
+                "--statement-out",
+                str(d / "Statement.lean"),
+                "--record",
+                str(d / "record.json"),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
         )
-        st = (d / "Statement.lean").read_text() if (d / "Statement.lean").exists() else None
-        rec = json.loads((d / "record.json").read_text()) if (d / "record.json").exists() else None
+        st = (
+            (d / "Statement.lean").read_text()
+            if (d / "Statement.lean").exists()
+            else None
+        )
+        rec = (
+            json.loads((d / "record.json").read_text())
+            if (d / "record.json").exists()
+            else None
+        )
         return p.returncode, p.stdout + p.stderr, st, rec
 
 
@@ -59,7 +84,11 @@ def shape(**kw):
 
 
 def claim(st):
-    return " ".join(st.split("def Statement : Prop :=", 1)[1].split("set_option maxRecDepth")[0].split())
+    return " ".join(
+        st.split("def Statement : Prop :=", 1)[1]
+        .split("set_option maxRecDepth")[0]
+        .split()
+    )
 
 
 class CtorArgs(unittest.TestCase):
@@ -70,20 +99,28 @@ class CtorArgs(unittest.TestCase):
         self.assertIn("∀ (A0 A1 : Nat), A0 < 2 ^ 256 → A1 < 2 ^ 160 → ∃ c,", c)
         self.assertIn(
             "_root_.SolidCore.Refinement.Shapes.Compiled (_root_.SolidCore.Refinement.solidCoreFromArgs "
-            f"_root_.SolidCore.Refinement.callerAddress ({L}.fuel) [A0, A1]) c", c)
+            f"_root_.SolidCore.Refinement.callerAddress ({L}.fuel) [A0, A1]) c",
+            c,
+        )
         self.assertNotIn("CtorReturns", c)
         self.assertIn("import SolidCore.Refinement.Generic.StageFrom", st)
         self.assertEqual(rec["ctor_args"], BASE["ctor_args"])
 
     def test_returns_premise_and_witness(self):
-        rc, out, st, rec = run(shape(ctor_returns={"witness": [0, 0]}))
+        rc, out, st, _rec = run(shape(ctor_returns={"witness": [0, 0]}))
         self.assertEqual(rc, 0, out)
         c = claim(st)
         self.assertIn(
             f"A1 < 2 ^ 160 → _root_.SolidCore.Refinement.Generic.CtorReturns ({L}.fuel) ({L}.contract?) "
-            "[A0, A1] → ∃ c,", c)
-        self.assertTrue(c.endswith(
-            f"∧ _root_.SolidCore.Refinement.Generic.CtorReturns ({L}.fuel) ({L}.contract?) [0, 0]"), c)
+            "[A0, A1] → ∃ c,",
+            c,
+        )
+        self.assertTrue(
+            c.endswith(
+                f"∧ _root_.SolidCore.Refinement.Generic.CtorReturns ({L}.fuel) ({L}.contract?) [0, 0]"
+            ),
+            c,
+        )
 
     def test_fails_closed(self):
         bad = {
@@ -92,10 +129,14 @@ class CtorArgs(unittest.TestCase):
             "free bound": shape(ctor_args=[{"var": "A0", "lt": "n"}]),
             "empty": shape(ctor_args=[]),
             "extra key": shape(ctor_args=[{"var": "A0", "lt": "2 ^ 256", "x": 1}]),
-            "kind": shape(kind="certified", allowed="M.allowed", post="M.post", vacuity="v"),
-            "source_sem": shape(source_sem="SolidCore.Refinement.Generic.Loop.solidCoreRuntime"),
+            "kind": shape(
+                kind="certified", allowed="M.allowed", post="M.post", vacuity="v"
+            ),
+            "source_sem": shape(
+                source_sem="SolidCore.Refinement.Generic.Loop.solidCoreRuntime"
+            ),
             "witness arity": shape(ctor_returns={"witness": [0]}),
-            "witness range": shape(ctor_returns={"witness": [0, 2 ** 160]}),
+            "witness range": shape(ctor_returns={"witness": [0, 2**160]}),
             "witness term": shape(ctor_returns={"witness": ["x", 0]}),
             "env": shape(env=["True"]),
             "pinned": shape(pinned_bytes="M.b", pinned_module="M.B"),

@@ -26,12 +26,28 @@ WORD = 2**256
 
 def check(sw):
     """The fields of shape.json's succeeds_witness, validated; raises ValueError."""
-    if not isinstance(sw, dict) or set(sw) != {"function", "sel", "arity", "args", "storage"}:
-        raise ValueError("succeeds_witness must be {function, sel, arity, args, storage}")
-    f, sel, n, args, st = sw["function"], sw["sel"], sw["arity"], sw["args"], sw["storage"]
+    if not isinstance(sw, dict) or set(sw) != {
+        "function",
+        "sel",
+        "arity",
+        "args",
+        "storage",
+    }:
+        raise ValueError(
+            "succeeds_witness must be {function, sel, arity, args, storage}"
+        )
+    f, sel, n, args, st = (
+        sw["function"],
+        sw["sel"],
+        sw["arity"],
+        sw["args"],
+        sw["storage"],
+    )
     if not (isinstance(f, str) and f.isidentifier()):
         raise ValueError("succeeds_witness.function must be a Solidity name")
-    if not (isinstance(sel, int) and 0 <= sel < 2**32 and isinstance(n, int) and 0 <= n < 64):
+    if not (
+        isinstance(sel, int) and 0 <= sel < 2**32 and isinstance(n, int) and 0 <= n < 64
+    ):
         raise ValueError("succeeds_witness: sel and arity")
     if not (
         isinstance(args, list)
@@ -39,7 +55,9 @@ def check(sw):
         and all(isinstance(w, int) and 0 <= w < WORD for w in args)
     ):
         raise ValueError("succeeds_witness.args must be arity words below 2^256")
-    if not (isinstance(st, list) and all(isinstance(w, int) and 0 <= w < WORD for w in st)):
+    if not (
+        isinstance(st, list) and all(isinstance(w, int) and 0 <= w < WORD for w in st)
+    ):
         raise ValueError("succeeds_witness.storage must be words below 2^256")
     return f, sel, n, args, st
 

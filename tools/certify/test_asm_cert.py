@@ -60,7 +60,9 @@ class Heads(unittest.TestCase):
     def test_with_heads_the_resume_types_refuse(self):
         with self.assertRaises(SystemExit) as e:
             asm_cert.infer(
-                (DATA / "Evm6.lean").read_text(), CODE, heads=certify.rec_heads(DATA, LAST)
+                (DATA / "Evm6.lean").read_text(),
+                CODE,
+                heads=certify.rec_heads(DATA, LAST),
             )
         self.assertIn(
             "block 4 enters the recursive function's cut point at block 4 with 1 words typed "
@@ -82,15 +84,21 @@ class Frames(unittest.TestCase):
 
     def infer(self, text=None, code=CODE):
         heads, entry = certify.rec_frame_heads(DATA, LAST)
-        return asm_cert.infer_frames(text or (DATA / "Evm6.lean").read_text(), code, heads, entry)
+        return asm_cert.infer_frames(
+            text or (DATA / "Evm6.lean").read_text(), code, heads, entry
+        )
 
     def refuse(self, text):
         """infer_frames on a mutated program, whose layout no bytecode matches: the flow analysis
         alone, at RecSum's layout."""
-        real = asm_cert.layout(asm_cert.parse_program((DATA / "Evm6.lean").read_text()), CODE)
-        with mock.patch.object(asm_cert, "layout", lambda blocks, code: real):
-            with self.assertRaises(SystemExit) as e:
-                self.infer(text)
+        real = asm_cert.layout(
+            asm_cert.parse_program((DATA / "Evm6.lean").read_text()), CODE
+        )
+        with (
+            mock.patch.object(asm_cert, "layout", lambda blocks, code: real),
+            self.assertRaises(SystemExit) as e,
+        ):
+            self.infer(text)
         return str(e.exception)
 
     def test_recsum_frames(self):
@@ -116,16 +124,29 @@ class Frames(unittest.TestCase):
 
     def test_jump_into_the_function_refuses(self):
         # The dispatcher jumps into the function's base case instead of calling it.
-        text = (DATA / "Evm6.lean").read_text().replace(".pushLabel 3,\n     .jump 1]", ".jump 5]")
-        self.assertIn("enters the recursive function's block 5 other than by a call", self.refuse(text))
+        text = (
+            (DATA / "Evm6.lean")
+            .read_text()
+            .replace(".pushLabel 3,\n     .jump 1]", ".jump 5]")
+        )
+        self.assertIn(
+            "enters the recursive function's block 5 other than by a call",
+            self.refuse(text),
+        )
 
     def test_frame_block_memory_refuses(self):
         # A store in the function's base case: a block with a frame runs stack operations only.
-        text = (DATA / "Evm6.lean").read_text().replace(
-            "[.op (.stack (.swap 0)),\n     .op (.stack .pop),",
-            "[.op (.stack (.swap 0)),\n     .op (.stack (.push 0)),\n     .op .store,\n     .op (.stack .pop),",
+        text = (
+            (DATA / "Evm6.lean")
+            .read_text()
+            .replace(
+                "[.op (.stack (.swap 0)),\n     .op (.stack .pop),",
+                "[.op (.stack (.swap 0)),\n     .op (.stack (.push 0)),\n     .op .store,\n     .op (.stack .pop),",
+            )
         )
-        self.assertIn("block 5 of the recursive function runs ('store',)", self.refuse(text))
+        self.assertIn(
+            "block 5 of the recursive function runs ('store',)", self.refuse(text)
+        )
 
 
 D = HERE / "testdata" / "asm_cert_returns"

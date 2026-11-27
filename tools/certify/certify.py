@@ -231,8 +231,13 @@ def rec_frame_heads(gen, last):
     def types(layout):
         return [x == "ret" for x in layout]
 
-    heads = {view.entry: (len(view.entry_layout) + rec_cuts.BOUND, len(view.entry_layout),
-                          types(view.entry_layout))}
+    heads = {
+        view.entry: (
+            len(view.entry_layout) + rec_cuts.BOUND,
+            len(view.entry_layout),
+            types(view.entry_layout),
+        )
+    }
     for s in sites:
         ty = [False] + types(view.below[s])
         heads[view.ret[s]] = (len(ty) + rec_cuts.BOUND, len(ty), ty)
@@ -243,7 +248,9 @@ def rel_patterns(runs_text, d):
     """For each relation of the last stage's cut points (rec_cuts' D_rels), the rcases pattern
     that names the second stack's bound: the first configurations' pair, then for each cut point
     its existential words, both configurations, the two bounds and the frames."""
-    m = re.search(rf"def {d}_rels \(call : Call\)[^\n]*:=\n  \[(.*?)\]\n\n", runs_text, re.S)
+    m = re.search(
+        rf"def {d}_rels \(call : Call\)[^\n]*:=\n  \[(.*?)\]\n\n", runs_text, re.DOTALL
+    )
     if m is None:
         raise rec_cuts.Unsupported(f"the last stage's module defines no {d}_rels")
     pats = []
@@ -253,7 +260,9 @@ def rel_patterns(runs_text, d):
             pats.append(None)
             continue
         names = [n for g in re.findall(r"\(([^():]*):", q.group(1)) for n in g.split()]
-        pats.append("⟨" + ", ".join(["_"] * len(names) + ["-", "rfl", "-", "h1", "-"]) + "⟩")
+        pats.append(
+            "⟨" + ", ".join(["_"] * len(names) + ["-", "rfl", "-", "h1", "-"]) + "⟩"
+        )
     return pats
 
 
@@ -357,8 +366,10 @@ def rec_execution(args, ns, exported, label, contract, stages, last_text, code, 
         f"  change (EVM.Program.layer.result o {d} call).map _ = _\n"
         "  rw [EVM.Program.layer.result_of_ends ⟨n, hn⟩]\n  rfl\n\n"
         + axioms_check(ns, "check_ok", "[propext, Quot.sound]")
-        + "\n" + axioms_check(ns, f"{label}_bytecode")
-        + "\n" + axioms_check(ns, f"{label}_bytecode_of_mir")
+        + "\n"
+        + axioms_check(ns, f"{label}_bytecode")
+        + "\n"
+        + axioms_check(ns, f"{label}_bytecode_of_mir")
         + f"\nend {ns}\n"
     )
     return ex
@@ -1026,8 +1037,11 @@ def main():
         # measure, and the frame relation types the caller's words where it resumes.
         why = None
         if excluded or dyn:
-            why = ("the checker with frames (AssembleRec.checkF) takes no excluded calls"
-                   if excluded else "the checker with frames bounds memory at constant offsets only")
+            why = (
+                "the checker with frames (AssembleRec.checkF) takes no excluded calls"
+                if excluded
+                else "the checker with frames bounds memory at constant offsets only"
+            )
         else:
             try:
                 ex = rec_execution(
@@ -1173,7 +1187,11 @@ def main():
                 "final": f"{ns}.{final}",
                 **({"executes": f"{ns}.{executes}"} if executes and not dyn else {}),
                 **({"executes_gas_below": "2^256"} if executes and dyn else {}),
-                **({"executes_run": f"{ns}.{executes}_run"} if executes and not rec_exec else {}),
+                **(
+                    {"executes_run": f"{ns}.{executes}_run"}
+                    if executes and not rec_exec
+                    else {}
+                ),
                 **({"executes_mir": f"{ns}.{executes}_of_mir"} if rec_exec else {}),
                 "last": last["def"],
                 "first": first["def"],

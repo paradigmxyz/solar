@@ -37,7 +37,9 @@ class StaticWords(unittest.TestCase):
         self.assertEqual(self.words(comp("int16")), [".int 16"])
         self.assertEqual(self.words(comp("address")), [".uint 160"])
         self.assertEqual(self.words(comp("bool")), [".bool"])
-        self.assertEqual(self.words(comp("uint8", internalType="enum Mode")), [".enum 3"])
+        self.assertEqual(
+            self.words(comp("uint8", internalType="enum Mode")), [".enum 3"]
+        )
 
     def test_bytes32(self):
         self.assertEqual(self.words(comp("bytes32")), [".uint 256"])
@@ -49,57 +51,114 @@ class StaticWords(unittest.TestCase):
         self.assertEqual(self.words(comp("uint256[0]")), [])
 
     def test_struct(self):
-        s = comp("tuple", internalType="struct S", components=[comp("uint256", "a"), comp("address", "b")])
+        s = comp(
+            "tuple",
+            internalType="struct S",
+            components=[comp("uint256", "a"), comp("address", "b")],
+        )
         self.assertEqual(self.words(s), [".uint 256", ".uint 160"])
         arr = comp("tuple[2]", internalType="struct S[2]", components=s["components"])
         self.assertEqual(self.words(arr), [".uint 256", ".uint 160"] * 2)
-        nested = comp("tuple", internalType="struct T", components=[s, comp("bytes32", "c")])
+        nested = comp(
+            "tuple", internalType="struct T", components=[s, comp("bytes32", "c")]
+        )
         self.assertEqual(self.words(nested), [".uint 256", ".uint 160", ".uint 256"])
 
     def test_dynamic_refused(self):
         self.assertEqual(self.refused(comp("bytes")), "ABI types: dynamic parameter")
         self.assertEqual(self.refused(comp("string")), "ABI types: dynamic parameter")
-        self.assertEqual(self.refused(comp("uint256[]")), "ABI types: dynamic parameter")
-        s = comp("tuple[]", internalType="struct S[]", components=[comp("uint256", "a")])
+        self.assertEqual(
+            self.refused(comp("uint256[]")), "ABI types: dynamic parameter"
+        )
+        s = comp(
+            "tuple[]", internalType="struct S[]", components=[comp("uint256", "a")]
+        )
         self.assertEqual(self.refused(s), "ABI types: dynamic parameter")
 
     def test_nested_dynamic_refused(self):
-        self.assertEqual(self.refused(comp("bytes[]")), "ABI types: nested dynamic type")
-        self.assertEqual(self.refused(comp("string[2]")), "ABI types: nested dynamic type")
-        self.assertEqual(self.refused(comp("uint256[][2]")), "ABI types: nested dynamic type")
-        s = comp("tuple", internalType="struct S", components=[comp("uint256", "a"), comp("bytes", "b")])
+        self.assertEqual(
+            self.refused(comp("bytes[]")), "ABI types: nested dynamic type"
+        )
+        self.assertEqual(
+            self.refused(comp("string[2]")), "ABI types: nested dynamic type"
+        )
+        self.assertEqual(
+            self.refused(comp("uint256[][2]")), "ABI types: nested dynamic type"
+        )
+        s = comp(
+            "tuple",
+            internalType="struct S",
+            components=[comp("uint256", "a"), comp("bytes", "b")],
+        )
         self.assertEqual(self.refused(s), "ABI types: nested dynamic type")
-        deep = comp("tuple", internalType="struct T", components=[comp("tuple", "s", internalType="struct S", components=s["components"])])
+        deep = comp(
+            "tuple",
+            internalType="struct T",
+            components=[
+                comp("tuple", "s", internalType="struct S", components=s["components"])
+            ],
+        )
         self.assertEqual(self.refused(deep), "ABI types: nested dynamic type")
         arr = comp("tuple[]", internalType="struct S[]", components=s["components"])
         self.assertEqual(self.refused(arr), "ABI types: nested dynamic type")
 
     def test_other_refused(self):
-        self.assertEqual(self.refused(comp("bytes4")), "ABI types: bytesN below 32 bytes")
-        self.assertEqual(self.refused(comp("bytes4[2]")), "ABI types: bytesN below 32 bytes")
+        self.assertEqual(
+            self.refused(comp("bytes4")), "ABI types: bytesN below 32 bytes"
+        )
+        self.assertEqual(
+            self.refused(comp("bytes4[2]")), "ABI types: bytesN below 32 bytes"
+        )
         self.assertEqual(self.refused(comp("function")), "ABI types")
-        self.assertEqual(self.refused(comp("uint8", internalType="enum Unknown")), "ABI types")
-        self.assertEqual(self.refused(comp("tuple", internalType="struct E", components=[])), "ABI types")
+        self.assertEqual(
+            self.refused(comp("uint8", internalType="enum Unknown")), "ABI types"
+        )
+        self.assertEqual(
+            self.refused(comp("tuple", internalType="struct E", components=[])),
+            "ABI types",
+        )
 
 
 class Returns(unittest.TestCase):
     def test_admitted(self):
         for t in ("bytes", "string", "bytes32", "uint256[2]", "uint256"):
             self.assertIsNone(generic.return_ok(comp(t), ENUMS), t)
-        s = comp("tuple", internalType="struct P", components=[comp("uint256", "a"), comp("uint128", "b")])
+        s = comp(
+            "tuple",
+            internalType="struct P",
+            components=[comp("uint256", "a"), comp("uint128", "b")],
+        )
         self.assertIsNone(generic.return_ok(s, ENUMS))
 
     def test_refused(self):
-        self.assertEqual(generic.return_ok(comp("uint256[]"), ENUMS)[0], "ABI types: dynamic return")
-        self.assertEqual(generic.return_ok(comp("bytes[]"), ENUMS)[0], "ABI types: nested dynamic type")
-        self.assertEqual(generic.return_ok(comp("bytes4"), ENUMS)[0], "ABI types: bytesN below 32 bytes")
+        self.assertEqual(
+            generic.return_ok(comp("uint256[]"), ENUMS)[0], "ABI types: dynamic return"
+        )
+        self.assertEqual(
+            generic.return_ok(comp("bytes[]"), ENUMS)[0],
+            "ABI types: nested dynamic type",
+        )
+        self.assertEqual(
+            generic.return_ok(comp("bytes4"), ENUMS)[0],
+            "ABI types: bytesN below 32 bytes",
+        )
 
 
 class Canon(unittest.TestCase):
     def test_tuple_signature(self):
-        s = comp("tuple", internalType="struct A.Item", components=[comp("uint256", "amount")])
+        s = comp(
+            "tuple",
+            internalType="struct A.Item",
+            components=[comp("uint256", "amount")],
+        )
         self.assertEqual(generic.abi_canon(s), "(uint256)")
-        arr = comp("tuple[2]", components=[comp("uint8", "a"), comp("tuple", "b", components=[comp("address", "c")])])
+        arr = comp(
+            "tuple[2]",
+            components=[
+                comp("uint8", "a"),
+                comp("tuple", "b", components=[comp("address", "c")]),
+            ],
+        )
         self.assertEqual(generic.abi_canon(arr), "(uint8,(address))[2]")
         self.assertEqual(generic.abi_canon(comp("uint256[3]")), "uint256[3]")
 

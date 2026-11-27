@@ -122,7 +122,7 @@ import re
 import sys
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
-import succeeds_witness  # noqa: E402
+import succeeds_witness
 
 NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_.?'!]*$")
 # A statement input: a term without tactics, commands or type ascriptions (no newline, colon,
@@ -503,9 +503,13 @@ def ctor_binders(shape, kind):
         if not (
             isinstance(w, list)
             and len(w) == len(b)
-            and all(isinstance(x, int) and not isinstance(x, bool) and x >= 0 for x in w)
+            and all(
+                isinstance(x, int) and not isinstance(x, bool) and x >= 0 for x in w
+            )
         ):
-            fail('shape.json: ctor_returns must be {"witness": [one natural number per argument]}')
+            fail(
+                'shape.json: ctor_returns must be {"witness": [one natural number per argument]}'
+            )
     for i, x in enumerate(b):
         if not (isinstance(x, dict) and set(x) == {"var", "lt"}):
             fail('shape.json: each ctor_args entry must be {"var": ..., "lt": ...}')
@@ -849,7 +853,9 @@ def spec_of(shape, a, kind, opened, export_ns, valid):
             allowed, post = ws
             for t in ws:
                 if not EXPR.match(t):
-                    fail("shape.json: succeeds_witness makes a term with a colon or newline")
+                    fail(
+                        "shape.json: succeeds_witness makes a term with a colon or newline"
+                    )
         spec_args = f" ({allowed}) ({post})"
         if opened:
             spec_args = (
@@ -866,6 +872,7 @@ def spec_of(shape, a, kind, opened, export_ns, valid):
         "allowed_vac": allowed_vac,
         "spec_args": spec_args,
     }
+
 
 # shape.json keys that state a single claim: with parts, each part states its own instead.
 PART_KEYS = (
@@ -925,10 +932,15 @@ def parts_mode(a, shape):
         if not NAME.match(getattr(a, k)):
             fail(f"--{k} is not a Lean name")
     parts = shape.get("parts")
-    if not (isinstance(parts, list) and parts and all(isinstance(p, dict) for p in parts)):
+    if not (
+        isinstance(parts, list) and parts and all(isinstance(p, dict) for p in parts)
+    ):
         fail("shape.json: parts must be a non-empty list of objects")
     fns = [p.get("function") for p in parts]
-    if any(not (isinstance(f, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", f)) for f in fns):
+    if any(
+        not (isinstance(f, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", f))
+        for f in fns
+    ):
         fail("shape.json: every part needs function, an identifier")
     if len(set(fns)) != len(fns):
         fail("shape.json: two parts name the same function")
@@ -984,7 +996,9 @@ def parts_mode(a, shape):
         nv = f"NonVacuous_{fn}"
         if nonvac is not None:
             defs.append(
-                nonvac_text(ns, valid, sp["post"], sp["allowed"], sp["allowed_vac"], ib, nv)
+                nonvac_text(
+                    ns, valid, sp["post"], sp["allowed"], sp["allowed_vac"], ib, nv
+                )
             )
         if ib is not None:
             v, n = ib
@@ -1003,8 +1017,12 @@ def parts_mode(a, shape):
         terms.append(term)
         st = statuses(kind, p.get("spec"), sp["bound_spec"], sp["vacuity"])
         if sp["allowed_vac"] is not None:
-            st["termination"] += f" (the allowed statuses reject nothing: {sp['allowed_vac']})"
-            st["vacuity"] += f"; the allowed statuses: none rejected ({sp['allowed_vac']})"
+            st["termination"] += (
+                f" (the allowed statuses reject nothing: {sp['allowed_vac']})"
+            )
+            st["vacuity"] += (
+                f"; the allowed statuses: none rejected ({sp['allowed_vac']})"
+            )
         recs.append(
             {
                 "function": fn,
@@ -1028,7 +1046,11 @@ def parts_mode(a, shape):
     imports = [
         "Verify.Shapes",
         *(["Verify.ShapeGeneric"] if kind == "compiled" else []),
-        *(["Verify.ShapeBundle", f"{a.name}.gen.{a.contract}.Spec"] if any_spec else []),
+        *(
+            ["Verify.ShapeBundle", f"{a.name}.gen.{a.contract}.Spec"]
+            if any_spec
+            else []
+        ),
         *(["Verify.ShapeSpecExport"] if any_allowed else []),
         f"{a.name}.gen.{a.contract}.Bytecode",
         *spec_mods,
@@ -1104,7 +1126,9 @@ theorem {ns}.final : _root_.{ns}.Statement :=
         vals = [r["statuses"][key] for r in recs]
         if len(set(vals)) == 1:
             return vals[0]
-        return "per function: " + "; ".join(f"{r['function']}: {v}" for r, v in zip(recs, vals))
+        return "per function: " + "; ".join(
+            f"{r['function']}: {v}" for r, v in zip(recs, vals)
+        )
 
     def some(key):
         vals = [(r["function"], r[key]) for r in recs if r[key] is not None]
@@ -1124,7 +1148,9 @@ theorem {ns}.final : _root_.{ns}.Statement :=
                 "vacuity": some("vacuity"),
                 "allowed_vacuity": some("allowed_vacuity"),
                 "spec_bound_to_export": exported[0] if exported else None,
-                "allowed_bound_to_export": any(r["allowed_bound_to_export"] for r in recs),
+                "allowed_bound_to_export": any(
+                    r["allowed_bound_to_export"] for r in recs
+                ),
                 "assumptions": [],
                 "excluded": shape.get("excluded", []),
                 "spec": shape.get("spec"),
@@ -1160,15 +1186,25 @@ def run_export(shape, contract):
     its own, tools/certify/export_ns.py), else solar's default for CONTRACT; refused unless a Lean
     name."""
     plain = re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", contract)
-    exported = shape.get("export_ns") or f"SolarTV.Export.{contract if plain else f'«{contract}»'}"
-    if not isinstance(exported, str) or not NAME.match(exported.replace("«", "").replace("»", "")):
+    exported = (
+        shape.get("export_ns")
+        or f"SolarTV.Export.{contract if plain else f'«{contract}»'}"
+    )
+    if not isinstance(exported, str) or not NAME.match(
+        exported.replace("«", "").replace("»", "")
+    ):
         fail("shape.json: export_ns is not a Lean name")
     return exported
 
 
 def lean_str(s):
     """A Lean string literal of S (printable ASCII only: the driver's hashes, names and options)."""
-    if not (isinstance(s, str) and re.fullmatch(r"[ -~]*", s) and '"' not in s and "\\" not in s):
+    if not (
+        isinstance(s, str)
+        and re.fullmatch(r"[ -~]*", s)
+        and '"' not in s
+        and "\\" not in s
+    ):
         fail(f"not a plain string literal: {s!r}")
     return f'"{s}"'
 
@@ -1189,12 +1225,21 @@ def stage_manifest(gen, contract, exported=None):
         fail(f"statement expected: no stage manifest {mf}")
     text = mf.read_text()
     exported = exported or f"SolarTV.Export.{contract}"
-    if not re.search(rf"^namespace {re.escape(exported)}\.Manifest$", text, re.M):
+    if not re.search(
+        rf"^namespace {re.escape(exported)}\.Manifest$", text, re.MULTILINE
+    ):
         fail(f"statement expected: {mf} is not the manifest of {contract}'s export")
-    m = re.search(r"^def stages : List \(String × String × String × String\) :=\n(.*?)\n\n", text, re.M | re.S)
+    m = re.search(
+        r"^def stages : List \(String × String × String × String\) :=\n(.*?)\n\n",
+        text,
+        re.MULTILINE | re.DOTALL,
+    )
     if not m:
         fail(f"statement expected: {mf} has no stage list")
-    rows = re.findall(r'\("([A-Za-z0-9_]+)", "([A-Za-z0-9_]+)", "([a-z0-9-]+)", "([0-9a-f]{64})"\)', m.group(1))
+    rows = re.findall(
+        r'\("([A-Za-z0-9_]+)", "([A-Za-z0-9_]+)", "([a-z0-9-]+)", "([0-9a-f]{64})"\)',
+        m.group(1),
+    )
     if m.group(1).count("(") != len(rows) or not rows:
         fail(f"statement expected: {mf}'s stage list does not parse")
     out = []
@@ -1205,7 +1250,9 @@ def stage_manifest(gen, contract, exported=None):
         out.append((f, d, p, hashlib.sha256(sf.read_bytes()).hexdigest()))
     listed = {f for f, *_ in out}
     extra = sorted(
-        x.stem for x in gen.glob("*.lean") if x.stem not in listed | {"Manifest", "Spec"}
+        x.stem
+        for x in gen.glob("*.lean")
+        if x.stem not in listed | {"Manifest", "Spec"}
     )
     if extra:
         fail(f"statement expected: stage modules the manifest does not list: {extra}")
@@ -1214,7 +1261,9 @@ def stage_manifest(gen, contract, exported=None):
         "bytecode",
         "assemble",
     ):
-        fail("statement expected: the stage list is not first lowered MIR (Stage0) to Bytecode")
+        fail(
+            "statement expected: the stage list is not first lowered MIR (Stage0) to Bytecode"
+        )
     return out
 
 
@@ -1227,7 +1276,11 @@ def expected_valid(call, bound):
     conj = [f"{x} < 2 ^ 256" for x in args]
     if lim is not None:
         kind, i = lim
-        conj.append(f"a{i} ≤ {bound}" if kind == "arg" else f"_root_.SolarTV.slotValue σ {i} ≤ {bound}")
+        conj.append(
+            f"a{i} ≤ {bound}"
+            if kind == "arg"
+            else f"_root_.SolarTV.slotValue σ {i} ≤ {bound}"
+        )
     ex = " ".join(["σ", *args])
     pre = "".join(c + " ∧ " for c in conj)
     return (
@@ -1250,7 +1303,9 @@ def check_call(p, fn):
     c = p.get("call")
     keys = {"selector", "arity", "limit", "per_iteration_gas", "exit_gas", "M"}
     if not (isinstance(c, dict) and set(c) == keys):
-        fail(f"shape.json: part {fn}: call must be {{selector, arity, limit, per_iteration_gas, exit_gas, M}}")
+        fail(
+            f"shape.json: part {fn}: call must be {{selector, arity, limit, per_iteration_gas, exit_gas, M}}"
+        )
 
     def nat(v):
         return isinstance(v, int) and not isinstance(v, bool) and v >= 0
@@ -1262,7 +1317,9 @@ def check_call(p, fn):
         and nat(c["per_iteration_gas"])
         and nat(c["exit_gas"])
     ):
-        fail(f"shape.json: part {fn}: call's selector, arity and gas parts must be naturals")
+        fail(
+            f"shape.json: part {fn}: call's selector, arity and gas parts must be naturals"
+        )
     lim = c["limit"]
     if lim is not None and not (
         isinstance(lim, list)
@@ -1271,9 +1328,15 @@ def check_call(p, fn):
         and nat(lim[1])
         and (lim[0] == "slot" or lim[1] < c["arity"])
     ):
-        fail(f'shape.json: part {fn}: call.limit must be null, ["arg", i] or ["slot", n]')
-    if (lim is None) != (c["M"] is not None) or (c["M"] is not None and not nat(c["M"])):
-        fail(f"shape.json: part {fn}: a literal limit (call.limit null) needs its iteration count M, and only it")
+        fail(
+            f'shape.json: part {fn}: call.limit must be null, ["arg", i] or ["slot", n]'
+        )
+    if (lim is None) != (c["M"] is not None) or (
+        c["M"] is not None and not nat(c["M"])
+    ):
+        fail(
+            f"shape.json: part {fn}: a literal limit (call.limit null) needs its iteration count M, and only it"
+        )
     return c
 
 
@@ -1322,11 +1385,20 @@ def loop_expected_mode(a, shape):
     if not src.is_file():
         fail(f"--source {src} is not a file")
     src_sha = hashlib.sha256(src.read_bytes()).hexdigest()
-    gen = pathlib.Path(a.gen) if a.gen else pathlib.Path(a.statement_out).parent / "gen" / a.contract
+    gen = (
+        pathlib.Path(a.gen)
+        if a.gen
+        else pathlib.Path(a.statement_out).parent / "gen" / a.contract
+    )
     stages = stage_manifest(gen, a.contract, run_export(shape, a.contract))
     ex = shape.get("expected")
-    if not (isinstance(ex, dict) and set(ex) == {"toolchain", "inventory", "inventory_module"}):
-        fail("shape.json: statement expected needs expected {toolchain, inventory, inventory_module}")
+    if not (
+        isinstance(ex, dict)
+        and set(ex) == {"toolchain", "inventory", "inventory_module"}
+    ):
+        fail(
+            "shape.json: statement expected needs expected {toolchain, inventory, inventory_module}"
+        )
     tc = ex["toolchain"]
     if not (
         isinstance(tc, dict)
@@ -1334,7 +1406,9 @@ def loop_expected_mode(a, shape):
         and isinstance(tc["arguments"], list)
         and tc["arguments"]
     ):
-        fail("shape.json: expected.toolchain must be {compiler, arguments, evm_version, optimization}")
+        fail(
+            "shape.json: expected.toolchain must be {compiler, arguments, evm_version, optimization}"
+        )
     if tc["arguments"][0] != src.name:
         fail(
             f"shape.json: the compiler's first argument is {tc['arguments'][0]!r}, not the source {src.name!r}"
@@ -1343,7 +1417,10 @@ def loop_expected_mode(a, shape):
     if not (
         isinstance(inv, list)
         and all(
-            isinstance(e, list) and len(e) == 2 and isinstance(e[0], str) and isinstance(e[1], int)
+            isinstance(e, list)
+            and len(e) == 2
+            and isinstance(e[0], str)
+            and isinstance(e[1], int)
             for e in inv
         )
     ):
@@ -1353,10 +1430,18 @@ def loop_expected_mode(a, shape):
         fail("shape.json: expected.inventory_module must be a module name")
     sa = shape.get("source_ast")
     src_mod = f"{a.name}.Source"
-    if not (isinstance(sa, dict) and sa.get("namespace") == f"Certified.{a.name}.Src" and sa.get("contract") == a.contract):
-        fail(f"shape.json: statement expected needs source_ast of this contract in Certified.{a.name}.Src ({src_mod})")
+    if not (
+        isinstance(sa, dict)
+        and sa.get("namespace") == f"Certified.{a.name}.Src"
+        and sa.get("contract") == a.contract
+    ):
+        fail(
+            f"shape.json: statement expected needs source_ast of this contract in Certified.{a.name}.Src ({src_mod})"
+        )
     if shape.get("source_sem") != LOOP_SEM:
-        fail(f"shape.json: statement expected states the loop route's source semantics {LOOP_SEM}")
+        fail(
+            f"shape.json: statement expected states the loop route's source semantics {LOOP_SEM}"
+        )
     fuel = expr(shape, "fuel")
     if not re.fullmatch(r"[0-9 ^+*()]+", fuel):
         fail("shape.json: fuel must be a numeral expression")
@@ -1367,12 +1452,19 @@ def loop_expected_mode(a, shape):
         src_mod,
         inv_mod,
     ):
-        fail("shape.json: proof_module must be a module other than the statement's inputs")
+        fail(
+            "shape.json: proof_module must be a module other than the statement's inputs"
+        )
     parts = shape.get("parts")
-    if not (isinstance(parts, list) and parts and all(isinstance(p, dict) for p in parts)):
+    if not (
+        isinstance(parts, list) and parts and all(isinstance(p, dict) for p in parts)
+    ):
         fail("shape.json: parts must be a non-empty list of objects")
     fns = [p.get("function") for p in parts]
-    if any(not (isinstance(f, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", f)) for f in fns):
+    if any(
+        not (isinstance(f, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", f))
+        for f in fns
+    ):
         fail("shape.json: every part needs function, an identifier")
     if len(set(fns)) != len(fns):
         fail("shape.json: two parts name the same function")
@@ -1407,7 +1499,9 @@ def loop_expected_mode(a, shape):
         proof = expr(p, "proof")
         ib = p.get("iteration_bound")
         if (ib is None) != (c["limit"] is None):
-            fail(f"shape.json: part {fn}: an iteration bound exactly when the loop's limit is the call's")
+            fail(
+                f"shape.json: part {fn}: an iteration bound exactly when the loop's limit is the call's"
+            )
         if ib is not None:
             if not (
                 isinstance(ib, dict)
@@ -1417,7 +1511,9 @@ def loop_expected_mode(a, shape):
                 and not isinstance(ib["max"], bool)
                 and ib["max"] >= 0
             ):
-                fail(f'shape.json: part {fn}: iteration_bound must be {{"var": "K", "max": N}}')
+                fail(
+                    f'shape.json: part {fn}: iteration_bound must be {{"var": "K", "max": N}}'
+                )
             bnd = "K"
             gas = f"fun _ => K * {c['per_iteration_gas']} + {c['exit_gas']}"
         else:
@@ -1436,9 +1532,13 @@ def loop_expected_mode(a, shape):
                     f"shape.json: part {fn}: the expected statement states the export in the fixed frame {LOOP_FRAME}"
                 )
             if sel not in inv_sels:
-                fail(f"shape.json: part {fn}: its selector {sel:#010x} is not in the export's inventory")
+                fail(
+                    f"shape.json: part {fn}: its selector {sel:#010x} is not in the export's inventory"
+                )
             if "no_spec" in p or "vacuity" in p:
-                fail(f"shape.json: part {fn}: a part with the export's spec has nonvacuous, not no_spec or vacuity")
+                fail(
+                    f"shape.json: part {fn}: a part with the export's spec has nonvacuous, not no_spec or vacuity"
+                )
             nonvac = expr(p, "nonvacuous")
             nv = (
                 f"∃ (call : _root_.SolarTV.Call) (obs : _root_.SolarTV.Observable), ({valid}) ∧\n"
@@ -1467,14 +1567,16 @@ def loop_expected_mode(a, shape):
                     f"shape.json: part {fn}: a part without the export's spec needs no_spec, a theorem of {inv_mod}"
                 )
             if any(k in p for k in ("nonvacuous", "allowed_export", "allowed_vacuity")):
-                fail(f"shape.json: part {fn}: a part without a spec has no nonvacuous or allowed statuses")
+                fail(
+                    f"shape.json: part {fn}: a part without a spec has no nonvacuous or allowed statuses"
+                )
             qual = f"{a.contract}.{fn}"
             if sel in inv_sels or qual in inv_names:
-                fail(f"shape.json: part {fn}: the export specifies it (name or selector): never True")
+                fail(
+                    f"shape.json: part {fn}: the export specifies it (name or selector): never True"
+                )
             nospec_any = True
-            absent = (
-                f"({B}.spec.specs.all fun s => s.name != {lean_str(qual)} && s.selector != {sel}) = true"
-            )
+            absent = f"({B}.spec.specs.all fun s => s.name != {lean_str(qual)} && s.selector != {sel}) = true"
             body = (
                 f"(∃ (call : _root_.SolarTV.Call), {valid}) ∧\n"
                 f"      ∃ c, {contract} = .ok c ∧\n"
@@ -1490,7 +1592,11 @@ def loop_expected_mode(a, shape):
                 term = f"⟨_root_.{ns_thm}, {inner}⟩"
         claims.append(claim)
         terms.append(term)
-        vac = None if has_spec else (p.get("vacuity") or "translation only: no spec in the export")
+        vac = (
+            None
+            if has_spec
+            else (p.get("vacuity") or "translation only: no spec in the export")
+        )
         avac = p.get("allowed_vacuity") if has_spec else None
         st = statuses(kind, p.get("spec"), has_spec, vac)
         if avac is not None:
@@ -1502,7 +1608,9 @@ def loop_expected_mode(a, shape):
                 "selector": f"0x{sel:08x}",
                 "valid": f"fun call => {valid}",
                 "gas": gas,
-                "nonvacuous": f"{ns}.Statement (well-typed, by {p.get('nonvacuous')})" if has_spec else None,
+                "nonvacuous": f"{ns}.Statement (well-typed, by {p.get('nonvacuous')})"
+                if has_spec
+                else None,
                 "no_spec": p.get("no_spec"),
                 "vacuity": vac,
                 "allowed_vacuity": avac,
@@ -1525,19 +1633,38 @@ def loop_expected_mode(a, shape):
     bytes_sha = hashlib.sha256(bytes.fromhex(a.hex)).hexdigest()
     inv_lit = ", ".join(f"({lean_str(n)}, {s:#010x})" for n, s in inv)
     stage_lit = ",\n      ".join(
-        f"({lean_str(f)}, {lean_str(d)}, {lean_str(p)}, {lean_str(h)})" for f, d, p, h in stages
+        f"({lean_str(f)}, {lean_str(d)}, {lean_str(p)}, {lean_str(h)})"
+        for f, d, p, h in stages
     )
     args_lit = ", ".join(lean_str(x) for x in tc["arguments"])
     dec = "by decide +kernel"
     fixed = [
-        ("the fresh source", f"{S}.manifest.sourceSha256 = {lean_str(src_sha)}", f"{I}.source_is_fresh"),
+        (
+            "the fresh source",
+            f"{S}.manifest.sourceSha256 = {lean_str(src_sha)}",
+            f"{I}.source_is_fresh",
+        ),
         (
             "the spec's inventory",
             f"{B}.spec.specs.map (fun s => (s.name, s.selector)) = [{inv_lit}]",
             f"{I}.inventory",
         ),
-        *([("no contract invariant", f"{B}.spec.invariants = []", f"{I}.no_invariants")] if nospec_any else []),
-        ("the source the stages were compiled from", f"{M}.sources = [({lean_str(src.name)}, {lean_str(src_sha)})]", dec),
+        *(
+            [
+                (
+                    "no contract invariant",
+                    f"{B}.spec.invariants = []",
+                    f"{I}.no_invariants",
+                )
+            ]
+            if nospec_any
+            else []
+        ),
+        (
+            "the source the stages were compiled from",
+            f"{M}.sources = [({lean_str(src.name)}, {lean_str(src_sha)})]",
+            dec,
+        ),
         ("the compiler", f"{M}.compiler = {lean_str(tc['compiler'])}", dec),
         ("its options", f"{M}.arguments = [{args_lit}]", dec),
         ("the EVM version", f"{M}.evmVersion = {lean_str(tc['evm_version'])}", dec),
@@ -1575,7 +1702,7 @@ def loop_expected_mode(a, shape):
 `Statement` is the driver-fixed expected statement of a contract with loop functions ({named}):
 the fresh export's bytes are the bytes the driver compiled; the export's manifest is of this run's
 source (SHA-256 {src_sha}) and its spec bundle specifies exactly the inventory; the stage export's
-manifest names the source, the compiler {tc['compiler']}, its options and the digest of the first
+manifest names the source, the compiler {tc["compiler"]}, its options and the digest of the first
 lowered MIR and of every stage, each equal to the literal SHA-256 of the file; and for each
 function, at every iteration bound, its valid calls are inhabited and the exact bytes are
 Shapes.Certified against the checked source (equivalence, termination, the property, resources at
@@ -1645,7 +1772,9 @@ example : _root_.{ns}.Statement := _root_.{ns}.final
         vals = [r["statuses"][key] for r in recs]
         if len(set(vals)) == 1:
             return vals[0]
-        return "per function: " + "; ".join(f"{r['function']}: {v}" for r, v in zip(recs, vals))
+        return "per function: " + "; ".join(
+            f"{r['function']}: {v}" for r, v in zip(recs, vals)
+        )
 
     def some(key):
         vals = [(r["function"], r[key]) for r in recs if r[key] is not None]
@@ -1666,26 +1795,33 @@ example : _root_.{ns}.Statement := _root_.{ns}.final
                     "source_sha256": src_sha,
                     "source_file": src.name,
                     "spec_bundle": B.removeprefix("_root_."),
-                    "inventory": [{"name": n, "selector": f"0x{s:08x}"} for n, s in inv],
+                    "inventory": [
+                        {"name": n, "selector": f"0x{s:08x}"} for n, s in inv
+                    ],
                     "inventory_module": inv_mod,
                     "no_invariants": nospec_any,
                     "toolchain": tc,
                     "stages": [
-                        {"file": f, "def": d, "pass": p, "sha256": h} for f, d, p, h in stages
+                        {"file": f, "def": d, "pass": p, "sha256": h}
+                        for f, d, p, h in stages
                     ],
                     "runtime_sha256": bytes_sha,
                     "binds": [w for w, _, _ in fixed]
                     + [
                         "the runtime bytes",
-                        "per function: inhabited valid calls and Shapes.Certified, with the "
-                        "export's well-typed NonVacuous or the checked absence of a spec",
+                        (
+                            "per function: inhabited valid calls and Shapes.Certified, with the "
+                            "export's well-typed NonVacuous or the checked absence of a spec"
+                        ),
                     ],
                 },
                 "nonvacuous": some("nonvacuous"),
                 "vacuity": some("vacuity"),
                 "allowed_vacuity": some("allowed_vacuity"),
                 "spec_bound_to_export": exported[0] if exported else None,
-                "allowed_bound_to_export": any(r["allowed_bound_to_export"] for r in recs),
+                "allowed_bound_to_export": any(
+                    r["allowed_bound_to_export"] for r in recs
+                ),
                 "assumptions": [],
                 "excluded": shape.get("excluded", []),
                 "spec": shape.get("spec"),
@@ -1709,7 +1845,9 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--statement-out", required=True)
     ap.add_argument("--record", help="write the statuses and statement here as JSON")
-    ap.add_argument("--source", help="statement expected: this run's source file, hashed here")
+    ap.add_argument(
+        "--source", help="statement expected: this run's source file, hashed here"
+    )
     ap.add_argument(
         "--gen",
         help="statement expected: the stage export's directory (default: gen/CONTRACT beside --statement-out)",
@@ -1976,7 +2114,8 @@ theorem {ns}.final : _root_.{ns}.Statement :=
         )
         st_rec["vacuity"] = (
             "proved non-vacuous (NonVacuous in the statement) by the driver's succeeds witness, "
-            "the spec having no succeeds-if conditions: " + succeeds_witness.describe(sw)
+            "the spec having no succeeds-if conditions: "
+            + succeeds_witness.describe(sw)
         )
     if allowed_vac is not None:
         st_rec["termination"] += (

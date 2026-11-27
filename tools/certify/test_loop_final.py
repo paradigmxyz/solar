@@ -5,6 +5,7 @@ import json
 import pathlib
 import sys
 import unittest
+from typing import ClassVar
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
@@ -389,7 +390,7 @@ class Receipt(unittest.TestCase):
         import tempfile
 
         with tempfile.TemporaryDirectory() as d:
-            src, receipt, module, record = _receipt_fixture(d)
+            _src, receipt, module, record = _receipt_fixture(d)
             s = record["source"]["sha256"]
             # Another source digest, another exporter.
             self.assertIn("sourceSha256", self.check(d, receipt, module, "0" * 64))
@@ -400,7 +401,7 @@ class Receipt(unittest.TestCase):
             module.write_text(module.read_text() + "-- edited\n")
             self.assertIn("moduleSha256", self.check(d, receipt, module, s))
         with tempfile.TemporaryDirectory() as d:
-            src, receipt, module, record = _receipt_fixture(d)
+            _src, receipt, module, record = _receipt_fixture(d)
             s = record["source"]["sha256"]
             # A coherent receipt of a module whose own digests are not the receipt's.
             r = json.loads(receipt.read_text())
@@ -416,7 +417,7 @@ class Receipt(unittest.TestCase):
         import tempfile
 
         with tempfile.TemporaryDirectory() as d:
-            src, receipt, module, record = _receipt_fixture(d)
+            src, _receipt, _module, _record = _receipt_fixture(d)
             self.assertIn(
                 "no source digest",
                 loop_final.acceptance_problem({}, src, d, "n", "C", "e" * 64),
@@ -465,7 +466,12 @@ class Exporter(unittest.TestCase):
             def write(sha, binary=exe):
                 pin.write_text(
                     json.dumps(
-                        {"commit": "a" * 40, "sha256": sha, "tree": d, "binary": str(binary)}
+                        {
+                            "commit": "a" * 40,
+                            "sha256": sha,
+                            "tree": d,
+                            "binary": str(binary),
+                        }
                     )
                 )
 
@@ -495,8 +501,17 @@ class Exporter(unittest.TestCase):
         root = pathlib.Path(loop_final.HERE).parent.parent
         for c in loop_final.VERIFY_FIXES:
             r = subprocess.run(
-                ["git", "-C", str(root), "merge-base", "--is-ancestor", c, pin["commit"]],
+                [
+                    "git",
+                    "-C",
+                    str(root),
+                    "merge-base",
+                    "--is-ancestor",
+                    c,
+                    pin["commit"],
+                ],
                 capture_output=True,
+                check=False,
             )
             if r.returncode == 128:
                 self.skipTest("the pinned commit is not in this repository")
@@ -507,7 +522,9 @@ class SeveralLoops(unittest.TestCase):
     """Several loop functions: one part each, and final.py's parts statement."""
 
     def test_functions(self):
-        rec = {"loop_cuts": {"a": {"route": "erasure"}, "b": {"route": "while-inferred"}}}
+        rec = {
+            "loop_cuts": {"a": {"route": "erasure"}, "b": {"route": "while-inferred"}}
+        }
         self.assertEqual(loop_final.loop_functions(rec), ["a", "b"])
         with self.assertRaises(loop_final.Refused) as c:
             loop_final.loop_functions({"loop_cuts": {}})
@@ -545,16 +562,30 @@ class SeveralLoops(unittest.TestCase):
         import final
 
         shapes = []
-        for f, sp in (("a", {"loop_spec": "Certified.n.LoopSpec.a_loop_spec", "index": 0}), ("b", None)):
+        for f, sp in (
+            ("a", {"loop_spec": "Certified.n.LoopSpec.a_loop_spec", "index": 0}),
+            ("b", None),
+        ):
             m = loop_final.modules("n", f)
             shapes.append(
-                loop_final.shape("n", "C", f, f"{f}(uint256)", dict(facts(), E=2, B=2, X=3), sp, True, m)
+                loop_final.shape(
+                    "n",
+                    "C",
+                    f,
+                    f"{f}(uint256)",
+                    dict(facts(), E=2, B=2, X=3),
+                    sp,
+                    True,
+                    m,
+                )
             )
         sh = loop_final.shape_parts("n", shapes)
         self.assertEqual(sh["proof_module"], "n.LoopJoin")
         self.assertEqual([p["function"] for p in sh["parts"]], ["a", "b"])
         self.assertEqual(sh["parts"][0]["proof"], "Certified.n.Loop.a.Join.join")
-        self.assertEqual(sh["parts"][0]["nonvacuous"], "Certified.n.Loop.a.NonVac.post_rejects")
+        self.assertEqual(
+            sh["parts"][0]["nonvacuous"], "Certified.n.Loop.a.NonVac.post_rejects"
+        )
         self.assertIn("vacuity", sh["parts"][1])
         self.assertIn("n.Loop.a.Valid", sh["spec_modules"])
         self.assertIn("n.Loop.b.Valid", sh["spec_modules"])
@@ -570,19 +601,41 @@ class SeveralLoops(unittest.TestCase):
         d = pathlib.Path(tempfile.mkdtemp())
         (d / "shape.json").write_text(json.dumps(sh))
         r = subprocess.run(
-            [sys.executable, str(loop_final.HERE / "final.py"), str(d / "shape.json"), "--name", "n",
-             "--contract", "C", "--hex", "6001", "--out", str(d / "F.lean"),
-             "--statement-out", str(d / "S.lean"), "--record", str(d / "r.json")],
-            capture_output=True, text=True,
+            [
+                sys.executable,
+                str(loop_final.HERE / "final.py"),
+                str(d / "shape.json"),
+                "--name",
+                "n",
+                "--contract",
+                "C",
+                "--hex",
+                "6001",
+                "--out",
+                str(d / "F.lean"),
+                "--statement-out",
+                str(d / "S.lean"),
+                "--record",
+                str(d / "r.json"),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
         )
         self.assertEqual(r.returncode, 0, r.stderr)
         stmt = (d / "S.lean").read_text()
         self.assertEqual(stmt.count("∀ (K : Nat), K ≤ 13042098468400 →"), 2)
         self.assertIn("def NonVacuous_a (K : Nat) : Prop :=", stmt)
         self.assertNotIn("NonVacuous_b", stmt)
-        self.assertIn("(Certified.n.Loop.b.Valid.valid K) (fun _ _ => True) (fun _ _ => True)", stmt)
+        self.assertIn(
+            "(Certified.n.Loop.b.Valid.valid K) (fun _ _ => True) (fun _ _ => True)",
+            stmt,
+        )
         fin = (d / "F.lean").read_text()
-        self.assertIn("fun K hK => ⟨(Certified.n.Loop.a.NonVac.post_rejects) hK, (Certified.n.Loop.a.Join.join) hK⟩", fin)
+        self.assertIn(
+            "fun K hK => ⟨(Certified.n.Loop.a.NonVac.post_rejects) hK, (Certified.n.Loop.a.Join.join) hK⟩",
+            fin,
+        )
         self.assertIn("fun K hK => (Certified.n.Loop.b.Join.join) hK", fin)
         rec = json.loads((d / "r.json").read_text())
         self.assertFalse(rec["strongest"])
@@ -592,10 +645,23 @@ class SeveralLoops(unittest.TestCase):
         import subprocess
         import tempfile
 
-        base = {"kind": "certified", "contract": "M.c", "fuel": "1", "proof_module": "M.J",
-                "parts": [{"function": "a", "valid": "M.V.v", "allowed": "fun _ _ => True",
-                           "post": "fun _ _ => True", "vacuity": "none", "gas": "fun _ => 1",
-                           "proof": "M.J.a"}]}
+        base = {
+            "kind": "certified",
+            "contract": "M.c",
+            "fuel": "1",
+            "proof_module": "M.J",
+            "parts": [
+                {
+                    "function": "a",
+                    "valid": "M.V.v",
+                    "allowed": "fun _ _ => True",
+                    "post": "fun _ _ => True",
+                    "vacuity": "none",
+                    "gas": "fun _ => 1",
+                    "proof": "M.J.a",
+                }
+            ],
+        }
         bads = [
             dict(base, valid="M.V.v"),
             dict(base, parts=[]),
@@ -608,10 +674,24 @@ class SeveralLoops(unittest.TestCase):
             d = pathlib.Path(tempfile.mkdtemp())
             (d / "s.json").write_text(json.dumps(sh))
             r = subprocess.run(
-                [sys.executable, str(loop_final.HERE / "final.py"), str(d / "s.json"), "--name", "n",
-                 "--contract", "C", "--hex", "6001", "--out", str(d / "F.lean"),
-                 "--statement-out", str(d / "S.lean")],
-                capture_output=True, text=True,
+                [
+                    sys.executable,
+                    str(loop_final.HERE / "final.py"),
+                    str(d / "s.json"),
+                    "--name",
+                    "n",
+                    "--contract",
+                    "C",
+                    "--hex",
+                    "6001",
+                    "--out",
+                    str(d / "F.lean"),
+                    "--statement-out",
+                    str(d / "S.lean"),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
             )
             self.assertEqual(r.returncode, 1, sh)
             self.assertFalse((d / "S.lean").exists())
@@ -623,13 +703,19 @@ class WhileSpec(unittest.TestCase):
     def test_while_spec_join(self):
         st = loop_final.compose_of(STAGES, facts())
         spec = {"loop_spec": "Certified.n.LoopSpec.count_loop_spec", "index": 0}
-        j = loop_final.join_module("n", "C", "count", 1, 1, st, facts(), "while-inferred", spec, True)
+        j = loop_final.join_module(
+            "n", "C", "count", 1, 1, st, facts(), "while-inferred", spec, True
+        )
         self.assertIn(loop_final.JOIN_WHILE_SPEC, j)
         self.assertIn(f"import {loop_final.WHILE_MODULE}\n", j)
         self.assertIn(
             "Certified.n.Loops.count.whileOf_eq\n      sigOf_eq Certified.n.Loops.count.src_seqs "
-            "Certified.n.Loops.count.src_valid Certified.n.Loops.count.leaves", j)
-        self.assertIn("(by rw [← core_eq]; exact Certified.n.LoopSpec.count_loop_spec)", j)
+            "Certified.n.Loops.count.src_valid Certified.n.Loops.count.leaves",
+            j,
+        )
+        self.assertIn(
+            "(by rw [← core_eq]; exact Certified.n.LoopSpec.count_loop_spec)", j
+        )
         self.assertNotIn("erasedOf_eq", j)
         self.assertIn("SolidCore.Spec.TreeLoop.certified_ctx0", j)
 
@@ -640,26 +726,53 @@ class WhileSpec(unittest.TestCase):
             sc.parse_while("while C.count 0 123 [256] 1 TREE .halt"),
             (0, 123, "[256]", ".halt", 1),
         )
-        self.assertEqual(sc.parse_while("while C.count nowhile"), ("nowhile", None, None, None, None))
+        self.assertEqual(
+            sc.parse_while("while C.count nowhile"), ("nowhile", None, None, None, None)
+        )
         self.assertEqual(
             sc.while_specs(["C.count=n.Loops.count.Obl:Certified.n.Loops.count"]),
             {"C.count": ("n.Loops.count.Obl", "Certified.n.Loops.count")},
         )
         out = "\n".join(
-            sc.while_block("count", "C.count", 0, 1, 123, "[256]", ".halt", "NS", "M", "M.exported",
-                           "u", False, False, "Certified.n.Loops.count")
+            sc.while_block(
+                "count",
+                "C.count",
+                0,
+                1,
+                123,
+                "[256]",
+                ".halt",
+                "NS",
+                "M",
+                "M.exported",
+                "u",
+                False,
+                False,
+                "Certified.n.Loops.count",
+            )
         )
-        self.assertIn("theorem count_tree_eq : Certified.n.Loops.count.Te = count_tree := rfl", out)
-        self.assertIn("Verify.LoopSource.Invariant.Final.whileSpecCheck NS.contract? 123 spec 0", out)
+        self.assertIn(
+            "theorem count_tree_eq : Certified.n.Loops.count.Te = count_tree := rfl",
+            out,
+        )
+        self.assertIn(
+            "Verify.LoopSource.Invariant.Final.whileSpecCheck NS.contract? 123 spec 0",
+            out,
+        )
         self.assertIn(
             "theorem count_loop_spec : Verify.LoopSource.Invariant.Final.WhileSpec NS.contract? 123 1 [256] "
-            "Certified.n.Loops.count.Te spec := by", out)
-        self.assertIn("Verify.LoopSource.Invariant.Final.whileSpec_of_check (by decide) count_while_eq", out)
+            "Certified.n.Loops.count.Te spec := by",
+            out,
+        )
+        self.assertIn(
+            "Verify.LoopSource.Invariant.Final.whileSpec_of_check (by decide) count_while_eq",
+            out,
+        )
         for bad in ("sorry", "native_decide", "axiom "):
             self.assertNotIn(bad, out)
 
 
-HORN_EXPORT = '''/-- The specs of `Horn`. -/
+HORN_EXPORT = """/-- The specs of `Horn`. -/
 def Horn : Bundle where
   fuel := 0
   spec :=
@@ -682,21 +795,36 @@ def Horn : Bundle where
 
 /-- Every spec function call resolves and nests within the fuel. -/
 theorem Horn_wf : Horn.WF = true := by decide +kernel
-'''
+"""
 
 
 def _fn(name, sel, doc=None, loop=True, kind="function", vis="public"):
-    body = {"nodeType": "Block", "statements": [{"nodeType": "WhileStatement"}] if loop else []}
-    n = {"nodeType": "FunctionDefinition", "name": name, "kind": kind, "visibility": vis,
-         "functionSelector": f"{sel:08x}", "body": body}
+    body = {
+        "nodeType": "Block",
+        "statements": [{"nodeType": "WhileStatement"}] if loop else [],
+    }
+    n = {
+        "nodeType": "FunctionDefinition",
+        "name": name,
+        "kind": kind,
+        "visibility": vis,
+        "functionSelector": f"{sel:08x}",
+        "body": body,
+    }
     if doc:
         n["documentation"] = {"nodeType": "StructuredDocumentation", "text": doc}
     return n
 
 
 def _ast(*fns, cdoc=None, extra=()):
-    c = {"nodeType": "ContractDefinition", "id": 1, "name": "Horn", "linearizedBaseContracts": [1],
-         "contractKind": "contract", "nodes": [*fns, *extra]}
+    c = {
+        "nodeType": "ContractDefinition",
+        "id": 1,
+        "name": "Horn",
+        "linearizedBaseContracts": [1],
+        "contractKind": "contract",
+        "nodes": [*fns, *extra],
+    }
     if cdoc:
         c["documentation"] = {"nodeType": "StructuredDocumentation", "text": cdoc}
     return {"nodeType": "SourceUnit", "nodes": [c]}
@@ -710,21 +838,35 @@ class SpecGate(unittest.TestCase):
     """Review 206: a part is True only by the checked no-spec determination; a function with a spec,
     or a tag that may carry one, that the bridge does not prove refuses the whole final."""
 
-    parts = [{"fname": "ok_transfer", "sel": OK}, {"fname": "bad_transfer", "sel": BAD}]
+    parts: ClassVar[list[dict]] = [
+        {"fname": "ok_transfer", "sel": OK},
+        {"fname": "bad_transfer", "sel": BAD},
+    ]
 
     def ast(self, **kw):
-        return _ast(_fn("ok_transfer", OK, " @custom:ensures result == n"), _fn("bad_transfer", BAD, kw.get("bad_doc")),
-                    cdoc=kw.get("cdoc"))
+        return _ast(
+            _fn("ok_transfer", OK, " @custom:ensures result == n"),
+            _fn("bad_transfer", BAD, kw.get("bad_doc")),
+            cdoc=kw.get("cdoc"),
+        )
 
     def test_inventory_parses_the_export(self):
-        self.assertEqual(loop_final.export_inventory(HORN_EXPORT, "Horn"), [("Horn.ok_transfer", OK)])
+        self.assertEqual(
+            loop_final.export_inventory(HORN_EXPORT, "Horn"), [("Horn.ok_transfer", OK)]
+        )
         with self.assertRaises(loop_final.Refused) as e:
             loop_final.export_inventory(HORN_EXPORT, "Other")
         self.assertEqual(e.exception.step, "inventory")
 
     def test_proved_and_checked_none(self):
         inv = loop_final.export_inventory(HORN_EXPORT, "Horn")
-        none = loop_final.spec_gate(self.ast(), "Horn", self.parts, {"ok_transfer": PROVED, "bad_transfer": None}, inv)
+        none = loop_final.spec_gate(
+            self.ast(),
+            "Horn",
+            self.parts,
+            {"ok_transfer": PROVED, "bad_transfer": None},
+            inv,
+        )
         self.assertEqual([p["fname"] for p in none], ["bad_transfer"])
         text = loop_final.inventory_module("h", "Horn", "ab" * 32, inv, none)
         self.assertIn('= [("Horn.ok_transfer", 0xfd0011a5)] := by', text)
@@ -737,14 +879,29 @@ class SpecGate(unittest.TestCase):
         inv = loop_final.export_inventory(HORN_EXPORT, "Horn")
         cases = [
             # the bridge refused a specified function (succeeds-if, a failing theorem)
-            (self.ast(), {"ok_transfer": "spec_connect.py --loops refuses: succeeds-if", "bad_transfer": None}),
+            (
+                self.ast(),
+                {
+                    "ok_transfer": "spec_connect.py --loops refuses: succeeds-if",
+                    "bad_transfer": None,
+                },
+            ),
             # the export lists a function the bridge result calls absent
             (self.ast(), {"ok_transfer": None, "bad_transfer": None}),
             # a tag on the function that the export does not list
-            (self.ast(bad_doc=" @custom:succeeds-if n > 0"), {"ok_transfer": PROVED, "bad_transfer": None}),
-            (self.ast(bad_doc=" @inheritdoc Base"), {"ok_transfer": PROVED, "bad_transfer": None}),
+            (
+                self.ast(bad_doc=" @custom:succeeds-if n > 0"),
+                {"ok_transfer": PROVED, "bad_transfer": None},
+            ),
+            (
+                self.ast(bad_doc=" @inheritdoc Base"),
+                {"ok_transfer": PROVED, "bad_transfer": None},
+            ),
             # a contract-level tag (an invariant) no part states
-            (self.ast(cdoc=" @custom:invariant x <= 1"), {"ok_transfer": PROVED, "bad_transfer": None}),
+            (
+                self.ast(cdoc=" @custom:invariant x <= 1"),
+                {"ok_transfer": PROVED, "bad_transfer": None},
+            ),
             # a function missing from the bridge's result
             (self.ast(), {"ok_transfer": PROVED}),
         ]
@@ -755,7 +912,9 @@ class SpecGate(unittest.TestCase):
 
     def test_proved_spec_must_be_listed(self):
         with self.assertRaises(loop_final.Refused):
-            loop_final.spec_gate(self.ast(), "Horn", self.parts[:1], {"ok_transfer": PROVED}, [])
+            loop_final.spec_gate(
+                self.ast(), "Horn", self.parts[:1], {"ok_transfer": PROVED}, []
+            )
 
     def test_witness_is_well_typed(self):
         body = "∃ σ a0, a0 < 2 ^ 256 ∧ call = { calldata := Abi.calldata 1 [a0], callvalue := 0, storage := σ }"
@@ -766,14 +925,30 @@ class SpecGate(unittest.TestCase):
         self.assertIn(f"(words {out}) = some [1, 1]", text)
         # The decoding is never what refutes the postcondition (review 207).
         self.assertNotIn("revert hdec", text)
-        self.assertIn("⟨true, [], [], fun _ => 1⟩", loop_final.nonvac_module("h", "Horn", OK, 1, f, 0))
+        self.assertIn(
+            "⟨true, [], [], fun _ => 1⟩",
+            loop_final.nonvac_module("h", "Horn", OK, 1, f, 0),
+        )
 
     def test_source_loops(self):
-        ast = _ast(_fn("ok_transfer", OK), _fn("bad_transfer", BAD), _fn("plain", 1, loop=False),
-                   _fn("helper", 2, loop=True, vis="internal"))
-        self.assertEqual(loop_final.source_loops(ast, "Horn"), {"functions": {"ok_transfer", "bad_transfer", "helper"}, "elsewhere": []})
-        mod = {"nodeType": "ModifierDefinition", "name": "m", "body": {"nodeType": "ForStatement"}}
-        self.assertEqual(loop_final.source_loops(_ast(extra=[mod]), "Horn")["elsewhere"], ["Horn.m"])
+        ast = _ast(
+            _fn("ok_transfer", OK),
+            _fn("bad_transfer", BAD),
+            _fn("plain", 1, loop=False),
+            _fn("helper", 2, loop=True, vis="internal"),
+        )
+        self.assertEqual(
+            loop_final.source_loops(ast, "Horn"),
+            {"functions": {"ok_transfer", "bad_transfer", "helper"}, "elsewhere": []},
+        )
+        mod = {
+            "nodeType": "ModifierDefinition",
+            "name": "m",
+            "body": {"nodeType": "ForStatement"},
+        }
+        self.assertEqual(
+            loop_final.source_loops(_ast(extra=[mod]), "Horn")["elsewhere"], ["Horn.m"]
+        )
 
 
 MANIFEST = """-- solar-lean-stage: kind=manifest index=0 pass=none
@@ -808,7 +983,14 @@ end SolarTV.Export.n.C.Manifest
 
 TOOLCHAIN = {
     "compiler": "0.8.38+commit.unknown.solar.0.3.0",
-    "arguments": ["c.sol", "-Ogas", "--evm-version", "osaka", "--emit=bin-runtime", "-Zemit-lean-stages=gen"],
+    "arguments": [
+        "c.sol",
+        "-Ogas",
+        "--evm-version",
+        "osaka",
+        "--emit=bin-runtime",
+        "-Zemit-lean-stages=gen",
+    ],
     "evm_version": "osaka",
     "optimization": "Gas",
 }
@@ -833,7 +1015,9 @@ class ExpectedStatement(unittest.TestCase):
         self.hashes = []
         for f in ("Stage0", "Evm1", "Bytecode"):
             (self.gen / f"{f}.lean").write_text(f"-- {f}\n")
-            self.hashes.append(hashlib.sha256((self.gen / f"{f}.lean").read_bytes()).hexdigest())
+            self.hashes.append(
+                hashlib.sha256((self.gen / f"{f}.lean").read_bytes()).hexdigest()
+            )
         self.src_sha = hashlib.sha256(self.src.read_bytes()).hexdigest()
         m = MANIFEST.replace("@SRC@", self.src_sha)
         for i, h in enumerate(self.hashes):
@@ -847,18 +1031,49 @@ class ExpectedStatement(unittest.TestCase):
 
         shutil.rmtree(self.d, ignore_errors=True)
 
-    def shapes(self, parts=(("a", 0xA0A0A0A0, {"loop_spec": "Certified.n.LoopSpec.a_loop_spec", "index": 0}), ("b", 0xB0B0B0B0, None))):
+    def shapes(
+        self,
+        parts=(
+            (
+                "a",
+                0xA0A0A0A0,
+                {"loop_spec": "Certified.n.LoopSpec.a_loop_spec", "index": 0},
+            ),
+            ("b", 0xB0B0B0B0, None),
+        ),
+    ):
         out = []
         multi = len(parts) > 1
         for f, sel, sp in parts:
             m = loop_final.modules("n", f if multi else None)
-            ns = {"theorem": f"Certified.n.LoopSpecInventory.{f}_no_spec"} if sp is None else None
-            out.append(loop_final.shape("n", "C", f, f"{f}(uint256)", dict(facts(), E=2, B=2, X=3), sp, True if sp else False, m,
-                                        no_spec=ns, sel=sel, nargs=1))
+            ns = (
+                {"theorem": f"Certified.n.LoopSpecInventory.{f}_no_spec"}
+                if sp is None
+                else None
+            )
+            out.append(
+                loop_final.shape(
+                    "n",
+                    "C",
+                    f,
+                    f"{f}(uint256)",
+                    dict(facts(), E=2, B=2, X=3),
+                    sp,
+                    bool(sp),
+                    m,
+                    no_spec=ns,
+                    sel=sel,
+                    nargs=1,
+                )
+            )
         return out
 
     def expected(self, inv=(("C.a", 0xA0A0A0A0),)):
-        return {"toolchain": dict(TOOLCHAIN), "inventory": [list(x) for x in inv], "inventory_module": "n.LoopSpecInventory"}
+        return {
+            "toolchain": dict(TOOLCHAIN),
+            "inventory": [list(x) for x in inv],
+            "inventory_module": "n.LoopSpecInventory",
+        }
 
     def run_final(self, sh, *extra, source=True):
         import subprocess
@@ -866,18 +1081,42 @@ class ExpectedStatement(unittest.TestCase):
         (self.d / "shape.json").write_text(json.dumps(sh))
         for f in ("S.lean", "F.lean", "r.json"):
             (self.d / f).unlink(missing_ok=True)
-        cmd = [sys.executable, str(loop_final.HERE / "final.py"), str(self.d / "shape.json"), "--name", "n",
-               "--contract", "C", "--hex", "6001", "--out", str(self.d / "F.lean"),
-               "--statement-out", str(self.d / "S.lean"), "--record", str(self.d / "r.json"),
-               "--gen", str(self.gen), *extra]
+        cmd = [
+            sys.executable,
+            str(loop_final.HERE / "final.py"),
+            str(self.d / "shape.json"),
+            "--name",
+            "n",
+            "--contract",
+            "C",
+            "--hex",
+            "6001",
+            "--out",
+            str(self.d / "F.lean"),
+            "--statement-out",
+            str(self.d / "S.lean"),
+            "--record",
+            str(self.d / "r.json"),
+            "--gen",
+            str(self.gen),
+            *extra,
+        ]
         if source:
             cmd += ["--source", str(self.src)]
-        return subprocess.run(cmd, capture_output=True, text=True)
+        return subprocess.run(cmd, capture_output=True, text=True, check=False)
 
     def test_call_data(self):
-        self.assertEqual(loop_final.call_data(facts(), 7, 1),
-                         {"selector": 7, "arity": 1, "limit": ["arg", 0], "per_iteration_gas": 1414400,
-                          "exit_gas": 3536012, "M": None})
+        self.assertEqual(
+            loop_final.call_data(facts(), 7, 1),
+            {
+                "selector": 7,
+                "arity": 1,
+                "limit": ["arg", 0],
+                "per_iteration_gas": 1414400,
+                "exit_gas": 3536012,
+                "M": None,
+            },
+        )
         slot = facts(RES.replace("a0 ≤ K", "SolarTV.slotValue σ 3 ≤ K"))
         self.assertEqual(loop_final.call_data(slot, 7, 1)["limit"], ["slot", 3])
         self.assertEqual(loop_final.call_data(facts(CONST), 7, 1)["limit"], None)
@@ -887,9 +1126,15 @@ class ExpectedStatement(unittest.TestCase):
 
     def test_witness_states_the_decode(self):
         w = loop_final.nonvac_module("n", "C", 2987307204, 1, facts(), 1, nrets=1)
-        self.assertIn("theorem decodes : decodeWords (Certified.n.gen.C.Spec.C.spec.specs[1]'(by decide)).rets", w)
-        self.assertIn("(∃ s ∈ Certified.n.gen.C.Spec.C.spec.specs, s.selector = 2987307204 ∧\n"
-                      "        ∃ vs, SolidCore.Spec.decodeWords s.rets (SolidCore.Spec.words obs.output) = some vs) ∧", w)
+        self.assertIn(
+            "theorem decodes : decodeWords (Certified.n.gen.C.Spec.C.spec.specs[1]'(by decide)).rets",
+            w,
+        )
+        self.assertIn(
+            "(∃ s ∈ Certified.n.gen.C.Spec.C.spec.specs, s.selector = 2987307204 ∧\n"
+            "        ∃ vs, SolidCore.Spec.decodeWords s.rets (SolidCore.Spec.words obs.output) = some vs) ∧",
+            w,
+        )
         self.assertIn("decodes⟩, fun h => ?_⟩", w)
         self.assertNotIn("revert hdec", w)
 
@@ -907,8 +1152,11 @@ class ExpectedStatement(unittest.TestCase):
         self.assertNotIn("LoopSpecInventory", stmt)
         self.assertIn("import n.gen.C.Manifest\n", stmt)
         body = stmt.split("def Statement : Prop :=", 1)[1]
-        self.assertTrue(body.lstrip().startswith(
-            "_root_.Certified.n.Final.code.data.toList.map (·.toNat) = _root_.Certified.n.Final.runtimeBytes ∧"))
+        self.assertTrue(
+            body.lstrip().startswith(
+                "_root_.Certified.n.Final.code.data.toList.map (·.toNat) = _root_.Certified.n.Final.runtimeBytes ∧"
+            )
+        )
         S, M = "_root_.Certified.n.gen.C.Spec", "_root_.SolarTV.Export.n.C.Manifest"
         for want in (
             f'({S}.manifest.sourceSha256 = "{self.src_sha}")',
@@ -935,10 +1183,15 @@ class ExpectedStatement(unittest.TestCase):
         self.assertNotIn("f" * 64, stmt)
         fin = (self.d / "F.lean").read_text()
         self.assertIn("import n.LoopSpecInventory\n", fin)
-        for want in ("_root_.Certified.n.LoopSpecInventory.source_is_fresh", "_root_.Certified.n.LoopSpecInventory.inventory",
-                     "_root_.Certified.n.LoopSpecInventory.no_invariants", "_root_.Certified.n.LoopSpecInventory.b_no_spec",
-                     "(Certified.n.Loop.a.NonVac.post_rejects) hK", "(Certified.n.Loop.b.Join.join) hK",
-                     "example : _root_.Certified.n.Final.Statement := _root_.Certified.n.Final.final"):
+        for want in (
+            "_root_.Certified.n.LoopSpecInventory.source_is_fresh",
+            "_root_.Certified.n.LoopSpecInventory.inventory",
+            "_root_.Certified.n.LoopSpecInventory.no_invariants",
+            "_root_.Certified.n.LoopSpecInventory.b_no_spec",
+            "(Certified.n.Loop.a.NonVac.post_rejects) hK",
+            "(Certified.n.Loop.b.Join.join) hK",
+            "example : _root_.Certified.n.Final.Statement := _root_.Certified.n.Final.final",
+        ):
             self.assertIn(want, fin)
         for bad in ("sorry", "native_decide", "axiom "):
             self.assertNotIn(bad, stmt + fin)
@@ -946,19 +1199,29 @@ class ExpectedStatement(unittest.TestCase):
         self.assertEqual(rec["statement_kind"], "expected")
         self.assertEqual(rec["expected"]["source_sha256"], self.src_sha)
         self.assertEqual([s["sha256"] for s in rec["expected"]["stages"]], self.hashes)
-        self.assertEqual(rec["expected"]["inventory"], [{"name": "C.a", "selector": "0xa0a0a0a0"}])
-        self.assertEqual([p["selector"] for p in rec["parts"]], ["0xa0a0a0a0", "0xb0b0b0b0"])
+        self.assertEqual(
+            rec["expected"]["inventory"], [{"name": "C.a", "selector": "0xa0a0a0a0"}]
+        )
+        self.assertEqual(
+            [p["selector"] for p in rec["parts"]], ["0xa0a0a0a0", "0xb0b0b0b0"]
+        )
         self.assertFalse(rec["strongest"])
 
     def test_one_function(self):
-        sh = loop_final.shape_parts("n", self.shapes(parts=(("a", 0xA0A0A0A0, {"loop_spec": "x", "index": 0}),)), self.expected())
+        sh = loop_final.shape_parts(
+            "n",
+            self.shapes(parts=(("a", 0xA0A0A0A0, {"loop_spec": "x", "index": 0}),)),
+            self.expected(),
+        )
         self.assertEqual(sh["proof_module"], "n.LoopJoin")
         self.assertEqual(sh["parts"][0]["proof"], "Certified.n.LoopJoin.join")
         r = self.run_final(sh)
         self.assertEqual(r.returncode, 0, r.stderr)
         stmt = (self.d / "S.lean").read_text()
         self.assertNotIn("invariants = []", stmt)
-        self.assertIn("(Certified.n.LoopNonVac.post_rejects) hK", (self.d / "F.lean").read_text())
+        self.assertIn(
+            "(Certified.n.LoopNonVac.post_rejects) hK", (self.d / "F.lean").read_text()
+        )
 
     def test_refusals(self):
         import copy
@@ -971,19 +1234,41 @@ class ExpectedStatement(unittest.TestCase):
             return s
 
         cases = {
-            "the spec part's selector is not in the inventory": m(lambda s: s["expected"].update(inventory=[])),
-            "a True part the export specifies": m(lambda s: s["expected"]["inventory"].append(["C.b", 0xB0B0B0B0])),
-            "a True part named in the export": m(lambda s: s["expected"]["inventory"].append(["C.b", 1])),
-            "a part's Lean valid calls": m(lambda s: s["parts"][0].update(valid="M.v K")),
+            "the spec part's selector is not in the inventory": m(
+                lambda s: s["expected"].update(inventory=[])
+            ),
+            "a True part the export specifies": m(
+                lambda s: s["expected"]["inventory"].append(["C.b", 0xB0B0B0B0])
+            ),
+            "a True part named in the export": m(
+                lambda s: s["expected"]["inventory"].append(["C.b", 1])
+            ),
+            "a part's Lean valid calls": m(
+                lambda s: s["parts"][0].update(valid="M.v K")
+            ),
             "no call data": m(lambda s: s["parts"][0].pop("call")),
-            "a True part without the checked absence": m(lambda s: s["parts"][1].pop("no_spec")),
-            "a no-spec theorem of another module": m(lambda s: s["parts"][1].update(no_spec="Certified.n.Other.b_no_spec")),
-            "two parts, one selector": m(lambda s: s["parts"][1]["call"].update(selector=0xA0A0A0A0)),
-            "another source semantics": m(lambda s: s.update(source_sem="SolidCore.Refinement.solidCore")),
-            "another frame": m(lambda s: s["parts"][0]["spec_export"].update(ctx="fun _ => x")),
-            "the compiler ran on another file": m(lambda s: s["expected"]["toolchain"].update(arguments=["d.sol"])),
+            "a True part without the checked absence": m(
+                lambda s: s["parts"][1].pop("no_spec")
+            ),
+            "a no-spec theorem of another module": m(
+                lambda s: s["parts"][1].update(no_spec="Certified.n.Other.b_no_spec")
+            ),
+            "two parts, one selector": m(
+                lambda s: s["parts"][1]["call"].update(selector=0xA0A0A0A0)
+            ),
+            "another source semantics": m(
+                lambda s: s.update(source_sem="SolidCore.Refinement.solidCore")
+            ),
+            "another frame": m(
+                lambda s: s["parts"][0]["spec_export"].update(ctx="fun _ => x")
+            ),
+            "the compiler ran on another file": m(
+                lambda s: s["expected"]["toolchain"].update(arguments=["d.sol"])
+            ),
             "no toolchain": m(lambda s: s["expected"].pop("toolchain")),
-            "an iteration bound without the call's limit": m(lambda s: s["parts"][0]["call"].update(limit=None, M=3)),
+            "an iteration bound without the call's limit": m(
+                lambda s: s["parts"][0]["call"].update(limit=None, M=3)
+            ),
             "kind compiled": m(lambda s: s.update(kind="compiled")),
         }
         for k, sh in cases.items():
@@ -994,7 +1279,10 @@ class ExpectedStatement(unittest.TestCase):
         # Another function's export spec stays in the stated inventory; the statement claims nothing of it.
         r = self.run_final(m(lambda s: s["expected"]["inventory"].append(["C.z", 5])))
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn('[("C.a", 0xa0a0a0a0), ("C.z", 0x00000005)]', (self.d / "S.lean").read_text())
+        self.assertIn(
+            '[("C.a", 0xa0a0a0a0), ("C.z", 0x00000005)]',
+            (self.d / "S.lean").read_text(),
+        )
         r = self.run_final(good, source=False)
         self.assertEqual(r.returncode, 1)
         self.assertIn("--source", r.stderr)

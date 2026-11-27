@@ -1708,13 +1708,11 @@ class RecursionBoundary(unittest.TestCase):
         self.assertNotIn("recursion", line)
 
     def test_mutual_recursion_with_measures_refused(self):
-        code, line = (
-            self.blocked("""    /// @custom:decreases n
+        code, line = self.blocked("""    /// @custom:decreases n
     function even(uint256 n) internal pure returns (bool) { return n == 0 ? true : odd(n - 1); }
     /// @custom:decreases n
     function odd(uint256 n) internal pure returns (bool) { return n == 0 ? false : even(n - 1); }
     function f(uint256 n) external pure returns (bool) { return even(n); }""")
-        )
         self.assertEqual(code, 3, line)
         self.assertIn(
             "unsupported: even and odd can call each other (only one function calling itself, "
@@ -1729,7 +1727,9 @@ class RecursionBoundary(unittest.TestCase):
     function g(uint256 n, uint256 m) internal pure returns (uint256) { return n == 0 ? m : g(n - 1, m); }
     function f(uint256 n) external pure returns (uint256) { return g(n, 0) + g(n); }""")
         self.assertEqual(code, 3, line)
-        self.assertIn("unsupported: g can call itself (no @custom:decreases measure", line)
+        self.assertIn(
+            "unsupported: g can call itself (no @custom:decreases measure", line
+        )
 
     def test_mutual_recursion(self):
         code, line = (
@@ -3307,13 +3307,18 @@ class NoConstructorRoute(unittest.TestCase):
             '        | none => ": a parameter is not a word"\n'
             '        | some _ => if fn.returns.all Generic.wordBinding then "" else ": a result is not a word")\n'
         )
-        self.assertEqual(old.out[0].count('"source tree undefined (erasure)"\n'), 2 * len(fns))
+        self.assertEqual(
+            old.out[0].count('"source tree undefined (erasure)"\n'), 2 * len(fns)
+        )
         old.out[0] = old.out[0].replace('"source tree undefined (erasure)"\n', why)
         # The other: the succeeds-witness search's runs of every function on the zero call
         # (synth_witness), printed after the checks and nothing else changed.
         new = generic.out[0]
-        self.assertEqual(new.count('PROBE run fn '), len(fns))
-        i, j = new.index("\n  let st0 :"), new.index("\n\nend Certified.x_0000abcd.Probe")
+        self.assertEqual(new.count("PROBE run fn "), len(fns))
+        i, j = (
+            new.index("\n  let st0 :"),
+            new.index("\n\nend Certified.x_0000abcd.Probe"),
+        )
         generic.out[0] = new[:i] + new[j:]
         self.assertEqual(old.out, generic.out)
         if SOLC.exists():
@@ -3554,7 +3559,9 @@ class LifecycleEnvelope(unittest.TestCase):
                 )
                 ast, contracts = generic.solc_ast(str(SOLC), src)
                 with self.assertRaises(generic.Blocked) as e:
-                    generic.envelope(src.read_text(), ast, contracts, None, None, False, False)
+                    generic.envelope(
+                        src.read_text(), ast, contracts, None, None, False, False
+                    )
                 self.assertIn(why, str(e.exception.reasons), decl)
 
     def test_runtime_loop_is_open_not_rejected(self):
@@ -4580,7 +4587,6 @@ class InputsFilterAgrees(unittest.TestCase):
         self.assertEqual(self.both(), (None, None))
 
 
-
 class LoopVerdict(unittest.TestCase):
     """generic.loop_verdict: CERTIFIED at the bounded loop tier only from a checked final that passes
     every gate, with the unbounded tier reported beside it; anything else keeps the branch's verdict."""
@@ -4596,39 +4602,86 @@ class LoopVerdict(unittest.TestCase):
         self.src = pathlib.Path(self.tmp.name) / "s.sol"
         self.src.write_text("contract T {}\n")
         fn = lambda name, sel, doc=None: {
-            "nodeType": "FunctionDefinition", "name": name, "kind": "function", "visibility": "public",
-            "functionSelector": sel, "body": {"nodeType": "WhileStatement"},
-            **({"documentation": {"text": doc}} if doc else {})}
-        self.ast = {"nodes": [{"nodeType": "ContractDefinition", "id": 1, "name": "T", "linearizedBaseContracts": [1],
-                               "nodes": [fn("f", "fd0011a5", " @custom:ensures result == n")]}]}
+            "nodeType": "FunctionDefinition",
+            "name": name,
+            "kind": "function",
+            "visibility": "public",
+            "functionSelector": sel,
+            "body": {"nodeType": "WhileStatement"},
+            **({"documentation": {"text": doc}} if doc else {}),
+        }
+        self.ast = {
+            "nodes": [
+                {
+                    "nodeType": "ContractDefinition",
+                    "id": 1,
+                    "name": "T",
+                    "linearizedBaseContracts": [1],
+                    "nodes": [fn("f", "fd0011a5", " @custom:ensures result == n")],
+                }
+            ]
+        }
         self.a = argparse.Namespace(spec="natspec", contract="T")
-        self.part = {"signature": "f(uint256)", "selector": "0xfd0011a5", "spec": "proved", "label": "x",
-                     "nonvacuous": True, "nonvac_witness": {"well_typed": True, "output_words": [1]},
-                     "valid": "V.valid K", "iteration_bound": {"var": "K", "max": 7}, "gas": "g"}
+        self.part = {
+            "signature": "f(uint256)",
+            "selector": "0xfd0011a5",
+            "spec": "proved",
+            "label": "x",
+            "nonvacuous": True,
+            "nonvac_witness": {"well_typed": True, "output_words": [1]},
+            "valid": "V.valid K",
+            "iteration_bound": {"var": "K", "max": 7},
+            "gas": "g",
+        }
         self.record = {
-            "name": "t_1", "requested_tier": "certified", "contract": "T",
+            "name": "t_1",
+            "requested_tier": "certified",
+            "contract": "T",
             "loop_final": {
                 "functions": ["f"],
                 "final": {
-                    "theorem": "Certified.t_1.Final.final", "strongest": False, "statement_kind": "expected",
+                    "theorem": "Certified.t_1.Final.final",
+                    "strongest": False,
+                    "statement_kind": "expected",
                     "expected": {
-                        "source_sha256": hashlib.sha256(self.src.read_bytes()).hexdigest(),
-                        "runtime_sha256": hashlib.sha256(bytes.fromhex(self.PLAIN)).hexdigest(),
+                        "source_sha256": hashlib.sha256(
+                            self.src.read_bytes()
+                        ).hexdigest(),
+                        "runtime_sha256": hashlib.sha256(
+                            bytes.fromhex(self.PLAIN)
+                        ).hexdigest(),
                         "inventory": [{"name": "T.f", "selector": "0xfd0011a5"}],
                         "inventory_module": "t_1.LoopSpecInventory",
                         "toolchain": {"compiler": "0.8.38+commit.unknown.solar.0.3.0"},
-                        "stages": [{"file": "Stage0", "pass": "lower-evm-shaped"}, {"file": "Bytecode", "pass": "assemble"}],
+                        "stages": [
+                            {"file": "Stage0", "pass": "lower-evm-shaped"},
+                            {"file": "Bytecode", "pass": "assemble"},
+                        ],
                     },
                 },
                 "axioms": ["propext", "Classical.choice", "Quot.sound"],
-                "fresh_byte": {"check_final": "FRESH x", "runtime_sha256": hashlib.sha256(bytes.fromhex(self.PLAIN)).hexdigest()},
+                "fresh_byte": {
+                    "check_final": "FRESH x",
+                    "runtime_sha256": hashlib.sha256(
+                        bytes.fromhex(self.PLAIN)
+                    ).hexdigest(),
+                },
                 "replay": {"closure": 10, "replayed_count": 10, "trusted_count": 0},
                 "parts": {"f": self.part},
-                "inventory": {"theorem": "Certified.t_1.LoopSpecInventory.inventory", "module": "t_1.LoopSpecInventory",
-                              "specs": [{"name": "T.f", "selector": "0xfd0011a5"}]},
+                "inventory": {
+                    "theorem": "Certified.t_1.LoopSpecInventory.inventory",
+                    "module": "t_1.LoopSpecInventory",
+                    "specs": [{"name": "T.f", "selector": "0xfd0011a5"}],
+                },
             },
         }
-        self.reasons = [{"feature": "loop", "where": "f", "detail": "loop final checked (Certified.t_1.Final.final, record loop_final): runtime only"}]
+        self.reasons = [
+            {
+                "feature": "loop",
+                "where": "f",
+                "detail": "loop final checked (Certified.t_1.Final.final, record loop_final): runtime only",
+            }
+        ]
         self.saved = generic.solar_runtime, generic.build_solar
         generic.solar_runtime = lambda *x, **k: (self.PLAIN, "")
         generic.build_solar = lambda: "solar"
@@ -4638,15 +4691,28 @@ class LoopVerdict(unittest.TestCase):
         self.tmp.cleanup()
 
     def verdict(self, record=None, reasons=None, oog=None, ast=None):
-        return generic.loop_verdict(record or self.record, reasons or self.reasons, str(self.src), ast or self.ast, self.a, oog)
+        return generic.loop_verdict(
+            record or self.record,
+            reasons or self.reasons,
+            str(self.src),
+            ast or self.ast,
+            self.a,
+            oog,
+        )
 
     def test_certified_bounded_with_unbounded_reported(self):
         with self.assertRaises(generic.LoopCertified) as e:
-            self.verdict(oog=generic.Failed("resource: out of gas: the fixed bound is at least 2^64"))
+            self.verdict(
+                oog=generic.Failed(
+                    "resource: out of gas: the fixed bound is at least 2^64"
+                )
+            )
         c = e.exception
         self.assertEqual(c.status, "CERTIFIED")
         self.assertEqual(c.tier["tier"], "bounded")
-        self.assertEqual(c.tier["bounds"], {"f": {"K_max": 7, "valid": "V.valid K", "gas": "g"}})
+        self.assertEqual(
+            c.tier["bounds"], {"f": {"K_max": 7, "valid": "V.valid K", "gas": "g"}}
+        )
         self.assertEqual(c.tier["unbounded"]["status"], "not certified")
         self.assertIn("out of gas", c.tier["unbounded"]["why"])
         self.assertIn("unbounded n: not certified", c.line)
@@ -4667,37 +4733,71 @@ class LoopVerdict(unittest.TestCase):
             return r
 
         cases = {
-            "refused final": m(lambda lf: lf.update(refused={"step": "spec", "why": "x"})),
+            "refused final": m(
+                lambda lf: lf.update(refused={"step": "spec", "why": "x"})
+            ),
             "extra axiom": m(lambda lf: lf.update(axioms=["propext", "sorryAx"])),
             "no axioms": m(lambda lf: lf.update(axioms=[])),
             "no fresh line": m(lambda lf: lf["fresh_byte"].update(check_final=None)),
-            "other bytes": m(lambda lf: lf["fresh_byte"].update(runtime_sha256="0" * 64)),
+            "other bytes": m(
+                lambda lf: lf["fresh_byte"].update(runtime_sha256="0" * 64)
+            ),
             "trusted replay": m(lambda lf: lf["replay"].update(trusted_count=3)),
             "no inventory": m(lambda lf: lf.pop("inventory")),
-            "unstated export spec": m(lambda lf: lf["inventory"]["specs"].append({"name": "T.g", "selector": "0x01"})),
-            "vacuous spec": m(lambda lf: lf["parts"]["f"].update(nonvacuous="no witness")),
-            "ABI-only witness": m(lambda lf: lf["parts"]["f"].update(nonvac_witness={"well_typed": False})),
+            "unstated export spec": m(
+                lambda lf: lf["inventory"]["specs"].append(
+                    {"name": "T.g", "selector": "0x01"}
+                )
+            ),
+            "vacuous spec": m(
+                lambda lf: lf["parts"]["f"].update(nonvacuous="no witness")
+            ),
+            "ABI-only witness": m(
+                lambda lf: lf["parts"]["f"].update(nonvac_witness={"well_typed": False})
+            ),
             "no witness record": m(lambda lf: lf["parts"]["f"].pop("nonvac_witness")),
             "refused part": m(lambda lf: lf["parts"]["f"].update(spec="refused")),
-            "unchecked True": m(lambda lf: lf["parts"]["f"].update(spec="none", no_spec=None)),
-            "translation only at certified": m(lambda lf: lf["parts"]["f"].update(
-                spec="none", no_spec={"theorem": "Certified.t_1.LoopSpecInventory.f_no_spec"})),
+            "unchecked True": m(
+                lambda lf: lf["parts"]["f"].update(spec="none", no_spec=None)
+            ),
+            "translation only at certified": m(
+                lambda lf: lf["parts"]["f"].update(
+                    spec="none",
+                    no_spec={"theorem": "Certified.t_1.LoopSpecInventory.f_no_spec"},
+                )
+            ),
             # Term 6: the final must be the expected statement, binding this run's artifacts.
-            "not the expected statement": m(lambda lf: lf["final"].pop("statement_kind")),
+            "not the expected statement": m(
+                lambda lf: lf["final"].pop("statement_kind")
+            ),
             "no expected record": m(lambda lf: lf["final"].pop("expected")),
-            "another source": m(lambda lf: lf["final"]["expected"].update(source_sha256="0" * 64)),
-            "other bytes bound": m(lambda lf: lf["final"]["expected"].update(runtime_sha256="0" * 64)),
-            "another inventory": m(lambda lf: lf["final"]["expected"].update(inventory=[])),
+            "another source": m(
+                lambda lf: lf["final"]["expected"].update(source_sha256="0" * 64)
+            ),
+            "other bytes bound": m(
+                lambda lf: lf["final"]["expected"].update(runtime_sha256="0" * 64)
+            ),
+            "another inventory": m(
+                lambda lf: lf["final"]["expected"].update(inventory=[])
+            ),
             "no stage chain": m(lambda lf: lf["final"]["expected"].update(stages=[])),
             "no compiler": m(lambda lf: lf["final"]["expected"].update(toolchain={})),
-            "a part's wrong selector": m(lambda lf: lf["parts"]["f"].update(selector="0x01020304")),
+            "a part's wrong selector": m(
+                lambda lf: lf["parts"]["f"].update(selector="0x01020304")
+            ),
         }
         for k, rec in cases.items():
             with self.subTest(k):
                 out = self.verdict(record=rec)
                 self.assertIsInstance(out, list)
         # Another reason left beside the final's (an uncovered loop's OPEN reason, an envelope reason).
-        more = self.reasons + [{"feature": "loop", "where": "line 9", "detail": "g: a while loop ... (OPEN)"}]
+        more = self.reasons + [
+            {
+                "feature": "loop",
+                "where": "line 9",
+                "detail": "g: a while loop ... (OPEN)",
+            }
+        ]
         out = self.verdict(reasons=more)
         self.assertIn("not certified: other reasons remain", out[0]["detail"])
         self.assertEqual(self.record["loop_tier"]["status"], "not certified")
@@ -4708,12 +4808,28 @@ class LoopVerdict(unittest.TestCase):
         fn = copy.deepcopy(self.ast["nodes"][0]["nodes"][0])
         for name, node in {
             "a second loop function": dict(fn, name="g", functionSelector="01020304"),
-            "an uncovered entry point": dict(fn, name="g", functionSelector="01020304", body={"nodeType": "Block"}),
+            "an uncovered entry point": dict(
+                fn, name="g", functionSelector="01020304", body={"nodeType": "Block"}
+            ),
             "a selector clash": dict(fn, name="g", body={"nodeType": "Block"}),
-            "a public getter": {"nodeType": "VariableDeclaration", "name": "x", "stateVariable": True, "visibility": "public"},
-            "a fallback": {"nodeType": "FunctionDefinition", "kind": "fallback", "body": {"nodeType": "Block"}},
-            "a constructor spec": {"nodeType": "FunctionDefinition", "kind": "constructor", "name": "",
-                                   "documentation": {"text": " @custom:ensures x == 0"}, "body": {"nodeType": "Block"}},
+            "a public getter": {
+                "nodeType": "VariableDeclaration",
+                "name": "x",
+                "stateVariable": True,
+                "visibility": "public",
+            },
+            "a fallback": {
+                "nodeType": "FunctionDefinition",
+                "kind": "fallback",
+                "body": {"nodeType": "Block"},
+            },
+            "a constructor spec": {
+                "nodeType": "FunctionDefinition",
+                "kind": "constructor",
+                "name": "",
+                "documentation": {"text": " @custom:ensures x == 0"},
+                "body": {"nodeType": "Block"},
+            },
         }.items():
             with self.subTest(name):
                 ast = copy.deepcopy(self.ast)
@@ -4731,11 +4847,21 @@ class LoopVerdict(unittest.TestCase):
 
         ast = copy.deepcopy(self.ast)
         ast["nodes"][0]["nodes"].append(
-            {"nodeType": "FunctionDefinition", "name": "f", "kind": "function", "visibility": "public",
-             "functionSelector": "13d1aa2e", "body": {"nodeType": "Block"}})
+            {
+                "nodeType": "FunctionDefinition",
+                "name": "f",
+                "kind": "function",
+                "visibility": "public",
+                "functionSelector": "13d1aa2e",
+                "body": {"nodeType": "Block"},
+            }
+        )
         out = self.verdict(ast=ast)
         self.assertIsInstance(out, list)
-        self.assertIn("entry points of the runtime the final does not state: f (0x13d1aa2e)", out[0]["detail"])
+        self.assertIn(
+            "entry points of the runtime the final does not state: f (0x13d1aa2e)",
+            out[0]["detail"],
+        )
         self.assertIn("f (0x13d1aa2e)", self.record["loop_tier"]["why"])
         # The same function inherited from a base with the same selector is one entry point.
         ast = copy.deepcopy(self.ast)
@@ -4747,7 +4873,7 @@ class LoopVerdict(unittest.TestCase):
         ast["nodes"].append(base)
         with self.assertRaises(generic.LoopCertified):
             self.verdict(ast=ast)
-        self.assertEqual(generic.abi_functions(ast, "T"), ({0xfd0011a5: "f"}, []))
+        self.assertEqual(generic.abi_functions(ast, "T"), ({0xFD0011A5: "f"}, []))
 
     def test_compiled_tier_takes_translation_only(self):
         import copy

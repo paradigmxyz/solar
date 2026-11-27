@@ -282,7 +282,10 @@ class Offline(unittest.TestCase):
 
 
 TRANSFER_SEL = 0x12514BBA  # transfer(uint256)
-OK_TRANSFER, BAD_TRANSFER = 0xFD0011A5, 0x18A4B471  # Horn's ok_transfer, bad_transfer(uint256)
+OK_TRANSFER, BAD_TRANSFER = (
+    0xFD0011A5,
+    0x18A4B471,
+)  # Horn's ok_transfer, bad_transfer(uint256)
 
 
 class Dec(unittest.TestCase):
@@ -302,8 +305,10 @@ class Dec(unittest.TestCase):
         for want in (
             "import Verify.Gas.FixedFuel.MeasuredDec\n",
             "Header block 2 (depth 3; header word 1 steps by one down to zero), B = 2, X = 2, E = 1",
-            "refine Measured.loops_of (H := 2) (n := 3) Measured.always (MeasuredDec.dec 1)"
-            " (MeasuredDec.dec_lt 1)",
+            (
+                "refine Measured.loops_of (H := 2) (n := 3) Measured.always (MeasuredDec.dec 1)"
+                " (MeasuredDec.dec_lt 1)"
+            ),
             "have hk : ¬w1 = 0 := MeasuredDec.dec_ne (w := w1) hμ0",
             "have hk : w1 = 0 := MeasuredDec.dec_zero (w := w1) hμ0",
             "MeasuredDec.sub_one_lt hk",
@@ -328,7 +333,9 @@ class Dec(unittest.TestCase):
         )
         with self.assertRaises(loop_resources.Unsupported) as e:
             generate(self.gen, "Transfer", sel=TRANSFER_SEL)
-        self.assertRegex(str(e.exception), r"dec\(k=1.*stepping the counter down by one")
+        self.assertRegex(
+            str(e.exception), r"dec\(k=1.*stepping the counter down by one"
+        )
 
     def test_restriction_keeps_the_numbers(self):
         # One loop: the restriction to the loop's selector gives the unrestricted numbers.
@@ -341,7 +348,9 @@ class Dec(unittest.TestCase):
     def test_tests(self):
         v, z = ("var", "w2"), loop_resources.lit(0)
         self.assertEqual(loop_resources.dec_test(v), (2, True, "word"))
-        self.assertEqual(loop_resources.dec_test(("op", "iszero", v)), (2, False, "word"))
+        self.assertEqual(
+            loop_resources.dec_test(("op", "iszero", v)), (2, False, "word")
+        )
         self.assertEqual(loop_resources.dec_test(("op", "gt", v, z)), (2, True, "pos"))
         self.assertEqual(loop_resources.dec_test(("op", "lt", z, v)), (2, True, "pos"))
         self.assertIsNone(loop_resources.dec_test(("op", "gt", z, v)))
@@ -377,8 +386,10 @@ class Restrict(unittest.TestCase):
                 text = generate(self.gen, "Horn", sel=sel, nargs=1, restrict=True)
                 for want in (
                     f"Header block {h} (depth 3; header word 1 steps by one down to zero)",
-                    f"refine Measured.loops_of (H := {h}) (n := 3) Measured.always"
-                    " (MeasuredDec.dec 1)",
+                    (
+                        f"refine Measured.loops_of (H := {h}) (n := 3) Measured.always"
+                        " (MeasuredDec.dec 1)"
+                    ),
                     f"Abi.calldata {sel} [a0]",
                     "theorem premises {K : Nat} (hK : K ≤ Kmax)",
                 ):

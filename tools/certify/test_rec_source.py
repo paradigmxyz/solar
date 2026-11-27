@@ -15,12 +15,18 @@ SOLC = pathlib.Path.home() / ".cache/solc/solc-0.8.35"
 
 
 def run(*args):
-    return subprocess.run([sys.executable, str(HERE / "rec_source.py"), *map(str, args)],
-                          capture_output=True, text=True)
+    return subprocess.run(
+        [sys.executable, str(HERE / "rec_source.py"), *map(str, args)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
 
-@unittest.skipUnless((P2 / "Verify/Phase3/RecSource/Ast.lean").is_file() and SOLC.is_file(),
-                     "needs solidity-lean's RecSource and solc 0.8.35")
+@unittest.skipUnless(
+    (P2 / "Verify/Phase3/RecSource/Ast.lean").is_file() and SOLC.is_file(),
+    "needs solidity-lean's RecSource and solc 0.8.35",
+)
 class Binding(unittest.TestCase):
     def test_own_source_binds(self):
         r = run(SRC, "--solidity-lean", P2, "--solc", SOLC)
@@ -30,7 +36,11 @@ class Binding(unittest.TestCase):
     def test_changed_body_is_refused(self):
         with tempfile.TemporaryDirectory() as d:
             mutant = pathlib.Path(d) / "RecSum.sol"
-            mutant.write_text(SRC.read_text().replace("return n + sum(n - 1);", "return n + sum(n - 1) + 1;"))
+            mutant.write_text(
+                SRC.read_text().replace(
+                    "return n + sum(n - 1);", "return n + sum(n - 1) + 1;"
+                )
+            )
             r = run(mutant, "--solidity-lean", P2, "--solc", SOLC)
             self.assertEqual(r.returncode, 1)
             self.assertIn("REFUSED", r.stderr)

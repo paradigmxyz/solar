@@ -39,8 +39,8 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import asm_cert
 import export_ns
-import succeeds_witness
 import gen_ctxgas
+import succeeds_witness
 
 
 def fail(msg):
@@ -277,7 +277,9 @@ def main():
             )
         named = gens[0]
     if not isinstance(named, str) or named not in gens:
-        fail(f"no export of the source's contract {named!r} under gen/ ({', '.join(gens)})")
+        fail(
+            f"no export of the source's contract {named!r} under gen/ ({', '.join(gens)})"
+        )
     gen = root / "gen" / named
     contract = gen.name
     stages = last_stage((root / "Proofs" / "Stages.lean").read_text())
@@ -598,11 +600,19 @@ theorem pre_sat_{fid} :
                     "shape.json: succeeds_witness must be generic.spec_connect.witness, with its selector and arity"
                 )
             D = succeeds_witness.domain_term(B, f"{S}.ctxOfCall")
-            allowed_w = succeeds_witness.strengthen(allowed_t, sw, g["storage"], B, f"{S}.ctxOfCall")
-            post_w = succeeds_witness.strengthen(post_t, sw, g["storage"], B, f"{S}.ctxOfCall")
+            allowed_w = succeeds_witness.strengthen(
+                allowed_t, sw, g["storage"], B, f"{S}.ctxOfCall"
+            )
+            post_w = succeeds_witness.strengthen(
+                post_t, sw, g["storage"], B, f"{S}.ctxOfCall"
+            )
             shape_t = f"{S}.Certified (solidCore {sns}.fuel) c code ({valid}) ({allowed_w}) ({post_w}) ({gas})"
             usings = " ".join(
-                [f"{sns}.selector_eq", "SolidCore.Verify.VC.mkIdx_eq", *g["spec_connect"].get("using", [])]
+                [
+                    f"{sns}.selector_eq",
+                    "SolidCore.Verify.VC.mkIdx_eq",
+                    *g["spec_connect"].get("using", []),
+                ]
             )
             body = (
                 holds_proof
@@ -723,11 +733,17 @@ theorem nonvacuous :
         branches = bool(ctor.get("branches"))
         wit = (shape.get("ctor_returns") or {}).get("witness")
         if branches != (wit is not None):
-            fail("shape.json: ctor_returns must be present exactly when the constructor's erasure branches")
+            fail(
+                "shape.json: ctor_returns must be present exactly when the constructor's erasure branches"
+            )
         premises = (
             f"∀ ({' '.join(args)} : Nat), "
             + "".join(f"{v} < 2 ^ {w} → " for v, w in zip(args, ctor["widths"]))
-            + (f"Generic.CtorReturns {sns}.fuel {sns}.contract? [{', '.join(args)}] → " if branches else "")
+            + (
+                f"Generic.CtorReturns {sns}.fuel {sns}.contract? [{', '.join(args)}] → "
+                if branches
+                else ""
+            )
             + "\n    "
         )
         intro = (

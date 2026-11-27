@@ -319,8 +319,10 @@ ABI_BYTES_N = re.compile(r"^bytes(\d+)$")
 def abi_dynamic(t):
     """Whether the ABI type string T is dynamic: `bytes`, `string`, `T[]`, or an aggregate of a
     dynamic type (a tuple's own string is `tuple`, so its components decide, by the caller)."""
-    return t in ("bytes", "string") or t.endswith("[]") or (
-        bool(ABI_ARRAY.match(t)) and abi_dynamic(ABI_ARRAY.match(t).group(1))
+    return (
+        t in ("bytes", "string")
+        or t.endswith("[]")
+        or (bool(ABI_ARRAY.match(t)) and abi_dynamic(ABI_ARRAY.match(t).group(1)))
     )
 
 
@@ -338,14 +340,30 @@ def static_words(p, enums):
     m = ABI_ARRAY.match(t)
     if m:
         if m.group(2) == "":
-            if abi_dynamic(m.group(1)) or (m.group(1).startswith("tuple") and _has_dynamic(p)):
-                return None, ("ABI types: nested dynamic type", f"`{it or t}`: an array of a dynamic type")
-            return None, ("ABI types: dynamic parameter", f"`{it or t}`: a dynamic array (calldata of any length)")
-        inner = dict(p, type=m.group(1), internalType=ABI_ARRAY.sub(r"\1", it) if it else "")
+            if abi_dynamic(m.group(1)) or (
+                m.group(1).startswith("tuple") and _has_dynamic(p)
+            ):
+                return None, (
+                    "ABI types: nested dynamic type",
+                    f"`{it or t}`: an array of a dynamic type",
+                )
+            return None, (
+                "ABI types: dynamic parameter",
+                f"`{it or t}`: a dynamic array (calldata of any length)",
+            )
+        inner = dict(
+            p, type=m.group(1), internalType=ABI_ARRAY.sub(r"\1", it) if it else ""
+        )
         ws, why = static_words(inner, enums)
         if ws is None:
-            if why[0] in ("ABI types: dynamic parameter", "ABI types: nested dynamic type"):
-                return None, ("ABI types: nested dynamic type", f"`{it or t}`: a fixed-size array of a dynamic type")
+            if why[0] in (
+                "ABI types: dynamic parameter",
+                "ABI types: nested dynamic type",
+            ):
+                return None, (
+                    "ABI types: nested dynamic type",
+                    f"`{it or t}`: a fixed-size array of a dynamic type",
+                )
             return None, why
         return ws * int(m.group(2)), None
     if t == "tuple":
@@ -353,21 +371,33 @@ def static_words(p, enums):
         for c in p.get("components", []):
             ws, why = static_words(c, enums)
             if ws is None:
-                if why[0] in ("ABI types: dynamic parameter", "ABI types: nested dynamic type"):
-                    return None, ("ABI types: nested dynamic type", f"`{it or t}`: a struct with a dynamic member `{c.get('name', '')}`")
+                if why[0] in (
+                    "ABI types: dynamic parameter",
+                    "ABI types: nested dynamic type",
+                ):
+                    return None, (
+                        "ABI types: nested dynamic type",
+                        f"`{it or t}`: a struct with a dynamic member `{c.get('name', '')}`",
+                    )
                 return None, why
             out += ws
         if not out:
             return None, ("ABI types", f"`{it or t}`: an empty struct")
         return out, None
     if t in ("bytes", "string"):
-        return None, ("ABI types: dynamic parameter", f"`{t}`: a dynamic type (calldata of any length)")
+        return None, (
+            "ABI types: dynamic parameter",
+            f"`{t}`: a dynamic type (calldata of any length)",
+        )
     b = ABI_BYTES_N.match(t)
     if b:
         n = int(b.group(1))
         if n == 32:
             return [".uint 256"], None
-        return None, ("ABI types: bytesN below 32 bytes", f"`{t}`: a left-aligned word, which Abi.Param does not model")
+        return None, (
+            "ABI types: bytesN below 32 bytes",
+            f"`{t}`: a left-aligned word, which Abi.Param does not model",
+        )
     w = param_of(p, enums)
     if w is None:
         return None, ("ABI types", f"`{it or t}`: outside the ABI model")
@@ -380,7 +410,12 @@ def abi_canon(p):
     selector and the event topic hash it."""
     t = p["type"]
     if t.startswith("tuple"):
-        return "(" + ",".join(abi_canon(c) for c in p.get("components", [])) + ")" + t[len("tuple") :]
+        return (
+            "("
+            + ",".join(abi_canon(c) for c in p.get("components", []))
+            + ")"
+            + t[len("tuple") :]
+        )
     return t
 
 
@@ -404,7 +439,10 @@ def return_ok(p, enums):
     if ws is not None:
         return None
     if why[0] == "ABI types: dynamic parameter":
-        return ("ABI types: dynamic return", why[1].replace("calldata of any length", "returndata of any length"))
+        return (
+            "ABI types: dynamic return",
+            why[1].replace("calldata of any length", "returndata of any length"),
+        )
     return why
 
 
@@ -584,13 +622,17 @@ def creation_reach(cdef, lin=None, extra=()):
     disp = Dispatch(lin)
     defs = dict(disp.callables)
     for n in (m for f in extra for m in walk(f)):
-        if n.get("nodeType") in ("FunctionDefinition", "ModifierDefinition") and "id" in n:
+        if (
+            n.get("nodeType") in ("FunctionDefinition", "ModifierDefinition")
+            and "id" in n
+        ):
             defs.setdefault(n["id"], n)
 
     def resolve(ref, node, site):
         # The callable of LIN a call runs (Dispatch), else the inlined sibling function it names.
         k = disp.target(ref, node, site)
         return k if k is not None else (ref if ref in defs else None)
+
     roots = [
         (n, n["id"])
         for c in lin
@@ -673,9 +715,10 @@ def sibling_code(ast, cdef, lin=None):
             return True
         if unit.get("contractKind") != "library":
             return False  # a function of another contract or interface: an external call, or a base
-        if node.get("visibility") in ("internal", "private") or node.get(
-            "nodeType"
-        ) == "ModifierDefinition":
+        if (
+            node.get("visibility") in ("internal", "private")
+            or node.get("nodeType") == "ModifierDefinition"
+        ):
             return True
         # A library's public function runs inline only when the library itself calls it by name.
         return unit is here and (expr or {}).get("nodeType") == "Identifier"
@@ -837,11 +880,17 @@ def envelope(
     for node, unit in inline:
         where = f"{unit.get('name')}." if unit is not None else ""
         for n in walk(node):
-            if n.get("nodeType") in ("ForStatement", "WhileStatement", "DoWhileStatement"):
+            if n.get("nodeType") in (
+                "ForStatement",
+                "WhileStatement",
+                "DoWhileStatement",
+            ):
                 loop_why[id(n)] = (
                     f"{where}{node.get('name')}",
-                    "a loop in inlined library or free function code, which the loop cut hook "
-                    "does not read",
+                    (
+                        "a loop in inlined library or free function code, which the loop cut hook "
+                        "does not read"
+                    ),
                 )
     creation, creation_unresolved = creation_reach(cdef, lin, inline_defs)
     enums = {}
@@ -849,7 +898,10 @@ def envelope(
         if n.get("nodeType") == "EnumDefinition":
             enums[n["name"]] = len(n.get("members", []))
             enums[n.get("canonicalName", n["name"])] = len(n.get("members", []))
-    for n in [*(m for c in lin for m in walk(c)), *(m for node in inline_defs for m in walk(node))]:
+    for n in [
+        *(m for c in lin for m in walk(c)),
+        *(m for node in inline_defs for m in walk(node)),
+    ]:
         t = n.get("nodeType")
         if t == "InlineAssembly":
             block(
@@ -989,7 +1041,11 @@ def envelope(
             for n in walk(ast)
             if n.get("nodeType") == "FunctionDefinition" and n.get("name") == names[0]
         ]
-        doc = ((fns[0].get("documentation") or {}).get("text", "")) if len(fns) == 1 else ""
+        doc = (
+            ((fns[0].get("documentation") or {}).get("text", ""))
+            if len(fns) == 1
+            else ""
+        )
         if len(names) == 1 and re.search(r"@custom:decreases\s+\S", doc):
             continue
         block(
@@ -1498,7 +1554,9 @@ class Fns(list):
 
 # A constructor parameter bound for every argument word (Verify/Generic/CtorWords.lean,
 # bindArgs_words): a uint256-typed word (narrow uintN with its cleanup) or an address.
-CTOR_UINT = re.compile(r"uint(8|16|24|32|40|48|56|64|72|80|88|96|104|112|120|128|136|144|152|160|168|176|184|192|200|208|216|224|232|240|248|256)?")
+CTOR_UINT = re.compile(
+    r"uint(8|16|24|32|40|48|56|64|72|80|88|96|104|112|120|128|136|144|152|160|168|176|184|192|200|208|216|224|232|240|248|256)?"
+)
 
 
 def ctor_word_params(n):
@@ -1755,7 +1813,7 @@ def lowering_lean(name, contract, fns, events, core_lit, storage_lit, sym=False)
         m = re.fullmatch(
             r"ctorArgs \[([0-9, ]*)\] ;; (.+) ;; (\[.*\]) ;; \[([0-9, ]*)\]",
             str(storage_lit).strip(),
-            re.S,
+            re.DOTALL,
         )
         if m is None:
             raise Failed(
@@ -1775,7 +1833,9 @@ def lowering_lean(name, contract, fns, events, core_lit, storage_lit, sym=False)
         witness = [int(x) for x in m.group(4).split(",") if x.strip()]
         # A tree that branches reverts for some arguments: the statement then covers the argument
         # lists on which the constructor returns (CtorReturns), with a witness that one does.
-        branches = not tree.lstrip("(").startswith("SolidCore.Refinement.Generic.Br.leaf")
+        branches = not tree.lstrip("(").startswith(
+            "SolidCore.Refinement.Generic.Br.leaf"
+        )
         ctor["branches"] = branches
         ctor["witness"] = witness
         storage_defs = f"""/-- The widths of the constructor's parameters (§uint256§-typed words their width, addresses
@@ -1795,10 +1855,11 @@ def ctorWrites : Generic.Writes :=
 /-- What the constructor leaves in storage on the argument words §ws§: each slot it writes, with its
 word. -/
 def storageOf (ws : List Nat) : List (Nat × Nat) := Generic.storageOf ctorWrites ws"""
-        shape_def = f"""/-- SolidCore's checked core, and whether the constructor's body erases, with §ctorWidths§, to one
+        shape_def = """/-- SolidCore's checked core, and whether the constructor's body erases, with §ctorWidths§, to one
 normal leaf with the writes §ctorWrites§ and no logs. -/
 def shape? : Option (Contract × Bool) := Generic.ctorShapeOf fuel contract? ctorWidths ctorTree ctorWrites"""
-        deployed_def = """/-- The deployment on every argument list of the parameters' count, each word below §2 ^ 256§ and
+        deployed_def = (
+            """/-- The deployment on every argument list of the parameters' count, each word below §2 ^ 256§ and
 clean for its width, on which the constructor returns: it leaves a state with no logs, and a storage
 that writes every slot of §storageOf ws§ writes every slot it leaves nonzero; and the constructor
 returns wherever §ctorTree§'s leaf is normal. -/
@@ -1813,14 +1874,21 @@ theorem deployed_of {c : TypeCheck.CheckedContract} (hc : contract? = .ok c) :
         Generic.CtorReturns fuel contract? ws) :=
   Generic.deployed_of_ctorShapeOf shape_eq hc
 
-/-- The constructor returns on the witness words """ + str(witness) + """ (its erasure's leaf there is normal). -/
-theorem ctorReturns_witness : Generic.CtorReturns fuel contract? """ + str(witness) + """ := by
+/-- The constructor returns on the witness words """
+            + str(witness)
+            + """ (its erasure's leaf there is normal). -/
+theorem ctorReturns_witness : Generic.CtorReturns fuel contract? """
+            + str(witness)
+            + """ := by
   have h := shape_eq
   unfold shape? Generic.ctorShapeOf at h
   split at h
   · next c hc =>
-    exact (deployed_of hc).2.2 """ + str(witness) + """ rfl (by decide) (by decide +kernel) (by decide +kernel)
+    exact (deployed_of hc).2.2 """
+            + str(witness)
+            + """ rfl (by decide) (by decide +kernel) (by decide +kernel)
   · simp at h"""
+        )
         ctor_import = "import Verify.Generic.CtorWords\n"
         intro_doc = (
             "§coreLit§ is SolidCore's own evaluation of the checked contract, and §ctorWidths§ and\n"
@@ -2342,7 +2410,9 @@ def synth_witness(res, fns):
                 "args": [0] * len(f["params"]),
                 "storage": [],
             }
-    seen = ", ".join(f"{f['sig']}: {res.get('run fn ' + f['sig'], 'not run')}" for f in cands)
+    seen = ", ".join(
+        f"{f['sig']}: {res.get('run fn ' + f['sig'], 'not run')}" for f in cands
+    )
     raise Failed(
         "spec: no succeeds witness: no function has @custom:succeeds-if, and no spec'd function's zero "
         "call (zero words, no value, the constructor's slots written with 0) succeeds in SolidCore "
@@ -4188,7 +4258,8 @@ def shape_json(
             "(solidCoreFromArgs), from any storage that holds the slots that constructor writes"
         )
         shape["excluded"][-1] = shape["excluded"][-1].replace(
-            "the constructor's slots", "the slots the constructor writes on the arguments"
+            "the constructor's slots",
+            "the slots the constructor writes on the arguments",
         )
     if spec_witness is not None:
         # The specification is solar-verify's export of this run's source, proved of SolidCore's
@@ -5020,6 +5091,8 @@ def loop_final(record, reasons, src, ast, a, work, name):
 
 # The axioms a certified final may depend on (check_final.lean's gate).
 FINAL_AXIOMS = {"propext", "Classical.choice", "Quot.sound"}
+
+
 def abi_functions(ast, contract):
     """The calls the runtime bytecode of CONTRACT dispatches, from the solc AST: (functions by
     selector, other entry points) where the functions are the external and public functions of
@@ -5027,7 +5100,11 @@ def abi_functions(ast, contract):
     distinct entry points; an override shares its base's selector), and the other entry points are
     public state variables' getters, fallback and receive, and any public function without a
     selector."""
-    defs = {c.get("id"): c for c in ast.get("nodes", []) if c.get("nodeType") == "ContractDefinition"}
+    defs = {
+        c.get("id"): c
+        for c in ast.get("nodes", [])
+        if c.get("nodeType") == "ContractDefinition"
+    }
     top = next(c for c in defs.values() if c.get("name") == contract)
     fns, other = {}, []
     for i in top.get("linearizedBaseContracts") or [top["id"]]:
@@ -5039,11 +5116,16 @@ def abi_functions(ast, contract):
             if n.get("nodeType") == "FunctionDefinition":
                 if n.get("kind") in ("fallback", "receive"):
                     other.append(f"{c.get('name')}.{n.get('kind')}")
-                elif n.get("kind") == "function" and n.get("visibility") in ("public", "external"):
+                elif n.get("kind") == "function" and n.get("visibility") in (
+                    "public",
+                    "external",
+                ):
                     sel = n.get("functionSelector")
                     if isinstance(sel, str) and re.fullmatch(r"[0-9a-fA-F]{8}", sel):
                         if fns.setdefault(int(sel, 16), n.get("name")) != n.get("name"):
-                            other.append(f"{c.get('name')}.{n.get('name')} (selector 0x{sel} of {fns[int(sel, 16)]})")
+                            other.append(
+                                f"{c.get('name')}.{n.get('name')} (selector 0x{sel} of {fns[int(sel, 16)]})"
+                            )
                     else:
                         other.append(f"{c.get('name')}.{n.get('name')} (no selector)")
             elif (
@@ -5088,7 +5170,11 @@ def loop_promotion_problem(record, reasons, src, ast, a):
     if not lf or lf.get("refused"):
         return "no checked loop final"
     fin = lf.get("final") or {}
-    if not fin.get("theorem") or not lf.get("functions") or not isinstance(lf.get("parts"), dict):
+    if (
+        not fin.get("theorem")
+        or not lf.get("functions")
+        or not isinstance(lf.get("parts"), dict)
+    ):
         return "the loop final record has no theorem, functions or per-function parts"
     axs = lf.get("axioms")
     if not axs or not set(axs) <= FINAL_AXIOMS:
@@ -5096,9 +5182,13 @@ def loop_promotion_problem(record, reasons, src, ast, a):
     fb = lf.get("fresh_byte") or {}
     if not str(fb.get("check_final", "")).startswith("FRESH "):
         return "check_final did not gate the statement's bytes on this run's (no fresh-byte line)"
-    contract = record.get("contract") or __import__("fixed_fuel").contract_of(ast, a.contract)
-    plain, err = solar_runtime(build_solar(), src, contract)
-    if plain is None or hashlib.sha256(bytes.fromhex(plain)).hexdigest() != fb.get("runtime_sha256"):
+    contract = record.get("contract") or __import__("fixed_fuel").contract_of(
+        ast, a.contract
+    )
+    plain, _err = solar_runtime(build_solar(), src, contract)
+    if plain is None or hashlib.sha256(bytes.fromhex(plain)).hexdigest() != fb.get(
+        "runtime_sha256"
+    ):
         return "the bytes check_final bound are not a fresh compile's of this source"
     rp = lf.get("replay") or {}
     if not rp.get("closure") or rp.get("trusted_count") != 0:
@@ -5107,12 +5197,14 @@ def loop_promotion_problem(record, reasons, src, ast, a):
     own = [
         r
         for r in reasons
-        if r.get("feature") == "loop" and r.get("detail", "").startswith("loop final checked")
+        if r.get("feature") == "loop"
+        and r.get("detail", "").startswith("loop final checked")
     ]
     left = [r for r in reasons if r not in own]
     if len(own) != 1 or left:
         return "other reasons remain: " + "; ".join(
-            f"{r.get('feature')} ({r.get('where')}): {r.get('detail', '')[:120]}" for r in left[:3]
+            f"{r.get('feature')} ({r.get('where')}): {r.get('detail', '')[:120]}"
+            for r in left[:3]
         )
     loops = lf_mod.source_loops(ast, contract)
     if loops["elsewhere"] or loops["functions"] - covered:
@@ -5130,7 +5222,10 @@ def loop_promotion_problem(record, reasons, src, ast, a):
         return "two parts state the same selector"
     wrong = [f"{f} (0x{s:08x})" for s, f in stated.items() if fns.get(s) != f]
     if wrong:
-        return "parts whose selector is not their function's public entry point: " + ", ".join(wrong)
+        return (
+            "parts whose selector is not their function's public entry point: "
+            + ", ".join(wrong)
+        )
     unstated = [f"{fns[s]} (0x{s:08x})" for s in sorted(fns) if s not in stated]
     if other or unstated:
         return "entry points of the runtime the final does not state: " + ", ".join(
@@ -5152,14 +5247,25 @@ def loop_promotion_problem(record, reasons, src, ast, a):
     ex = fin.get("expected") or {}
     if fin.get("statement_kind") != "expected" or not ex:
         return "the final is not the expected statement (statement expected)"
-    if ex.get("source_sha256") != hashlib.sha256(pathlib.Path(src).read_bytes()).hexdigest():
+    if (
+        ex.get("source_sha256")
+        != hashlib.sha256(pathlib.Path(src).read_bytes()).hexdigest()
+    ):
         return "the expected statement binds another source than this run's"
     if ex.get("runtime_sha256") != fb.get("runtime_sha256"):
         return "the expected statement binds other bytes than the fresh-byte gate's"
-    if ex.get("inventory") != inv.get("specs") or ex.get("inventory_module") != inv.get("module"):
-        return "the expected statement binds another inventory than the kernel-checked one"
+    if ex.get("inventory") != inv.get("specs") or ex.get("inventory_module") != inv.get(
+        "module"
+    ):
+        return (
+            "the expected statement binds another inventory than the kernel-checked one"
+        )
     st = ex.get("stages") or []
-    if not st or st[0].get("pass") != "lower-evm-shaped" or st[-1].get("file") != "Bytecode":
+    if (
+        not st
+        or st[0].get("pass") != "lower-evm-shaped"
+        or st[-1].get("file") != "Bytecode"
+    ):
         return "the expected statement binds no stage chain from the lowered MIR to the bytecode"
     if not (ex.get("toolchain") or {}).get("compiler"):
         return "the expected statement binds no compiler"
@@ -5171,7 +5277,10 @@ def loop_promotion_problem(record, reasons, src, ast, a):
     for f in lf["functions"]:
         p = lf["parts"].get(f) or {}
         if p.get("spec") == "proved":
-            if p.get("nonvacuous") is not True or (p.get("nonvac_witness") or {}).get("well_typed") is not True:
+            if (
+                p.get("nonvacuous") is not True
+                or (p.get("nonvac_witness") or {}).get("well_typed") is not True
+            ):
                 return (
                     f"{f}: no well-typed non-vacuity witness (one whose return data decodes) refutes "
                     f"the exported spec: {p.get('nonvacuous')}"
@@ -5183,7 +5292,9 @@ def loop_promotion_problem(record, reasons, src, ast, a):
         else:
             return f"{f}: its spec is not stated ({p.get('label')})"
     if tier == "certified" and not proved:
-        return "no part states an exported spec: translation only, not the certified tier"
+        return (
+            "no part states an exported spec: translation only, not the certified tier"
+        )
     return None
 
 
@@ -5200,7 +5311,8 @@ def loop_verdict(record, reasons, src, ast, a, out_of_gas):
             record["loop_tier"] = {"status": "not certified", "why": why}
             return [
                 dict(r, detail=r["detail"] + f"; not certified: {why}")
-                if r.get("feature") == "loop" and r.get("detail", "").startswith("loop final checked")
+                if r.get("feature") == "loop"
+                and r.get("detail", "").startswith("loop final checked")
                 else r
                 for r in reasons
             ]
@@ -5216,7 +5328,9 @@ def loop_verdict(record, reasons, src, ast, a, out_of_gas):
     }
     bounded = [f for f, x in bounds.items() if x["K_max"] is not None]
     if out_of_gas is not None:
-        unb = f"resource: out of gas (the unbounded fixed-fuel obligation): {out_of_gas}"
+        unb = (
+            f"resource: out of gas (the unbounded fixed-fuel obligation): {out_of_gas}"
+        )
     elif bounded:
         unb = (
             "no theorem covers loop limits past the iteration bounds ("
@@ -5237,18 +5351,31 @@ def loop_verdict(record, reasons, src, ast, a, out_of_gas):
         "theorem": fin["theorem"],
         "statement_module": fin.get("statement_module"),
         "bounds": bounds,
-        "parts": {f: {"spec": p.get("spec"), "label": p.get("label")} for f, p in lf["parts"].items()},
+        "parts": {
+            f: {"spec": p.get("spec"), "label": p.get("label")}
+            for f, p in lf["parts"].items()
+        },
         "axioms": lf["axioms"],
         "fresh_byte": lf["fresh_byte"],
-        "replay": {k: lf["replay"].get(k) for k in ("closure", "replayed_count", "trusted_count")},
+        "replay": {
+            k: lf["replay"].get(k)
+            for k in ("closure", "replayed_count", "trusted_count")
+        },
         "strongest": fin.get("strongest"),
         "excluded": fin.get("excluded"),
         "unbounded": {"status": "not certified", "why": unb}
         if unb
-        else {"status": "n/a", "why": "every loop's limit is a literal: the statement has no iteration bound"},
+        else {
+            "status": "n/a",
+            "why": "every loop's limit is a literal: the statement has no iteration bound",
+        },
     }
     record["loop_tier"] = tier
-    kb = ", ".join(f"{f}: ∀ K ≤ {x['K_max']}, {x['valid']}" for f, x in bounds.items() if x["K_max"] is not None)
+    kb = ", ".join(
+        f"{f}: ∀ K ≤ {x['K_max']}, {x['valid']}"
+        for f, x in bounds.items()
+        if x["K_max"] is not None
+    )
     line = (
         f"{status}: {record.get('name')}: bounded loop tier: {fin['theorem']} checked ({kb or 'literal limits'}; "
         f"fresh bytes; axioms {', '.join(lf['axioms'])})"
@@ -5273,7 +5400,9 @@ def rec_route(record, src, ast, a, work, name, contract):
     solar = build_solar()
     plain, err = solar_runtime(solar, src, contract)
     if plain is None:
-        raise Blocked([rf.reason(rf.Refused("internal", f"solar: {err.strip()[:200]}"))])
+        raise Blocked(
+            [rf.reason(rf.Refused("internal", f"solar: {err.strip()[:200]}"))]
+        )
     _, _, clone = clone_base(a, work)
     out = rf.attach(
         record,

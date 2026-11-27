@@ -42,6 +42,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import pathlib
 import re
 import subprocess
 import sys
@@ -127,7 +128,11 @@ def weval(e, args, store=None):
     if t == "sinit":
         return store.get(weval(e[1], args, store), 0) % W
     if t == "sel":
-        return weval(e[3], args, store) if weval(e[1], args, store) == 0 else weval(e[2], args, store)
+        return (
+            weval(e[3], args, store)
+            if weval(e[1], args, store) == 0
+            else weval(e[2], args, store)
+        )
     if t == "caller":
         return 0
     raise Unsupported(t)
@@ -300,7 +305,12 @@ def no_case(c):
 
 def slice_step(hyps, ls):
     keys = {json.dumps(x) for x in ls}
-    more = [x for h in hyps if any(json.dumps(y) in keys for y in fleaves(h)) for x in fleaves(h)]
+    more = [
+        x
+        for h in hyps
+        if any(json.dumps(y) in keys for y in fleaves(h))
+        for x in fleaves(h)
+    ]
     return dedup(ls + more)
 
 
@@ -331,7 +341,9 @@ def paths(T):
     if T[0] == "halt":
         return [([], T)]
     _, c, t, e = T
-    return [([(c, True)] + p, h) for p, h in paths(t)] + [([(c, False)] + p, h) for p, h in paths(e)]
+    return [([(c, True)] + p, h) for p, h in paths(t)] + [
+        ([(c, False)] + p, h) for p, h in paths(e)
+    ]
 
 
 def read_lit(K, ws):
@@ -350,8 +362,14 @@ def halt_goals(H, H2):
     if ok != ok2:
         return [FALSE]
     no, no2 = [bnorm(b) for b in out], [bnorm(b) for b in out2]
-    if (no == no2 and all(b[0] == "blit" for b in no) and nl == 0 and nl2 == 0
-            and all(w[0][0] == "lit" for w in ws) and all(w[0][0] == "lit" for w in ws2)):
+    if (
+        no == no2
+        and all(b[0] == "blit" for b in no)
+        and nl == 0
+        and nl2 == 0
+        and all(w[0][0] == "lit" for w in ws)
+        and all(w[0][0] == "lit" for w in ws2)
+    ):
         if not ok:
             return []
         gs = []
@@ -396,14 +414,23 @@ def end_seqs(S, K, T2, T, kind):
             if gs is not None:
                 out += [(hyp(S, k, g), g, kind) for g in gs]
             else:
-                out.append((hyp(S, k, None), None, kind + " (ends not comparable: must be unreachable)"))
+                out.append(
+                    (
+                        hyp(S, k, None),
+                        None,
+                        kind + " (ends not comparable: must be unreachable)",
+                    )
+                )
     return out
 
 
 def tree_below(n, T):
     if T[0] == "ite":
-        return (all(l[0] != "arg" or l[1] < n for l in wleaves(T[1]))
-                and tree_below(n, T[2]) and tree_below(n, T[3]))
+        return (
+            all(l[0] != "arg" or l[1] < n for l in wleaves(T[1]))
+            and tree_below(n, T[2])
+            and tree_below(n, T[3])
+        )
     ws = [b[1] for b in T[2] if b[0] == "byteOf"] + [x for w in T[3] for x in w]
     return all(l[0] != "arg" or l[1] < n for w in ws for l in wleaves(w))
 
@@ -417,21 +444,57 @@ def all_seqs(n, cases, T, le, li, I, mu):
         for j, (K, o) in enumerate(le):
             if o[0] == "back":
                 g = fsub(n, o[1], f)
-                out.append((hyp([], facts_f(K), g), g, f"initiation: I[{fi}] after entry arrival le[{j}]"))
+                out.append(
+                    (
+                        hyp([], facts_f(K), g),
+                        g,
+                        f"initiation: I[{fi}] after entry arrival le[{j}]",
+                    )
+                )
         for j, (K, o) in enumerate(li):
             if o[0] == "back":
                 g = fsub(n, o[1], f)
-                out.append((hyp(I, facts_f(K), g), g, f"preservation: I[{fi}] after iteration back edge li[{j}]"))
+                out.append(
+                    (
+                        hyp(I, facts_f(K), g),
+                        g,
+                        f"preservation: I[{fi}] after iteration back edge li[{j}]",
+                    )
+                )
     for j, (K, o) in enumerate(le):
         if o[0] == "exit":
-            out += end_seqs([], facts_f(K), o[1], T, f"sufficiency: entry end le[{j}] is the property")
+            out += end_seqs(
+                [],
+                facts_f(K),
+                o[1],
+                T,
+                f"sufficiency: entry end le[{j}] is the property",
+            )
     for j, (K, o) in enumerate(li):
         if o[0] == "exit":
-            out += end_seqs(I, facts_f(K), o[1], T, f"sufficiency: iteration exit li[{j}] is the property")
+            out += end_seqs(
+                I,
+                facts_f(K),
+                o[1],
+                T,
+                f"sufficiency: iteration exit li[{j}] is the property",
+            )
         else:
             g = ["lt", wsub(n, o[1], mu), mu]
-            out.append((hyp(I, facts_f(K), g), g, f"decrease: the measure falls on back edge li[{j}]"))
-    out.append((hyp(I, [no_case(c) for c in cases], None), None, "cover: some case holds under I"))
+            out.append(
+                (
+                    hyp(I, facts_f(K), g),
+                    g,
+                    f"decrease: the measure falls on back edge li[{j}]",
+                )
+            )
+    out.append(
+        (
+            hyp(I, [no_case(c) for c in cases], None),
+            None,
+            "cover: some case holds under I",
+        )
+    )
     return out
 
 
@@ -520,7 +583,12 @@ def run_z3(text, timeout=60):
         fh.write(text)
         path = fh.name
     try:
-        r = subprocess.run(["nice", "-n", "10", Z3, f"-T:{timeout}", path], capture_output=True, text=True)
+        r = subprocess.run(
+            ["nice", "-n", "10", Z3, f"-T:{timeout}", path],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
         return r.stdout
     finally:
         os.unlink(path)
@@ -542,7 +610,9 @@ def seq_smt(hyps, goal):
     for l in ls:
         v = word_var(l)
         decl += [f"(declare-const {v} Int)", f"(assert (and (<= 0 {v}) (< {v} {W})))"]
-    return ls, "\n".join(decl + [f"(assert {b})" for b in body] + ["(check-sat)", "(get-model)"]) + "\n"
+    return ls, "\n".join(
+        decl + [f"(assert {b})" for b in body] + ["(check-sat)", "(get-model)"]
+    ) + "\n"
 
 
 def check_seq(hyps, goal, timeout=30):
@@ -601,7 +671,13 @@ def parse_model_values(out):
         if not isinstance(s, list):
             continue
         for d in s:
-            if isinstance(d, list) and len(d) == 5 and d[0] == "define-fun" and d[2] == [] and d[3] == "Int":
+            if (
+                isinstance(d, list)
+                and len(d) == 5
+                and d[0] == "define-fun"
+                and d[2] == []
+                and d[3] == "Int"
+            ):
                 vals[d[1]] = int_of(d[4])
     return vals
 
@@ -619,17 +695,29 @@ def leaf_words(o):
     and storage writes (keys and values), which halt_goals_w compares with the property's."""
     if o[0] == "back":
         return list(o[1])
-    return [w for p, h in paths(o[1])
-            for w in [e for e, _ in p] + [b[1] for b in h[2] if b[0] == "byteOf"]
-            + [x for kv in h[3] for x in kv]]
+    return [
+        w
+        for p, h in paths(o[1])
+        for w in [e for e, _ in p]
+        + [b[1] for b in h[2] if b[0] == "byteOf"]
+        + [x for kv in h[3] for x in kv]
+    ]
 
 
 def chc(le, li, n, nhw, T):
     """The CHC system over Inv(x_0..x_{n-1}, h_0..h_{nhw-1}, s_k...): init from the entry run's
     arrivals, preservation from each iteration back edge under its facts, one query per end and
     path of T (the end is the property, or the path is unreachable)."""
-    slots = sorted({l[1] for _, o in le + li for w in leaf_words(o) for l in wleaves(w) if l[0] == "init"}
-                   | {l[1] for K, _ in le + li for e, _ in K for l in wleaves(e) if l[0] == "init"})
+    slots = sorted(
+        {
+            l[1]
+            for _, o in le + li
+            for w in leaf_words(o)
+            for l in wleaves(w)
+            if l[0] == "init"
+        }
+        | {l[1] for K, _ in le + li for e, _ in K for l in wleaves(e) if l[0] == "init"}
+    )
     xs = [f"x{i}" for i in range(n)]
     hs = [f"h{k}" for k in range(nhw)]
     ss = [f"s{k}" for k in slots]
@@ -685,14 +773,20 @@ def live_header(leaves, n, nhw):
     read = set()
     for K, o in leaves:
         ws = [e for e, _ in K] + (leaf_words(o) if o[0] == "exit" else [])
-        read |= {l[1] - n for w in ws for l in wleaves(w) if l[0] == "arg" and l[1] >= n}
+        read |= {
+            l[1] - n for w in ws for l in wleaves(w) if l[0] == "arg" and l[1] >= n
+        }
     while True:
         more = set(read)
         for _, o in leaves:
             if o[0] == "back":
                 for k in read:
                     if k < len(o[1]):
-                        more |= {l[1] - n for l in wleaves(o[1][k]) if l[0] == "arg" and l[1] >= n}
+                        more |= {
+                            l[1] - n
+                            for l in wleaves(o[1][k])
+                            if l[0] == "arg" and l[1] >= n
+                        }
         if more == read:
             return sorted(k for k in read if k < nhw)
         read = more
@@ -714,13 +808,13 @@ def query(vs, body, T2, T, env, clause):
 
 def spacer(le, li, n, nhw, T, timeout=60):
     """Spacer's answer and its interpretation of Inv as (formals, body), or None."""
-    text, params, slots, live = chc(le, li, n, nhw, T)
+    text, _params, slots, live = chc(le, li, n, nhw, T)
     out = run_z3(text, timeout)
     first = out.strip().split("\n", 1)[0] if out.strip() else ""
     if first != "sat":
         return first or "no answer", None, text, (slots, live)
     for s in sexp_parse(out):
-        for d in (s if isinstance(s, list) else []):
+        for d in s if isinstance(s, list) else []:
             if isinstance(d, list) and d and d[0] == "define-fun" and d[1] == "Inv":
                 return "sat", ([p[0] for p in d[2]], d[4]), text, (slots, live)
     return "sat (no model)", None, text, (slots, live)
@@ -772,7 +866,7 @@ def linear(t, var):
         for i, j in ((1, 2), (2, 1)):
             try:
                 c = int_of(t[i])
-            except (Unsupported, ValueError):
+            except Unsupported, ValueError:
                 continue
             m, k = linear(t[j], var)
             return {v: c * a for v, a in m.items()}, c * k
@@ -810,8 +904,16 @@ def atom_f(op, m, c):
     which the Lean sequents then have to show (or the candidate is dropped)."""
     left, right = sides(m, c)
     if op == "=":
-        l2 = (left + [lit(0), lit(0)])[:2] if len(left) <= 2 else [left[0], wsum(left[1:])]
-        r2 = (right + [lit(0), lit(0)])[:2] if len(right) <= 2 else [right[0], wsum(right[1:])]
+        l2 = (
+            (left + [lit(0), lit(0)])[:2]
+            if len(left) <= 2
+            else [left[0], wsum(left[1:])]
+        )
+        r2 = (
+            (right + [lit(0), lit(0)])[:2]
+            if len(right) <= 2
+            else [right[0], wsum(right[1:])]
+        )
         return ["lin", l2[0], r2[0], r2[1], l2[1]]
     return ["le" if op == "<=" else "lt", wsum(left), wsum(right)]
 
@@ -839,9 +941,21 @@ NEG = {"<=": ">", "<": ">=", ">=": "<", ">": "<="}
 def int_atom(p, var):
     """A comparison (possibly under 'not') as ('<=' | '=', m, c) for 'sum m + c op 0' over the
     integers: strict comparisons become non-strict by one (Spacer's integers are exact)."""
-    if isinstance(p, list) and p and p[0] == "not" and isinstance(p[1], list) and p[1] and p[1][0] in NEG:
+    if (
+        isinstance(p, list)
+        and p
+        and p[0] == "not"
+        and isinstance(p[1], list)
+        and p[1]
+        and p[1][0] in NEG
+    ):
         p = [NEG[p[1][0]]] + p[1][1:]
-    if not (isinstance(p, list) and p and p[0] in ("<=", "<", ">=", ">", "=") and len(p) == 3):
+    if not (
+        isinstance(p, list)
+        and p
+        and p[0] in ("<=", "<", ">=", ">", "=")
+        and len(p) == 3
+    ):
         raise Unsupported("not a comparison")
     o, m, c = norm_atom(p, var)
     if o == "<":
@@ -921,8 +1035,18 @@ def translate(model, n, nhw, slots, live=None):
         if i in used:
             continue
         neg = ({v: -k for v, k in m.items()}, -c)
-        j = next((j for j, ((o2, m2, c2), _) in enumerate(atoms) if j != i and j not in used
-                  and o2 == "<=" and (m2, c2) == neg), None) if o == "<=" else None
+        j = (
+            next(
+                (
+                    j
+                    for j, ((o2, m2, c2), _) in enumerate(atoms)
+                    if j != i and j not in used and o2 == "<=" and (m2, c2) == neg
+                ),
+                None,
+            )
+            if o == "<="
+            else None
+        )
         try:
             if o == "=":
                 used.add(i)
@@ -960,8 +1084,14 @@ def measure_cands(n, nhw, li):
     backs = [o[1] for _, o in li if o[0] == "back"]
     for k in range(nhw):
         h = arg(n + k)
-        if backs and all(len(b) > k and b[k][0] == "bin" and b[k][1] == "sub" and b[k][2] == h
-                         and b[k][3][0] == "lit" for b in backs):
+        if backs and all(
+            len(b) > k
+            and b[k][0] == "bin"
+            and b[k][1] == "sub"
+            and b[k][2] == h
+            and b[k][3][0] == "lit"
+            for b in backs
+        ):
             out.append(h)
     for K, _ in li:
         for e, _ in K:
@@ -1003,8 +1133,15 @@ def check_all(n, cases, T, le, li, I, mu):
         seen.add(key)
         st, cex = check_seq(hyps, g)
         if st != "valid":
-            fails.append({"kind": kind, "status": st, "goal": fmt_f(g) if g else "false",
-                          "hyps": [fmt_f(h) for h in hyps], "counterexample": cex})
+            fails.append(
+                {
+                    "kind": kind,
+                    "status": st,
+                    "goal": fmt_f(g) if g else "false",
+                    "hyps": [fmt_f(h) for h in hyps],
+                    "counterexample": cex,
+                }
+            )
     return seqs, fails
 
 
@@ -1017,7 +1154,9 @@ def find_measure(n, nhw, cases, T, le, li, I, log):
                 if st != "valid":
                     ok = False
                     break
-        log(f"  measure candidate {fmt_w(mu)}: {'falls on every back edge' if ok else 'rejected'}")
+        log(
+            f"  measure candidate {fmt_w(mu)}: {'falls on every back edge' if ok else 'rejected'}"
+        )
         if ok:
             return mu
     return None
@@ -1026,14 +1165,21 @@ def find_measure(n, nhw, cases, T, le, li, I, log):
 def eval_tree(T, vals):
     while T[0] == "ite":
         T = T[3] if weval(T[1], vals) == 0 else T[2]
-    out = [b[1] % 256 if b[0] == "blit" else weval(b[1], vals) // 256 ** (31 - b[2]) % 256 for b in T[2]]
-    return {"success": T[1], "output": int.from_bytes(bytes(out), "big") if out else None,
-            "writes": [[weval(k, vals), weval(v, vals)] for k, v in T[3]] if T[1] else []}
+    out = [
+        b[1] % 256 if b[0] == "blit" else weval(b[1], vals) // 256 ** (31 - b[2]) % 256
+        for b in T[2]
+    ]
+    return {
+        "success": T[1],
+        "output": int.from_bytes(bytes(out), "big") if out else None,
+        "writes": [[weval(k, vals), weval(v, vals)] for k, v in T[3]] if T[1] else [],
+    }
 
 
 def concrete_cex(n, le, li, T, calls, fuel=64):
     """A call whose run of the leaves ends differently from T: a concrete trace refuting the
     property (only the leaves are run, as Cut.check produced them)."""
+
     def leaf(ls, vals):
         for K, o in ls:
             if all((weval(e, vals) == 0) == (not b) for e, b in K):
@@ -1072,7 +1218,11 @@ def fmt_w(e):
         return f"{e[1]}({fmt_w(e[2])})"
     if t == "bin":
         sym = {"add": "+", "sub": "-", "lt": "<", "gt": ">", "eq": "=="}.get(e[1])
-        return f"({fmt_w(e[2])} {sym} {fmt_w(e[3])})" if sym else f"{e[1]}({fmt_w(e[2])}, {fmt_w(e[3])})"
+        return (
+            f"({fmt_w(e[2])} {sym} {fmt_w(e[3])})"
+            if sym
+            else f"{e[1]}({fmt_w(e[2])}, {fmt_w(e[3])})"
+        )
     return json.dumps(e)
 
 
@@ -1128,7 +1278,11 @@ def lean_f(f):
 
 
 def lean_b(b):
-    return f"(OByte.lit {b[1]})" if b[0] == "blit" else f"(OByte.byteOf {lean_w(b[1])} {b[2]})"
+    return (
+        f"(OByte.lit {b[1]})"
+        if b[0] == "blit"
+        else f"(OByte.byteOf {lean_w(b[1])} {b[2]})"
+    )
 
 
 def lean_tree(T):
@@ -1161,35 +1315,48 @@ def target_tree(spec):
 
 
 def extract_def(path, name):
-    text = open(path).read()
-    m = re.search(rf"^def {name} .*?(?=^\S|\Z)", text, re.S | re.M)
+    text = pathlib.Path(path).read_text()
+    m = re.search(rf"^def {name} .*?(?=^\S|\Z)", text, re.DOTALL | re.MULTILINE)
     if not m:
         raise SystemExit(f"no 'def {name}' in {path}")
     d = m.group(0).rstrip() + "\n"
-    return d.replace("def stage0 : MIR.Lowered.Module", "def stage0 : SolarTV.MIR.Lowered.Module")
+    return d.replace(
+        "def stage0 : MIR.Lowered.Module", "def stage0 : SolarTV.MIR.Lowered.Module"
+    )
 
 
 def prelude(args):
-    seqw = open(args.seqw).read()
-    body = "\n".join(l for l in seqw.split("\n") if not l.startswith(("import ", "#print")))
-    return ("import Verify.LoopSource.Equiv.Emit\nimport Verify.LoopSource.Equiv.Seq\n\n"
-            f"-- Inlined from {os.path.basename(args.seqw)} (kernel-checked) so the module is self-contained.\n"
-            + body.strip() + "\n\n"
-            f"namespace {args.ns}\nopen SolidCore.Refinement.Generic Verify.LoopSource.Equiv\n\n"
-            f"/-- solar's lowered MIR (verbatim from {os.path.basename(args.stage0)}). -/\n"
-            + extract_def(args.stage0, "stage0") + "\n"
-            f"/-- The cut-point certificate (from {os.path.basename(args.cut)}; checked by Cut.check). -/\n"
-            + extract_def(args.cut, "cut") + f"\nend {args.ns}\n")
+    seqw = pathlib.Path(args.seqw).read_text()
+    body = "\n".join(
+        l for l in seqw.split("\n") if not l.startswith(("import ", "#print"))
+    )
+    return (
+        "import Verify.LoopSource.Equiv.Emit\nimport Verify.LoopSource.Equiv.Seq\n\n"
+        f"-- Inlined from {os.path.basename(args.seqw)} (kernel-checked) so the module is self-contained.\n"
+        + body.strip()
+        + "\n\n"
+        f"namespace {args.ns}\nopen SolidCore.Refinement.Generic Verify.LoopSource.Equiv\n\n"
+        f"/-- solar's lowered MIR (verbatim from {os.path.basename(args.stage0)}). -/\n"
+        + extract_def(args.stage0, "stage0")
+        + "\n"
+        f"/-- The cut-point certificate (from {os.path.basename(args.cut)}; checked by Cut.check). -/\n"
+        + extract_def(args.cut, "cut")
+        + f"\nend {args.ns}\n"
+    )
 
 
 def defs_text(T, I, mu):
-    return (f"def T : Tree := {lean_tree(T)}\n\n"
-            f"def I : List F := [{', '.join(lean_f(f) for f in I)}]\n\n"
-            f"def μ : WExpr := {lean_w(mu)}\n\n")
+    return (
+        f"def T : Tree := {lean_tree(T)}\n\n"
+        f"def I : List F := [{', '.join(lean_f(f) for f in I)}]\n\n"
+        f"def μ : WExpr := {lean_w(mu)}\n\n"
+    )
 
 
-OPENS = ("open SolidCore.Refinement.Generic Verify.LoopSource.Equiv Verify.LoopSource.Equiv.Inv "
-         "Verify.Phase3.Infer\n\n")
+OPENS = (
+    "open SolidCore.Refinement.Generic Verify.LoopSource.Equiv Verify.LoopSource.Equiv.Inv "
+    "Verify.Phase3.Infer\n\n"
+)
 
 
 def write_gen(args, T, I, mu, n):
@@ -1197,20 +1364,24 @@ def write_gen(args, T, I, mu, n):
     with open(args.prelude_out, "w") as fh:
         fh.write(pre)
     chk = f"cut.check .off stage0 {args.sel} {n}"
-    text = (pre + f"\nnamespace {args.ns}\n" + OPENS
-            + "/-! Generated by tools/certify/loop_infer.py: elaborating it writes the obligation module. -/\n\n"
-            + defs_text(T, I, mu)
-            + "#eval show IO Unit from do\n"
-            f"  match {chk} with\n"
-            "  | none => throw (IO.userError \"cut.check is none\")\n"
-            "  | some (le, li) =>\n"
-            f"    match allSeqsW {n} cut.cases T le li I μ with\n"
-            "    | none => throw (IO.userError \"allSeqsW is none\")\n"
-            "    | some ss =>\n"
-            f"      let pre ← IO.FS.readFile {json.dumps(args.prelude_out)}\n"
-            f"      IO.FS.writeFile {json.dumps(args.obl)} (emitW pre {json.dumps(args.ns)} {json.dumps(chk)} {n} \"cut.cases\" le li T I μ ss)\n"
-            "      IO.println s!\"wrote {ss.length} sequents ({ss.eraseDups.length} unique)\"\n\n"
-            f"end {args.ns}\n")
+    text = (
+        pre
+        + f"\nnamespace {args.ns}\n"
+        + OPENS
+        + "/-! Generated by tools/certify/loop_infer.py: elaborating it writes the obligation module. -/\n\n"
+        + defs_text(T, I, mu)
+        + "#eval show IO Unit from do\n"
+        f"  match {chk} with\n"
+        '  | none => throw (IO.userError "cut.check is none")\n'
+        "  | some (le, li) =>\n"
+        f"    match allSeqsW {n} cut.cases T le li I μ with\n"
+        '    | none => throw (IO.userError "allSeqsW is none")\n'
+        "    | some ss =>\n"
+        f"      let pre ← IO.FS.readFile {json.dumps(args.prelude_out)}\n"
+        f'      IO.FS.writeFile {json.dumps(args.obl)} (emitW pre {json.dumps(args.ns)} {json.dumps(chk)} {n} "cut.cases" le li T I μ ss)\n'
+        '      IO.println s!"wrote {ss.length} sequents ({ss.eraseDups.length} unique)"\n\n'
+        f"end {args.ns}\n"
+    )
     with open(args.gen, "w") as fh:
         fh.write(text)
 
@@ -1224,18 +1395,22 @@ def write_neg(args, path, T, I, mu, n, nhw, cex, why):
     for k, v in store.items():
         st = f"fun k => if k = {k} then {v} else ({st}) k"
     chk = f"cut.check .off stage0 {args.sel} {n}"
-    text = (pre + f"\nnamespace {args.ns}\n" + OPENS
-            + f"/-! Generated by tools/certify/loop_infer.py: a rejected candidate, refused in the kernel.\n\n{why}\n-/\n\n"
-            + defs_text(T, I, mu)
-            + f"def ss? : Option (List Seq) := ({chk}).bind fun r => allSeqsW {n} cut.cases T r.1 r.2 I μ\n\n"
-            "/-- z3's counterexample valuation (call words, then header words). -/\n"
-            f"def σ : Val := {{ args := {vals}, store := {st}, hash := fun _ _ => 0, caller := 0 }}\n\n"
-            "theorem rejects : rejectsAny σ ss? = true := by decide +kernel\n\n"
-            "/-- **The candidate is refused**: some sequent of its obligations has a counterexample, so\n"
-            "obl_of_seqsW cannot be applied to it. -/\n"
-            "theorem refused : ∀ ss, ss? = some ss → ¬ ∀ s ∈ ss, s.Valid :=\n"
-            "  fun ss h => rejectsAny_sound (h ▸ rejects)\n\n"
-            f"end {args.ns}\n\n#print axioms {args.ns}.refused\n")
+    text = (
+        pre
+        + f"\nnamespace {args.ns}\n"
+        + OPENS
+        + f"/-! Generated by tools/certify/loop_infer.py: a rejected candidate, refused in the kernel.\n\n{why}\n-/\n\n"
+        + defs_text(T, I, mu)
+        + f"def ss? : Option (List Seq) := ({chk}).bind fun r => allSeqsW {n} cut.cases T r.1 r.2 I μ\n\n"
+        "/-- z3's counterexample valuation (call words, then header words). -/\n"
+        f"def σ : Val := {{ args := {vals}, store := {st}, hash := fun _ _ => 0, caller := 0 }}\n\n"
+        "theorem rejects : rejectsAny σ ss? = true := by decide +kernel\n\n"
+        "/-- **The candidate is refused**: some sequent of its obligations has a counterexample, so\n"
+        "obl_of_seqsW cannot be applied to it. -/\n"
+        "theorem refused : ∀ ss, ss? = some ss → ¬ ∀ s ∈ ss, s.Valid :=\n"
+        "  fun ss h => rejectsAny_sound (h ▸ rejects)\n\n"
+        f"end {args.ns}\n\n#print axioms {args.ns}.refused\n"
+    )
     with open(path, "w") as fh:
         fh.write(text)
 
@@ -1260,12 +1435,16 @@ def subterms(e):
 
 def call_only(n, e):
     """A word of the call alone: literals and the call's first n words (no header word, no storage)."""
-    return all(x[0] == "lit" or (x[0] == "arg" and x[1] < n) for x in subterms(e)
-               if x[0] in ("lit", "arg", "init", "sinit", "caller", "hash"))
+    return all(
+        x[0] == "lit" or (x[0] == "arg" and x[1] < n)
+        for x in subterms(e)
+        if x[0] in ("lit", "arg", "init", "sinit", "caller", "hash")
+    )
 
 
 def run_leaves(n, le, li, args, fuel=64):
     """The header valuations a concrete call reaches by the leaves (as EmitSeq.traceFrom)."""
+
     def leaf(ls, vals):
         for K, o in ls:
             if all((weval(e, vals) == 0) == (not b) for e, b in K):
@@ -1324,18 +1503,24 @@ def discover(engine, n, nhw, cases, T, le, li, calls, report, args, log):
     with what happened in report[engine]."""
     rep = report.setdefault("engines", {}).setdefault(engine, {})
     if engine == "spacer":
-        log("spacer: solving the Horn clauses (init, preservation, query: every end is the property)")
+        log(
+            "spacer: solving the Horn clauses (init, preservation, query: every end is the property)"
+        )
         st, model, _, (slots, live) = spacer(le, li, n, nhw, T, args.timeout)
         rep["status"] = st
         if model is None:
             if st == "unsat":
                 rep["verdict"] = "refuted"
-                log("spacer: unsat: the Horn clauses have no solution, so no invariant over these words "
-                    "makes every end the property (a refutation of this encoding, not of the source)")
+                log(
+                    "spacer: unsat: the Horn clauses have no solution, so no invariant over these words "
+                    "makes every end the property (a refutation of this encoding, not of the source)"
+                )
             else:
                 rep["verdict"] = "undecided"
-                log(f"spacer: {st}: no usable model (unknown, timeout or no model): this is a refusal to "
-                    "discover, not a refutation")
+                log(
+                    f"spacer: {st}: no usable model (unknown, timeout or no model): this is a refusal to "
+                    "discover, not a refutation"
+                )
             return None
         log(f"spacer: Inv({', '.join(model[0])}) := {sexp_str(model[1])}")
         I, dropped = translate(model, n, nhw, slots, live)
@@ -1354,25 +1539,41 @@ def discover(engine, n, nhw, cases, T, le, li, calls, report, args, log):
         rep["verdict"] = "no measure"
         log(f"{engine}: no measure falls on every back edge")
         return None
-    seqs, fails = check_all(n, cases, T, le, li, I, mu)
-    rep.update({"I_math": [fmt_f(f) for f in I], "mu_math": fmt_w(mu), "failed": len(fails)})
+    _seqs, fails = check_all(n, cases, T, le, li, I, mu)
+    rep.update(
+        {"I_math": [fmt_f(f) for f in I], "mu_math": fmt_w(mu), "failed": len(fails)}
+    )
     if fails:
         rep["verdict"] = "candidate fails"
         for fl in fails[:5]:
-            log(f"{engine}: FAILED {fl['kind']}: goal {fl['goal']} ({fl['status']}); counterexample {fl['counterexample']}")
+            log(
+                f"{engine}: FAILED {fl['kind']}: goal {fl['goal']} ({fl['status']}); counterexample {fl['counterexample']}"
+            )
         return None
     rep["verdict"] = "found"
     return I, mu
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="Loop invariant and measure discovery (untrusted).")
+    ap = argparse.ArgumentParser(
+        description="Loop invariant and measure discovery (untrusted)."
+    )
     ap.add_argument("leaves")
-    ap.add_argument("--target", help="the property tree, only for leaves that carry no source tree")
-    ap.add_argument("--candidate", help='JSON {"I": [...], "mu": ...}: check it instead of discovering')
-    ap.add_argument("--engines", default="spacer,interval",
-                    help="discovery engines in order (spacer: Horn clauses; interval: interval bounds)")
-    ap.add_argument("--emit-candidate", help="write the found I and mu, as JSON and as Lean terms")
+    ap.add_argument(
+        "--target", help="the property tree, only for leaves that carry no source tree"
+    )
+    ap.add_argument(
+        "--candidate",
+        help='JSON {"I": [...], "mu": ...}: check it instead of discovering',
+    )
+    ap.add_argument(
+        "--engines",
+        default="spacer,interval",
+        help="discovery engines in order (spacer: Horn clauses; interval: interval bounds)",
+    )
+    ap.add_argument(
+        "--emit-candidate", help="write the found I and mu, as JSON and as Lean terms"
+    )
     ap.add_argument("--stage0")
     ap.add_argument("--cut")
     ap.add_argument("--seqw")
@@ -1387,7 +1588,7 @@ def main(argv=None):
     def log(s):
         print(s, file=sys.stderr)
 
-    L = json.load(open(args.leaves))
+    L = json.loads(pathlib.Path(args.leaves).read_text())
     n, nhw, le, li, cases = L["n"], L["nhw"], L["le"], L["li"], L["cases"]
     args.sel = L["sel"]
     report = {"format": "loop infer 1", "fn": L.get("fn")}
@@ -1396,7 +1597,9 @@ def main(argv=None):
         # property, and the obligations the Lean side states are over it. A separate target would
         # replace the source's property with one the caller chose.
         if args.target:
-            log("refused: the leaves carry the source's erased tree; --target would replace it")
+            log(
+                "refused: the leaves carry the source's erased tree; --target would replace it"
+            )
             report["refused"] = "target given for leaves with a source tree"
             print(json.dumps(report))
             return 2
@@ -1411,7 +1614,7 @@ def main(argv=None):
 
     found = None
     if args.candidate:
-        c = json.load(open(args.candidate))
+        c = json.loads(pathlib.Path(args.candidate).read_text())
         I, mu = c["I"], c.get("mu")
         report["source"] = "candidate"
         if mu is None:
@@ -1425,12 +1628,18 @@ def main(argv=None):
                 break
     if found is None and not args.candidate:
         verdicts = {e: r.get("verdict") for e, r in report.get("engines", {}).items()}
-        report["discovery"] = "refuted" if verdicts and all(v == "refuted" for v in verdicts.values()) else "undecided"
+        report["discovery"] = (
+            "refuted"
+            if verdicts and all(v == "refuted" for v in verdicts.values())
+            else "undecided"
+        )
         cex = concrete_cex(n, le, li, T, calls)
         if cex:
             report["discovery"] = "refuted"
-            log(f"  concrete counterexample: call {cex['call']} after {cex['iterations']} iterations: "
-                f"the MIR ends {cex['mir']}, the property says {cex['property']}")
+            log(
+                f"  concrete counterexample: call {cex['call']} after {cex['iterations']} iterations: "
+                f"the MIR ends {cex['mir']}, the property says {cex['property']}"
+            )
             report["counterexample"] = cex
         log(f"no invariant: {report['discovery']} ({verdicts})")
         print(json.dumps(report))
@@ -1442,8 +1651,16 @@ def main(argv=None):
         return 2
     I, mu = found
     seqs, fails = check_all(n, cases, T, le, li, I, mu)
-    report.update({"I": I, "I_math": [fmt_f(f) for f in I], "mu": mu, "mu_math": fmt_w(mu),
-                   "sequents": len(seqs), "failed": fails})
+    report.update(
+        {
+            "I": I,
+            "I_math": [fmt_f(f) for f in I],
+            "mu": mu,
+            "mu_math": fmt_w(mu),
+            "sequents": len(seqs),
+            "failed": fails,
+        }
+    )
     for fl in fails:
         log(f"FAILED {fl['kind']}: goal {fl['goal']} ({fl['status']})")
         log(f"  hypotheses: {'; '.join(fl['hyps'])}")
@@ -1451,24 +1668,47 @@ def main(argv=None):
     if fails:
         cex = concrete_cex(n, le, li, T, calls)
         if cex:
-            log(f"  concrete run: call {cex['call']} after {cex['iterations']} iterations: the MIR ends "
-                f"{cex['mir']}, the property says {cex['property']}")
+            log(
+                f"  concrete run: call {cex['call']} after {cex['iterations']} iterations: the MIR ends "
+                f"{cex['mir']}, the property says {cex['property']}"
+            )
             report["concrete"] = cex
         if args.lean_neg:
             fl = next((x for x in fails if isinstance(x["counterexample"], dict)), None)
             if fl:
-                write_neg(args, args.lean_neg, T, I, mu, n, nhw, fl["counterexample"],
-                          f"Failing sequent: {fl['kind']}: goal {fl['goal']}; counterexample {fl['counterexample']}.")
+                write_neg(
+                    args,
+                    args.lean_neg,
+                    T,
+                    I,
+                    mu,
+                    n,
+                    nhw,
+                    fl["counterexample"],
+                    f"Failing sequent: {fl['kind']}: goal {fl['goal']}; counterexample {fl['counterexample']}.",
+                )
                 report["neg"] = args.lean_neg
         print(json.dumps(report))
         return 2
     report["discovery"] = "found"
-    log(f"all {len(seqs)} sequents valid by z3 (screening only); I = {report['I_math']}, mu = {report['mu_math']}")
+    log(
+        f"all {len(seqs)} sequents valid by z3 (screening only); I = {report['I_math']}, mu = {report['mu_math']}"
+    )
     if args.emit_candidate:
         with open(args.emit_candidate, "w") as fh:
-            json.dump({"format": "loop infer candidate 1", "source": report.get("source"), "I": I, "mu": mu,
-                       "I_lean": "[" + ", ".join(lean_f(f) for f in I) + "]", "mu_lean": lean_w(mu),
-                       "I_math": report["I_math"], "mu_math": report["mu_math"]}, fh)
+            json.dump(
+                {
+                    "format": "loop infer candidate 1",
+                    "source": report.get("source"),
+                    "I": I,
+                    "mu": mu,
+                    "I_lean": "[" + ", ".join(lean_f(f) for f in I) + "]",
+                    "mu_lean": lean_w(mu),
+                    "I_math": report["I_math"],
+                    "mu_math": report["mu_math"],
+                },
+                fh,
+            )
         report["candidate_out"] = args.emit_candidate
     if args.gen:
         write_gen(args, T, I, mu, n)
