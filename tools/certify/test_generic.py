@@ -2675,6 +2675,460 @@ def solar_bins(contract, text=None, src=None):
     )
 
 
+class SpecConnectLoops(unittest.TestCase):
+    """--loops reads the loop erasure's probe lines, refuses what the loop bridge does not prove,
+    and states each loop function's premises of the loop route from a kernel check."""
+
+    def args(self, **kw):
+        return argparse.Namespace(
+            **{"any_caller": False, "tree_only": False, "ghost_fixed": False, **kw}
+        )
+
+    def test_parse_and_refusals(self):
+        import spec_connect
+
+        ok = spec_connect.parse_loop("loop C.f 0 2987308228 [256, 160] TREE .stop")
+        self.assertEqual(ok, (0, 2987308228, "[256, 160]", ".stop"))
+        self.assertIsNone(spec_connect.loop_refusal(ok, 2, ([], []), self.args()))
+        for why, word in (
+            ("noloop", "eraseLoopStmt"),
+            ("nowidths", "widthsOf"),
+            ("returns", "wordBinding"),
+        ):
+            got = spec_connect.parse_loop(f"loop C.g {why}")
+            self.assertIn(
+                word, spec_connect.loop_refusal(got, 1, ([], []), self.args())
+            )
+        self.assertIn(
+            "probe", spec_connect.loop_refusal(None, 1, ([], []), self.args())
+        )
+        self.assertIn("eight", spec_connect.loop_refusal(ok, 9, ([], []), self.args()))
+        self.assertIn(
+            "selCall",
+            spec_connect.loop_refusal(ok, 2, ([], []), self.args(any_caller=True)),
+        )
+        succ = spec_connect.parse_loop("loop C.f 1 7 [] TREE .stop")
+        self.assertIn(
+            "succeeds-if", spec_connect.loop_refusal(succ, 0, ([], []), self.args())
+        )
+        self.assertIsNone(
+            spec_connect.loop_refusal(succ, 0, ([], []), self.args(tree_only=True))
+        )
+        self.assertIn(
+            "mappings", spec_connect.loop_refusal(ok, 2, ([3], []), self.args())
+        )
+
+    def test_loop_block(self):
+        import spec_connect
+
+        for fixed in (False, True):
+            lines = spec_connect.loop_block(
+                "f", "C.f", 1, 1, 7, "[256]", ".stop", "NS", "M", "B", "u", fixed, False
+            )
+            text = "\n".join(lines)
+            self.assertIn(
+                "TreeLoop.contractLoopCheck NS.contract? NS.fuel 7 1 [256] f_tree spec 1",
+                text,
+            )
+            self.assertIn("kernel_rfl f_loop_eq f_loop? true using u", text)
+            self.assertIn("TreeLoop.LoopSpec c NS.fuel 7 [256] f_tree spec :=", text)
+            self.assertIn(
+                "loopSpec_of_check_fixed" if fixed else "loopSpec_of_check hc", text
+            )
+            self.assertIn("#print axioms f_loop_spec", text)
+            self.assertNotIn("sorry", text)
+        tree = "\n".join(
+            spec_connect.loop_block(
+                "f", "C.f", 1, 1, 7, "[256]", ".stop", "NS", "M", "B", "u", False, True
+            )
+        )
+        self.assertIn("f_loop_eq", tree)
+        self.assertNotIn("f_meets", tree)
+
+    def test_provenance(self):
+        """--loops states the spec of the bundle it names only when that bundle is the core
+        module's contract's export: named alike, of the file the contract was imported from, with
+        that file's SHA-256."""
+        import spec_connect
+
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            (root / "C.sol").write_text("contract C {}\n")
+            sha = hashlib.sha256(b"contract C {}\n").hexdigest()
+            (root / "Core").mkdir()
+            (root / "Core" / "Src.lean").write_text("import Core.Ast\n")
+            (root / "Core" / "Ast.lean").write_text(
+                'namespace X\nnamespace Y\ndef importedSourceName : String := "C.sol"\nend Y\nend X\n'
+            )
+            (root / "Lib" / "gen").mkdir(parents=True)
+            spec = (
+                'def manifest : Manifest :=\n  { source := "C.sol",\n'
+                f'    sourceSha256 := "{sha}",\n    compiler := "" }}\n'
+            )
+            (root / "Lib" / "gen" / "Spec.lean").write_text(spec)
+            self.assertEqual(
+                spec_connect.module_path(root, "gen.Spec"), root / "Lib/gen/Spec.lean"
+            )
+            sources = spec_connect.core_source(root, "Core.Src")
+            self.assertEqual(sources, [("X.Y.importedSourceName", "C.sol")])
+            manifest = spec_connect.manifest_of(spec)
+            ok = spec_connect.provenance_refusal(("C", "C"), manifest, sources, root)
+            self.assertIsNone(ok)
+            for names, man, srcs, word in (
+                (("D", "C"), manifest, sources, "not of the checked contract"),
+                (None, manifest, sources, "names"),
+                (("C", "C"), None, sources, "manifest"),
+                (("C", "C"), manifest, [], "no single importedSourceName"),
+                (("C", "C"), manifest, sources * 2, "no single importedSourceName"),
+                (
+                    ("C", "C"),
+                    manifest,
+                    [("A.importedSourceName", "D.sol")],
+                    "imported from D.sol",
+                ),
+                (("C", "C"), ("C.sol", "0" * 64), sources, "SHA-256"),
+                (
+                    ("C", "C"),
+                    ("E.sol", sha),
+                    [("A.importedSourceName", "E.sol")],
+                    "not in the checkout",
+                ),
+            ):
+                self.assertIn(
+                    word, spec_connect.provenance_refusal(names, man, srcs, root)
+                )
+
+    BUNDLE = (
+        "def C : Bundle where\n"
+        "  fuel := 0\n"
+        "  spec :=\n"
+        '  { name := "C",\n'
+        "    invariants := [\n"
+        "    (.bin .le (.lit 0) (.lit 1))],\n"
+        "    specs := [\n"
+        '    { name := "C.f",\n'
+        "      ensures := [\n"
+        "        (.bin .eq (.arg 0) (.arg 0))],\n"
+        "      succeedsIf := [] }] }\n"
+    )
+
+    def fresh_root(self, d, sha_ok=True, exports=True):
+        """A checkout with C.sol, a front end that prints an AST body (and refuses unless it runs as
+        a copy, with its caches off and Python isolated), and a solar-verify that exports BUNDLE with
+        the source's SHA-256 (or a wrong one). Returns the root, solar-verify's path and its
+        SHA-256."""
+        root = pathlib.Path(d)
+        (root / "C.sol").write_text("contract C {}\n")
+        (root / "scripts").mkdir()
+        (root / "scripts" / "harness_cache.py").write_text("# cache\n")
+        (root / "scripts" / "solc_ast_to_lean_source.py").write_text(
+            "import os, pathlib, sys\n"
+            f"if pathlib.Path(__file__).resolve().parent == pathlib.Path({str(root.resolve() / 'scripts')!r}):\n"
+            "    sys.exit('run from the checkout, not a copy')\n"
+            "if os.environ.get('CONTEST_DISABLE_CACHE') != '1' or 'CONTEST_CACHE_DIR' in os.environ:\n"
+            "    sys.exit('caches on')\n"
+            "if not sys.flags.isolated:\n"
+            "    sys.exit('not isolated')\n"
+            "if not (pathlib.Path(__file__).parent / 'harness_cache.py').is_file():\n"
+            "    sys.exit('no harness_cache.py beside the copy')\n"
+            "solc = sys.argv[sys.argv.index('--solc') + 1]\n"
+            "if open(solc, 'rb').read() != b'solc':\n"
+            "    sys.exit('not the pinned solc')\n"
+            "ns = sys.argv[sys.argv.index('--namespace') + 1]\n"
+            "print('namespace ' + ns)\n"
+            "print('def importedSourceName : String := \"/abs/C.sol\"')\n"
+            "print('def importedSourceUnit : SourceUnit := { items := [] }')\n"
+            "print('end ' + ns)\n"
+        )
+        verify = root / "fake-solar-verify"
+        verify.write_text(
+            "#!/usr/bin/env python3\n"
+            "import hashlib, sys\n"
+            f"if not {exports!r}:\n"
+            "    sys.exit('error: cannot export to Lean: no')\n"
+            "out, src = sys.argv[2], sys.argv[-1]\n"
+            "sha = hashlib.sha256(open(src, 'rb').read()).hexdigest()\n"
+            f"sha = sha if {sha_ok!r} else '0' * 64\n"
+            "text = ('def manifest : Manifest :=\\n  { source := \"' + src + '\",\\n'\n"
+            "        '    sourceSha256 := \"' + sha + '\",\\n    compiler := \"\" }\\n\\n')\n"
+            f"open(out, 'w').write(text + {self.BUNDLE!r} + '\\n/-- wf -/\\n')\n"
+        )
+        verify.chmod(0o755)
+        (root / "solc").write_bytes(b"solc")
+        return root, str(verify), hashlib.sha256(verify.read_bytes()).hexdigest()
+
+    def export(self, root, verify, vsha, spec, cname="C", data=None, solc=None):
+        """fresh_export of C.sol's bytes (or `data`) with the pinned tools of `root`."""
+        import spec_connect
+
+        exporter = spec_connect.pinned_exporter(verify, vsha)
+        self.assertNotIsInstance(exporter, str, exporter)
+        front = spec_connect.front_end(root)
+        self.assertNotIsInstance(front, str, front)
+        if solc is None:
+            solc = (str(root / "solc"), "0.8.35", hashlib.sha256(b"solc").hexdigest())
+        if data is None:
+            data = (root / "C.sol").read_bytes()
+        return spec_connect.fresh_export(
+            "C.sol", data, cname, "M", spec, exporter, solc, front, "Out.FreshSource"
+        )
+
+    def test_bundle_block(self):
+        import spec_connect
+
+        text = (
+            "x\n\n/-- The specs. -/\n"
+            + self.BUNDLE
+            + "\ntheorem C_wf : C.WF = true := by decide\n"
+        )
+        self.assertEqual(spec_connect.bundle_block(text, "C"), self.BUNDLE)
+        self.assertIsNone(spec_connect.bundle_block(text, "D"))
+
+    def test_fresh_export(self):
+        """--loops binds the bundle's contents to the source bytes: the spec module's bundle must be
+        solar-verify's export of those bytes in this run, character for character; removing the
+        ensures or the invariant is refused. The tools run as copies of the bytes hashed."""
+        spec = "/-- s -/\n" + self.BUNDLE + "\n"
+        with tempfile.TemporaryDirectory() as d:
+            root, verify, vsha = self.fresh_root(d)
+            got = self.export(root, verify, vsha, spec)
+            self.assertNotIsInstance(got, str, got)
+            block, bsha, sha, ast = got
+            self.assertEqual(block, self.BUNDLE)
+            self.assertEqual(bsha, hashlib.sha256(self.BUNDLE.encode()).hexdigest())
+            self.assertEqual(sha, hashlib.sha256(b"contract C {}\n").hexdigest())
+            self.assertIn("namespace Out.FreshSource", ast)
+            self.assertIn("importedSourceUnit", ast)
+            self.assertNotIn("importedSourceName", ast)
+            # The snapshot's bytes are exported, not the file's now.
+            other = self.export(root, verify, vsha, spec, data=b"contract C { }\n")
+            self.assertEqual(other[2], hashlib.sha256(b"contract C { }\n").hexdigest())
+            for old, new in (
+                (
+                    "      ensures := [\n        (.bin .eq (.arg 0) (.arg 0))],\n",
+                    "      ensures := [],\n",
+                ),
+                (
+                    "    invariants := [\n    (.bin .le (.lit 0) (.lit 1))],\n",
+                    "    invariants := [],\n",
+                ),
+                ("(.arg 0) (.arg 0)", "(.arg 0) (.arg 1)"),
+            ):
+                self.assertIn(old, spec)
+                why = self.export(root, verify, vsha, spec.replace(old, new))
+                self.assertIsInstance(why, str)
+                self.assertIn("not solar-verify's export of C.sol in this run", why)
+            self.assertIn("defines no bundle", self.export(root, verify, vsha, ""))
+            self.assertIn(
+                "cannot be regenerated",
+                self.export(root, verify, vsha, spec, solc="no solc"),
+            )
+            self.assertIn(
+                "changed after",
+                self.export(
+                    root,
+                    verify,
+                    vsha,
+                    spec,
+                    solc=(str(root / "solc"), "0.8.35", "0" * 64),
+                ),
+            )
+            self.assertIn("no bundle `D`", self.export(root, verify, vsha, spec, "D"))
+        with tempfile.TemporaryDirectory() as d:
+            root, verify, vsha = self.fresh_root(d, sha_ok=False)
+            self.assertIn(
+                "does not record its SHA-256", self.export(root, verify, vsha, spec)
+            )
+        with tempfile.TemporaryDirectory() as d:
+            root, verify, vsha = self.fresh_root(d, exports=False)
+            self.assertIn("does not export", self.export(root, verify, vsha, spec))
+
+    def test_pinned_exporter(self):
+        """solar-verify runs only when its bytes have the pinned SHA-256."""
+        import spec_connect
+
+        with tempfile.TemporaryDirectory() as d:
+            root, verify, vsha = self.fresh_root(d)
+            data, got = spec_connect.pinned_exporter(verify, vsha)
+            self.assertEqual((data, got), (pathlib.Path(verify).read_bytes(), vsha))
+            self.assertIn(
+                "not the pinned solar-verify",
+                spec_connect.pinned_exporter(verify, "0" * 64),
+            )
+            self.assertIn(
+                "no pinned SHA-256", spec_connect.pinned_exporter(verify, None)
+            )
+            self.assertIn(
+                "no pinned SHA-256", spec_connect.pinned_exporter(verify, "ab")
+            )
+            self.assertIn("no solar-verify", spec_connect.pinned_exporter(None, vsha))
+            self.assertIn(
+                "not a file", spec_connect.pinned_exporter(str(root / "nope"), vsha)
+            )
+            (root / "scripts" / "harness_cache.py").unlink()
+            self.assertIn("missing", spec_connect.front_end(root))
+
+    def test_snapshot_source(self):
+        """The source the manifest names is a relative path inside the checkout, read once; the
+        provenance gate checks the snapshot's bytes when given."""
+        import spec_connect
+
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as out:
+            root = pathlib.Path(d)
+            (root / "C.sol").write_bytes(b"contract C {}\n")
+            (pathlib.Path(out) / "D.sol").write_bytes(b"contract D {}\n")
+            (root / "L.sol").symlink_to(pathlib.Path(out) / "D.sol")
+            self.assertEqual(
+                spec_connect.snapshot_source(root, "C.sol"), b"contract C {}\n"
+            )
+            for src, word in (
+                (str(root / "C.sol"), "not a relative path"),
+                ("../C.sol", "not a relative path"),
+                ("a/../../C.sol", "not a relative path"),
+                ("", "not a relative path"),
+                ("L.sol", "out of the checkout"),
+                ("E.sol", "not in the checkout"),
+            ):
+                self.assertIn(word, spec_connect.snapshot_source(root, src), src)
+            sha = hashlib.sha256(b"contract C {}\n").hexdigest()
+            srcs = [("A.importedSourceName", "C.sol")]
+            self.assertIsNone(
+                spec_connect.provenance_refusal(
+                    ("C", "C"), ("C.sol", sha), srcs, root, b"contract C {}\n"
+                )
+            )
+            self.assertIn(
+                "not the export's",
+                spec_connect.provenance_refusal(
+                    ("C", "C"), ("C.sol", sha), srcs, root, b"contract C { }\n"
+                ),
+            )
+            # The gate after Lean: a file changed since the snapshot is not the receipt's bytes.
+            (root / "C.sol").write_bytes(b"contract C { uint x; }\n")
+            self.assertIn(
+                "not the export's",
+                spec_connect.provenance_refusal(("C", "C"), ("C.sol", sha), srcs, root),
+            )
+            absolute = [("A.importedSourceName", str(root / "C.sol"))]
+            self.assertIn(
+                "not a relative path",
+                spec_connect.provenance_refusal(
+                    ("C", "C"), (str(root / "C.sol"), sha), absolute, root
+                ),
+            )
+
+    def test_pinned_solc(self):
+        import spec_connect
+
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            self.assertIn("missing", spec_connect.pinned_solc(root))
+            (root / "scripts" / "refinement").mkdir(parents=True)
+            solc = root / "solc"
+            solc.write_bytes(b"solc")
+            sha = hashlib.sha256(b"solc").hexdigest()
+            (root / "scripts/refinement/gen.sh").write_text(
+                f"solc_version=0.8.35\nsolc_sha256={sha}\n"
+            )
+            self.assertEqual(
+                spec_connect.pinned_solc(root, solc), (str(solc), "0.8.35", sha)
+            )
+            solc.write_bytes(b"other")
+            self.assertIn("not the pinned solc", spec_connect.pinned_solc(root, solc))
+
+    def test_fresh_block(self):
+        """The module names this run's export as its spec and has the kernel check the spec
+        module's bundle and the checked contract against it."""
+        import spec_connect
+
+        text = "\n".join(
+            spec_connect.fresh_block(
+                "Out",
+                "NS",
+                "Lib.M.C",
+                "C",
+                "C.sol",
+                "ab" * 32,
+                self.BUNDLE,
+                "cd" * 32,
+                "0.8.35",
+                {
+                    "exporterSha256": "e" * 64,
+                    "astToolSha256": "f" * 64,
+                    "astToolCacheSha256": "1" * 64,
+                    "solcSha256": "2" * 64,
+                },
+                "NS.selector_eq",
+            )
+        )
+        self.assertIn("def exported : Bundle where\n  fuel := 0", text)
+        self.assertIn("theorem spec_is_fresh : Lib.M.C = exported := rfl", text)
+        # The canonical type checker, its instance given: no instance found at elaboration.
+        explicit = (
+            "@SolidCore.Solidity.TypeCheck.CheckedInput.contract SolidCore.Solidity.TypeCheck.SourceUnitAst\n"
+            "      SolidCore.Solidity.TypeCheck.checkedInputSourceUnit"
+        )
+        self.assertIn(
+            "theorem source_is_fresh : NS.contract? =\n    "
+            + explicit
+            + ' Out.FreshSource.importedSourceUnit "C" :=\n  rfl',
+            text,
+        )
+        self.assertNotIn(
+            " SolidCore.Solidity.TypeCheck.CheckedInput.contract Out.FreshSource", text
+        )
+        # The changed-AST negative: the kernel checks that the canonical checker on a source unit
+        # without the contract does not give the core module's contract.
+        self.assertIn(
+            "theorem source_is_fresh_discriminates : NS.contract? ≠\n    "
+            + explicit
+            + ' ({ items := [] } : SolidCore.Solidity.SourceUnit) "C" := by',
+            text,
+        )
+        self.assertIn("  rw [h, hr] at hl\n  exact Bool.false_ne_true hl", text)
+        self.assertIn(
+            "kernel_rfl contractOk_eq contractOk? true using NS.selector_eq", text
+        )
+        self.assertIn("kernel_rfl emptyOk_eq emptyOk? false using NS.selector_eq", text)
+        for k, v in (
+            ("sourceSha256", "ab" * 32),
+            ("exporterSha256", "e" * 64),
+            ("astToolSha256", "f" * 64),
+            ("astToolCacheSha256", "1" * 64),
+            ("solcSha256", "2" * 64),
+        ):
+            self.assertIn(f'def {k} : String := "{v}"', text)
+        self.assertIn('def exportedSha256 : String := "' + "cd" * 32 + '"', text)
+        self.assertIn("#print axioms source_is_fresh", text)
+        self.assertNotIn("sorry", text)
+        lines = spec_connect.loop_block(
+            "f",
+            "C.f",
+            1,
+            1,
+            7,
+            "[256]",
+            ".stop",
+            "NS",
+            "Out",
+            "Out.exported",
+            "u",
+            False,
+            False,
+        )
+        self.assertIn(
+            "tree_meets [f_tree, f_spec, Out.spec, Out.exported, Out.ctx",
+            "\n".join(lines),
+        )
+
+    def test_overloads_refused(self):
+        import spec_connect
+
+        lines = ["fn C.f 1 noerase", "fn C.g 0 noerase", "fn C.f 2 noerase"]
+        self.assertEqual(spec_connect.duplicate_names(lines), ["C.f"])
+        self.assertEqual(spec_connect.lean_string('"C.f\\"x"'), 'C.f"x')
+
+
 class SpecConnectAnyCaller(unittest.TestCase):
     """--any-caller reads the symbolic-caller probe lines and refuses what holdsFn_of_tree_from
     does not cover, rather than stating it."""
