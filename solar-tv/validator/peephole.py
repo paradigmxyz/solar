@@ -111,6 +111,7 @@ def certificate(
     *,
     edits=None,
     preserve_stack_faults=False,
+    funded_call=None,
 ):
     code = prelude + "set_option maxHeartbeats 3000000\n"
     for name, model, ops in zip(("before", "after"), models, imported, strict=True):
@@ -175,6 +176,17 @@ theorem contextual {{World Halt : Type}}
   exact ⟨left, next, enough, sharedTail⟩
 #print axioms contextual
 """
+    if funded_call:
+        code += f"""
+theorem callSuffix : beforeTail.instructions.take 2 = ["gas","{funded_call}"] ∧
+    afterTail.instructions.take 2 = ["gas","{funded_call}"] := by decide +kernel
+#print axioms callSuffix
+
+def callReturn (prices : Nat → Nat × Nat) (Halt : Type) :=
+  @EVM.FundedCallWindow.contextual Halt .{funded_call} beforeCommon
+    (before prices) (after prices) {allow_source_fault} (middle prices)
+#print axioms callReturn
+"""
     return code
 
 
@@ -188,6 +200,7 @@ def check(
     *,
     paired_observers=False,
     preserve_stack_faults=False,
+    funded_call=False,
 ):
     from .check import PRELUDE, ROOT, build_model, run
 
@@ -204,7 +217,7 @@ def check(
     common, middles, tail = partition(models)
     from . import evm_schedule
 
-    if evm_schedule.repeated_partition(common, middles):
+    if not funded_call and evm_schedule.repeated_partition(common, middles):
         return evm_schedule.check(paths, solar, replay, version, timeout, entry)
     if len(common) + max(map(len, middles)) + len(tail) > 256:
         raise Unsupported("peephole context exceeds 256 instructions")
@@ -217,13 +230,31 @@ def check(
         # An explicit prefix proof must bind the shared preamble across images.
         suffix.admit_common(common, catalog, version)
     edits = low_mask_edits(*middles)
-    if edits is not None:
+    call = None
+    if funded_call:
+        if version != "cancun" or "gas" not in tail:
+            raise Unsupported("funded call requires a shared Cancun GAS/message suffix")
+        cut = tail.index("gas")
+        if tail[cut + 1 : cut + 2] not in (["call"], ["staticcall"]):
+            raise Unsupported(
+                "funded call requires GAS immediately before CALL or STATICCALL"
+            )
+        if any(observes_resources(line, catalog) for line in common):
+            raise Unsupported(
+                "funded call prelude contains a resource or image observer"
+            )
+        call = tail[cut + 1]
+        include, tail = tail[:cut], tail[cut:]
+        if edits is not None:
+            edits[-1].extend(include)
+        middles = [middle + include for middle in middles]
+    elif edits is not None:
         include, tail = low_mask_tail(tail, catalog)
         edits[-1].extend(include)
         middles = [middle + include for middle in middles]
     observers = sorted({line for line in tail if observes_resources(line, catalog)})
     layout = code_relocations.bind(models, texts, solar, version, timeout, catalog)
-    if observers and not paired_observers:
+    if observers and not (paired_observers or funded_call):
         if edits is not None:
             raise UnpairedContinuation(
                 "low-mask continuation requires paired observations for "
@@ -240,7 +271,7 @@ def check(
             version,
             labels,
             code_tail=layout is not None,
-            composed=edits is not None,
+            composed=edits is not None or funded_call,
         )
         for code in middles
     ]
@@ -264,6 +295,7 @@ def check(
         PRELUDE,
         edits=edits_proof,
         preserve_stack_faults=preserve_stack_faults,
+        funded_call=call,
     )
     build = build_model(timeout)
     if build.returncode:
@@ -272,15 +304,16 @@ def check(
         path = Path(folder) / "Pair.lean"
         path.write_text(code)
         result = run(["lake", "env", "lean", path], ROOT, timeout)
-    axioms = re.search(r"'contextual' depends on axioms: \[(.*?)\]", result.stdout)
-    if (
-        result.returncode
-        or not axioms
-        or set(axioms[1].split(", ")) - {"propext", "Quot.sound", "Classical.choice"}
-    ):
+    from . import entry_proof
+
+    if result.returncode:
         raise Unsupported(
             "stack peephole proof did not close\n" + result.stdout + result.stderr
         )
+    entry_proof.check_axioms(
+        [line for line in result.stdout.splitlines() if "axioms" in line],
+        code.count("#print axioms "),
+    )
 
     programs = tuple(
         Program(
@@ -295,7 +328,9 @@ def check(
             gas="refine",
             evm_version=version,
             import_evidence={
-                "kind": "kernel-checked-contextual-low-mask"
+                "kind": "kernel-checked-funded-call-return"
+                if call
+                else "kernel-checked-contextual-low-mask"
                 if edits
                 else "kernel-checked-contextual-peephole",
                 "source_sha256": hashlib.sha256(
@@ -305,6 +340,15 @@ def check(
                 "changed_window_operations": len(middle),
                 "continuation_operations": len(tail),
                 "continuation_observers": observers,
+                **(
+                    {
+                        "funded_message": call,
+                        "message_prefix": tail[:2],
+                        "post_call_operations": len(tail) - 2,
+                    }
+                    if call
+                    else {}
+                ),
                 **(
                     {
                         "low_mask_counts": [e for e in edits if isinstance(e, int)],

@@ -263,7 +263,16 @@ def covers_region(record, region):
 
 
 def evaluate_case(
-    case, solar, folder, limit, seed, timeout, *, passes=(), valid_heap=False
+    case,
+    solar,
+    folder,
+    limit,
+    seed,
+    timeout,
+    *,
+    passes=(),
+    valid_heap=False,
+    funded_calls=False,
 ):
     folder.mkdir()
     source = inputs(case)
@@ -454,6 +463,20 @@ def evaluate_case(
             )
         if dispatch:
             dispatch_reports[dispatch_key] = (target, record)
+        default_status = record["status"]
+        if (
+            funded_calls
+            and row["layer"] == "evmir"
+            and region
+            and region["kind"] in {"window", "region"}
+            and default_status == "unsupported"
+        ):
+            scoped = folder / f"funded-call-{index:03}.json"
+            candidate = check_entry(
+                solar, row, scoped, timeout, "--funded-call", region["name"]
+            )
+            if candidate["status"] == "verified":
+                target, record = scoped, candidate
         results.append(
             {
                 "id": row["id"],
@@ -461,6 +484,7 @@ def evaluate_case(
                 "pass": row["pass"],
                 "target": row["target"],
                 "status": record["status"],
+                **({"default_status": default_status} if funded_calls else {}),
                 "capture_rejection": row["rejection"],
                 "proof_mode": record.get("region", {}).get("proof", "original"),
                 "seconds": time.monotonic() - start,
@@ -499,6 +523,8 @@ def evaluate_case(
             proof_mode=record["region"]["proof"],
             seconds=result["seconds"] + time.monotonic() - start,
         )
+        if funded_calls:
+            result["default_status"] = record["status"]
     return {
         "case": case["name"],
         "archive_sha256": case["sha256"],
@@ -551,6 +577,11 @@ def main():
         help="also admit initialized-heap MIR function certificates",
     )
     parser.add_argument(
+        "--funded-calls",
+        action="store_true",
+        help="retry unsupported EVM blocks with the explicit funded-call policy",
+    )
+    parser.add_argument(
         "--pass",
         dest="passes",
         action="append",
@@ -601,6 +632,7 @@ def main():
         "limit": args.limit,
         "timeout": args.timeout,
         "valid_heap": args.valid_heap,
+        "funded_calls": args.funded_calls,
         "selected_passes": sorted(set(args.passes)),
         "cases": [],
         "expected_cases": len(cases),
@@ -623,6 +655,7 @@ def main():
                     args.timeout,
                     passes=args.passes,
                     valid_heap=args.valid_heap,
+                    funded_calls=args.funded_calls,
                 )
             )
         except (OSError, ValueError, subprocess.TimeoutExpired) as error:
@@ -636,10 +669,15 @@ def main():
             {"error": "no captures for passes: " + ", ".join(sorted(missing))}
         )
     counts = {status: 0 for status in audit.STATUSES}
+    default_counts = dict(counts)
     for case in report["cases"]:
         for check in case["checks"]:
             counts[check["status"]] += 1
+            if args.funded_calls:
+                default_counts[check["default_status"]] += 1
     report["totals"] = counts
+    if args.funded_calls:
+        report["default_totals"] = default_counts
     report["semantics_unchanged"] = report["semantics"] == audit.semantics()
     audit.write(args.output / "results.json", report)
     print(
@@ -647,6 +685,7 @@ def main():
             {
                 "cases": len(report["cases"]),
                 "totals": counts,
+                **({"default_totals": default_counts} if args.funded_calls else {}),
                 "errors": report["errors"],
             },
             indent=2,

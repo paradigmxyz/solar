@@ -71,6 +71,7 @@ import SolarTV.EVMIR.InteractionTrace
 import SolarTV.EVMIR.State.CallRefinement
 import SolarTV.EVMIR.State.FundedTrace
 import SolarTV.EVMIR.Transforms.SampledCall
+import SolarTV.EVMIR.Transforms.FundedCallWindow
 import SolarTV.EVMIR.Transforms.HeapEntry
 import SolarTV.EVMIR.Transforms.ReturnBuffer
 import SolarTV.EVMIR.Transforms.CompactPushes

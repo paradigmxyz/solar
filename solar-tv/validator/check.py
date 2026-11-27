@@ -798,6 +798,10 @@ def main() -> int:
         "--prefix", help="prove a block prefix for every incoming stack"
     )
     selection.add_argument(
+        "--funded-call",
+        help="check a block through a zero-value CALL return under a stable child policy",
+    )
+    selection.add_argument(
         "--stack-schedule", help="check an unpriced EVM stack schedule by block label"
     )
     selection.add_argument(
@@ -852,6 +856,7 @@ def main() -> int:
         stack_height=args.stack_height,
         world=args.world,
         prefix=args.prefix,
+        funded_call=args.funded_call,
         stack_schedule=args.stack_schedule,
         return_path=args.return_path,
         erc20_layout=args.erc20_layout,
@@ -895,6 +900,7 @@ def main() -> int:
             stack_height=args.stack_height,
             world=args.world,
             prefix=args.prefix,
+            funded_call=args.funded_call,
             stack_schedule=args.stack_schedule,
             return_path=args.return_path,
             erc20_layout=args.erc20_layout,
@@ -1175,6 +1181,26 @@ def main() -> int:
                 if args.entry_stack or args.stack_height is not None:
                     raise
                 result = evm_schedule.check(*inputs, from_entry=True)
+            programs = list(result.pair)
+        elif args.funded_call:
+            if (
+                args.ir != "evmir"
+                or args.world
+                or args.gas
+                or args.stack_height is not None
+            ):
+                raise Unsupported("--funded-call requires a symbolic EVM IR block")
+            from . import peephole
+
+            result = peephole.check(
+                (args.before, args.after),
+                solar,
+                rust_replay,
+                version,
+                args.timeout,
+                args.funded_call,
+                funded_call=True,
+            )
             programs = list(result.pair)
         elif args.prefix:
             if args.ir != "evmir" or args.world or args.stack_height is not None:
@@ -1638,7 +1664,13 @@ def main() -> int:
                     else {}
                 ),
             }
-        if args.function or args.window or args.region or args.prefix:
+        if (
+            args.function
+            or args.window
+            or args.region
+            or args.prefix
+            or args.funded_call
+        ):
             record["region"] = {
                 **record.get("region", {}),
                 "kind": "function"
@@ -1646,7 +1678,11 @@ def main() -> int:
                 else "region"
                 if args.region
                 else "window",
-                "name": args.function or args.window or args.region or args.prefix,
+                "name": args.function
+                or args.window
+                or args.region
+                or args.prefix
+                or args.funded_call,
                 "stack_height": args.stack_height,
             }
             record["whole_pass"] = False

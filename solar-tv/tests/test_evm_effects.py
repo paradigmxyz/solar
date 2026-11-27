@@ -46,6 +46,47 @@ class EffectPrefixTests(unittest.TestCase):
         self.assertTrue(report.exists(), result.stderr)
         return result, json.loads(report.read_text())
 
+    def test_gas_message_window_requires_the_funded_policy(self):
+        before, after = [
+            self.directory / f"{name}.evmir" for name in ("before", "after")
+        ]
+        header = "@module FundedMessage\nbb0 [stack=0]:\n  push 0xabcdef\n"
+        mask = "  push 0\n  not\n  push 96\n  shr\n  and\n"
+        shifts = "  push 96\n  shl\n  push 96\n  shr\n"
+        arguments = "  push 0\n  mstore\n  push 32\n  push 64\n  push 32\n  push 0\n"
+        for kind in ("call", "staticcall"):
+            with self.subTest(kind=kind):
+                value = "  push 0\n" if kind == "call" else ""
+                tail = (
+                    arguments
+                    + value
+                    + f"  push 17476\n  gas\n  {kind}\n  pop\n  stop\n"
+                )
+                before.write_text(header + mask + tail)
+                after.write_text(header + shifts + tail)
+                paths = [before, after]
+                rejected, record = self.cli(paths, "--prefix", "bb0")
+                self.assertEqual(rejected.returncode, 2, rejected.stderr)
+                self.assertEqual(record["status"], "unsupported")
+
+                verified, record = self.cli(paths, "--funded-call", "bb0")
+                self.assertEqual(verified.returncode, 0, verified.stderr)
+                self.assertEqual(
+                    record["region"]["proof"], "kernel-checked-funded-call-return"
+                )
+                self.assertFalse(record["whole_pass"])
+                self.assertEqual(
+                    record["import_correspondence"][0]["message_prefix"], ["gas", kind]
+                )
+
+                changed = tail.replace("  gas\n", "  gas\n  swap 1\n")
+                before.write_text(header + mask + changed)
+                after.write_text(header + shifts + changed)
+                result, record = self.cli(paths, "--funded-call", "bb0")
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertEqual(record["status"], "unsupported")
+                self.assertIn("immediately before", record["diagnostic"])
+
     def test_real_peephole_and_universal_resource_proof(self):
         before, after = [self.example / f"{name}.evmir" for name in ("before", "after")]
         compiled = subprocess.run(

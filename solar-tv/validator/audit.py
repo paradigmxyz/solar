@@ -1087,7 +1087,15 @@ def record(
                 assumptions.append(
                     "kernel-checked literal mask windows composed with matched operations, including the fork-selected SSTORE admission threshold"
                 )
-            if observers := program.import_evidence["continuation_observers"]:
+            if program.import_evidence.get("funded_message"):
+                assumptions.extend(
+                    [
+                        "the explicit funded-call policy requires zero value, known target code, call depth below 1024, room for GAS on the stack, admitted memory expansion, and enough original gas to pay the boundary and the child debit under EIP-150",
+                        "the child has the same success flag, returndata, journal and work, and consumes the same actual debit at all funded forwarding budgets; the kernel checks GAS and CALL admission and the resumed parent state under this policy",
+                        "export and physical cut bindings remain trusted; the certificate ends at the call return and leaves the remaining code and its gas-sensitive behavior outside scope",
+                    ]
+                )
+            elif observers := program.import_evidence["continuation_observers"]:
                 assumptions.append(
                     "continuation needs paired gas/code observations and outcomes for "
                     + ", ".join(observers)
