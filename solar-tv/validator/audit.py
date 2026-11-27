@@ -528,6 +528,16 @@ def record(
                 ]
             )
             if any(
+                check.get("affine_induction")
+                for check in program.import_evidence["correspondence"].values()
+            ):
+                assumptions.extend(
+                    [
+                        "kernel-checked affine cursor arithmetic, admitted count bounds and paired loop observations for every logical iteration budget and shared stateful effect",
+                        "typed export binds the compared loop headers, backedges, address producers and untouched outer control flow. Physical work and gas remain outside the induction certificate",
+                    ]
+                )
+            if any(
                 check.get("guarded_widths")
                 for check in program.import_evidence["correspondence"].values()
             ):

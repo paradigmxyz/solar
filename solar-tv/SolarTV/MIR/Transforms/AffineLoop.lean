@@ -155,4 +155,105 @@ def sentinelSimulation (base stride limit : Word) (positive : 0 < stride.toNat)
     · have last : i = limit := BitVec.eq_of_toNat_eq (by omega)
       simp [indexed,sentinel,iteration,below,last,Step.related]
 
+/-- The loop walks two modular addresses. Only the first cursor determines
+the exit, so the second stride needs no injectivity premise. -/
+structure CursorPair where
+  first : Word
+  second : Word
+
+def CursorPair.address (bases strides : CursorPair) (index : Word) : CursorPair :=
+  ⟨AffineLoop.address bases.first strides.first index,
+    AffineLoop.address bases.second strides.second index⟩
+
+def CursorPair.advance (cursors strides : CursorPair) : CursorPair :=
+  ⟨cursors.first + strides.first,cursors.second + strides.second⟩
+
+theorem CursorPair.addressStep (bases strides : CursorPair) (index : Word) :
+    bases.address strides (index+1) = (bases.address strides index).advance strides := by
+  simp only [CursorPair.address, CursorPair.advance, CursorPair.mk.injEq]
+  exact ⟨AffineLoop.addressStep _ _ _, AffineLoop.addressStep _ _ _⟩
+
+structure PairedFrame (State : Type) where
+  index : Word
+  cursors : CursorPair
+  state : State
+
+abbrev PairedEffect (State Event Failure : Type) :=
+  CursorPair → State → List Event × Except Failure State
+
+private def pairedStep (active : Bool) (effect : PairedEffect State Event Failure)
+    (cursors : CursorPair) (state : State) (next : State → PairedFrame State) :
+    Step (PairedFrame State) Event (Exit State Failure) :=
+  if active then
+    match effect cursors state with
+    | (events,.error reason) => .done events (.failure reason)
+    | (events,.ok updated) => .again events (next updated)
+  else .done [] (.success state)
+
+def indexedPair (bases strides : CursorPair) (limit : Word)
+    (effect : PairedEffect State Event Failure) :
+    Loop (PairedFrame State) Event (Exit State Failure) :=
+  fun f => pairedStep (decide (f.index.toNat < limit.toNat)) effect
+    (bases.address strides f.index) f.state
+    (fun state => ⟨f.index+1,f.cursors,state⟩)
+
+def walkedPair (strides : CursorPair) (finish : Word)
+    (effect : PairedEffect State Event Failure) :
+    Loop (PairedFrame State) Event (Exit State Failure) :=
+  fun f =>
+    if f.cursors.first = finish then .done [] (.success f.state)
+    else pairedStep true effect f.cursors f.state
+      (fun state => ⟨f.index+1,f.cursors.advance strides,state⟩)
+
+def pairedSimulation (bases strides : CursorPair) (limit : Word)
+    (positive : 0 < strides.first.toNat)
+    (fits : limit.toNat * strides.first.toNat < 2^256)
+    (effect : PairedEffect State Event Failure) :
+    Simulation (indexedPair bases strides limit effect)
+      (walkedPair strides (address bases.first strides.first limit) effect) where
+  invariant left right := left.index = right.index ∧
+    right.cursors = bases.address strides left.index ∧
+    left.state = right.state ∧ left.index.toNat ≤ limit.toNat
+  step := by
+    intro ⟨index,left,state⟩ ⟨other,right,otherState⟩ ⟨same,atCursor,shared,within⟩
+    obtain rfl := same
+    obtain rfl := atCursor
+    obtain rfl := shared
+    change index.toNat ≤ limit.toNat at within
+    have sameIndex := addressInjective bases.first strides.first index limit within positive fits
+    by_cases active : index.toNat < limit.toNat
+    · have different : index ≠ limit := by intro equal; simp [equal] at active
+      have moved : address bases.first strides.first index ≠ address bases.first strides.first limit :=
+        fun eq => different (sameIndex.mp eq)
+      unfold indexedPair walkedPair
+      have walking : (bases.address strides index).first ≠ address bases.first strides.first limit := moved
+      rw [ite_eq_right (fun hit => False.elim (walking hit)), decide_eq_true active]
+      simp only [pairedStep, ite_true]
+      split
+      · simp [Step.related]
+      · simp only [Step.related, true_and]
+        refine ⟨(CursorPair.addressStep bases strides index).symm,?_⟩
+        rw [nextIndex index limit active]
+        omega
+    · have equal : index = limit := BitVec.eq_of_toNat_eq (by omega)
+      simp [indexedPair,walkedPair,pairedStep,CursorPair.address,equal,Step.related]
+
+theorem pairedEntry (bases strides : CursorPair) (limit : Word)
+    (positive : 0 < strides.first.toNat)
+    (fits : limit.toNat * strides.first.toNat < 2^256)
+    (effect : PairedEffect State Event Failure) (fuel : Nat) (state : State) :
+    observe (indexedPair bases strides limit effect) fuel ⟨0,bases,state⟩ =
+      observe (walkedPair strides (address bases.first strides.first limit) effect)
+        fuel ⟨0,bases,state⟩ := by
+  apply (pairedSimulation bases strides limit positive fits effect).observe
+  simp [pairedSimulation,CursorPair.address,address]
+
+theorem calldataStrideBound (remaining length : Word)
+    (admitted : MIR.compare .lt (MIR.shift .shr remaining 5) length = 0) :
+    length.toNat * 32 < 2^256 := by
+  simp [MIR.compare, MIR.shift, Word.shift, BitVec.ult_iff_toNat_lt,
+    BitVec.toNat_ushiftRight] at admitted
+  have := remaining.isLt
+  omega
+
 end SolarTV.MIR.AffineLoop

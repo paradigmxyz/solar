@@ -278,6 +278,38 @@ theorem {tag} {bound.inputs} {" ".join(bound.premises)} :
 """
 
 
+def packed_blend(inst, guards):
+    op = inst["operation"]
+    if inst["type"] != WORD or op.get("name") != "xor" or op["kind"] != "opcode":
+        return None
+    incoming, replaced = op["args"]
+    if incoming["kind"] not in DEFINED_WORDS or incoming["type"] != WORD:
+        return None
+    _, mask_op = guards.definition(replaced)
+    field = masked(mask_op)
+    if field is None:
+        return None
+    difference, keep, reversed_mask = field
+    _, xor = guards.definition(difference)
+    if reversed_mask or xor.get("name") != "xor" or xor["kind"] != "opcode":
+        return None
+    old, same = xor["args"]
+    if same != incoming or old["kind"] not in DEFINED_WORDS or old["type"] != WORD:
+        return None
+    return old, incoming, keep
+
+
+def blend_equation(tag, keep):
+    low = (2**256 - 1) ^ keep
+    return f"""
+theorem {tag} (old incoming : Word) :
+    MIR.eval .xor incoming (MIR.eval .and (MIR.eval .xor old incoming) {keep}#256) =
+      MIR.eval .or (MIR.eval .and old {keep}#256) (MIR.eval .and incoming {low}#256) :=
+  MIR.WordRewrite.blend old incoming {keep}#256
+#print axioms {tag}
+"""
+
+
 def normalize(body, name):
     blocks = body["blocks"]
     if len(blocks) > 1024:
@@ -285,9 +317,50 @@ def normalize(body, name):
     guards = Guards(blocks)
     aliases, updated, proofs, sites = {}, [], [], set()
     stats = Counter()
+    fresh = max(guards.definitions, default=0) + 1
     for index, block in enumerate(blocks):
         instructions = []
         for inst in block["instructions"]:
+            if blend := packed_blend(inst, guards):
+                old, incoming, keep = blend
+                low = (2**256 - 1) ^ keep
+                instructions.extend(
+                    [
+                        {
+                            "result": fresh,
+                            "type": WORD,
+                            "operation": {
+                                "kind": "opcode",
+                                "name": "and",
+                                "args": [incoming, literal(low, WORD)],
+                            },
+                        },
+                        {
+                            "result": fresh + 1,
+                            "type": WORD,
+                            "operation": {
+                                "kind": "opcode",
+                                "name": "and",
+                                "args": [old, literal(keep, WORD)],
+                            },
+                        },
+                        {
+                            **inst,
+                            "operation": {
+                                "kind": "opcode",
+                                "name": "or",
+                                "args": [
+                                    scalar_checks.local(fresh + 1, WORD),
+                                    scalar_checks.local(fresh, WORD),
+                                ],
+                            },
+                        },
+                    ]
+                )
+                fresh += 2
+                proofs.append(blend_equation(f"{name}Blend{len(proofs)}", keep))
+                stats["packed_blends"] += 1
+                continue
             inst, shift_proof = masked_shift(inst, guards, f"{name}Width{len(proofs)}")
             if shift_proof:
                 proofs.append(shift_proof)

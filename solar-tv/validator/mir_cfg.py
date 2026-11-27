@@ -8,6 +8,7 @@ from itertools import batched
 from pathlib import Path
 
 from . import (
+    affine_loop,
     audit,
     dead_ssa,
     entry_proof,
@@ -1371,6 +1372,7 @@ set_option maxHeartbeats 2000000
     read_only = None
     heap_used = False
     private_cursor_used = False
+    affine_used = False
     while work:
         name = work.pop()
         if name in checked:
@@ -1389,6 +1391,16 @@ set_option maxHeartbeats 2000000
         source = a
         expansions = {}
         private_projection = None
+        affine_code = ""
+        if (
+            lowering is None
+            and a != b
+            and (affine := affine_loop.project(a, b, f"affine{i}"))
+        ):
+            facts, affine_code = affine
+            source = b
+            affine_used = True
+            expansions["affine_induction"] = facts
         if valid_heap and lowering is None and a != b and name == function:
             if scalar_definitions is None:
                 scalar_definitions = {
@@ -1484,6 +1496,7 @@ set_option maxHeartbeats 2000000
             + first_index_code
             + second_index_code
         )
+        body_code += affine_code
         if private_projection is not None:
             body_code += private_cursor.certificate(i, private_projection[1])
         for side, graph in enumerate((old, new)):
@@ -1576,16 +1589,19 @@ set_option maxHeartbeats 2000000
                 try:
                     pairs = pairing(old, new)
                 except Unsupported:
-                    if width_checks:
-                        projected, width_stats, width_code = project_width_guards(
+                    try:
+                        projected, widths, width_code = project_width_guards(
                             i, normalized, scalar_definitions, version
                         )
                         pairs = pairing(*projected)
-                    else:
+                    except Unsupported:
+                        if width_checks:
+                            raise
                         pairs = None
-                if width_stats:
-                    old, new = projected
-                    body_code += width_code
+                    else:
+                        width_stats = widths
+                        old, new = projected
+                        body_code += width_code
                 if pairs is None:
                     first_state_use = read_only is None
                     if first_state_use:
@@ -1795,6 +1811,8 @@ set_option maxHeartbeats 2000000
             if private_cursor_used
             else "kernel-checked-valid-heap-read-reuse"
             if heap_used
+            else "kernel-checked-affine-induction"
+            if affine_used
             else "kernel-checked-typed-jump-chain",
         ),
         "functions": sorted(checked),

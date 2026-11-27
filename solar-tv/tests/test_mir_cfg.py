@@ -19,6 +19,92 @@ from validator.common import Program, Unsupported
 
 
 class MirCfgTests(unittest.TestCase):
+    def test_indvar_simplify_checks_both_cursors(self):
+        original = """@module TwoCursors
+fn @copy(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v8]
+    v1 = lt v0, arg2
+    jumpi v1, bb2, bb3
+  bb2:
+    v2 = add arg0, v0
+    v3 = sload v2
+    v4 = shl v0, 5
+    v5 = add arg1, v4
+    mstore v5, v3
+    v8 = add v0, 1
+    jump bb1
+  bb3:
+    v9 = add arg1, 32
+    v10 = mload v9
+    ret v10
+}
+"""
+        optimized = """@module TwoCursors
+fn @copy(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = add arg0, arg2
+    jump bb1
+  bb1:
+    v1 = phi [bb0: arg0], [bb2: v5]
+    v2 = phi [bb0: arg1], [bb2: v6]
+    v3 = ne v0, v1
+    jumpi v3, bb2, bb3
+  bb2:
+    v4 = sload v1
+    mstore v2, v4
+    v5 = add v1, 1
+    v6 = add v2, 32
+    jump bb1
+  bb3:
+    v9 = add arg1, 32
+    v10 = mload v9
+    ret v10
+}
+"""
+        changed = optimized.replace("v6 = add v2, 32", "v6 = add v2, 64")
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{side}.mir" for side in ("before", "after"))
+            before.write_text(original)
+            after.write_text(optimized)
+            executable = native.default(SOLAR)
+            args = ((before, after), SOLAR, executable, "cancun", 60, "copy")
+            result = mir_cfg.check(*args)
+            self.assertEqual(result.status, "verified")
+            proof = result.program.import_evidence["correspondence"]["copy"]
+            self.assertEqual(proof["affine_induction"]["strides"], [1, 32])
+
+            after.write_text(changed)
+            with self.assertRaises(Unsupported):
+                mir_cfg.check(*args)
+            path = root / "world.json"
+            path.write_text(
+                '{"version":1,"accounts":[{"address":65536,"storage":{"7":"11","8":"29"}}]}'
+            )
+            initial = world.read(path, SOLAR, None, kind="mir")
+            programs = [
+                Program(
+                    ("world-entry", "mir"),
+                    ["arg0", "arg1", "arg2"],
+                    "",
+                    "",
+                    world=initial,
+                    selector="copy",
+                    replay_ir=ir,
+                )
+                for ir in (original, changed)
+            ]
+            result = native.replay(
+                *programs, [7, 128, 2], executable=executable, timeout=10
+            )
+            self.assertEqual(
+                [json.loads(row)["values"] for row in result["observations"]],
+                [["29"], ["0"]],
+            )
+
     def test_word_sequence_combines_the_allocation_rounding_adds(self):
         old_rounding = """    v2 = add v1, 31
     v3 = and v2, {mask}

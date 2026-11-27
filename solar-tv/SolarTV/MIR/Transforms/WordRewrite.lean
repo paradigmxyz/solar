@@ -85,6 +85,17 @@ theorem normalized (key : Key) (input : Word) :
     · rfl
     · exact (LowerReturndata.combinedSize input).symm
 
+/-- XOR substitution writes the incoming bits outside the keep mask. -/
+theorem blend (old incoming mask : Word) :
+    incoming ^^^ ((old ^^^ incoming) &&& mask) =
+      (old &&& mask) ||| (incoming &&& ~~~mask) := by
+  apply BitVec.eq_of_getLsbD_eq
+  intro index inBounds
+  simp only [BitVec.getLsbD_xor, BitVec.getLsbD_and, BitVec.getLsbD_or,
+    BitVec.getLsbD_not, inBounds, decide_true, Bool.true_and]
+  cases incoming.getLsbD index <;> cases old.getLsbD index <;>
+    cases mask.getLsbD index <;> rfl
+
 inductive Offset where
   | add (amount : Word)
   | sub (amount : Word)
