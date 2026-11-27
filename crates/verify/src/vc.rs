@@ -2380,6 +2380,22 @@ impl<'p, 'a> Vc<'p, 'a> {
         (self.aliases, self.alias_env, self.slocals) = p;
     }
 
+    /// Enters a spec evaluation of a function body: no caller storage pointer is in scope, so a body
+    /// local of the same name is the body's own. Returns what `leave_spec_body` restores.
+    pub(super) fn enter_spec_body(&mut self) -> (Env, PtrState<'a>) {
+        let ptrs = (
+            std::mem::take(&mut self.aliases),
+            std::mem::take(&mut self.alias_env),
+            std::mem::take(&mut self.slocals),
+        );
+        (self.env.clone(), ptrs)
+    }
+
+    pub(super) fn leave_spec_body(&mut self, (env, ptrs): (Env, PtrState<'a>)) {
+        self.env = env;
+        self.set_ptr_state(ptrs);
+    }
+
     /// Whether two pointer states point every storage pointer at the same location.
     fn same_ptrs(a: &PtrState<'a>, b: &PtrState<'a>) -> bool {
         let same_env = |x: &Env, y: &Env| {
@@ -7176,13 +7192,13 @@ impl<'p, 'a> Vc<'p, 'a> {
                 }
                 return self.spec_inline(c, f, &args, span);
             };
-            let saved = self.env.clone();
+            let saved = self.enter_spec_body();
             for ((n, ty), a) in f.params.iter().zip(&args) {
                 self.env
                     .insert(n.clone(), Var { ty: ty.clone(), t: a.t.clone(), len: a.len.clone() });
             }
             let r = self.eval(body);
-            self.env = saved;
+            self.leave_spec_body(saved);
             let mut v = r?;
             if let Some((_, ty)) = f.rets.first() {
                 v.ty = ty.clone();

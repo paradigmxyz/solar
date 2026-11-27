@@ -1376,6 +1376,11 @@ fn callee_local_scope() {
 }
 
 #[test]
+fn spec_view_scope() {
+    check("tests/cases/spec_view_scope.sol")
+}
+
+#[test]
 fn modifier_pointer_scope() {
     check("tests/cases/modifier_pointer_scope.sol")
 }
