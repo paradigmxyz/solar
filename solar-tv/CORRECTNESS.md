@@ -4260,6 +4260,68 @@ The latter replay uses a common driver that constructs the input slice.
 The join retains the three original corpus fingerprints and records the
 proof mode, exporter and raw input hashes for each retry.
 
+### Complete pinned MIR integer cleanup
+
+The serial `evaluate --all --pass integer-cleanup --timeout 30 --seed 0
+--require-verified` run verifies **35 of 35** captures. All capture IDs and
+both raw MIR hashes per capture match the frozen audit. The ABI, creation
+bytecode and runtime bytecode match between plain and capture compilation
+for all three contracts.
+
+| Contract | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: |
+| Solady WETH | 7 | 0 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 7 | 0 | 0 | 0 |
+| Morpho Blue | 21 | 0 | 0 | 0 |
+| Total | 35 | 0 | 0 | 0 |
+
+The ordinary typed MIR checker closes the remaining WETH `permit` and
+eleven Morpho functions. Lean checks the unsigned bounds on accepted
+branches, a non-wrapping subtraction with a bounded minuend, low masks,
+boolean widening, and masks whose discarded bits are shifted out. For each
+guarded edit it checks that the use cannot be reached from entry or from
+the operand's definition without crossing the accepted edge. The second
+start point prevents reuse of a stale guard after a loop redefinition.
+The normalized CFG certificate checks the selected function and its
+direct callees under shared logical frames. It retains ordered
+`GAS`, message and state requests with shared replies. Attachment of
+the checked equations to the exported MIR producers and branch arms
+still relies on the typed importer. Pricing, external callback execution
+and ABI-to-bytecode correspondence remain separate obligations.
+The regression widens an eight-bit guard and checks that
+the resulting rewrite loses its proof. Lean and independent Rust replay
+agree on the different return and storage observations.
+
+Pinned Rust replay checks the two emitted snapshot pairs after the same
+remaining compiler pipeline, including deployment to bind Morpho's
+immutable domain separator. Fourteen Cancun fixtures agree on status,
+return data, refunds, accounts and logs. These include WETH's invalid
+signature, Morpho's funded flash loan, signed authorization, interest
+accrual, the fee update and rejected paths for the other seven Morpho
+entries. The ordinary flash loan leaves 493,707 gas before and 493,721
+after. A separate fixture with a gas-observing token succeeds on both
+images and writes different values, 464,473 and 464,487, to token storage.
+This distinguishes the physical executions with arbitrary child code.
+
+The saved corpus audit, updated by matching the twelve new proofs to
+their original captures, verifies **2,207 of 2,228 (99.1%)**. The 21
+remaining captures are unsupported. The largest remaining group is
+MIR `memory-dse` with five.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Pinned compiler | `f996616dcf2ebacf05fc5cc439f4814dc38fe953fad90b698754281c59ef139c` |
+| Compiler launcher | `c935a2bf85933ee1790810177538c159d5a974d89f383b5efb73e88236f5d165` |
+| Pinned Rust replay | `1c08fa6d66c19b52b661c4db7c93fc1d257948cb592d9856d09a237c174bca0c` |
+| Checker on Lean 4.34.1 | `981fdb72659568bf2f5e6318a8a49a6ba506f3ba1b4e176ffe67fabb64f237fd` |
+| Input manifest | `b08af7eb00ac67a5ef1200d50273beedc48d5517838ed67504bd1a76ba96b7b7` |
+| Solady WETH input | `b751f0da2642fba80d176248ff576b06d45601fda253d9de32f9a78e3b70a4c0` |
+| OpenZeppelin ERC20Mock input | `c85c24c264a2ae9a97b32050f93426376c8cb20e15f6e5ad5dc1414ee46ce2c4` |
+| Morpho Blue input | `01f4aaf9db4940ea9a62aba808ba1655ef399c671b6ed29875f8a91c3efeba53` |
+| `target/tv-integer-final/fresh/results.json` | `3906a0b05650f8ba28a263613af8c4a004807a6bcb11771953a30417b79a7f70` |
+| `target/tv-integer-final/remaining.json` | `09794879b1845dba841f3a948ce5e92d122bbe43bd8680c8e864bd0bb461bf7c` |
+| `target/tv-integer-final/rust-replay.json` | `7f8a25f1fa633eefe0a9a5dbdc419db4cd1adc336488d38086197e717d30ff42` |
+
 ### MIR CFG checks after an import timeout
 
 The earlier three-second census timed out on 23 Morpho MIR `cfg-simplify`
