@@ -2784,7 +2784,8 @@ impl<'p, 'a> Vc<'p, 'a> {
         if self.depth > 8 {
             return not_spec("recursion");
         }
-        let saved_env = self.env.clone();
+        // A caller's storage pointer would otherwise answer for a body local of the same name.
+        let saved_env = self.enter_spec_body();
         let saved_c = std::mem::replace(&mut self.c, c);
         for ((n, ty), a) in f.params.iter().zip(args) {
             self.env.insert(n.clone(), Var { ty: ty.clone(), t: a.t.clone(), len: a.len.clone() });
@@ -2852,7 +2853,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             Ok(f.rets.iter().map(|(n, _)| self.env[n].clone()).collect())
         })();
         self.depth -= 1;
-        self.env = saved_env;
+        self.leave_spec_body(saved_env);
         self.c = saved_c;
         let mut out = r?;
         for (v, (_, ty)) in out.iter_mut().zip(&f.rets) {
