@@ -33,8 +33,8 @@
 //! grows memory further than it already grew. The result is a pure value
 //! computation; the reads it removes observed no state the remaining read does
 //! not observe. Like CSE, the pass stops at the first gas observation in a
-//! block and skips blocks a gas observation may reach, so every read after one
-//! stays and a later `gas` read sees what it cost.
+//! block and skips blocks a gas observation may reach, so no read after one is
+//! fused or shared away and a later `gas` read sees what it cost.
 //!
 //! A run is at most one word long and every interior node must be used only by
 //! the run, so the rewrite is unconditionally fewer instructions and smaller
