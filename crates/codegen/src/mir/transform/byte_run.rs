@@ -32,8 +32,9 @@
 //! touches a byte of memory the original code did not already touch and never
 //! grows memory further than it already grew. The result is a pure value
 //! computation; the reads it removes observed no state the remaining read does
-//! not observe. A `gas` read ends a run and a shared group like a side effect,
-//! so the pass never removes a read that would expand memory after one.
+//! not observe. Like CSE, the pass stops at the first gas observation in a
+//! block and skips blocks a gas observation may reach, so every read after one
+//! stays and a later `gas` read sees what it cost.
 //!
 //! A run is at most one word long and every interior node must be used only by
 //! the run, so the rewrite is unconditionally fewer instructions and smaller
@@ -63,7 +64,8 @@
 
 use crate::mir::{
     Function, Immediate, InstId, InstKind, Module, PtrLocation, Value, ValueId,
-    pass::{MirPass, ModuleAnalyses, run_function_pass},
+    analysis::GasObservations,
+    pass::{FunctionAnalyses, MirPass, ModuleAnalyses, run_function_pass_with_alias_and_cfg},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{index::IndexVec, map::FxHashSet};
@@ -84,8 +86,8 @@ impl MirPass for ByteRunLoads {
     }
 
     fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
-            let (changed, swept) = run_function(func);
+        run_function_pass_with_alias_and_cfg(module, analyses, |func, analyses| {
+            let (changed, swept) = run_function(func, analyses);
             if swept && !changed {
                 analyses.note_unreported_edit();
             }
@@ -107,7 +109,7 @@ struct Leaf {
 }
 
 /// Returns whether the function changed, and whether dead instructions were swept regardless.
-fn run_function(func: &mut Function) -> (bool, bool) {
+fn run_function(func: &mut Function, analyses: &FunctionAnalyses) -> (bool, bool) {
     // A dead use of an extracted byte would hide the run behind a use count the
     // shape does not really have, so drop unused pure instructions first.
     let swept = sweep_dead(func);
@@ -116,18 +118,24 @@ fn run_function(func: &mut Function) -> (bool, bool) {
         return (false, swept);
     }
     let uses = super::egraph::use_counts(func);
+    // Reads after a gas observation stay, so a later `gas` read sees their cost.
+    let gas = GasObservations::new(func, analyses.cfg(), analyses.alias());
     let mut changed = false;
-    // A side-effecting instruction may store into the range being read, and a
-    // `gas` read observes the cost of the reads after it, so only instructions
-    // since the last one can take part in a run.
+    // A side-effecting instruction may store into the range being read, so
+    // only instructions since the last one can take part in a run.
     let mut window = FxHashSet::default();
     let mut leaves = Vec::new();
     for block in func.blocks.indices().collect::<Vec<_>>() {
         window.clear();
+        if gas.at_entry(block) {
+            continue;
+        }
         for index in 0..func.blocks[block].instructions.len() {
             let inst = func.blocks[block].instructions[index];
-            let kind = &func.inst(inst).kind;
-            if kind.has_side_effects() || kind.observes_gas() {
+            if gas.observes(inst) {
+                break;
+            }
+            if func.inst(inst).kind.has_side_effects() {
                 window.clear();
                 continue;
             }
@@ -139,7 +147,7 @@ fn run_function(func: &mut Function) -> (bool, bool) {
             window.insert(inst);
         }
     }
-    changed |= share_reads(func);
+    changed |= share_reads(func, &gas);
     if changed {
         sweep_dead(func);
     }
@@ -298,7 +306,7 @@ fn address_key(func: &Function, address: ValueId) -> Option<(Vec<ValueId>, u64)>
 }
 
 /// Points every group of neighbouring byte extractions at one word read.
-fn share_reads(func: &mut Function) -> bool {
+fn share_reads(func: &mut Function, gas: &GasObservations) -> bool {
     let mut changed = false;
     let mut groups: Vec<Vec<(u64, InstId, ValueId)>> = Vec::new();
     let mut bases: Vec<Vec<ValueId>> = Vec::new();
@@ -309,12 +317,17 @@ fn share_reads(func: &mut Function) -> bool {
         groups.clear();
         bases.clear();
         window.clear();
+        if gas.at_entry(block) {
+            continue;
+        }
         instructions.clone_from(&func.blocks[block].instructions);
         for &inst in &instructions {
-            // A store may change what a later read sees, and a `gas` read
-            // observes the cost of later reads, so a group cannot span either.
-            let kind = &func.inst(inst).kind;
-            if kind.has_side_effects() || kind.observes_gas() {
+            if gas.observes(inst) {
+                break;
+            }
+            // A store may change what a later read sees, so a group cannot
+            // span one.
+            if func.inst(inst).kind.has_side_effects() {
                 changed |= rewrite_groups(func, &groups);
                 groups.clear();
                 bases.clear();

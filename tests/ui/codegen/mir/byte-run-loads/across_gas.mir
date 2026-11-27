@@ -2,8 +2,8 @@
 //@ filecheck:
 @module AcrossGas
 
-// A word read before a `gas` read must not replace a read after it: the later read may expand
-// memory, and its cost belongs after the gas observation.
+// No memory read after a `gas` read goes away: it may expand memory, and a later `gas` read must
+// see that cost. A word read before the `gas` read must not replace one after it either.
 
 // CHECK-LABEL: fn @fused(
 // CHECK-NOT: {{^[-+]}}
@@ -34,4 +34,40 @@ fn @shared(arg0: i256) -> i256 {
     v6 = add v1, v5
     v7 = add v6, v2
     ret v7
+}
+
+// A run whose reads all follow a `gas` read stays too.
+// CHECK-LABEL: fn @after(
+// CHECK-NOT: {{^[-+]}}
+fn @after(arg0: i256) -> i256 {
+  bb0:
+    v0 = gas
+    v1 = mload arg0
+    v2 = add arg0, 1
+    v3 = mload v2
+    v4 = byte 0, v1
+    v5 = byte 0, v3
+    v6 = shl v4, 8
+    v7 = or v6, v5
+    v8 = add v7, v0
+    ret v8
+}
+
+// So does one in a block a `gas` read reaches.
+// CHECK-LABEL: fn @later_block(
+// CHECK-NOT: {{^[-+]}}
+fn @later_block(arg0: i256) -> i256 {
+  bb0:
+    v0 = gas
+    jump bb1
+  bb1:
+    v1 = mload arg0
+    v2 = add arg0, 1
+    v3 = mload v2
+    v4 = byte 0, v1
+    v5 = byte 0, v3
+    v6 = shl v4, 8
+    v7 = or v6, v5
+    v8 = add v7, v0
+    ret v8
 }
