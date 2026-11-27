@@ -2842,6 +2842,8 @@ class NoConstructorRoute(unittest.TestCase):
         self.assertEqual(old.out[0].count("if a.canon.beq b.canon then"), 2 * len(fns))
         old.out[0] = old.out[0].replace("if a.canon.beq b.canon then", agree)
         self.assertEqual(generic.out[0].count(agree), 2 * len(fns))
+        # And the run's stages are exported under the run's own namespace (export_ns.py).
+        old.out[0] = old.out[0].replace("SolarTV.Export.C.", "SolarTV.Export.x_0000abcd.C.")
         self.assertEqual(old.out, generic.out)
         if SOLC.exists():
             src = LIFE / "NoArgCtor.sol"
