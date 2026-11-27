@@ -4590,7 +4590,11 @@ class LoopVerdict(unittest.TestCase):
     def setUp(self):
         import argparse
         import hashlib
+        import tempfile
 
+        self.tmp = tempfile.TemporaryDirectory()
+        self.src = pathlib.Path(self.tmp.name) / "s.sol"
+        self.src.write_text("contract T {}\n")
         fn = lambda name, sel, doc=None: {
             "nodeType": "FunctionDefinition", "name": name, "kind": "function", "visibility": "public",
             "functionSelector": sel, "body": {"nodeType": "WhileStatement"},
@@ -4604,12 +4608,23 @@ class LoopVerdict(unittest.TestCase):
         self.record = {
             "name": "t_1", "requested_tier": "certified", "contract": "T",
             "loop_final": {
-                "functions": ["f"], "final": {"theorem": "Certified.t_1.Final.final", "strongest": False},
+                "functions": ["f"],
+                "final": {
+                    "theorem": "Certified.t_1.Final.final", "strongest": False, "statement_kind": "expected",
+                    "expected": {
+                        "source_sha256": hashlib.sha256(self.src.read_bytes()).hexdigest(),
+                        "runtime_sha256": hashlib.sha256(bytes.fromhex(self.PLAIN)).hexdigest(),
+                        "inventory": [{"name": "T.f", "selector": "0xfd0011a5"}],
+                        "inventory_module": "t_1.LoopSpecInventory",
+                        "toolchain": {"compiler": "0.8.38+commit.unknown.solar.0.3.0"},
+                        "stages": [{"file": "Stage0", "pass": "lower-evm-shaped"}, {"file": "Bytecode", "pass": "assemble"}],
+                    },
+                },
                 "axioms": ["propext", "Classical.choice", "Quot.sound"],
                 "fresh_byte": {"check_final": "FRESH x", "runtime_sha256": hashlib.sha256(bytes.fromhex(self.PLAIN)).hexdigest()},
                 "replay": {"closure": 10, "replayed_count": 10, "trusted_count": 0},
                 "parts": {"f": self.part},
-                "inventory": {"theorem": "Certified.t_1.LoopSpecInventory.inventory",
+                "inventory": {"theorem": "Certified.t_1.LoopSpecInventory.inventory", "module": "t_1.LoopSpecInventory",
                               "specs": [{"name": "T.f", "selector": "0xfd0011a5"}]},
             },
         }
@@ -4620,9 +4635,10 @@ class LoopVerdict(unittest.TestCase):
 
     def tearDown(self):
         generic.solar_runtime, generic.build_solar = self.saved
+        self.tmp.cleanup()
 
     def verdict(self, record=None, reasons=None, oog=None, ast=None):
-        return generic.loop_verdict(record or self.record, reasons or self.reasons, "s.sol", ast or self.ast, self.a, oog)
+        return generic.loop_verdict(record or self.record, reasons or self.reasons, str(self.src), ast or self.ast, self.a, oog)
 
     def test_certified_bounded_with_unbounded_reported(self):
         with self.assertRaises(generic.LoopCertified) as e:
@@ -4666,6 +4682,15 @@ class LoopVerdict(unittest.TestCase):
             "unchecked True": m(lambda lf: lf["parts"]["f"].update(spec="none", no_spec=None)),
             "translation only at certified": m(lambda lf: lf["parts"]["f"].update(
                 spec="none", no_spec={"theorem": "Certified.t_1.LoopSpecInventory.f_no_spec"})),
+            # Term 6: the final must be the expected statement, binding this run's artifacts.
+            "not the expected statement": m(lambda lf: lf["final"].pop("statement_kind")),
+            "no expected record": m(lambda lf: lf["final"].pop("expected")),
+            "another source": m(lambda lf: lf["final"]["expected"].update(source_sha256="0" * 64)),
+            "other bytes bound": m(lambda lf: lf["final"]["expected"].update(runtime_sha256="0" * 64)),
+            "another inventory": m(lambda lf: lf["final"]["expected"].update(inventory=[])),
+            "no stage chain": m(lambda lf: lf["final"]["expected"].update(stages=[])),
+            "no compiler": m(lambda lf: lf["final"]["expected"].update(toolchain={})),
+            "a part's wrong selector": m(lambda lf: lf["parts"]["f"].update(selector="0x01020304")),
         }
         for k, rec in cases.items():
             with self.subTest(k):
@@ -4683,7 +4708,8 @@ class LoopVerdict(unittest.TestCase):
         fn = copy.deepcopy(self.ast["nodes"][0]["nodes"][0])
         for name, node in {
             "a second loop function": dict(fn, name="g", functionSelector="01020304"),
-            "an uncovered entry point": dict(fn, name="g", body={"nodeType": "Block"}),
+            "an uncovered entry point": dict(fn, name="g", functionSelector="01020304", body={"nodeType": "Block"}),
+            "a selector clash": dict(fn, name="g", body={"nodeType": "Block"}),
             "a public getter": {"nodeType": "VariableDeclaration", "name": "x", "stateVariable": True, "visibility": "public"},
             "a fallback": {"nodeType": "FunctionDefinition", "kind": "fallback", "body": {"nodeType": "Block"}},
             "a constructor spec": {"nodeType": "FunctionDefinition", "kind": "constructor", "name": "",
@@ -4697,6 +4723,32 @@ class LoopVerdict(unittest.TestCase):
         ast["nodes"][0]["documentation"] = {"text": " @custom:invariant x <= 1"}
         self.assertIsInstance(self.verdict(ast=ast), list)
 
+    def test_entry_points_by_selector(self):
+        """Review 216 F1: coverage keys on functionSelector. A non-looping overload of the loop
+        function, f(uint256,uint256) beside the looping f(uint256), is another entry point no part
+        states: the final is not certified. An override (same selector in a base) is not."""
+        import copy
+
+        ast = copy.deepcopy(self.ast)
+        ast["nodes"][0]["nodes"].append(
+            {"nodeType": "FunctionDefinition", "name": "f", "kind": "function", "visibility": "public",
+             "functionSelector": "13d1aa2e", "body": {"nodeType": "Block"}})
+        out = self.verdict(ast=ast)
+        self.assertIsInstance(out, list)
+        self.assertIn("entry points of the runtime the final does not state: f (0x13d1aa2e)", out[0]["detail"])
+        self.assertIn("f (0x13d1aa2e)", self.record["loop_tier"]["why"])
+        # The same function inherited from a base with the same selector is one entry point.
+        ast = copy.deepcopy(self.ast)
+        base = copy.deepcopy(ast["nodes"][0])
+        base.update(id=2, name="B", linearizedBaseContracts=[2])
+        base["nodes"][0].pop("documentation")
+        base["nodes"][0]["body"] = {"nodeType": "Block"}
+        ast["nodes"][0]["linearizedBaseContracts"] = [1, 2]
+        ast["nodes"].append(base)
+        with self.assertRaises(generic.LoopCertified):
+            self.verdict(ast=ast)
+        self.assertEqual(generic.abi_functions(ast, "T"), ({0xfd0011a5: "f"}, []))
+
     def test_compiled_tier_takes_translation_only(self):
         import copy
 
@@ -4704,6 +4756,7 @@ class LoopVerdict(unittest.TestCase):
         rec["requested_tier"] = "compiled"
         rec["loop_final"]["parts"]["f"].update(spec="none", no_spec={"theorem": "t"})
         rec["loop_final"]["inventory"]["specs"] = []
+        rec["loop_final"]["final"]["expected"]["inventory"] = []
         self.a.spec = "none"
         ast = copy.deepcopy(self.ast)
         ast["nodes"][0]["nodes"][0].pop("documentation")

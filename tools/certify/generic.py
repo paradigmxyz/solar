@@ -5021,12 +5021,15 @@ def loop_final(record, reasons, src, ast, a, work, name):
 # The axioms a certified final may depend on (check_final.lean's gate).
 FINAL_AXIOMS = {"propext", "Classical.choice", "Quot.sound"}
 def abi_functions(ast, contract):
-    """The calls the runtime bytecode of CONTRACT dispatches, from the solc AST: (functions by name,
-    other entry points) where the functions are the external and public functions of CONTRACT and
-    its bases, and the other entry points are public state variables' getters, fallback and receive."""
+    """The calls the runtime bytecode of CONTRACT dispatches, from the solc AST: (functions by
+    selector, other entry points) where the functions are the external and public functions of
+    CONTRACT and its bases, {selector: name}, keyed by solc's functionSelector (overloads are
+    distinct entry points; an override shares its base's selector), and the other entry points are
+    public state variables' getters, fallback and receive, and any public function without a
+    selector."""
     defs = {c.get("id"): c for c in ast.get("nodes", []) if c.get("nodeType") == "ContractDefinition"}
     top = next(c for c in defs.values() if c.get("name") == contract)
-    fns, other = set(), []
+    fns, other = {}, []
     for i in top.get("linearizedBaseContracts") or [top["id"]]:
         c = defs.get(i)
         if c is None:
@@ -5037,7 +5040,12 @@ def abi_functions(ast, contract):
                 if n.get("kind") in ("fallback", "receive"):
                     other.append(f"{c.get('name')}.{n.get('kind')}")
                 elif n.get("kind") == "function" and n.get("visibility") in ("public", "external"):
-                    fns.add(n.get("name"))
+                    sel = n.get("functionSelector")
+                    if isinstance(sel, str) and re.fullmatch(r"[0-9a-fA-F]{8}", sel):
+                        if fns.setdefault(int(sel, 16), n.get("name")) != n.get("name"):
+                            other.append(f"{c.get('name')}.{n.get('name')} (selector 0x{sel} of {fns[int(sel, 16)]})")
+                    else:
+                        other.append(f"{c.get('name')}.{n.get('name')} (no selector)")
             elif (
                 n.get("nodeType") == "VariableDeclaration"
                 and n.get("stateVariable")
@@ -5062,6 +5070,10 @@ def loop_promotion_problem(record, reasons, src, ast, a):
     * no NatSpec tag that applies beyond one function (a contract invariant, a constructor's or a
       state variable's), which no part states;
     * every spec of the export's kernel-checked inventory is a part's;
+    * the final is final.py's expected statement (term 6), binding this run's source, bytes and
+      inventory, and a stage chain from the lowered MIR to the bytecode, with a compiler;
+    * every runtime entry point is covered by selector (functionSelector), not by name, so an
+      overload no part states refuses (review 216, F1);
     * each part states its function's exported spec, proved by the bridge with a well-typed
       non-vacuity witness checked (its return data decodes, so the ensures or invariants reject it,
       review 207), or True by the checked no-spec determination (translation only); at the
@@ -5107,10 +5119,22 @@ def loop_promotion_problem(record, reasons, src, ast, a):
         return "source loops the final does not cover: " + ", ".join(
             sorted(loops["functions"] - covered) + loops["elsewhere"]
         )
+    # Every entry point by selector (review 216, F1): a non-looping overload of a loop function is
+    # another entry point, which no part states.
     fns, other = abi_functions(ast, contract)
-    if other or fns - covered:
+    try:
+        stated = {int(str(p.get("selector")), 16): f for f, p in lf["parts"].items()}
+    except ValueError:
+        return "a part's selector is not a hex word"
+    if len(stated) != len(lf["parts"]):
+        return "two parts state the same selector"
+    wrong = [f"{f} (0x{s:08x})" for s, f in stated.items() if fns.get(s) != f]
+    if wrong:
+        return "parts whose selector is not their function's public entry point: " + ", ".join(wrong)
+    unstated = [f"{fns[s]} (0x{s:08x})" for s in sorted(fns) if s not in stated]
+    if other or unstated:
         return "entry points of the runtime the final does not state: " + ", ".join(
-            sorted(fns - covered) + other
+            unstated + other
         )
     try:
         wide = lf_mod.spec_inventory(ast, contract)["contract"]
@@ -5121,6 +5145,24 @@ def loop_promotion_problem(record, reasons, src, ast, a):
     inv = lf.get("inventory") or {}
     if not inv.get("theorem"):
         return "no kernel-checked selector inventory of the export"
+    # Term 6: the final is final.py's expected statement, which binds in its type the fresh source
+    # and the export's inventory, the compiler, options, MIR and stage digests, the bytes, and per
+    # function the inhabited valid calls, Shapes.Certified and the well-typed NonVacuous or the
+    # checked absence of a spec (the inventory module in the final's closure).
+    ex = fin.get("expected") or {}
+    if fin.get("statement_kind") != "expected" or not ex:
+        return "the final is not the expected statement (statement expected)"
+    if ex.get("source_sha256") != hashlib.sha256(pathlib.Path(src).read_bytes()).hexdigest():
+        return "the expected statement binds another source than this run's"
+    if ex.get("runtime_sha256") != fb.get("runtime_sha256"):
+        return "the expected statement binds other bytes than the fresh-byte gate's"
+    if ex.get("inventory") != inv.get("specs") or ex.get("inventory_module") != inv.get("module"):
+        return "the expected statement binds another inventory than the kernel-checked one"
+    st = ex.get("stages") or []
+    if not st or st[0].get("pass") != "lower-evm-shaped" or st[-1].get("file") != "Bytecode":
+        return "the expected statement binds no stage chain from the lowered MIR to the bytecode"
+    if not (ex.get("toolchain") or {}).get("compiler"):
+        return "the expected statement binds no compiler"
     stated = {p.get("selector") for p in lf["parts"].values()}
     extra = [s["name"] for s in inv.get("specs", []) if s.get("selector") not in stated]
     if extra:

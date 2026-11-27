@@ -776,5 +776,239 @@ class SpecGate(unittest.TestCase):
         self.assertEqual(loop_final.source_loops(_ast(extra=[mod]), "Horn")["elsewhere"], ["Horn.m"])
 
 
+MANIFEST = """-- solar-lean-stage: kind=manifest index=0 pass=none
+namespace SolarTV.Export.C.Manifest
+
+def sources : List (String × String) :=
+  [("c.sol", "@SRC@")]
+
+def compiler : String := "0.8.38+commit.unknown.solar.0.3.0"
+
+def arguments : List String :=
+  ["c.sol",
+   "-Ogas",
+   "--evm-version",
+   "osaka",
+   "--emit=bin-runtime",
+   "-Zemit-lean-stages=gen"]
+
+def evmVersion : String := "osaka"
+
+def optimization : String := "Gas"
+
+def stages : List (String × String × String × String) :=
+  [("Stage0", "stage0", "lower-evm-shaped", "@H0@"),
+   ("Evm1", "evm1", "cfg-simplify-early", "@H1@"),
+   ("Bytecode", "bytecode", "assemble", "@H2@")]
+
+def bytecodeSha256 : String := "00"
+
+end SolarTV.Export.C.Manifest
+"""
+
+TOOLCHAIN = {
+    "compiler": "0.8.38+commit.unknown.solar.0.3.0",
+    "arguments": ["c.sol", "-Ogas", "--evm-version", "osaka", "--emit=bin-runtime", "-Zemit-lean-stages=gen"],
+    "evm_version": "osaka",
+    "optimization": "Gas",
+}
+
+
+class ExpectedStatement(unittest.TestCase):
+    """Term 6 (review 216, F2): the loop final is final.py's expected statement, written from data
+    only, which binds in its type the fresh source and the export's inventory, the compiler, options,
+    MIR and stage digests, the bytes, and per function the inhabited valid calls, Shapes.Certified and
+    the well-typed NonVacuous, or the checked absence of a spec (the inventory module in the Final's
+    closure)."""
+
+    def setUp(self):
+        import hashlib
+        import tempfile
+
+        self.d = pathlib.Path(tempfile.mkdtemp())
+        self.src = self.d / "c.sol"
+        self.src.write_text("contract C { function a(uint256 n) public {} }\n")
+        self.gen = self.d / "gen" / "C"
+        self.gen.mkdir(parents=True)
+        self.hashes = []
+        for f in ("Stage0", "Evm1", "Bytecode"):
+            (self.gen / f"{f}.lean").write_text(f"-- {f}\n")
+            self.hashes.append(hashlib.sha256((self.gen / f"{f}.lean").read_bytes()).hexdigest())
+        self.src_sha = hashlib.sha256(self.src.read_bytes()).hexdigest()
+        m = MANIFEST.replace("@SRC@", self.src_sha)
+        for i, h in enumerate(self.hashes):
+            # The manifest's own digests are what the kernel compares with the file hashes.
+            m = m.replace(f"@H{i}@", "f" * 64)
+        (self.gen / "Manifest.lean").write_text(m)
+        (self.gen / "Spec.lean").write_text("-- spec\n")
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def shapes(self, parts=(("a", 0xA0A0A0A0, {"loop_spec": "Certified.n.LoopSpec.a_loop_spec", "index": 0}), ("b", 0xB0B0B0B0, None))):
+        out = []
+        multi = len(parts) > 1
+        for f, sel, sp in parts:
+            m = loop_final.modules("n", f if multi else None)
+            ns = {"theorem": f"Certified.n.LoopSpecInventory.{f}_no_spec"} if sp is None else None
+            out.append(loop_final.shape("n", "C", f, f"{f}(uint256)", dict(facts(), E=2, B=2, X=3), sp, True if sp else False, m,
+                                        no_spec=ns, sel=sel, nargs=1))
+        return out
+
+    def expected(self, inv=(("C.a", 0xA0A0A0A0),)):
+        return {"toolchain": dict(TOOLCHAIN), "inventory": [list(x) for x in inv], "inventory_module": "n.LoopSpecInventory"}
+
+    def run_final(self, sh, *extra, source=True):
+        import subprocess
+
+        (self.d / "shape.json").write_text(json.dumps(sh))
+        for f in ("S.lean", "F.lean", "r.json"):
+            (self.d / f).unlink(missing_ok=True)
+        cmd = [sys.executable, str(loop_final.HERE / "final.py"), str(self.d / "shape.json"), "--name", "n",
+               "--contract", "C", "--hex", "6001", "--out", str(self.d / "F.lean"),
+               "--statement-out", str(self.d / "S.lean"), "--record", str(self.d / "r.json"),
+               "--gen", str(self.gen), *extra]
+        if source:
+            cmd += ["--source", str(self.src)]
+        return subprocess.run(cmd, capture_output=True, text=True)
+
+    def test_call_data(self):
+        self.assertEqual(loop_final.call_data(facts(), 7, 1),
+                         {"selector": 7, "arity": 1, "limit": ["arg", 0], "per_iteration_gas": 1414400,
+                          "exit_gas": 3536012, "M": None})
+        slot = facts(RES.replace("a0 ≤ K", "SolarTV.slotValue σ 3 ≤ K"))
+        self.assertEqual(loop_final.call_data(slot, 7, 1)["limit"], ["slot", 3])
+        self.assertEqual(loop_final.call_data(facts(CONST), 7, 1)["limit"], None)
+        self.assertEqual(loop_final.call_data(facts(CONST), 7, 1)["M"], 10)
+        with self.assertRaises(loop_final.Refused):
+            loop_final.call_data(facts(RES.replace("a0 ≤ K", "a0 ≤ 5")), 7, 1)
+
+    def test_witness_states_the_decode(self):
+        w = loop_final.nonvac_module("n", "C", 2987307204, 1, facts(), 1, nrets=1)
+        self.assertIn("theorem decodes : decodeWords (Certified.n.gen.C.Spec.C.spec.specs[1]'(by decide)).rets", w)
+        self.assertIn("(∃ s ∈ Certified.n.gen.C.Spec.C.spec.specs, s.selector = 2987307204 ∧\n"
+                      "        ∃ vs, SolidCore.Spec.decodeWords s.rets (SolidCore.Spec.words obs.output) = some vs) ∧", w)
+        self.assertIn("decodes⟩, fun h => ?_⟩", w)
+        self.assertNotIn("revert hdec", w)
+
+    def test_statement_binds_everything(self):
+        sh = loop_final.shape_parts("n", self.shapes(), self.expected())
+        self.assertEqual(sh["statement"], "expected")
+        for p in sh["parts"]:
+            for k in ("valid", "allowed", "post", "gas"):
+                self.assertNotIn(k, p)
+        r = self.run_final(sh)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        stmt = (self.d / "S.lean").read_text()
+        # No generated proof-side module: only the exports, the source's AST and the library.
+        self.assertNotIn("import n.Loop", stmt)
+        self.assertNotIn("LoopSpecInventory", stmt)
+        self.assertIn("import n.gen.C.Manifest\n", stmt)
+        body = stmt.split("def Statement : Prop :=", 1)[1]
+        self.assertTrue(body.lstrip().startswith(
+            "_root_.Certified.n.Final.code.data.toList.map (·.toNat) = _root_.Certified.n.Final.runtimeBytes ∧"))
+        S, M = "_root_.Certified.n.gen.C.Spec", "_root_.SolarTV.Export.C.Manifest"
+        for want in (
+            f'({S}.manifest.sourceSha256 = "{self.src_sha}")',
+            f'({S}.C.spec.specs.map (fun s => (s.name, s.selector)) = [("C.a", 0xa0a0a0a0)])',
+            f"({S}.C.spec.invariants = [])",
+            f'({M}.sources = [("c.sol", "{self.src_sha}")])',
+            f'({M}.compiler = "0.8.38+commit.unknown.solar.0.3.0")',
+            f'({M}.arguments = ["c.sol", "-Ogas", "--evm-version", "osaka", "--emit=bin-runtime", "-Zemit-lean-stages=gen"])',
+            f'({M}.evmVersion = "osaka")',
+            f'({M}.optimization = "Gas")',
+            f'("Stage0", "stage0", "lower-evm-shaped", "{self.hashes[0]}")',
+            f'("Bytecode", "bytecode", "assemble", "{self.hashes[2]}")',
+            f'({M}.bytecodeSha256 = "{__import__("hashlib").sha256(bytes.fromhex("6001")).hexdigest()}")',
+            # the satisfiable precondition and the well-typed NonVacuous of a, inside its bound
+            "∀ (K : Nat), K ≤ 13042098468400 →\n      (∃ (call : _root_.SolarTV.Call), ∃ σ a0, a0 < 2 ^ 256 ∧ a0 ≤ K ∧ call = { calldata := _root_.SolidCore.Refinement.Abi.calldata 2694881440 [a0], callvalue := 0, storage := σ }) ∧",
+            f"(∃ s ∈ {S}.C.spec.specs, s.selector = 2694881440 ∧\n          ∃ vs, _root_.SolidCore.Spec.decodeWords s.rets (_root_.SolidCore.Spec.words obs.output) = some vs) ∧",
+            "(fun _ => K * 1414400 + 3536012)",
+            # b: the kernel-checked absence of a spec, then translation only
+            f'(({S}.C.spec.specs.all fun s => s.name != "C.b" && s.selector != 2964369584) = true ∧',
+            "(fun _ _ => True) (fun _ _ => True)",
+        ):
+            self.assertIn(want, stmt)
+        # The manifest's own digests are never copied into the statement: the file hashes are.
+        self.assertNotIn("f" * 64, stmt)
+        fin = (self.d / "F.lean").read_text()
+        self.assertIn("import n.LoopSpecInventory\n", fin)
+        for want in ("_root_.Certified.n.LoopSpecInventory.source_is_fresh", "_root_.Certified.n.LoopSpecInventory.inventory",
+                     "_root_.Certified.n.LoopSpecInventory.no_invariants", "_root_.Certified.n.LoopSpecInventory.b_no_spec",
+                     "(Certified.n.Loop.a.NonVac.post_rejects) hK", "(Certified.n.Loop.b.Join.join) hK",
+                     "example : _root_.Certified.n.Final.Statement := _root_.Certified.n.Final.final"):
+            self.assertIn(want, fin)
+        for bad in ("sorry", "native_decide", "axiom "):
+            self.assertNotIn(bad, stmt + fin)
+        rec = json.loads((self.d / "r.json").read_text())
+        self.assertEqual(rec["statement_kind"], "expected")
+        self.assertEqual(rec["expected"]["source_sha256"], self.src_sha)
+        self.assertEqual([s["sha256"] for s in rec["expected"]["stages"]], self.hashes)
+        self.assertEqual(rec["expected"]["inventory"], [{"name": "C.a", "selector": "0xa0a0a0a0"}])
+        self.assertEqual([p["selector"] for p in rec["parts"]], ["0xa0a0a0a0", "0xb0b0b0b0"])
+        self.assertFalse(rec["strongest"])
+
+    def test_one_function(self):
+        sh = loop_final.shape_parts("n", self.shapes(parts=(("a", 0xA0A0A0A0, {"loop_spec": "x", "index": 0}),)), self.expected())
+        self.assertEqual(sh["proof_module"], "n.LoopJoin")
+        self.assertEqual(sh["parts"][0]["proof"], "Certified.n.LoopJoin.join")
+        r = self.run_final(sh)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        stmt = (self.d / "S.lean").read_text()
+        self.assertNotIn("invariants = []", stmt)
+        self.assertIn("(Certified.n.LoopNonVac.post_rejects) hK", (self.d / "F.lean").read_text())
+
+    def test_refusals(self):
+        import copy
+
+        good = loop_final.shape_parts("n", self.shapes(), self.expected())
+
+        def m(f):
+            s = copy.deepcopy(good)
+            f(s)
+            return s
+
+        cases = {
+            "the spec part's selector is not in the inventory": m(lambda s: s["expected"].update(inventory=[])),
+            "a True part the export specifies": m(lambda s: s["expected"]["inventory"].append(["C.b", 0xB0B0B0B0])),
+            "a True part named in the export": m(lambda s: s["expected"]["inventory"].append(["C.b", 1])),
+            "a part's Lean valid calls": m(lambda s: s["parts"][0].update(valid="M.v K")),
+            "no call data": m(lambda s: s["parts"][0].pop("call")),
+            "a True part without the checked absence": m(lambda s: s["parts"][1].pop("no_spec")),
+            "a no-spec theorem of another module": m(lambda s: s["parts"][1].update(no_spec="Certified.n.Other.b_no_spec")),
+            "two parts, one selector": m(lambda s: s["parts"][1]["call"].update(selector=0xA0A0A0A0)),
+            "another source semantics": m(lambda s: s.update(source_sem="SolidCore.Refinement.solidCore")),
+            "another frame": m(lambda s: s["parts"][0]["spec_export"].update(ctx="fun _ => x")),
+            "the compiler ran on another file": m(lambda s: s["expected"]["toolchain"].update(arguments=["d.sol"])),
+            "no toolchain": m(lambda s: s["expected"].pop("toolchain")),
+            "an iteration bound without the call's limit": m(lambda s: s["parts"][0]["call"].update(limit=None, M=3)),
+            "kind compiled": m(lambda s: s.update(kind="compiled")),
+        }
+        for k, sh in cases.items():
+            with self.subTest(k):
+                r = self.run_final(sh)
+                self.assertEqual(r.returncode, 1, (k, r.stderr))
+                self.assertFalse((self.d / "S.lean").exists())
+        # Another function's export spec stays in the stated inventory; the statement claims nothing of it.
+        r = self.run_final(m(lambda s: s["expected"]["inventory"].append(["C.z", 5])))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('[("C.a", 0xa0a0a0a0), ("C.z", 0x00000005)]', (self.d / "S.lean").read_text())
+        r = self.run_final(good, source=False)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("--source", r.stderr)
+        # A stage module the manifest does not list, and a listed stage without its file.
+        (self.gen / "Evm9.lean").write_text("x")
+        r = self.run_final(good)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("Evm9", r.stderr)
+        (self.gen / "Evm9.lean").unlink()
+        (self.gen / "Evm1.lean").unlink()
+        r = self.run_final(good)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("Evm1", r.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

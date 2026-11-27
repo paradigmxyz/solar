@@ -647,11 +647,18 @@ namespace Certified.{m['nonvac']}
 
 open SolarTV SolidCore.Refinement SolidCore.Spec
 
+/-- The witness's return data decodes as the function's returns (the spec's own types). -/
+theorem decodes : decodeWords ({B}.spec.specs[{index}]'(by decide)).rets (words {out}) = some {rets} := by
+  decide +kernel
+
 theorem post_rejects{binder} :
     ∃ (call : SolarTV.Call) (obs : SolarTV.Observable), ({V}{kapp}) call ∧
+      (∃ s ∈ {B}.spec.specs, s.selector = {sel} ∧
+        ∃ vs, SolidCore.Spec.decodeWords s.rets (SolidCore.Spec.words obs.output) = some vs) ∧
       ¬ ({post}) call obs := by
   refine ⟨{call}, ⟨true, {out}, [], fun _ => 1⟩, ⟨{WITNESS_STORAGE}, {zeros},
-    by and_intros <;> first | decide | exact Nat.zero_le _ | rfl⟩, fun h => ?_⟩
+    by and_intros <;> first | decide | exact Nat.zero_le _ | rfl⟩,
+    ⟨{B}.spec.specs[{index}]'(by decide), List.getElem_mem _, by decide, {rets}, decodes⟩, fun h => ?_⟩
   have hpre : Pre {B} ({B}.spec.specs[{index}]'(by decide)) {FRAME}
       ⟨SolidCore.Refinement.slotValue {WITNESS_STORAGE}, Ghost.zero, 1⟩ {call} [{zeros}] := by
     refine ⟨⟨?_, ?_, ?_⟩, rfl, ?_, ?_, ?_⟩
@@ -664,10 +671,9 @@ theorem post_rejects{binder} :
     · simp [{unfold}]
     · simp [{unfold}]
   obtain ⟨rets, hdec, hens, -⟩ := (h _ (List.getElem_mem _) _ _ hpre).1 rfl
-  -- The return data decodes: the rejection below is the ensures' or the invariants', not the ABI's.
-  have hw : decodeWords ({B}.spec.specs[{index}]'(by decide)).rets (words {out}) = some {rets} := by
-    decide +kernel
-  have hr := Option.some.inj (hdec.symm.trans hw)
+  -- The return data decodes (decodes, also in the type): the rejection below is the ensures' or
+  -- the invariants', not the ABI's.
+  have hr := Option.some.inj (hdec.symm.trans decodes)
   subst hr
   simp [{unfold}] at hens
   all_goals (revert hens; decide)
@@ -1039,12 +1045,16 @@ def shape(
     m=None,
     route="erasure",
     no_spec=None,
+    sel=None,
+    nargs=None,
 ):
     """shape.json for final.py. SPEC: spec_step's record (the exported spec in the fixed frame), a
     refusal string (True, declared vacuous with the refusal) or None (no spec of the loop function).
     NONVAC: True when NAME.LoopNonVac checked, else why there is no witness. M: the part's modules
     (modules); ROUTE: the function's loop route. NO_SPEC: with SPEC None, the checked no-spec
-    determination (attach's record of NAME.LoopSpecInventory), which labels the part translation only."""
+    determination (attach's record of NAME.LoopSpecInventory), which labels the part translation only.
+    SEL, NARGS: the function's selector and argument count, for the call data final.py writes the
+    expected statement's valid calls and gas bound from (call)."""
     m = m or modules(name)
     pi, ex = facts["per_iteration_gas"], facts["exit_gas"]
     bounded = facts["bounded"]
@@ -1117,6 +1127,8 @@ def shape(
     }
     if bounded:
         s["iteration_bound"] = {"var": "K", "max": facts["Kmax"]}
+    if sel is not None:
+        s["call"] = call_data(facts, sel, nargs)
     if spec is None and no_spec:
         s["spec"] = (
             f"translation only: {fname} has no specification (no NatSpec tag on it or the contract, "
@@ -1131,6 +1143,7 @@ def shape(
             "spec: none (True), translation only; see vacuity" if e.startswith("spec:") else e
             for e in s["excluded"]
         ]
+        s["no_spec"] = no_spec["theorem"]
     if spec is None:
         return s
     if isinstance(spec, str):
@@ -1173,6 +1186,27 @@ def shape(
             + (nonvac or "no witness")
         )
     return s
+
+
+def call_data(facts, sel, nargs):
+    """The data the expected statement writes a part's valid calls and gas bound from (final.py's
+    call): the selector, the argument count, the loop's limit (["arg", i] or ["slot", n] at most K,
+    or None for a literal limit of M iterations) and the gas parts. Read off loop_resources.py's
+    Valid; the kernel then unifies the statement's valid calls with that Valid (the join's)."""
+    vb = facts["valid_body"]
+    a = re.search(r"\ba(\d+) ≤ K\b", vb)
+    s = re.search(r"\bslotValue σ (\d+) ≤ K\b", vb)
+    if facts["bounded"] and not (a or s):
+        raise Refused("resources", f"the valid calls bound no limit by K: {vb}")
+    lim = ["arg", int(a.group(1))] if a else ["slot", int(s.group(1))] if s else None
+    return {
+        "selector": sel,
+        "arity": nargs,
+        "limit": lim if facts["bounded"] else None,
+        "per_iteration_gas": facts["per_iteration_gas"],
+        "exit_gas": facts["exit_gas"],
+        "M": None if facts["bounded"] else facts["M"],
+    }
 
 
 def compose_of(stages_text, facts):
@@ -1226,6 +1260,7 @@ def write(
     params=None,
     spec=None,
     nonvac=False,
+    expected=None,
 ):
     """Write the loop functions' modules and NAME/shape.json under ROOT (the Certified source
     directory). PARTS: one {"fname", "sig", "sel", "params", "spec", "nonvac"} per loop function, in
@@ -1235,7 +1270,8 @@ def write(
     is the single statement. For several: NAME.Loop.F.{Resources,Valid,Join,NonVac} for each F (its
     resources restricted to the loop F's calls reach), NAME.LoopJoin importing every F's join, and
     shape.json's parts, one conjunct per function with its own bound and valid calls (final.py's
-    parts). Returns (shape, files)."""
+    parts). EXPECTED (attach's {toolchain, inventory, inventory_module}): shape.json is final.py's
+    expected statement instead, parts for one function too (shape_parts). Returns (shape, files)."""
     if parts is None:
         parts = [
             {
@@ -1314,12 +1350,17 @@ def write(
                 m,
                 route,
                 p.get("no_spec"),
+                psel,
+                len(pparams),
             )
         )
     if multi:
         files[f"{name}.LoopJoin"] = parts_join_module(
             name, contract, [modules(name, p["fname"])["join"] for p in parts]
         )
+    if expected is not None:
+        sh = shape_parts(name, shapes, expected)
+    elif multi:
         sh = shape_parts(name, shapes)
     else:
         sh = shapes[0]
@@ -1353,10 +1394,13 @@ The statement's parts are proved by {names}, each on its function's valid calls.
 """
 
 
-def shape_parts(name, shapes):
+def shape_parts(name, shapes, expected=None):
     """shape.json of a contract with several loop functions (final.py's parts): the checked source,
     the statement's inputs and NAME.LoopJoin at the top level, and each function's single-statement
-    shape (SHAPES) as one part, with its own valid calls, bound, spec and proof."""
+    shape (SHAPES) as one part, with its own valid calls, bound, spec and proof. EXPECTED: final.py's
+    expected statement (statement expected, top-level expected), whose parts carry their call data
+    instead of the Lean terms of their valid calls, statuses and gas bound, which final.py writes
+    itself; the single function's join is NAME.LoopJoin, as several's is."""
     import final
 
     top = {k: shapes[0][k] for k in ("kind", "contract", "fuel", "source_sem")}
@@ -1370,7 +1414,10 @@ def shape_parts(name, shapes):
     parts = []
     for sh in shapes:
         part = {"function": sh["loop"]["function"]}
-        part.update({k: sh[k] for k in final.PART_KEYS if k in sh and k != "function"})
+        if expected is None:
+            part.update({k: sh[k] for k in final.PART_KEYS if k in sh and k != "function"})
+        else:
+            part.update({k: sh[k] for k in final.EXPECTED_PART_KEYS if k in sh and k != "function"})
         parts.append(part)
     top.update(
         spec_modules=mods,
@@ -1382,6 +1429,8 @@ def shape_parts(name, shapes):
         loop={"functions": [sh["loop"] for sh in shapes]},
         parts=parts,
     )
+    if expected is not None:
+        top.update(statement="expected", expected=expected)
     return top
 
 
@@ -1585,6 +1634,18 @@ end Certified.{name}.LoopSpecInventory
 """
 
 
+def has_loop(n):
+    """Whether the solc AST node N holds a loop (LOOP_NODES) anywhere below it."""
+    if n.get("nodeType") in LOOP_NODES:
+        return True
+    return any(
+        has_loop(v)
+        for x in n.values()
+        for v in (x if isinstance(x, list) else [x])
+        if isinstance(v, dict)
+    )
+
+
 def source_loops(ast, contract):
     """Where the source loops, from the solc AST: {"functions": {F}, "elsewhere": [where]} over
     CONTRACT and the contracts it inherits (by the enclosing function's name), every library and
@@ -1595,16 +1656,7 @@ def source_loops(ast, contract):
     if top is None:
         raise Refused("functions", f"no contract {contract} in the AST")
 
-    def has(n):
-        if n.get("nodeType") in LOOP_NODES:
-            return True
-        return any(
-            has(v)
-            for x in n.values()
-            for v in (x if isinstance(x, list) else [x])
-            if isinstance(v, dict)
-        )
-
+    has = has_loop
     fns, elsewhere, seen = set(), [], set()
     for cid in top.get("linearizedBaseContracts") or [top.get("id")]:
         c = defs.get(cid)
@@ -1671,11 +1723,14 @@ def spec_gate(ast, contract, parts, specs, inventory):
     return none
 
 
-def part_record(p, sh, multi):
+def part_record(p, sh, multi, fin=None):
     """record loop_final.parts[F] for the part P of the statement SH (shape.json): the spec it states,
     read per function (proved by the bridge, or True by the checked no-spec determination: translation
-    only), its non-vacuity, its valid calls, its iteration bound and its gas bound."""
-    s = next(x for x in sh["parts"] if x["function"] == p["fname"]) if multi else sh
+    only), its non-vacuity, its valid calls, its iteration bound and its gas bound (FIN, final.py's
+    record: those of the expected statement, which final.py writes itself)."""
+    s = next(x for x in sh["parts"] if x["function"] == p["fname"]) if "parts" in sh else sh
+    if fin and fin.get("parts"):
+        s = dict(s, **{k: v for k, v in next(x for x in fin["parts"] if x["function"] == p["fname"]).items() if k in ("valid", "gas")})
     spec = p["spec"]
     if isinstance(spec, dict):
         kind, label = "proved", f"solar-verify's export, proved by {spec['loop_spec']}"
@@ -1704,6 +1759,29 @@ def reason(e, where=""):
         "feature": "loop",
         "where": where,
         "detail": f"loop final: {e.step}: {e.why}",
+    }
+
+
+def toolchain(run, solar, src):
+    """The compiler and the options the driver's stage export ran with (generic.export_stages), for
+    the expected statement's binding of the stage manifest: the solc-compatible version the pinned
+    solar reports, and the arguments it was given (the source's name, generic.OPTIONS, the runtime
+    emit and the stage export)."""
+    import generic
+
+    rc, out, err = run([str(solar), "--version"])
+    m = re.search(r"^Solc-Compatible Version: (\S+)$", out or "", re.M) if rc == 0 else None
+    if m is None:
+        raise Refused("export", f"{solar} --version reports no solc-compatible version: {(out or err)[-200:]}")
+    opts = list(generic.OPTIONS)
+    if "--evm-version" not in opts or not any(o.startswith("-O") for o in opts):
+        raise Refused("export", f"the driver's options {opts} name no EVM version or optimization")
+    level = next(o for o in opts if o.startswith("-O"))[2:]
+    return {
+        "compiler": m.group(1),
+        "arguments": [pathlib.Path(src).name, *opts, "--emit=bin-runtime", "-Zemit-lean-stages=gen"],
+        "evm_version": opts[opts.index("--evm-version") + 1],
+        "optimization": level[:1].upper() + level[1:],
     }
 
 
@@ -1757,11 +1835,21 @@ def attach(
         )
         parts = []
         for fname in fnames:
-            fdef = next(
+            # The loop function by name, among overloads the one that loops: the hook keys its
+            # obligations by name, so two looping overloads are ambiguous and refused. A non-looping
+            # overload is another entry point, which the promotion's selector coverage refuses.
+            same = [
                 f
                 for f in cdef.get("nodes", [])
                 if f.get("nodeType") == "FunctionDefinition" and f.get("name") == fname
-            )
+            ]
+            looping = [f for f in same if has_loop(f)]
+            if len(looping) > 1 or not same:
+                raise Refused(
+                    "functions",
+                    f"{fname}: {len(looping)} looping overloads; the obligations are keyed by name",
+                )
+            fdef = (looping or same)[0]
             params = [
                 p["typeDescriptions"]["typeString"]
                 for p in fdef["parameters"]["parameters"]
@@ -1875,6 +1963,13 @@ def attach(
             "plain": plain,
             "stages_text": (d / "Proofs" / "Stages.lean").read_text(),
             "parts": parts,
+            # The expected statement (final.py): the driver's compiler and options, and the export's
+            # inventory, which the statement states and the kernel checks against the exports.
+            "expected": {
+                "toolchain": toolchain(run, solar, src),
+                "inventory": [[n, s] for n, s in inventory],
+                "inventory_module": f"{name}.LoopSpecInventory",
+            },
         }
         if any(isinstance(p["spec"], dict) for p in parts):
             for p in parts:
@@ -1912,6 +2007,10 @@ def attach(
                 str(d / "Statement.lean"),
                 "--record",
                 str(d / "final.json"),
+                "--source",
+                str(src),
+                "--gen",
+                str(g),
             ]
         )
         if rc != 0:
@@ -1958,6 +2057,7 @@ def attach(
         if fresh_line is None:
             raise Refused("check", "check_final printed no fresh-byte line for this run's bytes")
         one = (lambda k: parts[0][k]) if not multi else (lambda k: {p["fname"]: p[k] for p in parts})
+        fin = json.loads((d / "final.json").read_text())
         record["loop_final"] = {
             "function": fnames[0],
             "functions": fnames,
@@ -1970,7 +2070,10 @@ def attach(
             "replay": replayed,
             "nonvacuous": one("nonvac"),
             "files": files,
-            "final": json.loads((d / "final.json").read_text()),
+            "final": fin,
+            # What the expected statement binds in its type (final.py): the fresh source and the
+            # export's inventory, the compiler, options, MIR and stage digests, the bytes.
+            "expected": fin.get("expected"),
             "axioms": axioms.group(1).split(", ") if axioms else None,
             "fresh_byte": {
                 "check_final": fresh_line,
@@ -1979,7 +2082,7 @@ def attach(
             },
             # Per function, never the aggregate: the spec it states (proved by the bridge, or True
             # only by the checked no-spec determination: translation only), its bound and valid calls.
-            "parts": {p["fname"]: part_record(p, sh, multi) for p in parts},
+            "parts": {p["fname"]: part_record(p, sh, multi, fin) for p in parts},
             "no_spec": no_spec,
             "inventory": {
                 "module": f"{name}.LoopSpecInventory",

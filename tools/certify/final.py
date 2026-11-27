@@ -100,8 +100,18 @@ shape.json keys (Lean terms without tactics or commands):
             proof_module, spec and excluded). The statement binds the bytes once and is the
             conjunction, in order, of the claim the single mode states for each part, each with its
             own iteration bound and its own NonVacuous_FUNCTION; pinned_bytes, sem/prog, an open
-            world, env and the expected statement are refused with parts. The record adds parts (each
-            part's statuses) and is strongest only when every part is.
+            world and env are refused with parts. The record adds parts (each part's statuses) and is
+            strongest only when every part is.
+  statement "expected" with parts (kind certified, the loop route; loop_expected_mode): the
+            driver-fixed statement, written from data only: the top level's expected {toolchain,
+            inventory, inventory_module} and each part's call {selector, arity, limit,
+            per_iteration_gas, exit_gas, M} with no_spec (a part without the export's spec) instead
+            of the Lean terms valid, allowed, post and gas. It binds in its type the fresh source
+            (--source, hashed here) and the export's inventory, the stage manifest's source,
+            compiler, options and the digest of the first lowered MIR and every stage (each file
+            under --gen hashed here), the bytes, and per part the inhabited valid calls,
+            Shapes.Certified and the well-typed NonVacuous, or the checked absence of a spec; it
+            imports no generated proof-side module, and Final.lean imports the inventory module.
 The strongest status is reported only for kind "certified" with the specification from
 solar-verify's export (spec_export) and the non-vacuity witnesses (nonvacuous) in the statement.
 """
@@ -1129,6 +1139,555 @@ theorem {ns}.final : _root_.{ns}.Statement :=
     print(f"{ns}.final")
 
 
+# --- the expected statement of a contract with loop functions (parts, iteration bounds) ---------
+
+# The keys of a part of the expected statement: the claim keys a part has (PART_KEYS) but the Lean
+# terms of its valid calls, statuses and gas bound, which the statement writes here from the part's
+# call data (call), and the checked absence of its spec (no_spec).
+EXPECTED_PART_KEYS = (
+    *(k for k in PART_KEYS if k not in ("valid", "allowed", "post", "gas")),
+    "call",
+    "no_spec",
+)
+# The source semantics the loop route's statement runs the checked contract with.
+LOOP_SEM = "SolidCore.Refinement.Generic.Loop.solidCoreRuntime"
+# The single fixed frame the loop route's spec is stated in (Verify/Spec/TreeLoop.lean).
+LOOP_FRAME = "SolidCore.Spec.TreeLoop.ctx0"
+
+
+def lean_str(s):
+    """A Lean string literal of S (printable ASCII only: the driver's hashes, names and options)."""
+    if not (isinstance(s, str) and re.fullmatch(r"[ -~]*", s) and '"' not in s and "\\" not in s):
+        fail(f"not a plain string literal: {s!r}")
+    return f'"{s}"'
+
+
+def stage_manifest(gen, contract):
+    """The stage export's manifest (GEN/Manifest.lean, solar -Zemit-lean-stages), read for its stage
+    list, and every stage file's SHA-256 computed here from the file Lean builds: [(file, def, pass,
+    sha)]. The statement then states the manifest's digests equal to these literal hashes, and the
+    kernel compares them (a stage edited after the export, or a manifest that names another file's
+    digest, fails). Every stage module of GEN must be listed, the first lowered MIR (Stage0,
+    lower-evm-shaped) first and the assembled Bytecode last."""
+    import hashlib
+    import pathlib
+
+    gen = pathlib.Path(gen)
+    mf = gen / "Manifest.lean"
+    if not mf.is_file():
+        fail(f"statement expected: no stage manifest {mf}")
+    text = mf.read_text()
+    if not re.search(rf"^namespace SolarTV\.Export\.{re.escape(contract)}\.Manifest$", text, re.M):
+        fail(f"statement expected: {mf} is not the manifest of {contract}'s export")
+    m = re.search(r"^def stages : List \(String × String × String × String\) :=\n(.*?)\n\n", text, re.M | re.S)
+    if not m:
+        fail(f"statement expected: {mf} has no stage list")
+    rows = re.findall(r'\("([A-Za-z0-9_]+)", "([A-Za-z0-9_]+)", "([a-z0-9-]+)", "([0-9a-f]{64})"\)', m.group(1))
+    if m.group(1).count("(") != len(rows) or not rows:
+        fail(f"statement expected: {mf}'s stage list does not parse")
+    out = []
+    for f, d, p, _ in rows:
+        sf = gen / f"{f}.lean"
+        if not sf.is_file():
+            fail(f"statement expected: the manifest's stage {f} has no file {sf}")
+        out.append((f, d, p, hashlib.sha256(sf.read_bytes()).hexdigest()))
+    listed = {f for f, *_ in out}
+    extra = sorted(
+        x.stem for x in gen.glob("*.lean") if x.stem not in listed | {"Manifest", "Spec"}
+    )
+    if extra:
+        fail(f"statement expected: stage modules the manifest does not list: {extra}")
+    if out[0][:3] != ("Stage0", "stage0", "lower-evm-shaped") or out[-1][:3] != (
+        "Bytecode",
+        "bytecode",
+        "assemble",
+    ):
+        fail("statement expected: the stage list is not first lowered MIR (Stage0) to Bytecode")
+    return out
+
+
+def expected_valid(call, bound):
+    """The valid calls of a part, written here from its call data: a call of the selector with
+    ARITY ABI words below 2^256, no value, any storage, and the loop's limit (a calldata argument or
+    an initial storage word) at most the iteration bound BOUND (or a literal limit, no bound)."""
+    n, sel, lim = call["arity"], call["selector"], call["limit"]
+    args = [f"a{i}" for i in range(n)]
+    conj = [f"{x} < 2 ^ 256" for x in args]
+    if lim is not None:
+        kind, i = lim
+        conj.append(f"a{i} ≤ {bound}" if kind == "arg" else f"_root_.SolarTV.slotValue σ {i} ≤ {bound}")
+    ex = " ".join(["σ", *args])
+    pre = "".join(c + " ∧ " for c in conj)
+    return (
+        f"∃ {ex}, {pre}call = {{ calldata := _root_.SolidCore.Refinement.Abi.calldata {sel} "
+        f"[{', '.join(args)}], callvalue := 0, storage := σ }}"
+    )
+
+
+def expected_inhabited(call, bound):
+    """A proof of ∃ call, VALID: the call with every argument zero from empty storage."""
+    n, lim = call["arity"], call["limit"]
+    ps = ["[]", *["0"] * n, *["by decide"] * n]
+    if lim is not None:
+        ps.append(f"Nat.zero_le {bound}")
+    return f"⟨_, {', '.join(ps)}, rfl⟩"
+
+
+def check_call(p, fn):
+    """A part's call data (expected statement), checked."""
+    c = p.get("call")
+    keys = {"selector", "arity", "limit", "per_iteration_gas", "exit_gas", "M"}
+    if not (isinstance(c, dict) and set(c) == keys):
+        fail(f"shape.json: part {fn}: call must be {{selector, arity, limit, per_iteration_gas, exit_gas, M}}")
+
+    def nat(v):
+        return isinstance(v, int) and not isinstance(v, bool) and v >= 0
+
+    if not (
+        nat(c["selector"])
+        and c["selector"] < 2**32
+        and nat(c["arity"])
+        and nat(c["per_iteration_gas"])
+        and nat(c["exit_gas"])
+    ):
+        fail(f"shape.json: part {fn}: call's selector, arity and gas parts must be naturals")
+    lim = c["limit"]
+    if lim is not None and not (
+        isinstance(lim, list)
+        and len(lim) == 2
+        and lim[0] in ("arg", "slot")
+        and nat(lim[1])
+        and (lim[0] == "slot" or lim[1] < c["arity"])
+    ):
+        fail(f'shape.json: part {fn}: call.limit must be null, ["arg", i] or ["slot", n]')
+    if (lim is None) != (c["M"] is not None) or (c["M"] is not None and not nat(c["M"])):
+        fail(f"shape.json: part {fn}: a literal limit (call.limit null) needs its iteration count M, and only it")
+    return c
+
+
+def loop_expected_mode(a, shape):
+    """shape.json with parts and statement expected: the driver-fixed statement of a contract with
+    loop functions (one part per loop function, one or several), written here from data only, never
+    from the parts' Lean terms. It imports the library, this run's exports (the spec bundle, the
+    stage manifest, the bytecode) and the source's AST module, and no generated proof-side module (no
+    valid calls, witness, join or inventory module), so the proof modules' types are unified against
+    it by the kernel. The statement is the conjunction of:
+    * the binding of the fresh export's bytes to the bytes this run compiled (check_final's gate);
+    * the fresh source and its spec: the export's manifest sourceSha256 is this run's source, hashed
+      here (--source); the export's bundle specifies exactly the inventory [(name, selector)] (with
+      True parts: it has no contract invariant);
+    * the compiler, its options, the MIR and every stage: the stage export's manifest names this
+      run's source and its hash, the compiler and its arguments (the driver's), and its stage
+      digests (the first lowered MIR, Stage0, to the assembled Bytecode) equal the literal SHA-256
+      of each stage file, hashed here, and its bytecode digest that of this run's bytes;
+    * per part (its function's calls): for every iteration bound K ≤ Kmax (a literal limit: once),
+      the valid calls are inhabited (a satisfiable precondition), and Shapes.Certified on them:
+      equivalence, termination, the property and the gas bound; with the export's spec, also its
+      NonVacuous: a valid call and a result whose return data decodes as the function's returns
+      (the spec's own types) that the exported postcondition rejects; without one, the
+      kernel-checked absence of its name and selector from the export (translation only).
+    The proof is the parts' terms with the inventory module's theorems; Final.lean imports the
+    inventory module, so the closure replay covers it."""
+    import hashlib
+    import pathlib
+
+    kind = shape.get("kind")
+    if kind != "certified":
+        fail("shape.json: statement expected with parts is for kind certified")
+    for k in [*PART_KEYS, *(x for x in NOT_IN_PARTS if x != "statement")]:
+        if k in shape and k not in ("spec", "excluded"):
+            fail(f"shape.json: with parts, {k} belongs to a part, or is not supported")
+    if shape.get("env"):
+        fail("shape.json: parts take no env assumptions")
+    if not re.fullmatch(r"[0-9a-f]+", a.hex) or len(a.hex) % 2:
+        fail("--hex is not the lowercase hex of the bytecode")
+    for k in ("name", "contract"):
+        if not NAME.match(getattr(a, k)):
+            fail(f"--{k} is not a Lean name")
+    if not a.source:
+        fail("statement expected needs --source, this run's source file")
+    src = pathlib.Path(a.source)
+    if not src.is_file():
+        fail(f"--source {src} is not a file")
+    src_sha = hashlib.sha256(src.read_bytes()).hexdigest()
+    gen = pathlib.Path(a.gen) if a.gen else pathlib.Path(a.statement_out).parent / "gen" / a.contract
+    stages = stage_manifest(gen, a.contract)
+    ex = shape.get("expected")
+    if not (isinstance(ex, dict) and set(ex) == {"toolchain", "inventory", "inventory_module"}):
+        fail("shape.json: statement expected needs expected {toolchain, inventory, inventory_module}")
+    tc = ex["toolchain"]
+    if not (
+        isinstance(tc, dict)
+        and set(tc) == {"compiler", "arguments", "evm_version", "optimization"}
+        and isinstance(tc["arguments"], list)
+        and tc["arguments"]
+    ):
+        fail("shape.json: expected.toolchain must be {compiler, arguments, evm_version, optimization}")
+    if tc["arguments"][0] != src.name:
+        fail(
+            f"shape.json: the compiler's first argument is {tc['arguments'][0]!r}, not the source {src.name!r}"
+        )
+    inv = ex["inventory"]
+    if not (
+        isinstance(inv, list)
+        and all(
+            isinstance(e, list) and len(e) == 2 and isinstance(e[0], str) and isinstance(e[1], int)
+            for e in inv
+        )
+    ):
+        fail("shape.json: expected.inventory must list [name, selector] pairs")
+    inv_mod = ex["inventory_module"]
+    if not (isinstance(inv_mod, str) and NAME.match(inv_mod)):
+        fail("shape.json: expected.inventory_module must be a module name")
+    sa = shape.get("source_ast")
+    src_mod = f"{a.name}.Source"
+    if not (isinstance(sa, dict) and sa.get("namespace") == f"Certified.{a.name}.Src" and sa.get("contract") == a.contract):
+        fail(f"shape.json: statement expected needs source_ast of this contract in Certified.{a.name}.Src ({src_mod})")
+    if shape.get("source_sem") != LOOP_SEM:
+        fail(f"shape.json: statement expected states the loop route's source semantics {LOOP_SEM}")
+    fuel = expr(shape, "fuel")
+    if not re.fullmatch(r"[0-9 ^+*()]+", fuel):
+        fail("shape.json: fuel must be a numeral expression")
+    proof_mod = shape.get("proof_module")
+    if not (isinstance(proof_mod, str) and NAME.match(proof_mod)) or proof_mod in (
+        f"{a.name}.Statement",
+        f"{a.name}.Final",
+        src_mod,
+        inv_mod,
+    ):
+        fail("shape.json: proof_module must be a module other than the statement's inputs")
+    parts = shape.get("parts")
+    if not (isinstance(parts, list) and parts and all(isinstance(p, dict) for p in parts)):
+        fail("shape.json: parts must be a non-empty list of objects")
+    fns = [p.get("function") for p in parts]
+    if any(not (isinstance(f, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", f)) for f in fns):
+        fail("shape.json: every part needs function, an identifier")
+    if len(set(fns)) != len(fns):
+        fail("shape.json: two parts name the same function")
+    ns = f"Certified.{a.name}.Final"
+    S = f"_root_.Certified.{a.name}.gen.{a.contract}.Spec"
+    B = f"{S}.{a.contract}"
+    M = f"_root_.SolarTV.Export.{a.contract}.Manifest"
+    I = f"_root_.Certified.{inv_mod}"
+    contract = (
+        "_root_.SolidCore.Solidity.TypeCheck.CheckedInput.contract "
+        f"_root_.{sa['namespace']}.importedSourceUnit {lean_str(a.contract)}"
+    )
+    sem = f"_root_.{LOOP_SEM} ({fuel})"
+    post = (
+        f"_root_.SolidCore.Refinement.Shapes.bundlePost {B} (fun _ => _root_.{LOOP_FRAME}) "
+        "_root_.SolidCore.Refinement.Shapes.idStep"
+    )
+    allowed = f"_root_.SolidCore.Refinement.Shapes.bundleAllowed {B} (fun _ => _root_.{LOOP_FRAME})"
+    inv_names = {n for n, _ in inv}
+    inv_sels = {s for _, s in inv}
+    claims, terms, recs, sels = [], [], [], []
+    nospec_any = False
+    for p, fn in zip(parts, fns):
+        for k in p:
+            if k not in EXPECTED_PART_KEYS:
+                fail(f"shape.json: part {fn}: unknown key {k}")
+        c = check_call(p, fn)
+        sel = c["selector"]
+        if sel in sels:
+            fail(f"shape.json: two parts state the selector {sel:#010x}")
+        sels.append(sel)
+        proof = expr(p, "proof")
+        ib = p.get("iteration_bound")
+        if (ib is None) != (c["limit"] is None):
+            fail(f"shape.json: part {fn}: an iteration bound exactly when the loop's limit is the call's")
+        if ib is not None:
+            if not (
+                isinstance(ib, dict)
+                and set(ib) == {"var", "max"}
+                and ib["var"] == "K"
+                and isinstance(ib["max"], int)
+                and not isinstance(ib["max"], bool)
+                and ib["max"] >= 0
+            ):
+                fail(f'shape.json: part {fn}: iteration_bound must be {{"var": "K", "max": N}}')
+            bnd = "K"
+            gas = f"fun _ => K * {c['per_iteration_gas']} + {c['exit_gas']}"
+        else:
+            bnd = None
+            gas = f"fun _ => {c['M']} * {c['per_iteration_gas']} + {c['exit_gas']}"
+        valid = expected_valid(c, bnd)
+        inh = expected_inhabited(c, bnd)
+        arg = " hK" if bnd else ""
+        has_spec = "spec_export" in p
+        if has_spec:
+            if p.get("allowed_export") is not True or p["spec_export"] != {
+                "ctx": f"fun _ => {LOOP_FRAME}",
+                "step": "SolidCore.Refinement.Shapes.idStep",
+            }:
+                fail(
+                    f"shape.json: part {fn}: the expected statement states the export in the fixed frame {LOOP_FRAME}"
+                )
+            if sel not in inv_sels:
+                fail(f"shape.json: part {fn}: its selector {sel:#010x} is not in the export's inventory")
+            if "no_spec" in p or "vacuity" in p:
+                fail(f"shape.json: part {fn}: a part with the export's spec has nonvacuous, not no_spec or vacuity")
+            nonvac = expr(p, "nonvacuous")
+            nv = (
+                f"∃ (call : _root_.SolarTV.Call) (obs : _root_.SolarTV.Observable), ({valid}) ∧\n"
+                f"        (∃ s ∈ {B}.spec.specs, s.selector = {sel} ∧\n"
+                "          ∃ vs, _root_.SolidCore.Spec.decodeWords s.rets "
+                "(_root_.SolidCore.Spec.words obs.output) = some vs) ∧\n"
+                f"        ¬ {post} call obs"
+            )
+            body = (
+                f"(∃ (call : _root_.SolarTV.Call), {valid}) ∧\n      ({nv}) ∧\n"
+                f"      ∃ c, {contract} = .ok c ∧\n"
+                f"        _root_.SolidCore.Refinement.Shapes.Certified ({sem}) c _root_.{ns}.code\n"
+                f"          (fun call => {valid})\n          ({allowed}) ({post}) ({gas})"
+            )
+            inner = f"⟨{inh}, ({nonvac}){arg}, ({proof}){arg}⟩"
+            claim = f"∀ (K : Nat), K ≤ {ib['max']} →\n      {body}" if bnd else body
+            term = f"fun K hK => {inner}" if bnd else inner
+        else:
+            ns_thm = p.get("no_spec")
+            if not (
+                isinstance(ns_thm, str)
+                and NAME.match(ns_thm)
+                and ns_thm.startswith(f"Certified.{inv_mod}.")
+            ):
+                fail(
+                    f"shape.json: part {fn}: a part without the export's spec needs no_spec, a theorem of {inv_mod}"
+                )
+            if any(k in p for k in ("nonvacuous", "allowed_export", "allowed_vacuity")):
+                fail(f"shape.json: part {fn}: a part without a spec has no nonvacuous or allowed statuses")
+            qual = f"{a.contract}.{fn}"
+            if sel in inv_sels or qual in inv_names:
+                fail(f"shape.json: part {fn}: the export specifies it (name or selector): never True")
+            nospec_any = True
+            absent = (
+                f"({B}.spec.specs.all fun s => s.name != {lean_str(qual)} && s.selector != {sel}) = true"
+            )
+            body = (
+                f"(∃ (call : _root_.SolarTV.Call), {valid}) ∧\n"
+                f"      ∃ c, {contract} = .ok c ∧\n"
+                f"        _root_.SolidCore.Refinement.Shapes.Certified ({sem}) c _root_.{ns}.code\n"
+                f"          (fun call => {valid})\n          (fun _ _ => True) (fun _ _ => True) ({gas})"
+            )
+            inner = f"⟨{inh}, ({proof}){arg}⟩"
+            if bnd:
+                claim = f"{absent} ∧\n    ∀ (K : Nat), K ≤ {ib['max']} →\n      {body}"
+                term = f"⟨_root_.{ns_thm}, fun K hK => {inner}⟩"
+            else:
+                claim = f"{absent} ∧\n    {body}"
+                term = f"⟨_root_.{ns_thm}, {inner}⟩"
+        claims.append(claim)
+        terms.append(term)
+        vac = None if has_spec else (p.get("vacuity") or "translation only: no spec in the export")
+        avac = p.get("allowed_vacuity") if has_spec else None
+        st = statuses(kind, p.get("spec"), has_spec, vac)
+        if avac is not None:
+            st["termination"] += f" (the allowed statuses reject nothing: {avac})"
+            st["vacuity"] += f"; the allowed statuses: none rejected ({avac})"
+        recs.append(
+            {
+                "function": fn,
+                "selector": f"0x{sel:08x}",
+                "valid": f"fun call => {valid}",
+                "gas": gas,
+                "nonvacuous": f"{ns}.Statement (well-typed, by {p.get('nonvacuous')})" if has_spec else None,
+                "no_spec": p.get("no_spec"),
+                "vacuity": vac,
+                "allowed_vacuity": avac,
+                "spec_bound_to_export": B.removeprefix("_root_.") if has_spec else None,
+                "allowed_bound_to_export": has_spec,
+                "spec": p.get("spec"),
+                "statuses": st,
+                "strongest": has_spec and avac is None,
+                "iteration_bound": {"var": "K", "max": ib["max"]} if ib else None,
+                "excluded": p.get("excluded", []),
+            }
+        )
+    # An export spec no part states (another function's) stays in the stated inventory, and the
+    # statement claims nothing of it; the driver's promotion refuses such a final
+    # (generic.loop_promotion_problem), but the final itself still checks.
+    byte_list = ",".join(
+        ("\n   " if i % 16 == 0 and i else "") + " " + hex(b)
+        for i, b in enumerate(bytes.fromhex(a.hex))
+    ).strip()
+    bytes_sha = hashlib.sha256(bytes.fromhex(a.hex)).hexdigest()
+    inv_lit = ", ".join(f"({lean_str(n)}, {s:#010x})" for n, s in inv)
+    stage_lit = ",\n      ".join(
+        f"({lean_str(f)}, {lean_str(d)}, {lean_str(p)}, {lean_str(h)})" for f, d, p, h in stages
+    )
+    args_lit = ", ".join(lean_str(x) for x in tc["arguments"])
+    dec = "by decide +kernel"
+    fixed = [
+        ("the fresh source", f"{S}.manifest.sourceSha256 = {lean_str(src_sha)}", f"{I}.source_is_fresh"),
+        (
+            "the spec's inventory",
+            f"{B}.spec.specs.map (fun s => (s.name, s.selector)) = [{inv_lit}]",
+            f"{I}.inventory",
+        ),
+        *([("no contract invariant", f"{B}.spec.invariants = []", f"{I}.no_invariants")] if nospec_any else []),
+        ("the source the stages were compiled from", f"{M}.sources = [({lean_str(src.name)}, {lean_str(src_sha)})]", dec),
+        ("the compiler", f"{M}.compiler = {lean_str(tc['compiler'])}", dec),
+        ("its options", f"{M}.arguments = [{args_lit}]", dec),
+        ("the EVM version", f"{M}.evmVersion = {lean_str(tc['evm_version'])}", dec),
+        ("the optimization", f"{M}.optimization = {lean_str(tc['optimization'])}", dec),
+        ("the MIR and every stage", f"{M}.stages =\n      [{stage_lit}]", dec),
+        ("the assembled bytes", f"{M}.bytecodeSha256 = {lean_str(bytes_sha)}", dec),
+    ]
+    imports = [
+        "Verify.Shapes",
+        "Verify.ShapeBundle",
+        "Verify.ShapeSpecExport",
+        "Verify.Spec.Contract",
+        "Verify.Spec.TreeLoop",
+        f"{a.name}.gen.{a.contract}.Spec",
+        f"{a.name}.gen.{a.contract}.Manifest",
+        f"{a.name}.gen.{a.contract}.Bytecode",
+        src_mod,
+    ]
+    lines = [f"import {m}" for m in imports]
+    fixed_text = "".join(f"\n    -- {what}\n    ({prop}) ∧" for what, prop, _ in fixed)
+    claim = " ∧\n    ".join(f"({c})" for c in claims)
+    named = ", ".join(f"`{f}`" for f in fns)
+    export = f"_root_.SolarTV.Export.{a.contract}"
+    stmt_text = (
+        "\n".join(lines)
+        + f"""
+
+-- Generated by solar's tools/certify/final.py (statement expected) from this run's source, its
+-- exports and the driver's data; do not edit. This module imports no proof module and no generated
+-- proof-side module: the proof's types are unified against it by the kernel.
+
+/-!
+# {a.contract}: the published statement (expected)
+
+`Statement` is the driver-fixed expected statement of a contract with loop functions ({named}):
+the fresh export's bytes are the bytes the driver compiled; the export's manifest is of this run's
+source (SHA-256 {src_sha}) and its spec bundle specifies exactly the inventory; the stage export's
+manifest names the source, the compiler {tc['compiler']}, its options and the digest of the first
+lowered MIR and of every stage, each equal to the literal SHA-256 of the file; and for each
+function, at every iteration bound, its valid calls are inhabited and the exact bytes are
+Shapes.Certified against the checked source (equivalence, termination, the property, resources at
+the gas bound), with the exported spec's NonVacuous on a well-typed result, or the kernel-checked
+absence of a spec (translation only).
+-/
+
+namespace {ns}
+
+/-- The runtime bytecode the pinned solar emitted in this run, as hex (for the reader). -/
+def runtimeHex : String :=
+  "{a.hex}"
+
+/-- The same bytes, as numbers: what the statement binds. -/
+def runtimeBytes : List Nat :=
+  [{byte_list}]
+
+/-- The freshly exported bytecode the obligations speak of. -/
+def code : ByteArray := ⟨({export}.bytecode.map UInt8.ofNat).toArray⟩
+
+/-- **The published statement** (expected). -/
+def Statement : Prop :=
+  _root_.{ns}.code.data.toList.map (·.toNat) = _root_.{ns}.runtimeBytes ∧{fixed_text}
+    -- per function
+    {claim}
+
+set_option maxRecDepth 100000 in
+theorem bound : _root_.{ns}.code.data.toList.map (·.toNat) = _root_.{ns}.runtimeBytes :=
+  @of_decide_eq_true _ (instDecidableEqList _ _) (by decide +kernel)
+
+end {ns}
+"""
+    )
+    proofs = [
+        f"_root_.{ns}.bound",
+        *(pf if pf.startswith("_root_") else f"({pf})" for _, _, pf in fixed),
+        *terms,
+    ]
+    sep = ",\n   "
+    final_text = f"""import {a.name}.Statement
+import {proof_mod}
+import {inv_mod}
+
+-- Generated by solar's tools/certify/final.py (statement expected); do not edit. The statement is
+-- Certified.{a.name}.Final.Statement of {a.name}.Statement, which imports no proof module; the
+-- driver's checker requires `final`'s type to be exactly that constant. {inv_mod} is
+-- imported and used here, so the closure replay covers the export's inventory.
+
+set_option maxRecDepth 100000 in
+theorem {ns}.final : _root_.{ns}.Statement :=
+  ⟨{sep.join(proofs)}⟩
+
+/-- The expected statement, as written independently of the proof modules, holds of the final. -/
+example : _root_.{ns}.Statement := _root_.{ns}.final
+
+#print axioms {ns}.final
+"""
+    open(a.statement_out, "w").write(stmt_text)  # noqa: SIM115
+    open(a.out, "w").write(final_text)  # noqa: SIM115
+    stmt = " ".join(
+        stmt_text.split("def Statement : Prop :=", 1)[1]
+        .split("set_option maxRecDepth 100000 in\ntheorem ")[0]
+        .split()
+    )
+
+    def per(key):
+        vals = [r["statuses"][key] for r in recs]
+        if len(set(vals)) == 1:
+            return vals[0]
+        return "per function: " + "; ".join(f"{r['function']}: {v}" for r, v in zip(recs, vals))
+
+    def some(key):
+        vals = [(r["function"], r[key]) for r in recs if r[key] is not None]
+        return "; ".join(f"{f}: {v}" for f, v in vals) if vals else None
+
+    exported = [r["spec_bound_to_export"] for r in recs if r["spec_bound_to_export"]]
+    if a.record:
+        json.dump(
+            {
+                "module": f"{a.name}.Final",
+                "statement_module": f"{a.name}.Statement",
+                "theorem": f"{ns}.final",
+                "kind": kind,
+                "shape": "SolidCore.Refinement.Shapes.Certified",
+                "statement": stmt,
+                "statement_kind": "expected",
+                "expected": {
+                    "source_sha256": src_sha,
+                    "source_file": src.name,
+                    "spec_bundle": B.removeprefix("_root_."),
+                    "inventory": [{"name": n, "selector": f"0x{s:08x}"} for n, s in inv],
+                    "inventory_module": inv_mod,
+                    "no_invariants": nospec_any,
+                    "toolchain": tc,
+                    "stages": [
+                        {"file": f, "def": d, "pass": p, "sha256": h} for f, d, p, h in stages
+                    ],
+                    "runtime_sha256": bytes_sha,
+                    "binds": [w for w, _, _ in fixed]
+                    + [
+                        "the runtime bytes",
+                        "per function: inhabited valid calls and Shapes.Certified, with the "
+                        "export's well-typed NonVacuous or the checked absence of a spec",
+                    ],
+                },
+                "nonvacuous": some("nonvacuous"),
+                "vacuity": some("vacuity"),
+                "allowed_vacuity": some("allowed_vacuity"),
+                "spec_bound_to_export": exported[0] if exported else None,
+                "allowed_bound_to_export": any(r["allowed_bound_to_export"] for r in recs),
+                "assumptions": [],
+                "excluded": shape.get("excluded", []),
+                "spec": shape.get("spec"),
+                "statuses": {k: per(k) for k in recs[0]["statuses"]},
+                "strongest": all(r["strongest"] for r in recs),
+                "parts": recs,
+            },
+            open(a.record, "w"),  # noqa: SIM115
+            indent=2,
+            ensure_ascii=False,
+        )
+    print(f"{ns}.final")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("shape")
@@ -1138,8 +1697,15 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--statement-out", required=True)
     ap.add_argument("--record", help="write the statuses and statement here as JSON")
+    ap.add_argument("--source", help="statement expected: this run's source file, hashed here")
+    ap.add_argument(
+        "--gen",
+        help="statement expected: the stage export's directory (default: gen/CONTRACT beside --statement-out)",
+    )
     a = ap.parse_args()
     shape = json.load(open(a.shape))  # noqa: SIM115
+    if "parts" in shape and shape.get("statement") == "expected":
+        return loop_expected_mode(a, shape)
     if "parts" in shape:
         return parts_mode(a, shape)
     kind = shape.get("kind")
