@@ -1,4 +1,5 @@
 import SolarTV.MIR.State.Ops
+import SolarTV.MIR.Transforms.RoundedExtent
 
 /-! Local scalar identities and polarity changes for checked MIR. The input
 slice and its length are fixed for an activation. Each retained check keeps
@@ -37,5 +38,25 @@ theorem negated (cfg : Config) (frame : Frame) (panic : Option Word)
 theorem repeated_comparison (cfg : Config) (frame : Frame) (a b : Word) :
     operation cfg frame (.comparison .lt 256) [a,b] =
       value frame ((MIR.compare .lt a b).setWidth 256) := rfl
+
+/-- The false edge of an unsigned length check against a shifted word cannot
+reach the overflow arm of a subsequent increment of that length. -/
+theorem bounded_increment {Result : Type} (word count length : Word)
+    (positive : 0 < count.toNat) (rejected overflow ok : Result) :
+    MIR.branch (MIR.compare .lt (MIR.shift .shr word count) length) rejected
+      (MIR.branch (MIR.compare .eq (MIR.eval .add length 1) 0) overflow ok) =
+    MIR.branch (MIR.compare .lt (MIR.shift .shr word count) length) rejected ok := by
+  by_cases large : (MIR.shift .shr word count).toNat < length.toNat
+  · simp [MIR.branch, MIR.compare, BitVec.ult_iff_toNat_lt, large]
+  · have fits := MIR.RoundedExtent.shifted_length word count positive
+    have sumFits : length.toNat + 1 < 2^256 := by omega
+    have nonzero : length + 1#256 ≠ 0#256 := by
+      intro equal
+      have natural := congrArg BitVec.toNat equal
+      rw [BitVec.toNat_add] at natural
+      change (length.toNat + 1) % 2^256 = 0 at natural
+      rw [Nat.mod_eq_of_lt sumFits] at natural
+      exact Nat.succ_ne_zero _ natural
+    simp [MIR.branch, MIR.compare, MIR.eval, BitVec.ult_iff_toNat_lt, large, nonzero]
 
 end SolarTV.MIR.ScalarChecks

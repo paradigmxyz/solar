@@ -538,6 +538,13 @@ def record(
                     "kernel-checked branch equations over arbitrary defined, typed leaves; trusted attachment of same-block pure producer expressions and branch destinations"
                 )
             if any(
+                check.get("bounded_increments")
+                for check in program.import_evidence["correspondence"].values()
+            ):
+                assumptions.append(
+                    "kernel-checked unique incoming edge and increment branch equation; trusted attachment of the unsigned size check and shifted SSA bound to that edge"
+                )
+            if any(
                 check.get("scalar_reuse")
                 for check in program.import_evidence["correspondence"].values()
             ):

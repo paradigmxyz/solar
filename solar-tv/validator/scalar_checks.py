@@ -150,15 +150,15 @@ def preceding_comparisons(blocks):
                 operands = set(dead_ssa.reads(op, reject_undefined=False))
                 if any(arg["kind"] == "undefined" for arg in op["args"]):
                     continue
-                comparisons[index] = (op, flag, operands | {flag["index"]})
+                comparisons[index] = (parent, op, flag, operands | {flag["index"]})
     return comparisons
 
 
 def reuse_comparisons(blocks, stats):
     aliases = {}
     comparisons = preceding_comparisons(blocks)
-    kept_flags = {flag["index"] for _, flag, _ in comparisons.values()}
-    for index, (operation, flag, dependencies) in comparisons.items():
+    kept_flags = {flag["index"] for _, _, flag, _ in comparisons.values()}
+    for index, (_, operation, flag, dependencies) in comparisons.items():
         block = blocks[index]
         if dependencies.intersection(phi["result"] for phi in block["phis"]):
             continue

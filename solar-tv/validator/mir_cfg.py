@@ -15,6 +15,7 @@ from . import (
     mir_state,
     native,
     phase_carriers,
+    phi_edges,
     prune,
     scalar_checks,
     scalar_reuse,
@@ -175,11 +176,89 @@ def shifted_length(value, definitions):
     )
 
 
+def bounded_increments(body, name):
+    """Project increment guards on a unique false edge of a typed size check."""
+    blocks = body["blocks"]
+    projected = list(blocks)
+    uses = Counter(dead_ssa.reads(blocks, reject_undefined=False))
+    proofs, sites = [], []
+    for index, (parent, comparison, _, _) in scalar_checks.preceding_comparisons(
+        blocks
+    ).items():
+        block, predecessor = blocks[index], blocks[parent]
+        edge, term = predecessor["terminator"], block["terminator"]
+        if edge["else"] != index or edge["then"] == index:
+            continue
+        room, length = comparison["args"]
+        if room["kind"] != "local" or length["kind"] != "local":
+            continue
+        shift = next(
+            (
+                word_operands(inst, "shr")
+                for inst in predecessor["instructions"]
+                if inst["result"] == room["index"]
+            ),
+            (),
+        )
+        if (
+            len(shift) != 2
+            or shift[0]["kind"] == "undefined"
+            or shift[1]["kind"] != "constant"
+            or not 0 < int(shift[1]["value"]) < 2**256
+        ):
+            continue
+        instructions = block["instructions"]
+        if not (
+            len(instructions) >= 2
+            and (guard := increment_guard(instructions, len(instructions) - 2))
+            and not guard.uses_previous
+            and guard.argument == length["index"]
+        ):
+            continue
+        if term["kind"] == "branch" and (
+            term["args"] == [scalar_checks.local(guard.guard, FLAG)]
+            and uses[guard.guard] == 1
+        ):
+            amount = int(shift[1]["value"])
+            site = f"{name}_{index}"
+            proofs.append(f"""
+theorem {site} {{Result : Type}} (word length : Word) (rejected overflow ok : Result) :
+    MIR.branch (MIR.compare .lt (MIR.shift .shr word {amount}) length) rejected
+      (MIR.branch (MIR.compare .eq (MIR.eval .add length 1) 0) overflow ok) =
+    MIR.branch (MIR.compare .lt (MIR.shift .shr word {amount}) length) rejected ok :=
+  MIR.ScalarChecks.bounded_increment word {amount} length (by decide) rejected overflow ok
+theorem {site}Edge : {name}Edges.filter (fun edge => edge.2 == {index}) = [({parent},{index})] := by decide
+#print axioms {site}
+#print axioms {site}Edge
+""")
+            sites.append([parent, index, amount])
+            term = {"kind": "jump", "args": [], "target": term["else"]}
+        elif term["kind"] != "jump" or uses[guard.guard]:
+            continue
+        projected[index] = {
+            **block,
+            "instructions": instructions[:-1],
+            "terminator": term,
+        }
+    code = ""
+    if proofs:
+        edges = ",".join(
+            f"({index},{target})"
+            for index, block in enumerate(blocks)
+            for target in phi_edges.targets(block["terminator"])
+        )
+        code = f"def {name}Edges : List (Nat × Nat) := [{edges}]\n"
+    return {**body, "blocks": projected}, sites, code + "".join(proofs)
+
+
 def rounded_extent(block, position, uses, definitions):
     """Check a block suffix that computes allocation size and dispatches on overflow."""
     term = block["terminator"]
     instructions = block["instructions"]
-    if term["kind"] != "branch" or not 4 <= len(instructions) - position <= 6:
+    if (
+        term["kind"] not in {"branch", "jump"}
+        or not 4 <= len(instructions) - position <= 6
+    ):
         return None
     sum_, quotient, *tail = instructions[position:]
     total = word_operands(sum_, "add")
@@ -211,6 +290,8 @@ def rounded_extent(block, position, uses, definitions):
         != [word_local(aligned["result"]), word_constant(32)]
     ):
         return None
+    if term["kind"] == "jump" and guard:
+        return None
     if len(guard) == 1:
         comparison = guard[0]
         result = comparison["result"]
@@ -227,7 +308,7 @@ def rounded_extent(block, position, uses, definitions):
         expected = {"kind": "constant", "type": FLAG, "value": "0"}
     else:
         return None
-    if term["args"] != [expected]:
+    if term["kind"] == "branch" and term["args"] != [expected]:
         return None
     results = (sum_["result"], quotient["result"], aligned["result"], extent["result"])
     return RoundedExtent(length["index"], results, division, bool(guard))
@@ -300,9 +381,9 @@ def import_graph(body, *, combine=True, threaded=()):
             elif combine and (
                 extent := rounded_extent(block, position, uses, definitions)
             ):
-                nodes.append(
-                    ("action", extent, [point(block["terminator"]["else"], index)])
-                )
+                term = block["terminator"]
+                successor = term["else"] if term["kind"] == "branch" else term["target"]
+                nodes.append(("action", extent, [point(successor, index)]))
             elif combine and (size := rounded_size(instructions, position, uses)):
                 data, length = size
                 nodes.append(("action", data, [point(index, None, position + length)]))
@@ -1098,6 +1179,12 @@ set_option maxHeartbeats 2000000
         (first, first_checks), (second, second_checks) = map(
             scalar_checks.normalize, (source, b)
         )
+        first, first_increments, first_increment_code = bounded_increments(
+            first, f"increment{i}_0"
+        )
+        second, second_increments, second_increment_code = bounded_increments(
+            second, f"increment{i}_1"
+        )
         old, new = map(import_graph, (first, second))
         calls[a["id"]] = set()
         for kind, data, _ in old:
@@ -1117,7 +1204,7 @@ set_option maxHeartbeats 2000000
                     raise Unsupported("MIR CFG proof has an ambiguous call binding")
                 work.extend(targets)
         product_initialization = []
-        body_code = ""
+        body_code = first_increment_code + second_increment_code
         for side, graph in enumerate((old, new)):
             products = product_certificate(f"products{i}_{side}", graph)
             product_initialization.append(bool(products))
@@ -1303,6 +1390,8 @@ theorem identical{i} : before{i} = after{i} := by rfl
         checked[name].update(expansions)
         if first_checks or second_checks:
             checked[name]["scalar_checks"] = [first_checks, second_checks]
+        if first_increments or second_increments:
+            checked[name]["bounded_increments"] = [first_increments, second_increments]
         if any(
             isinstance(data, RoundedExtent)
             for graph in (old, new)

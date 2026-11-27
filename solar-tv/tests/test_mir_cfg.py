@@ -1468,6 +1468,15 @@ fn @choose() -> i256 {
                 [1, 0],
             )
 
+            after.write_text(output.replace("jumpi false, bb1, bb2", "jump bb2"))
+            record = self.check_loop(root, 0)
+            self.assertEqual(
+                record["import_correspondence"][0]["correspondence"]["choose"][
+                    "rounded_extent_guards"
+                ],
+                [1, 0],
+            )
+
             # Drop the size bound on both sides. Removing the check is now invalid.
             before.write_text(source.replace("shr v0, 1", "shr v0, 0"))
             after.write_text(output.replace("shr v0, 1", "shr v0, 0"))
@@ -1490,6 +1499,64 @@ fn @choose() -> i256 {
             record = self.check_loop(root, 1, fixture=fixture)
             self.assertEqual(record["evidence"], "kernel-and-rust-replay")
             witness = record["witness"]
+            self.assertEqual(witness["observations"], witness["native_observations"])
+
+    def test_increment_guard_requires_the_unique_bounded_edge(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{name}.mir" for name in ("before", "after"))
+            source = """@module BoundedIncrement
+fn @choose() -> i256 {
+  bb0:
+    v0 = sload 1
+    v1 = shr v0, 5
+    v2 = sload 4
+    v3 = lt v1, v2
+    jumpi v3, bb1, bb2
+  bb1:
+    ret 9
+  bb2:
+    v4 = add v2, 1
+    v5 = eq v4, 0
+    jumpi v5, bb3, bb4
+  bb3:
+    ret 77
+  bb4:
+    v6 = phi [bb2: false], [bb4: true]
+    sstore 3, v4
+    jumpi v6, bb5, bb4
+  bb5:
+    ret v4
+}
+"""
+            target = source.replace("jumpi v5, bb3, bb4", "jump bb4")
+            before.write_text(source)
+            after.write_text(target)
+            record = self.check_loop(root, 0)
+            self.assertEqual(
+                record["import_correspondence"][0]["correspondence"]["choose"][
+                    "bounded_increments"
+                ],
+                [[[0, 1, 5]], []],
+            )
+
+            before.write_text(source.replace("ret 9", "jump bb2"))
+            after.write_text(target.replace("ret 9", "jump bb2"))
+            self.check_loop(root, 2)
+            fixture = root / "world.json"
+            fixture.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "accounts": [
+                            {"address": 65536, "storage": {"4": str(2**256 - 1)}}
+                        ],
+                    }
+                )
+            )
+            record = self.check_loop(root, 1, fixture=fixture)
+            witness = record["witness"]
+            self.assertEqual(record["evidence"], "kernel-and-rust-replay")
             self.assertEqual(witness["observations"], witness["native_observations"])
 
     def test_egraph_composes_slice_reuse_and_checked_guards(self):
