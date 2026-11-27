@@ -777,7 +777,7 @@ class SpecGate(unittest.TestCase):
 
 
 MANIFEST = """-- solar-lean-stage: kind=manifest index=0 pass=none
-namespace SolarTV.Export.C.Manifest
+namespace SolarTV.Export.n.C.Manifest
 
 def sources : List (String × String) :=
   [("c.sol", "@SRC@")]
@@ -803,7 +803,7 @@ def stages : List (String × String × String × String) :=
 
 def bytecodeSha256 : String := "00"
 
-end SolarTV.Export.C.Manifest
+end SolarTV.Export.n.C.Manifest
 """
 
 TOOLCHAIN = {
@@ -909,7 +909,7 @@ class ExpectedStatement(unittest.TestCase):
         body = stmt.split("def Statement : Prop :=", 1)[1]
         self.assertTrue(body.lstrip().startswith(
             "_root_.Certified.n.Final.code.data.toList.map (·.toNat) = _root_.Certified.n.Final.runtimeBytes ∧"))
-        S, M = "_root_.Certified.n.gen.C.Spec", "_root_.SolarTV.Export.C.Manifest"
+        S, M = "_root_.Certified.n.gen.C.Spec", "_root_.SolarTV.Export.n.C.Manifest"
         for want in (
             f'({S}.manifest.sourceSha256 = "{self.src_sha}")',
             f'({S}.C.spec.specs.map (fun s => (s.name, s.selector)) = [("C.a", 0xa0a0a0a0)])',

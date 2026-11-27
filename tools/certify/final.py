@@ -1155,6 +1155,17 @@ LOOP_SEM = "SolidCore.Refinement.Generic.Loop.solidCoreRuntime"
 LOOP_FRAME = "SolidCore.Spec.TreeLoop.ctx0"
 
 
+def run_export(shape, contract):
+    """The namespace of the run's export: shape.json's export_ns (the driver exports each run under
+    its own, tools/certify/export_ns.py), else solar's default for CONTRACT; refused unless a Lean
+    name."""
+    plain = re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", contract)
+    exported = shape.get("export_ns") or f"SolarTV.Export.{contract if plain else f'«{contract}»'}"
+    if not isinstance(exported, str) or not NAME.match(exported.replace("«", "").replace("»", "")):
+        fail("shape.json: export_ns is not a Lean name")
+    return exported
+
+
 def lean_str(s):
     """A Lean string literal of S (printable ASCII only: the driver's hashes, names and options)."""
     if not (isinstance(s, str) and re.fullmatch(r"[ -~]*", s) and '"' not in s and "\\" not in s):
@@ -1162,7 +1173,7 @@ def lean_str(s):
     return f'"{s}"'
 
 
-def stage_manifest(gen, contract):
+def stage_manifest(gen, contract, exported=None):
     """The stage export's manifest (GEN/Manifest.lean, solar -Zemit-lean-stages), read for its stage
     list, and every stage file's SHA-256 computed here from the file Lean builds: [(file, def, pass,
     sha)]. The statement then states the manifest's digests equal to these literal hashes, and the
@@ -1177,7 +1188,8 @@ def stage_manifest(gen, contract):
     if not mf.is_file():
         fail(f"statement expected: no stage manifest {mf}")
     text = mf.read_text()
-    if not re.search(rf"^namespace SolarTV\.Export\.{re.escape(contract)}\.Manifest$", text, re.M):
+    exported = exported or f"SolarTV.Export.{contract}"
+    if not re.search(rf"^namespace {re.escape(exported)}\.Manifest$", text, re.M):
         fail(f"statement expected: {mf} is not the manifest of {contract}'s export")
     m = re.search(r"^def stages : List \(String × String × String × String\) :=\n(.*?)\n\n", text, re.M | re.S)
     if not m:
@@ -1311,7 +1323,7 @@ def loop_expected_mode(a, shape):
         fail(f"--source {src} is not a file")
     src_sha = hashlib.sha256(src.read_bytes()).hexdigest()
     gen = pathlib.Path(a.gen) if a.gen else pathlib.Path(a.statement_out).parent / "gen" / a.contract
-    stages = stage_manifest(gen, a.contract)
+    stages = stage_manifest(gen, a.contract, run_export(shape, a.contract))
     ex = shape.get("expected")
     if not (isinstance(ex, dict) and set(ex) == {"toolchain", "inventory", "inventory_module"}):
         fail("shape.json: statement expected needs expected {toolchain, inventory, inventory_module}")
@@ -1367,7 +1379,7 @@ def loop_expected_mode(a, shape):
     ns = f"Certified.{a.name}.Final"
     S = f"_root_.Certified.{a.name}.gen.{a.contract}.Spec"
     B = f"{S}.{a.contract}"
-    M = f"_root_.SolarTV.Export.{a.contract}.Manifest"
+    M = f"_root_.{run_export(shape, a.contract)}.Manifest"
     I = f"_root_.Certified.{inv_mod}"
     contract = (
         "_root_.SolidCore.Solidity.TypeCheck.CheckedInput.contract "
@@ -1548,7 +1560,7 @@ def loop_expected_mode(a, shape):
     fixed_text = "".join(f"\n    -- {what}\n    ({prop}) ∧" for what, prop, _ in fixed)
     claim = " ∧\n    ".join(f"({c})" for c in claims)
     named = ", ".join(f"`{f}`" for f in fns)
-    export = f"_root_.SolarTV.Export.{a.contract}"
+    export = f"_root_.{run_export(shape, a.contract)}"
     stmt_text = (
         "\n".join(lines)
         + f"""
