@@ -87,6 +87,7 @@ import SolarTV.MIR.Transforms.ScalarReuse
 import SolarTV.MIR.Transforms.DceEffects
 import SolarTV.MIR.Transforms.StateReadReuse
 import SolarTV.MIR.Transforms.HeapCursor
+import SolarTV.MIR.Transforms.PrivateCursor
 import SolarTV.MIR.Transforms.ProductInit
 import SolarTV.EVMIR.State.Transactions.SetCode
 import SolarTV.EVMIR.State.Transactions.Reservoir

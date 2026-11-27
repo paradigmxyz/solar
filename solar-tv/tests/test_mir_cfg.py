@@ -795,6 +795,66 @@ fn @choose(arg0: i256) -> i256 {
                     observations[0] == observations[1], values[0] == values[1]
                 )
 
+    def test_private_cursor_store_cannot_change_returned_bytes(self):
+        source = """@module DeadCursor
+fn @choose() {
+  bb0:
+    v0 = heap_floor
+    mstore 64, 192
+    mstore v0, 42
+    jump bb1
+  bb1:
+    v1 = phi [bb0: false], [bb1: true]
+    jumpi v1, bb2, bb1
+  bb2:
+    v2 = inttoptr i256 v0 to ptr<memory>
+    returndata v2, 32
+}
+"""
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{side}.mir" for side in ("before", "after"))
+            args = (
+                (before, after),
+                SOLAR,
+                native.default(SOLAR),
+                "cancun",
+                30,
+                "choose",
+            )
+            before.write_text(source)
+            after.write_text(source.replace("    mstore 64, 192\n", ""))
+            result = mir_cfg.check(*args, valid_heap=True)
+            evidence = result.program.import_evidence
+            self.assertEqual(evidence["kind"], "kernel-checked-private-cursor-store")
+            check_ = evidence["correspondence"]["choose"]["private_cursor_store"]
+            self.assertEqual(
+                check_["checked_read_ranges"]["choose"][0]["origin"], "floor"
+            )
+
+            for path in (before, after):
+                path.write_text(
+                    path.read_text().replace("inttoptr i256 v0", "inttoptr i256 64")
+                )
+            with self.assertRaises(Unsupported):
+                mir_cfg.check(*args, valid_heap=True)
+            fixture = root / "world.json"
+            fixture.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "memory": {
+                            "data": "0x" + (bytes(64) + (128).to_bytes(32, "big")).hex()
+                        },
+                        "mir_layout": {"functions": {"choose": {"heap_floor": 128}}},
+                    }
+                )
+            )
+            record = self.check_loop(root, 1, fixture=fixture)
+            self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+            witness = record["witness"]
+            self.assertEqual(witness["observations"], witness["native_observations"])
+
     def test_raw_heap_reload_requires_a_preserved_cursor(self):
         source = """@module RawHeap
 fn @choose(arg0: i256, arg1: i256) -> i256 {

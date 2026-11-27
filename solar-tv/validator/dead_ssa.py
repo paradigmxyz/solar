@@ -77,6 +77,30 @@ def rename_locals(value, mapping):
     return result
 
 
+def same_definitions(before, after):
+    """Check whether identical typed actions differ only in local numbering."""
+
+    def results(body):
+        return [
+            node["result"]
+            for block in body["blocks"]
+            for node in block["phis"] + block["instructions"]
+            if node["result"] is not None
+        ]
+
+    left, right = results(before), results(after)
+    if (
+        len(left) != len(right)
+        or len(set(left)) != len(left)
+        or len(set(right)) != len(right)
+    ):
+        return False
+    try:
+        return rename_locals(after, dict(zip(right, left, strict=True))) == before
+    except Unsupported:
+        return False
+
+
 def align(before, after):
     if len(before["blocks"]) != len(after["blocks"]):
         raise Unsupported("dead SSA requires unchanged block identities")

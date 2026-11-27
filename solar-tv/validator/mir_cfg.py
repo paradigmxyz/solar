@@ -17,6 +17,7 @@ from . import (
     native,
     phase_carriers,
     phi_edges,
+    private_cursor,
     prune,
     scalar_checks,
     scalar_reuse,
@@ -952,6 +953,21 @@ def after{i} : Graph := {render(new, symbols)}
 """
 
 
+def identity_certificate(i, old, new, limit):
+    code = (
+        graph_source(i, old, new)
+        + f"""
+theorem identical{i} : before{i} = after{i} := by rfl
+#print axioms identical{i}
+"""
+    )
+    matched = (
+        f"fun handle work locals state => congrArg "
+        f"(fun graph => run graph {limit} handle work 0 locals state) identical{i}"
+    )
+    return code, matched
+
+
 def certificate(i, old, new, witnesses, limit):
     code = graph_source(i, old, new)
     parts = []
@@ -1053,6 +1069,7 @@ def project_reads(
     rewrite_stores,
 ):
     projected, state_stats, scalar_stats, heap_stats = [], [], [], []
+    reduced_bodies = []
     code = ""
     for side, body in enumerate(bodies):
         heap = None
@@ -1089,6 +1106,7 @@ def project_reads(
             code += scalar_reuse.certificate(f"readScalars{i}_{side}", untrimmed, sites)
         for identity, flow in heap_flows.items():
             code += heap_cursor.certificate(f"heap{i}_{side}_{identity}", flow)
+        reduced_bodies.append(reduced)
         projected.append(import_graph(reduced))
         stats = dict(Counter(space for space, _ in reuses))
         if stop_stores:
@@ -1117,6 +1135,8 @@ def project_reads(
         )
     if not any(state_stats) or use_heap and not any(heap_stats):
         raise Unsupported("MIR CFG proof found no applicable state read reuse")
+    if rewrite_stores and dead_ssa.same_definitions(*reduced_bodies):
+        projected[1] = projected[0]
     return projected, code, state_stats, scalar_stats, heap_stats
 
 
@@ -1344,6 +1364,7 @@ set_option maxHeartbeats 2000000
     scalar_definitions = None
     read_only = None
     heap_used = False
+    private_cursor_used = False
     while work:
         name = work.pop()
         if name in checked:
@@ -1361,6 +1382,29 @@ set_option maxHeartbeats 2000000
         i = len(checked)
         source = a
         expansions = {}
+        private_projection = None
+        if valid_heap and lowering is None and a != b and name == function:
+            if scalar_definitions is None:
+                scalar_definitions = {
+                    row["name"]: row
+                    for row in native.catalog(executable, timeout)["evmir"]
+                }
+            private_projection = private_cursor.project(
+                a, b, models, scalar_definitions, version
+            )
+            if private_projection is not None:
+                (block, point), inventories = private_projection
+                source = b
+                private_cursor_used = True
+                work.extend(caller for caller in inventories if caller != name)
+                expansions["private_cursor_store"] = {
+                    "block": block,
+                    "instruction": point,
+                    "checked_read_ranges": {
+                        caller: [vars(read) for read in reads]
+                        for caller, reads in inventories.items()
+                    },
+                }
         if lowering is not None:
             if lowering == "lower-alloc":
                 source, expanded = lower_alloc.materialize_pair(
@@ -1434,6 +1478,8 @@ set_option maxHeartbeats 2000000
             + first_index_code
             + second_index_code
         )
+        if private_projection is not None:
+            body_code += private_cursor.certificate(i, private_projection[1])
         for side, graph in enumerate((old, new)):
             products = product_certificate(f"products{i}_{side}", graph)
             product_initialization.append(bool(products))
@@ -1443,21 +1489,14 @@ set_option maxHeartbeats 2000000
             sum(node[0] == "literal" for node in graph) for graph in (old, new)
         ]
         if old == new:
-            body_code += graph_source(i, old, new)
-            body_code += f"""
-theorem identical{i} : before{i} = after{i} := by rfl
-#print axioms identical{i}
-"""
+            limit = len(old) + 1
+            certificate_code, matched = identity_certificate(i, old, new, limit)
+            body_code += certificate_code
             checked[name] = {
                 "proof": "identity",
                 "source_points": len(old),
                 "literal_branches": literal_branches,
             }
-            limit = len(old) + 1
-            matched = (
-                f"fun handle work locals state => congrArg "
-                f"(fun graph => run graph {limit} handle work 0 locals state) identical{i}"
-            )
         else:
             scalar_stats, state_stats, heap_stats, width_stats = [], [], [], []
             guarded_stats = []
@@ -1551,9 +1590,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
                             for table in tables
                         ]
                         setup += state_read_reuse.AXIOMS
-                    alternatives = (
-                        (False, True) if valid_heap and name == function else (False,)
-                    )
+                    alternatives = (False, True) if valid_heap else (False,)
                     candidates = [
                         (use_heap, rewrite_stores)
                         for rewrite_stores in (False, True)
@@ -1601,8 +1638,12 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 render_point(point, targets, locals_)
                 for point, targets, locals_ in zip(points, edges, live, strict=True)
             ]
-            body_code += certificate(i, old, new, witnesses, limit)
-            matched = f"fun handle work locals state => preserved{i} handle work locals locals state"
+            if old == new:
+                certificate_code, matched = identity_certificate(i, old, new, limit)
+                body_code += certificate_code
+            else:
+                body_code += certificate(i, old, new, witnesses, limit)
+                matched = f"fun handle work locals state => preserved{i} handle work locals locals state"
             checked[name] = {
                 "proof": "path-correspondence",
                 "paired_points": len(points),
@@ -1662,7 +1703,11 @@ theorem identical{i} : before{i} = after{i} := by rfl
         raise Unsupported("MIR module proof needs every function's call certificate")
     composition = ""
     if nested or function is None:
-        entry = tables[0][function]["id"] if function is not None else None
+        entry = (
+            tables[0][function]["id"]
+            if function is not None and not private_cursor_used
+            else None
+        )
         composition = call_proof(procedure_pairs, entry)
     sources = proof_sources(prefix, setup, bodies, composition)
     entry_proof.success(build_model(timeout), "MIR CFG proof model")
@@ -1686,7 +1731,9 @@ theorem identical{i} : before{i} = after{i} := by rfl
             "lower-alloc": "kernel-checked-allocation-lowering",
         }.get(
             lowering,
-            "kernel-checked-valid-heap-read-reuse"
+            "kernel-checked-private-cursor-store"
+            if private_cursor_used
+            else "kernel-checked-valid-heap-read-reuse"
             if heap_used
             else "kernel-checked-typed-jump-chain",
         ),

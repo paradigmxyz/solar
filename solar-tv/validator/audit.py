@@ -635,12 +635,23 @@ def record(
                         "terminal stores have literal intervals within 64 KiB. STOP discards private memory and retains the preceding effects"
                     )
             if any(
+                check.get("private_cursor_store")
+                for check in program.import_evidence["correspondence"].values()
+            ):
+                assumptions.extend(
+                    [
+                        "word-aligned logical memory covers bytes 64 through 95 and is at most 64 KiB; the shared placement supplies a defined heap floor of at least 128",
+                        "paired frames differ only at bytes 64 through 95. The admitted graph contains only disjoint reads, paired writes and cursor-blind actions, including in every checked continuation of an internal return",
+                        "the typed exporter binds the range proofs to address operands, matching scalar actions and internal caller exits; only the enclosing terminal observations are compared",
+                    ]
+                )
+            if any(
                 check.get("heap_cursor")
                 for check in program.import_evidence["correspondence"].values()
             ):
                 assumptions.extend(
                     [
-                        "initialized logical MIR entry. Aligned memory covers bytes 64 through 95 and holds an initial free-memory pointer between 128 and the uint64 maximum",
+                        "initialized logical MIR entry for each activation using cursor reuse. Aligned memory covers bytes 64 through 95 and holds a free-memory pointer between 128 and the uint64 maximum",
                         "known cursor offsets and reads follow the exported CFG and normal-return callee summaries. Raw calls retain their behavior and may write only within their output range in caller memory",
                         "the typed source binds the cursor transitions and address operands. Actual ABI callers and physical gas remain separate obligations",
                     ]

@@ -772,7 +772,7 @@ def main() -> int:
     parser.add_argument(
         "--valid-heap",
         action="store_true",
-        help="admit an initialized free-memory pointer at a logical MIR function entry",
+        help="admit an initialized free-memory pointer at the relevant logical MIR entries",
     )
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument(
