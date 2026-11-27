@@ -99,6 +99,18 @@ class SiblingCode(unittest.TestCase):
         the base is part of its code, walked as its own, rather than a sibling."""
         self.assertEqual(envelope("CallsSibling.sol", "Peer"), ("Peer", ["ping()"]))
 
+    def test_base_reaches_inlined_code(self):
+        """Inlined code a base runs is the derived contract's code too: Derived's base Base calls a
+        library function with a loop, so certifying Derived meets the loop."""
+        path = DATA / "BaseReaches.sol"
+        ast, _ = generic.solc_ast(str(SOLC), path)
+        cdef = next(n for n in ast["nodes"] if n.get("name") == "Derived")
+        lin, why = generic.linearization(ast, cdef)
+        self.assertIsNone(why)
+        inline, _ = generic.sibling_code(ast, cdef, lin)
+        self.assertEqual([(u["name"], n["name"]) for n, u in inline], [("Spin", "spin")])
+        self.assertIn("loop", [f for f, _ in envelope("BaseReaches.sol", "Derived")])
+
     def test_inlined_code_meets_the_envelope(self):
         """What the contract reaches through inlined library code is checked as its own code: a loop
         two calls deep, inline assembly, recursion and an external call."""
