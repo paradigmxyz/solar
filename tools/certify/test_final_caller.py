@@ -17,7 +17,7 @@ FINAL = HERE / "final.py"
 NS = "Certified.c_1.Final"
 L = "Certified.c_1.Lowering"
 
-# A shape.json as the driver writes it for a generic-stage contract (SimpleStorage's, renamed c_1).
+# A shape.json as the driver writes it for a generic-stage contract (SimpleStorage's, renamed c_1 and C).
 BASE = json.loads((HERE / "testdata" / "final_caller_shape.json").read_text())
 FIXED_GENERIC = dict(BASE["generic"], caller="0x2000")
 ANY_GENERIC = dict(
