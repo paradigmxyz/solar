@@ -1007,11 +1007,11 @@ def fresh_block(
         "  exact Bool.false_ne_true hl",
         "",
         f"/-- info: '{mod}.spec_is_fresh' does not depend on any axioms -/",
-        "#guard_msgs in",
+        "#guard_msgs (whitespace := lax) in",
         "#print axioms spec_is_fresh",
         "",
         f"/-- info: '{mod}.source_is_fresh' depends on axioms: [propext, Classical.choice, Quot.sound] -/",
-        "#guard_msgs in",
+        "#guard_msgs (whitespace := lax) in",
         "#print axioms source_is_fresh",
         "",
     ]
@@ -1072,7 +1072,7 @@ def loop_block(
         f"      (by decide) (by decide) {fid}_meets)",
         "",
         f"/-- info: '{mod}.{fid}_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/",
-        "#guard_msgs in",
+        "#guard_msgs (whitespace := lax) in",
         f"#print axioms {fid}_loop_spec",
         "",
     ]
@@ -1128,7 +1128,7 @@ def while_block(
         "      (by decide) (by decide) {fid}_meets)".replace("{fid}", fid),
         "",
         f"/-- info: '{mod}.{fid}_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/",
-        "#guard_msgs in",
+        "#guard_msgs (whitespace := lax) in",
         f"#print axioms {fid}_loop_spec",
         "",
     ]
@@ -1870,7 +1870,7 @@ def main():
                 "  ⟨spec_is_fresh, source_is_fresh, spec_source.1, spec_source.2⟩",
                 "",
                 f"/-- info: '{args.module_name}.receipt' depends on axioms: [propext, Classical.choice, Quot.sound] -/",
-                "#guard_msgs in",
+                "#guard_msgs (whitespace := lax) in",
                 "#print axioms receipt",
                 "",
             ]
@@ -2033,7 +2033,7 @@ def main():
                 # _holds_in is a published theorem of its own (every world W), so its axioms are
                 # guarded on their own, not only through _holds (review 189).
                 f"/-- info: '{args.module_name}.{fid}_holds_in' depends on axioms: [propext, Classical.choice, Quot.sound] -/",
-                "#guard_msgs in",
+                "#guard_msgs (whitespace := lax) in",
                 f"#print axioms {fid}_holds_in",
                 "",
                 f"/-- **`{name}`'s spec holds of SolidCore's checked contract** on the stage's calls of it: the",
