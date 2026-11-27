@@ -569,7 +569,7 @@ PROJECTS = {
     "tempo-zones": Project(
         "tempo-zones",
         "tempo-zones.json.gz",
-        (Source("tempoxyz/zones", "700069eb8a40fce7e1f7a4bf0fc5703bcc692c43"),),
+        (Source("tempoxyz/tempo", "a86fa1ef623b756e7194638579470771f21850ee"),),
     ),
     "tempo-tips-verify": Project(
         "tempo-tips-verify",
