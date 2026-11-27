@@ -4193,6 +4193,72 @@ store repeats the same word already in memory. The remaining
 The join records complete per-pass counts and hashes of the six reports
 in `target/tv-pass-gaps/`.
 
+### Completed block CSE, check elimination and PUSH scheduling
+
+Five serial Morpho Blue retries match the frozen capture IDs, checked
+regions and both raw input hashes. The saved audit now verifies
+**2,195 of 2,228 (98.5%)**. All 33 remaining checks are unsupported.
+
+| Layer and pass | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: |
+| EVM IR `block-cse` | 10 | 0 | 0 | 0 |
+| MIR `check-elim` | 7 | 0 | 0 | 0 |
+| EVM IR `reorder-pushes` | 5 | 0 | 0 | 0 |
+
+In `bb340`, three `DUP` instructions replace literal pushes of 128.
+Lean checks the constant's provenance at every incoming edge to each
+edit, the checked stack step and the unchanged fork charge. The matched
+region includes the immutable read, `GAS` and `STATICCALL`. Its logical
+interaction proof uses a shared immutable binding and shared replies.
+
+The `bb103` scratch-store proof retains the earlier write at offset zero
+through a disjoint write at offset 32 and memory-preserving effects.
+Lean checks that the deleted store writes the same word to offset zero.
+The byte-memory laws establish idempotence after expansion and preserve
+the known word across disjoint writes. The contextual theorem assumes
+sufficient gas and a handler that implements those memory operations.
+The regression rejects both a different stored word and an overlapping
+intervening store.
+
+The remaining `reorder-pushes` window in `bb340` preserves its live stack
+and the ordered memory request. Its unchanged suffix reads a shared
+immutable and forwards its `GAS` sample directly to Cancun `ECRECOVER`.
+Lean checks the two call transitions under an explicit funded policy.
+With both forwarded budgets covering recovery, the same input yields
+the same result and 3,000-gas child debit even when the requested gas
+differs. The schedule uses the captured incoming height of one. Physical
+funding across the parent trace and arbitrary gas thresholds remain
+outside these region certificates.
+
+The MIR `_accrueInterest` proof checks the sole-predecessor chain back
+to the false arm that clears the removed disjunct. The `extSloads`
+proof uses the retained entry allocation checks and the loop's taken
+length comparison to check increment overflow, slice bounds and the
+shift-index limit. The typed producer-to-edge binding remains trusted.
+The checked CFGs preserve the ordered unpriced effects and direct calls,
+including shared gas and message replies.
+
+Independent Rust replay assembled both EVM IR sides with the same
+concrete immutable slot. The `bb340` constant-copy pair agreed exactly on
+signed authorization and invalid signature. The schedule preserved both
+outcomes and left three more gas. The scratch-store pair preserved market
+creation with eight more gas and matched the short-calldata revert.
+Direct MIR replay agreed on the funded interest-rate call, and on
+`extSloads` for the two-slot and empty inputs and the maximal-length panic.
+The latter replay uses a common driver that constructs the input slice.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Pinned compiler | `f996616dcf2ebacf05fc5cc439f4814dc38fe953fad90b698754281c59ef139c` |
+| Independent pinned Rust replay | `1c08fa6d66c19b52b661c4db7c93fc1d257948cb592d9856d09a237c174bca0c` |
+| Updated window exporter | `c74c90a2fbdcd3f55b37bac2f9fe5244b949201c81339839da8319a7d92ecf00` |
+| Checker on Lean 4.34.1 | `e48c15948377d8b2d7fe39536928707d5ea32f811a0a64f44d74c08a0b0a9f41` |
+| `target/tv-five/remaining.json` | `2b15eca7076e6406ad1fea63a94b22cd2900fdb5528c68f0a694f0a37353cffc` |
+| `target/tv-five/rust-replay.json` | `e0514328a1bd2d45bc729e435fc823a1b72ffa6e3f1274802448db802559a20b` |
+
+The join retains the three original corpus fingerprints and records the
+proof mode, exporter and raw input hashes for each retry.
+
 ### MIR CFG checks after an import timeout
 
 The earlier three-second census timed out on 23 Morpho MIR `cfg-simplify`
