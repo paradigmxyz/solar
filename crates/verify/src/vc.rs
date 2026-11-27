@@ -2380,8 +2380,8 @@ impl<'p, 'a> Vc<'p, 'a> {
         (self.aliases, self.alias_env, self.slocals) = p;
     }
 
-    /// Enters a spec evaluation of a function body: no caller storage pointer is in scope, so a body
-    /// local of the same name is the body's own. Returns what `leave_spec_body` restores.
+    /// Enters a spec evaluation of a function body: no caller storage pointer is in scope, so a
+    /// body local of the same name is the body's own. Returns what `leave_spec_body` restores.
     pub(super) fn enter_spec_body(&mut self) -> (Env, PtrState<'a>) {
         let ptrs = (
             std::mem::take(&mut self.aliases),
