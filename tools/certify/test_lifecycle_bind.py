@@ -267,7 +267,7 @@ class ComposedPinnedApi(unittest.TestCase):
     file and namespace below; the smoke box at 822e0c6c failed on Verify.Lifecycle.Deploys, which
     does not exist (Deploys is SolidCore.Refinement's)."""
 
-    # name -> where it is declared at solidity-lean 822e0c6c
+    # name -> where it is declared at solidity-lean 16728c1a (as at 822e0c6c)
     PINNED: typing.ClassVar[dict[str, str]] = {
         "SolidCore.Verify.Generic.runtimeCode": "Verify/Generic/Expected.lean:190 (namespace SolidCore.Verify.Generic)",
         "Verify.Lifecycle.Statement": "Verify/Lifecycle/Route.lean:101 (namespace Verify.Lifecycle)",
@@ -317,7 +317,7 @@ class ComposedPinnedApi(unittest.TestCase):
         self.assertEqual(template, set(self.PINNED), sorted(template))
         self.assertEqual(
             (HERE / "solidity-lean.rev").read_text().strip(),
-            "822e0c6c363bfc9fa686c3338c57743dc73cfd2e",
+            "16728c1ade1dd0733a358dcf874dd12ef193b11f",
         )
 
     def test_reachable_through_imports(self):
