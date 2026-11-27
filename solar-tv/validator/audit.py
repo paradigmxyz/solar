@@ -538,6 +538,13 @@ def record(
                     "kernel-checked branch equations over arbitrary defined, typed leaves; trusted attachment of same-block pure producer expressions and branch destinations"
                 )
             if any(
+                check.get("false_disjuncts") or check.get("bounded_indices")
+                for check in program.import_evidence["correspondence"].values()
+            ):
+                assumptions.append(
+                    "kernel-checked branch and arithmetic laws and incoming-edge inventories; trusted attachment of typed guard operands to the sole-predecessor chain or the retained entry size checks"
+                )
+            if any(
                 check.get("bounded_increments")
                 for check in program.import_evidence["correspondence"].values()
             ):

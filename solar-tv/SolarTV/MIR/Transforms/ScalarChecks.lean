@@ -39,6 +39,36 @@ theorem repeated_comparison (cfg : Config) (frame : Frame) (a b : Word) :
     operation cfg frame (.comparison .lt 256) [a,b] =
       value frame ((MIR.compare .lt a b).setWidth 256) := rfl
 
+theorem false_disjunct {Result : Type} (flag : BitVec 1) (left : Bool)
+    (yes no : Result) :
+    MIR.branch (if left then MIR.eval .or 0 flag else MIR.eval .or flag 0) yes no =
+      MIR.branch flag yes no := by
+  cases left <;> simp [MIR.eval]
+
+theorem bounded_index (cfg : Config) (frame : Frame) (index length limit : Word)
+    (small : limit.toNat < 2^255)
+    (nowrap : MIR.compare .lt (MIR.eval .add length 1) length = 0)
+    (size : MIR.compare .gt (MIR.eval .add length 1) limit = 0)
+    (inside : MIR.compare .lt index length = 1)
+    (rangePanic limitPanic : Option Word) (rangeMessage limitMessage : Option (List SolarTV.Execution.Byte)) :
+    MIR.checked .add false index 1 = Outcome.returned (index + 1) ∧
+    operation cfg frame (.check true rangePanic rangeMessage)
+      [(MIR.compare .lt index length).setWidth 256] = effect frame ∧
+    operation cfg frame (.check false limitPanic limitMessage)
+      [(MIR.compare .gt index limit).setWidth 256] = effect frame := by
+  have lower : length.toNat ≤ (length + 1#256).toNat := by
+    simpa [MIR.compare, MIR.eval, BitVec.ult_iff_toNat_lt] using nowrap
+  have upper : (length + 1#256).toNat ≤ limit.toNat := by
+    simpa [MIR.compare, MIR.eval, BitVec.ult_iff_toNat_lt] using size
+  have below : index.toNat < length.toNat := by
+    simpa [MIR.compare, BitVec.ult_iff_toNat_lt] using inside
+  have wide : ¬limit.toNat < index.toNat := by omega
+  have clear : MIR.compare .gt index limit = 0 := by
+    simp [MIR.compare, BitVec.ult_iff_toNat_lt, wide]
+  refine ⟨?_, by rw [inside]; rfl, by rw [clear]; rfl⟩
+  have paid : index.toNat + 1 < 2^256 := by omega
+  simp [MIR.checked, BitVec.uaddOverflow, Nat.not_le_of_gt paid]
+
 /-- The false edge of an unsigned length check against a shifted word cannot
 reach the overflow arm of a subsequent increment of that length. -/
 theorem bounded_increment {Result : Type} (word count length : Word)

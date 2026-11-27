@@ -2,7 +2,7 @@
 
 import hashlib
 import tempfile
-from collections import Counter, deque
+from collections import Counter, defaultdict, deque
 from dataclasses import dataclass
 from itertools import batched
 from pathlib import Path
@@ -176,6 +176,95 @@ def shifted_length(value, definitions):
     )
 
 
+def incoming_edges(blocks):
+    parents = defaultdict(list)
+    for index, block in enumerate(blocks):
+        for target in phi_edges.targets(block["terminator"]):
+            parents[target].append(index)
+    return parents
+
+
+def edge_definition(name, parents):
+    edges = ",".join(
+        f"({parent},{target})"
+        for target, sources in parents.items()
+        for parent in sources
+    )
+    return f"def {name}Edges : List (Nat × Nat) := [{edges}]\n"
+
+
+def false_disjuncts(body, name):
+    """Bind a false OR operand through a chain of sole predecessors."""
+    blocks = body["blocks"]
+    parents = incoming_edges(blocks)
+    updated = list(blocks)
+    proofs = []
+    for index, block in enumerate(blocks):
+        term = block["terminator"]
+        if term["kind"] != "branch" or term["args"][0]["kind"] != "local":
+            continue
+        (condition,) = term["args"]
+        disjunction = next(
+            (
+                inst["operation"]
+                for inst in block["instructions"]
+                if inst["result"] == condition["index"] and inst["type"] == FLAG
+            ),
+            {},
+        )
+        if disjunction.get("kind") != "opcode" or disjunction.get("name") != "or":
+            continue
+        args = disjunction["args"]
+        if len(args) != 2 or any(
+            arg["type"] != FLAG or arg["kind"] != "local" for arg in args
+        ):
+            continue
+        cursor = index
+        visited = {index}
+        chain = []
+        while cursor != 0 and len(parents[cursor]) == 1:
+            (parent,) = parents[cursor]
+            if parent in visited:
+                break
+            visited.add(parent)
+            chain.append((parent, cursor))
+            previous = blocks[parent]["terminator"]
+            if (
+                previous["kind"] == "branch"
+                and previous["else"] == cursor
+                and previous["then"] != cursor
+                and previous["args"][0] in args
+                and any(
+                    inst["result"] == previous["args"][0]["index"]
+                    for inst in blocks[parent]["instructions"]
+                )
+            ):
+                left = args[0] == previous["args"][0]
+                updated[index] = {
+                    **block,
+                    "terminator": {**term, "args": [args[int(left)]]},
+                }
+                site = f"{name}_{index}"
+                path = ",".join(f"({a},{b})" for a, b in chain)
+                proofs.append(f"""
+theorem {site}Path : ([{path}] : List (Nat × Nat)).all
+    (fun (a,b) => {name}Edges.filter (fun edge => edge.2 == b) == [(a,b)]) = true := by decide
+theorem {site} {{Result : Type}} (flag : BitVec 1) (yes no : Result) :
+    MIR.branch (MIR.eval .or {"0 flag" if left else "flag 0"}) yes no =
+      MIR.branch flag yes no :=
+  MIR.ScalarChecks.false_disjunct flag {str(left).lower()} yes no
+#print axioms {site}Path
+#print axioms {site}
+""")
+                break
+            cursor = parent
+    return (
+        {**body, "blocks": updated},
+        len(proofs),
+        edge_definition(name, parents) + "".join(proofs) if proofs else "",
+    )
+
+
 def bounded_increments(body, name):
     """Project increment guards on a unique false edge of a typed size check."""
     blocks = body["blocks"]
@@ -240,15 +329,137 @@ theorem {site}Edge : {name}Edges.filter (fun edge => edge.2 == {index}) = [({par
             "instructions": instructions[:-1],
             "terminator": term,
         }
-    code = ""
-    if proofs:
-        edges = ",".join(
-            f"({index},{target})"
-            for index, block in enumerate(blocks)
-            for target in phi_edges.targets(block["terminator"])
-        )
-        code = f"def {name}Edges : List (Nat × Nat) := [{edges}]\n"
+    code = edge_definition(name, incoming_edges(blocks)) if proofs else ""
     return {**body, "blocks": projected}, sites, code + "".join(proofs)
+
+
+def checks_flag(inst, flag, *, zero=False):
+    op = inst["operation"]
+    return (
+        inst["result"] is None
+        and op["kind"] == "check"
+        and op["zero"] == zero
+        and op["args"] == [flag]
+    )
+
+
+def entry_length_limits(instructions):
+    limits = {}
+    for position, head in enumerate(instructions[:-2]):
+        guard = increment_guard(instructions, position)
+        if (
+            not guard
+            or not guard.uses_previous
+            or not checks_flag(
+                instructions[position + 2], scalar_checks.local(guard.guard, FLAG)
+            )
+        ):
+            continue
+        result = word_local(head["result"])
+        for comparison, check in zip(
+            instructions[position + 3 :], instructions[position + 4 :]
+        ):
+            flag, operation = comparison["result"], comparison["operation"]
+            if (
+                flag is not None
+                and comparison["type"] == FLAG
+                and operation.get("name") == "gt"
+                and len(operation["args"]) == 2
+                and operation["args"][0] == result
+                and (limit := operation["args"][1])["kind"] == "constant"
+                and limit["type"] == WORD
+                and 0 <= int(limit["value"]) < 2**255
+                and checks_flag(check, scalar_checks.local(flag, FLAG))
+            ):
+                limits[guard.argument] = limit
+                break
+    return limits
+
+
+def bounded_indices(body, name):
+    """Retain entry checks and use their size bound on the loop's true edge."""
+    blocks = body["blocks"]
+    parents = incoming_edges(blocks)
+    entry = blocks[0]
+    if parents[0] or entry["terminator"]["kind"] != "jump":
+        return body, 0, ""
+    limits = entry_length_limits(entry["instructions"])
+    if not limits:
+        return body, 0, ""
+    header_id = entry["terminator"]["target"]
+    header = blocks[header_id]
+    term = header["terminator"]
+    if term["kind"] != "branch" or term["then"] in (0, header_id):
+        return body, 0, ""
+    cursor_id = term["then"]
+    if parents[cursor_id] != [header_id]:
+        return body, 0, ""
+    (flag,) = term["args"]
+    test = next(
+        (
+            inst["operation"]
+            for inst in header["instructions"]
+            if flag == scalar_checks.local(inst["result"], FLAG)
+            and inst["type"] == FLAG
+        ),
+        {},
+    )
+    if test.get("name") != "lt" or len(test["args"]) != 2:
+        return body, 0, ""
+    index, length = test["args"]
+    limit = (
+        limits.get(length.get("index"))
+        if length["kind"] == "local" and length["type"] == WORD
+        else None
+    )
+    if not limit or index["kind"] != "local" or index["type"] != WORD:
+        return body, 0, ""
+    block = blocks[cursor_id]
+    too_wide = {
+        inst["result"]
+        for inst in block["instructions"]
+        if inst["result"] is not None
+        and inst["type"] == FLAG
+        and inst["operation"]
+        == {"kind": "opcode", "name": "gt", "args": [index, limit]}
+    }
+    instructions, changes = [], 0
+    for inst in block["instructions"]:
+        if checks_flag(inst, flag, zero=True) or any(
+            checks_flag(inst, scalar_checks.local(result, FLAG)) for result in too_wide
+        ):
+            changes += 1
+            continue
+        args = [index, word_constant(1)]
+        if inst["type"] == WORD and inst["operation"] == {
+            "kind": "checked",
+            "operation": "Add",
+            "signed": False,
+            "bits": 256,
+            "args": args,
+        }:
+            inst = {
+                **inst,
+                "operation": {"kind": "opcode", "name": "add", "args": args},
+            }
+            changes += 1
+        instructions.append(inst)
+    if not changes:
+        return body, 0, ""
+    projected = list(blocks)
+    projected[cursor_id] = {**block, "instructions": instructions}
+    code = (
+        edge_definition(name, parents)
+        + f"""
+theorem {name}Edge : {name}Edges.filter (fun edge => edge.2 == 0) = [] ∧
+    {name}Edges.filter (fun edge => edge.2 == {cursor_id}) = [({header_id},{cursor_id})] := by decide
+theorem {name}Limit : ( {limit["value"]}#256 ).toNat < 2^255 := by decide
+#print axioms {name}Edge
+#print axioms {name}Limit
+#print axioms MIR.ScalarChecks.bounded_index
+"""
+    )
+    return {**body, "blocks": projected}, changes, code
 
 
 def rounded_extent(block, position, uses, definitions):
@@ -1179,11 +1390,21 @@ set_option maxHeartbeats 2000000
         (first, first_checks), (second, second_checks) = map(
             scalar_checks.normalize, (source, b)
         )
+        first, first_disjuncts, first_disjunct_code = false_disjuncts(
+            first, f"disjunction{i}_0"
+        )
+        second, second_disjuncts, second_disjunct_code = false_disjuncts(
+            second, f"disjunction{i}_1"
+        )
         first, first_increments, first_increment_code = bounded_increments(
             first, f"increment{i}_0"
         )
         second, second_increments, second_increment_code = bounded_increments(
             second, f"increment{i}_1"
+        )
+        first, first_indices, first_index_code = bounded_indices(first, f"index{i}_0")
+        second, second_indices, second_index_code = bounded_indices(
+            second, f"index{i}_1"
         )
         old, new = map(import_graph, (first, second))
         calls[a["id"]] = set()
@@ -1204,7 +1425,14 @@ set_option maxHeartbeats 2000000
                     raise Unsupported("MIR CFG proof has an ambiguous call binding")
                 work.extend(targets)
         product_initialization = []
-        body_code = first_increment_code + second_increment_code
+        body_code = (
+            first_disjunct_code
+            + second_disjunct_code
+            + first_increment_code
+            + second_increment_code
+            + first_index_code
+            + second_index_code
+        )
         for side, graph in enumerate((old, new)):
             products = product_certificate(f"products{i}_{side}", graph)
             product_initialization.append(bool(products))
@@ -1392,6 +1620,10 @@ theorem identical{i} : before{i} = after{i} := by rfl
             checked[name]["scalar_checks"] = [first_checks, second_checks]
         if first_increments or second_increments:
             checked[name]["bounded_increments"] = [first_increments, second_increments]
+        if first_disjuncts or second_disjuncts:
+            checked[name]["false_disjuncts"] = [first_disjuncts, second_disjuncts]
+        if first_indices or second_indices:
+            checked[name]["bounded_indices"] = [first_indices, second_indices]
         if any(
             isinstance(data, RoundedExtent)
             for graph in (old, new)

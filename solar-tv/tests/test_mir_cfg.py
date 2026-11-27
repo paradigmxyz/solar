@@ -1559,6 +1559,96 @@ fn @choose() -> i256 {
             self.assertEqual(record["evidence"], "kernel-and-rust-replay")
             self.assertEqual(witness["observations"], witness["native_observations"])
 
+    def test_disjunction_requires_false_edge_in_every_path(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{side}.mir" for side in ("before", "after"))
+            source = """@module FalseDisjunct
+fn @choose() -> i256 {
+  bb0:
+    v0 = sload 1
+    v1 = ne v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    ret 8
+  bb2:
+    jump bb3
+  bb3:
+    v2 = sload 2
+    v3 = ne v2, 0
+    v4 = or v1, v3
+    jumpi v4, bb4, bb5
+  bb4:
+    ret 77
+  bb5:
+    v5 = phi [bb3: false], [bb5: true]
+    sstore 3, v2
+    jumpi v5, bb6, bb5
+  bb6:
+    ret 9
+}
+"""
+            target = source.replace("jumpi v4, bb4, bb5", "jumpi v3, bb4, bb5")
+            before.write_text(source)
+            after.write_text(target)
+            record = self.check_loop(root, 0)
+            self.assertEqual(
+                record["import_correspondence"][0]["correspondence"]["choose"][
+                    "false_disjuncts"
+                ],
+                [1, 0],
+            )
+            before.write_text(source.replace("ret 8", "jump bb2"))
+            after.write_text(target.replace("ret 8", "jump bb2"))
+            self.check_loop(root, 2)
+
+    def test_loop_index_checks_require_the_retained_entry_bound(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{side}.mir" for side in ("before", "after"))
+            source = """@module BoundedIndex
+fn @choose() -> i256 {
+  bb0:
+    v0 = sload 1
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    icall panic_if<0x41>, v2
+    v3 = gt v1, 63
+    icall panic_if<0x41>, v3
+    jump bb1
+  bb1:
+    v4 = phi [bb0: 0], [bb2: v6]
+    v5 = lt v4, v0
+    jumpi v5, bb2, bb3
+  bb2:
+    v6 = checked_add uint256, v4, 1
+    icall panic_if_zero<0x32>, v5
+    v7 = gt v4, 63
+    icall panic_if<0x41>, v7
+    sstore 3, v6
+    jump bb1
+  bb3:
+    ret v4
+}
+"""
+            target = (
+                source.replace("checked_add uint256,", "add")
+                .replace("    icall panic_if_zero<0x32>, v5\n", "")
+                .replace("    icall panic_if<0x41>, v7\n", "")
+            )
+            before.write_text(source)
+            after.write_text(target)
+            record = self.check_loop(root, 0)
+            self.assertEqual(
+                record["import_correspondence"][0]["correspondence"]["choose"][
+                    "bounded_indices"
+                ],
+                [3, 0],
+            )
+            before.write_text(source.replace("    icall panic_if<0x41>, v3\n", ""))
+            after.write_text(target.replace("    icall panic_if<0x41>, v3\n", ""))
+            self.check_loop(root, 2)
+
     def test_egraph_composes_slice_reuse_and_checked_guards(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
