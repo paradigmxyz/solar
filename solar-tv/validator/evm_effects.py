@@ -35,7 +35,14 @@ COMPOSED_EFFECTS = EFFECTS | {"address", "calldatacopy", "sload", "sstore", "tim
 
 
 def instructions(
-    lines, catalog, version, labels=None, *, code_tail=False, composed=False
+    lines,
+    catalog,
+    version,
+    labels=None,
+    *,
+    code_tail=False,
+    composed=False,
+    label_pushes=False,
 ):
     admitted = COMPOSED_EFFECTS if composed else EFFECTS
     rendered = []
@@ -54,21 +61,26 @@ def instructions(
             continue
         if guard := re.fullmatch(r"push bb(\d+)", line):
             target = int(guard[1])
-            if (
-                labels is None
-                or f"bb{target}" not in labels
-                or index + 1 == len(lines)
-                or lines[index + 1] != "jumpi"
-            ):
+            if labels is None or f"bb{target}" not in labels:
+                raise Unsupported("effectful prefix requires a declared target")
+            if lines[index + 1 : index + 2] == ["jumpi"]:
+                rendered.append(
+                    f".guard {target} (prices {target}).1 (prices {target}).2"
+                )
+                # The temporary label PUSH precedes consumption of the condition.
+                peak = max(peak, delta + 1)
+                required = max(required, 1 - delta)
+                delta -= 1
+                index += 2
+                continue
+            if not label_pushes:
                 raise Unsupported(
                     "effectful prefix requires a paired static conditional target"
                 )
-            rendered.append(f".guard {target} (prices {target}).1 (prices {target}).2")
-            # The temporary label PUSH precedes consumption of the condition.
-            peak = max(peak, delta + 1)
-            required = max(required, 1 - delta)
-            delta -= 1
-            index += 2
+            rendered.append(f".scalar (.push (labelAddress {target}))")
+            delta += 1
+            peak = max(peak, delta)
+            index += 1
             continue
         scalar = prefix.operation(line, catalog, version)
         if scalar is not None:

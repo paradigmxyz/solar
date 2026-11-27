@@ -103,7 +103,7 @@ def certificate(models, common, tail, imported, aborts, version, height, entry_l
         )
         items = model["instructions"]
         code += f"""
-def {name} : List EVM.Effects.Op := [{",".join(ops)}]
+def {name} (labelAddress : Nat → Word) : List EVM.Effects.Op := [{",".join(ops)}]
 def {name}Common : List String := {json.dumps(items[: len(common)])}
 def {name}Tail : EVM.Suffix.Tail := ⟨{json.dumps(items[len(items) - len(tail) :])}, {json.dumps(model["terminal"])}, {following}⟩
 """
@@ -121,13 +121,13 @@ def {name}Tail : EVM.Suffix.Tail := ⟨{json.dumps(items[len(items) - len(tail) 
     supported, witness, matched = (
         "fun _ => True",
         "(fun _ _ _ _ _ => trivial)",
-        "(fun ctx stack _ => matched ctx stack)",
+        "(fun ctx stack _ => matched labelAddress ctx stack)",
     )
     if height is not None:
         relation = "=" if entry_limit is None else "≤"
         condition = f" (fits : stack.length {relation} {height})"
         supported = f"fun stack => stack.length {relation} {height}"
-        matched = "matched"
+        matched = "(matched labelAddress)"
         if entry_limit is None:
             binding = f"(binding : ∀ ctx stack gas world, enter beforeCommon = .next ctx stack gas world → stack.length = {height})"
             witness = "binding"
@@ -149,9 +149,9 @@ def {name}Tail : EVM.Suffix.Tail := ⟨{json.dumps(items[len(items) - len(tail) 
     code += f"""
 private theorem sharedPrefix : afterCommon = beforeCommon := by decide
 private theorem sharedTail : afterTail = beforeTail := by decide
-private theorem matched (ctx : EVM.Context) (stack : EVM.Stack){condition} :
-    EVM.StackSchedule.Refines (EVM.StackSchedule.trace ctx .{version} aborts after stack)
-      (EVM.StackSchedule.trace ctx .{version} aborts before stack) := by
+private theorem matched (labelAddress : Nat → Word) (ctx : EVM.Context) (stack : EVM.Stack){condition} :
+    EVM.StackSchedule.Refines (EVM.StackSchedule.trace ctx .{version} aborts (after labelAddress) stack)
+      (EVM.StackSchedule.trace ctx .{version} aborts (before labelAddress) stack) := by
 """
     for i in range(16):
         code += f"  have index{i} : (({i} : Fin 256) : Nat) = {i} := by decide\n"
@@ -169,15 +169,16 @@ private theorem matched (ctx : EVM.Context) (stack : EVM.Stack){condition} :
         + "\n".join("  " + line for line in simplifier.splitlines())
         + f"""
 
-theorem contextual {{World Halt : Type}} (enter : List String → EVM.Suffix.PrefixResult World Halt)
+theorem contextual {{World Halt : Type}} (labelAddress : Nat → Word)
+    (enter : List String → EVM.Suffix.PrefixResult World Halt)
     (handler : EVM.StackSchedule.Handler World) (exit : EVM.StackSchedule.Exit) (final : World)
     {binding}
-    (ran : EVM.StackSchedule.observe enter handler .{version} beforeCommon aborts before =
+    (ran : EVM.StackSchedule.observe enter handler .{version} beforeCommon aborts (before labelAddress) =
       .done exit final) :
-    EVM.StackSchedule.observe enter handler .{version} afterCommon aborts after = .done exit final ∧
+    EVM.StackSchedule.observe enter handler .{version} afterCommon aborts (after labelAddress) = .done exit final ∧
       afterTail = beforeTail := by
   rw [sharedPrefix]{bridge}
-  exact ⟨EVM.StackSchedule.contextual enter handler .{version} beforeCommon aborts before after
+  exact ⟨EVM.StackSchedule.contextual enter handler .{version} beforeCommon aborts (before labelAddress) (after labelAddress)
     ({supported}) {witness} {matched}
     exit final ran, sharedTail⟩
 #print axioms contextual
@@ -226,7 +227,9 @@ def check(
         entry_limit = max(caller.bounds)
         cut_height = height_after_prefix(entry_limit, common, catalog, version)
     imported = [
-        evm_effects.instructions(code, catalog, version, labels, composed=True)
+        evm_effects.instructions(
+            code, catalog, version, labels, composed=True, label_pushes=True
+        )
         for code in middles
     ]
     aborts = {}

@@ -145,6 +145,23 @@ class EffectPrefixTests(unittest.TestCase):
             record["import_correspondence"][0]["source_stack_bound"]["max_height"], 3
         )
 
+    def test_schedule_preserves_a_stack_carried_return_label(self):
+        before, after = [
+            self.directory / f"{side}.evmir" for side in ("before", "after")
+        ]
+        header = "@module ReturnSchedule\nbb0 [stack=0]:\n"
+        tail = "\n  jump bb2\nbb1 [stack=0]:\n  stop\nbb2 [stack=2]:\n  pop\n  jump\n"
+        before.write_text(header + "  push 42\n  push bb1\n  swap 1" + tail)
+        after.write_text(header + "  push bb1\n  push 42" + tail)
+        result, record = self.cli([before, after], "--stack-schedule", "bb0")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(record["region"]["proof"], "kernel-checked-stack-schedule")
+
+        after.write_text(after.read_text().replace("push bb1", "push bb0"))
+        result, record = self.cli([before, after], "--stack-schedule", "bb0")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(record["status"], "unsupported")
+
     def entry(self, path, *, broken=False):
         text = path.read_text().replace("[stack=6]", "[stack=0]")
         # Concrete safe memory pointers propose a witness, never a proof precondition.
