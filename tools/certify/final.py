@@ -58,12 +58,28 @@ shape.json keys (Lean terms without tactics or commands):
   wide      (open_functional) `World → Prop`: the worlds a result may be explained by
   admit     (open_functional) `World → Prop`: the worlds termination and the spec speak of;
             a result only a wide world explains is reported as Shapes.Unadmitted
-  allowed_vacuity  (open_functional) why the allowed statuses reject nothing (then NonVacuous
-            states the specification's half only)
+  allowed_vacuity  (kinds open_functional, certified and functional, with nonvacuous) why the
+            allowed statuses reject nothing, such as a spec without succeeds-if conditions (then
+            NonVacuous states the specification's half only, and the status is never the strongest)
   sem, prog (instead of contract and fuel) a source semantics and program below SolidCore, such as
             the first lowered MIR under an oracle; the statement then has no checked contract
   proof_module, proof  the module and the term of type `∀ env…, ∃ c, contract = .ok c ∧ Shape`
   excluded  what the statement does not cover, recorded verbatim
+  pinned_bytes, pinned_module  (kinds certified, functional and compiled) the proof speaks of the
+            code `⟨(PINNED.map UInt8.ofNat).toArray⟩` of a byte list (`List Nat`) that the data
+            module pinned_module defines (such as a stage export the proof was built on), not of
+            this run's export. The statement then binds that list to the run's bytes,
+            `runtime_is_fresh : PINNED = runtimeBytes`, decided by the kernel, and states the shape of
+            `code`, the run's bytes themselves; the proof module's term is carried over by
+            `code_eq`. A pinned artifact that is stale or substituted (any byte other than this run's)
+            fails the binding.
+  iteration_bound  {"var": V, "max": N} (kinds certified, functional and compiled): the statement
+            holds for every iteration bound `V ≤ N` (N a literal), the terms valid, allowed, post and
+            gas may name V, and the proof is a term of type
+            `∀ {V : Nat}, V ≤ N → ∀ env…, ∃ c, contract = .ok c ∧ Shape`. With nonvacuous,
+            NonVacuous takes V too, the statement is `∀ V, V ≤ N → NonVacuous V ∧ …` (non-vacuity
+            at every bound, the bound 0 included), and nonvacuous is a term of type
+            `∀ {V : Nat}, V ≤ N → NonVacuous V`
 The strongest status is reported only for kind "certified" with the specification from
 solar-verify's export (spec_export) and the non-vacuity witnesses (nonvacuous) in the statement.
 """
@@ -418,6 +434,173 @@ theorem {ns}.final : _root_.{ns}.Statement := by
     return stmt_text, final_text
 
 
+def pinned_and_bound(shape, kind, proof_mod, spec_mods, nonvac):
+    """shape.json's pinned_bytes/pinned_module (the byte list the proof's code is built from and its
+    data module, or None) and iteration_bound (the bound's variable and its literal maximum, or
+    None), checked."""
+    pinned = ib = None
+    if "pinned_bytes" in shape or "pinned_module" in shape:
+        if kind not in ("certified", "functional", "compiled"):
+            fail(
+                "shape.json: pinned_bytes is for kinds certified, functional and compiled"
+            )
+        pmod = shape.get("pinned_module")
+        if not isinstance(pmod, str) or not NAME.match(pmod):
+            fail(
+                "shape.json: pinned_bytes needs pinned_module, the data module that defines it"
+            )
+        if pmod == proof_mod:
+            fail("shape.json: the pinned bytes cannot come from the proof module")
+        pinned = (expr(shape, "pinned_bytes"), pmod)
+    if "iteration_bound" in shape:
+        b = shape["iteration_bound"]
+        if kind not in ("certified", "functional", "compiled"):
+            fail(
+                "shape.json: iteration_bound is for kinds certified, functional and compiled"
+            )
+        if not (isinstance(b, dict) and set(b) == {"var", "max"}):
+            fail('shape.json: iteration_bound must be {"var": V, "max": N}')
+        v, n = b["var"], b["max"]
+        if not (isinstance(v, str) and re.fullmatch(r"[A-Z][A-Za-z0-9]*", v)):
+            fail("shape.json: iteration_bound.var must be a capitalised identifier")
+        if not (isinstance(n, int) and not isinstance(n, bool) and n >= 0):
+            fail("shape.json: iteration_bound.max must be a natural number literal")
+        if v in {"code", "runtimeBytes", "c"} or any(
+            re.search(rf"\b{re.escape(v)}\b", m) for m in spec_mods + [proof_mod]
+        ):
+            fail(
+                f"shape.json: iteration_bound.var {v!r} clashes with a module or statement name"
+            )
+        ib = (v, n)
+    return pinned, ib
+
+
+def bound_mode(
+    a,
+    ns,
+    lines,
+    byte_list,
+    export,
+    shape_t,
+    nonvac_def,
+    nonvac_conj,
+    claim,
+    pinned,
+    ib,
+    proof_mod,
+    env,
+    proof,
+    binders,
+    nonvac,
+):
+    """The statement with this run's bytes bound to a pinned artifact (pinned_bytes) and/or quantified
+    over an iteration bound (iteration_bound). With pinned_bytes, `code` is the run's bytes
+    themselves, and `runtime_is_fresh` (decided by the kernel) is the statement's first conjunct: the
+    pinned list the proof was built on is exactly this run's bytes, so a stale or substituted artifact,
+    or a mutated byte of the run, fails. Without it, `code` is the run's fresh export and `bound`
+    binds it, as in the plain mode."""
+    rest = f" {binders}" if env else ""
+    if ib is not None and nonvac is not None:
+        # Non-vacuity at every bound: NonVacuous takes the bound, inside its binder.
+        v, n = ib
+        claim = f"∀ ({v} : Nat), {v} ≤ {n} →\n      (_root_.{ns}.NonVacuous {v} ∧ ({claim}))"
+        inner = f"fun{rest} => ({proof}) h{v}{rest}" if env else f"({proof}) h{v}"
+        body = f"fun {v} h{v} => ⟨({nonvac}) h{v}, {inner}⟩"
+        nonvac_conj = ""
+    elif ib is not None:
+        v, n = ib
+        claim = f"∀ ({v} : Nat), {v} ≤ {n} →\n      ({claim})"
+        body = f"fun {v} h{v}{rest} => ({proof}) h{v}{rest}"
+    else:
+        body = f"fun{rest} => ({proof}){rest}" if env else f"({proof})"
+    if pinned is not None:
+        pb = pinned[0]
+        code_def = f"""/-- The runtime bytes this run emitted, as code: what the statement's shape speaks of. -/
+def code : ByteArray := ⟨(_root_.{ns}.runtimeBytes.map UInt8.ofNat).toArray⟩"""
+        binding = f"({pb}) = _root_.{ns}.runtimeBytes"
+        thms = f"""set_option maxRecDepth 100000 in
+theorem runtime_is_fresh : ({pb}) = _root_.{ns}.runtimeBytes :=
+  @of_decide_eq_true _ (instDecidableEqList _ _) (by decide +kernel)
+
+/-- The proof's code is the statement's `code`: the byte list the proof was built on, bound to this
+run's bytes by `runtime_is_fresh` (the kernel's evaluation of the equality of the two literals). -/
+theorem code_eq : (⟨(({pb}).map UInt8.ofNat).toArray⟩ : ByteArray) = _root_.{ns}.code :=
+  congrArg (fun l : List Nat => (⟨(l.map UInt8.ofNat).toArray⟩ : ByteArray)) _root_.{ns}.runtime_is_fresh
+"""
+        doc = (
+            "binds the byte list the proof was built on to the runtime bytecode this run emitted\n"
+            "(`runtimeBytes`, from the driver's own compile) and states"
+        )
+        first = f"_root_.{ns}.runtime_is_fresh"
+        carry = f"  rw [← _root_.{ns}.code_eq]\n"
+    else:
+        code_def = f"""/-- The freshly exported bytecode the obligations speak of. -/
+def code : ByteArray := ⟨({export}.bytecode.map UInt8.ofNat).toArray⟩"""
+        binding = (
+            f"_root_.{ns}.code.data.toList.map (·.toNat) = _root_.{ns}.runtimeBytes"
+        )
+        thms = f"""set_option maxRecDepth 100000 in
+theorem bound : _root_.{ns}.code.data.toList.map (·.toNat) = _root_.{ns}.runtimeBytes :=
+  @of_decide_eq_true _ (instDecidableEqList _ _) (by decide +kernel)
+"""
+        doc = "binds the exact runtime bytecode (`runtimeHex`, from the driver's own compile) and states"
+        first = f"_root_.{ns}.bound"
+        carry = ""
+    bound_doc = (
+        f" for every iteration bound `{ib[0]} ≤ {ib[1]}`" if ib is not None else ""
+    )
+    stmt_text = (
+        "\n".join(lines)
+        + f"""
+
+-- Generated by solar's tools/certify/final.py from {a.name}/shape.json and the bytecode the
+-- driver compiled in this run; do not edit. This module never imports the proof module.
+
+/-!
+# {a.contract}: the published statement
+
+`Statement` {doc}
+{shape_t.replace("_root_.", "")} of it against the checked source on the declared valid calls{bound_doc}.
+-/
+
+namespace {ns}
+
+/-- The runtime bytecode the pinned solar emitted in this run, as hex (for the reader). -/
+def runtimeHex : String :=
+  "{a.hex}"
+
+/-- The same bytes, as numbers: what the statement binds. -/
+def runtimeBytes : List Nat :=
+  [{byte_list}]
+
+{code_def}
+{nonvac_def}
+/-- **The published statement.** -/
+def Statement : Prop :=
+  {binding} ∧
+    {nonvac_conj}({claim})
+
+{thms}
+end {ns}
+"""
+    )
+    nv = f"  refine ⟨{nonvac}, ?_⟩\n" if nonvac is not None and ib is None else ""
+    final_text = f"""import {a.name}.Statement
+import {proof_mod}
+
+-- Generated by solar's tools/certify/final.py; do not edit. The statement is
+-- Certified.{a.name}.Final.Statement of {a.name}.Statement, which does not import the proof
+-- module; the driver's checker requires `final`'s type to be exactly that constant.
+
+theorem {ns}.final : _root_.{ns}.Statement := by
+  refine ⟨{first}, ?_⟩
+{nv}{carry}  exact {body}
+
+#print axioms {ns}.final
+"""
+    return stmt_text, final_text
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("shape")
@@ -440,7 +623,7 @@ def main():
             "shape.json: kind open_functional states a checked source (contract and fuel)"
         )
     if not opened:
-        for k in ("env_ok", "wide", "admit", "allowed_vacuity"):
+        for k in ("env_ok", "wide", "admit"):
             if k in shape:
                 fail(f"shape.json: {k} is for kind open_functional only")
     allowed_vac = None
@@ -469,7 +652,14 @@ def main():
     bound_spec, bound_allowed, vacuity, nonvac = False, False, None, None
     allowed = post = None
     if kind == "compiled":
-        for k in ("allowed", "post", "spec_export", "nonvacuous", "vacuity"):
+        for k in (
+            "allowed",
+            "post",
+            "spec_export",
+            "nonvacuous",
+            "vacuity",
+            "allowed_vacuity",
+        ):
             if k in shape:
                 fail(f"shape.json: kind compiled states no specification (no {k})")
         spec_args = ""
@@ -504,11 +694,17 @@ def main():
             bound_spec = True
         else:
             post = expr(shape, "post")
-        if (
-            opened
-            and isinstance(shape.get("allowed_vacuity"), str)
-            and shape["allowed_vacuity"].strip()
-        ):
+        if "allowed_vacuity" in shape:
+            if not (
+                isinstance(shape["allowed_vacuity"], str)
+                and shape["allowed_vacuity"].strip()
+            ):
+                fail("shape.json: allowed_vacuity must say why")
+            if "nonvacuous" not in shape:
+                fail(
+                    "shape.json: allowed_vacuity narrows nonvacuous (the specification's half "
+                    "stays): it needs nonvacuous"
+                )
             allowed_vac = shape["allowed_vacuity"].strip()
         for k, v in (("allowed", allowed), ("post", post)):
             if k == "allowed" and allowed_vac is not None:
@@ -550,6 +746,7 @@ def main():
         fail("shape.json: the proof module cannot define the statement's inputs")
     if proof_mod in (f"{a.name}.Statement", f"{a.name}.Final"):
         fail("shape.json: the proof module cannot be the statement or the final module")
+    pinned, ib = pinned_and_bound(shape, kind, proof_mod, spec_mods, nonvac)
     shape_t = {
         "certified": "_root_.SolidCore.Refinement.Shapes.Certified",
         "functional": "_root_.SolidCore.Refinement.Shapes.Functional",
@@ -571,7 +768,7 @@ def main():
             else []
         ),
         *(["Verify.ShapeSpecExport"] if bound_allowed else []),
-        f"{a.name}.gen.{a.contract}.Bytecode",
+        pinned[1] if pinned else f"{a.name}.gen.{a.contract}.Bytecode",
         *spec_mods,
     ]
     lines = [f"import {m}" for m in dict.fromkeys(imports)]
@@ -597,10 +794,20 @@ def NonVacuous : Prop :=
 """
         nonvac_conj = f"_root_.{ns}.NonVacuous ∧\n    "
     elif nonvac is not None:
-        nonvac_def = f"""
-/-- The specification and the allowed statuses are not vacuous: some valid call has a result the
-specification rejects, and some valid call has a revert the allowed statuses reject. -/
-def NonVacuous : Prop :=
+        nv_bind = f" ({ib[0]} : Nat)" if ib is not None else ""
+        nv_at = f" (at the iteration bound {ib[0]})" if ib is not None else ""
+        if allowed_vac is not None:
+            nonvac_def = f"""
+/-- The specification is not vacuous{nv_at}: some valid call has a result it rejects (the allowed
+statuses reject nothing: {allowed_vac}). -/
+def NonVacuous{nv_bind} : Prop :=
+  ∃ (call : {call_t}) (obs : {obs_t}), ({valid}) call ∧ ¬ ({post}) call obs
+"""
+        else:
+            nonvac_def = f"""
+/-- The specification and the allowed statuses are not vacuous{nv_at}: some valid call has a result
+the specification rejects, and some valid call has a revert the allowed statuses reject. -/
+def NonVacuous{nv_bind} : Prop :=
   (∃ (call : {call_t}) (obs : {obs_t}), ({valid}) call ∧ ¬ ({post}) call obs) ∧
     (∃ (call : {call_t}) (obs : {obs_t}), ({valid}) call ∧ obs.success = false ∧
       ¬ ({allowed}) call obs)
@@ -663,9 +870,33 @@ theorem {ns}.final : _root_.{ns}.Statement :=
 
 #print axioms {ns}.final
 """
+    if pinned is not None or ib is not None:
+        stmt_text, final_text = bound_mode(
+            a,
+            ns,
+            lines,
+            byte_list,
+            export,
+            shape_t,
+            nonvac_def,
+            nonvac_conj,
+            f"{premises}{exists}{shape_t} {source} _root_.{ns}.code\n"
+            f"        {'' if opened else '(' + valid + ')'}{spec_args}{gas}",
+            pinned,
+            ib,
+            proof_mod,
+            env,
+            proof,
+            binders,
+            nonvac,
+        )
     expected = shape.get("statement") == "expected"
     if "statement" in shape and not expected:
         fail("shape.json: statement must be expected when present")
+    if expected and (pinned is not None or ib is not None):
+        fail(
+            "shape.json: statement expected binds the run's bytes itself (no pinned_bytes or iteration_bound)"
+        )
     if expected:
         if (
             kind != "certified"
@@ -695,16 +926,27 @@ theorem {ns}.final : _root_.{ns}.Statement :=
     open(a.out, "w").write(final_text)  # noqa: SIM115
     stmt = " ".join(
         stmt_text.split("def Statement : Prop :=", 1)[1]
-        .split("set_option maxRecDepth 100000 in\ntheorem bound")[0]
+        .split("set_option maxRecDepth 100000 in\ntheorem ")[0]
         .split()
     )
-    strongest = kind == "certified" and bound_spec and vacuity is None
+    strongest = (
+        kind == "certified" and bound_spec and vacuity is None and allowed_vac is None
+    )
     st_rec = statuses(kind, shape.get("spec"), bound_spec, vacuity)
     if allowed_vac is not None:
         st_rec["termination"] += (
             f" (the allowed statuses reject nothing: {allowed_vac})"
         )
         st_rec["vacuity"] += f"; the allowed statuses: none rejected ({allowed_vac})"
+    extra = {}
+    if pinned is not None:
+        extra["fresh_binding"] = {
+            "theorem": f"{ns}.runtime_is_fresh",
+            "pinned_bytes": pinned[0],
+            "pinned_module": pinned[1],
+        }
+    if ib is not None:
+        extra["iteration_bound"] = {"var": ib[0], "max": ib[1]}
     if a.record:
         json.dump(
             {
@@ -728,6 +970,7 @@ theorem {ns}.final : _root_.{ns}.Statement :=
                 "spec": shape.get("spec"),
                 "statuses": st_rec,
                 "strongest": strongest,
+                **extra,
             },
             open(a.record, "w"),  # noqa: SIM115
             indent=2,

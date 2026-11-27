@@ -353,8 +353,16 @@ def meet(a, b):
     return [x if x == y else None for x, y in zip(a, b)]
 
 
-def infer(program_text, code, dyn=False, bail=None):
-    """The certificate's fields and the highest entry heights, as Lean literals' data."""
+def infer(program_text, code, dyn=False, bail=None, heads=None):
+    """The certificate's fields and the highest entry heights, as Lean literals' data.
+
+    HEADS maps head blocks to (highest entry height, entry height from below, entry types), which
+    the run gives rather than the flow (`AssembleRec.checkR`): a recursive function's cut points,
+    whose height grows with the depth of recursion, so no static height of theirs survives the
+    recursive call. Only the highest height is the run's in the checker: the height from below and
+    the types stay static, so every jump into a head must leave at least the head's height typed as
+    the head's entry needs, or this raises SystemExit naming the first jump that does not."""
+    heads = heads or {}
     blocks = parse_program(program_text)
     n = len(blocks)
     turned, offsets, labelled = layout(blocks, code)
@@ -371,6 +379,8 @@ def infer(program_text, code, dyn=False, bail=None):
     reads = any(i[0] == "env" for bl in blocks for i in bl)
     entry = [None] * n
     entry[0] = (0, 0, [])
+    for t, (high, need, ty) in heads.items():
+        entry[t] = (need, high, ty)
     for _ in range(4 * n + 8):
         changed = False
         for b in range(n):
@@ -381,6 +391,18 @@ def infer(program_text, code, dyn=False, bail=None):
             edges, _, _ = run_block(blocks, turned, rets, b, need, ty[:need], dyn)
             for t, h, tty in edges:
                 if t >= n:
+                    continue
+                if t in heads:
+                    # A head's entry is fixed; the jump must meet it (checkR's jumpOkR).
+                    hn, hty = heads[t][1], heads[t][2]
+                    if h < hn or not ty_le(tty, hty):
+                        raise SystemExit(
+                            f"error: block {b} enters the recursive function's cut point at block {t} "
+                            f"with {h} words typed {lean_tys(tty[:h])}, where it needs {hn} typed "
+                            f"{lean_tys(hty)}: the frames below a recursive call are below every "
+                            "static entry type, so the caller's return label is untyped where it "
+                            "resumes (the checker has no stack relation over frames)"
+                        )
                     continue
                 new = (h, high + h - need, tty)
                 old = entry[t]
@@ -415,7 +437,19 @@ def infer(program_text, code, dyn=False, bail=None):
         "env": env,
         "reads": reads,
         "maxs": [e[1] for e in entry],
+        "heads": sorted(heads),
     }
+
+
+def ty_le(known, want):
+    """`Assemble.tyLe`: each word WANT types, KNOWN types the same."""
+    return all(
+        w is None or (known[i] if i < len(known) else None) == w for i, w in enumerate(want)
+    )
+
+
+def lean_tys(ty):
+    return "[" + ", ".join(lean_ty(t) for t in ty) + "]"
 
 
 def lean_ty(t):
@@ -519,3 +553,211 @@ def outside(program_text, dyn=False):
             if not ok:
                 return f"block {b}: {i}"
     return None
+
+
+# The instructions a block of a recursive function may run besides its jumps and its call
+# (AssembleRec.stackOnly): stack operations and ends.
+FRAME_TAGS = ("push", "dup", "swap", "stack", "jump", "jumpi", "jumpDyn", "stop", "ret", "revert")
+
+
+def call_of(instrs):
+    """The call ending a block, pushLabel t; jump f, as (t, f) (AssembleRec.callOf), or None."""
+    if len(instrs) >= 2 and instrs[-2][0] == "pushLabel" and instrs[-1][0] == "jump":
+        return instrs[-2][1], instrs[-1][1]
+    return None
+
+
+def ty_pad(ty, n):
+    """AssembleRec.tyPad: the types of the top n words, exactly n of them."""
+    return [ty_at(ty, i) for i in range(n)]
+
+
+def infer_frames(program_text, code, heads, entry):
+    """The certificate of AssembleRec.checkF for a program with one recursive function, whose
+    entry is block ENTRY: infer's fields with HEADS (the function's cut points, as rec_heads gives
+    them) and the frames: the function's blocks and, for each call site's return label, the types
+    of the words the call keeps below the callee and where the caller's own return label is among
+    them. A return in the function's blocks goes to every call site's label, with the words that
+    site kept below the results; a block of the function is entered only by a call, a return or a
+    jump from the same frame at the height it needs. Raises SystemExit naming the first place the
+    program leaves that shape. As infer, nothing here is trusted: the kernel's evaluation of
+    checkF re-derives every claim."""
+    blocks = parse_program(program_text)
+    n = len(blocks)
+    turned, offsets, labelled = layout(blocks, code)
+    rets = []
+    for instrs in blocks:
+        for i in instrs:
+            if i[0] == "pushLabel" and i[1] not in rets:
+                rets.append(i[1])
+    env = any(i[0] == "effect" and i[1] in ("caller", "keccak256") for bl in blocks for i in bl)
+    reads = any(i[0] == "env" for bl in blocks for i in bl)
+
+    def ends_dyn(b):
+        return bool(blocks[b]) and blocks[b][-1][0] == "jumpDyn"
+
+    def calls_entry(b):
+        co = call_of(blocks[b])
+        return co is not None and co[1] == entry
+
+    def succ(b):
+        edges, _, _ = run_block(blocks, turned, rets, b, 1000, [])
+        if ends_dyn(b):
+            edges = edges[: len(edges) - len(rets)]
+        if call_of(blocks[b]) is not None:
+            edges = edges[:-1]
+        return [t for t, _, _ in edges if t < n]
+
+    reach, todo = set(heads), list(heads)
+    while todo:
+        b = todo.pop()
+        for t in succ(b):
+            if t not in reach:
+                reach.add(t)
+                todo.append(t)
+    frame = {b for b in reach if ends_dyn(b) or calls_entry(b)}
+    changed = True
+    while changed:
+        changed = False
+        for b in reach - frame:
+            if any(t in frame for t in succ(b)):
+                frame.add(b)
+                changed = True
+    for b in sorted(frame):
+        for i in blocks[b][:-2] if call_of(blocks[b]) else blocks[b]:
+            if i[0] not in FRAME_TAGS:
+                raise SystemExit(
+                    f"error: block {b} of the recursive function runs {i}, outside the stack "
+                    "operations and jumps a block with a frame may run"
+                )
+
+    ent = [None] * n
+    ent[0] = (0, 0, [])
+    for t, (high, need, ty) in heads.items():
+        ent[t] = (need, high, ty)
+    hneed, hty = heads[entry][1], heads[entry][2]
+    calls = {}
+    for _ in range(4 * n + 8):
+        changed = False
+        # The call sites' kept words, from the types at each call.
+        for b in range(n):
+            if ent[b] is None or not calls_entry(b):
+                continue
+            need, high, ty = ent[b]
+            edges, _, _ = run_block(blocks, turned, rets, b, need, ty[:need])
+            f, h1, ty1 = edges[-1]
+            t = call_of(blocks[b])[0]
+            if h1 < hneed or not ty_le(ty1, hty):
+                raise SystemExit(
+                    f"error: block {b} calls the recursive function with {h1} words typed "
+                    f"{lean_tys(ty1[:h1])}, where its entry needs {hneed} typed {lean_tys(hty)}"
+                )
+            keep = ty_pad(ty1[hneed:], h1 - hneed)
+            pos = None
+            if b in frame:
+                labs = [j for j, x in enumerate(keep) if x is True]
+                if len(labs) != 1:
+                    raise SystemExit(
+                        f"error: the recursive call in block {b} keeps {len(labs)} return labels "
+                        "below its callee, where its frame has one"
+                    )
+                pos = labs[0]
+            old = calls.get(t)
+            new = (keep if old is None else meet(old[0], keep), pos)
+            if old is not None and (len(old[0]) != len(keep) or old[1] != pos):
+                raise SystemExit(f"error: two calls push the return label of block {t}")
+            if new != old:
+                calls[t], changed = new, True
+        for b in range(n):
+            current = ent[b]
+            if current is None:
+                continue
+            need, high, ty = current
+            edges, _, _ = run_block(blocks, turned, rets, b, need, ty[:need])
+            if call_of(blocks[b]) is not None and call_of(blocks[b])[1] == entry:
+                edges = edges[:-1]
+            out = []
+            if ends_dyn(b) and b in frame:
+                h_dyn, ty_dyn = edges[-1][1], edges[-1][2]
+                edges = edges[: len(edges) - len(rets)]
+                for t, (keep, _) in calls.items():
+                    out.append((t, h_dyn + len(keep), high + h_dyn - need,
+                                ty_pad(ty_dyn, h_dyn) + keep))
+            elif ends_dyn(b):
+                for t in rets:
+                    if t in frame:
+                        raise SystemExit(
+                            f"error: block {b}, outside the recursive function, returns to its "
+                            f"block {t}"
+                        )
+            for t, h, tty in edges:
+                if t < n and t in frame and b not in frame:
+                    raise SystemExit(
+                        f"error: block {b} enters the recursive function's block {t} other than "
+                        "by a call"
+                    )
+                out.append((t, h, high + h - need, tty))
+            for t, h, hi, tty in out:
+                if t >= n:
+                    continue
+                if t in heads:
+                    hn, hty2 = heads[t][1], heads[t][2]
+                    if h < hn or not ty_le(tty, hty2):
+                        raise SystemExit(
+                            f"error: block {b} enters the recursive function's cut point at block "
+                            f"{t} with {h} words typed {lean_tys(tty[:h])}, where it needs {hn} "
+                            f"typed {lean_tys(hty2)}"
+                        )
+                    continue
+                new = (h, hi, tty)
+                old = ent[t]
+                if old is not None:
+                    new = (min(old[0], new[0]), max(old[1], new[1]), meet(old[2], new[2]))
+                if new != old:
+                    ent[t], changed = new, True
+        if not changed:
+            break
+    else:
+        raise SystemExit("error: the stack heights of the final EVM IR do not settle")
+    ent = [e if e is not None else (0, 0, []) for e in ent]
+    needs = [e[0] for e in ent]
+    types = [(e[2][: e[0]] + [None] * e[0])[: e[0]] for e in ent]
+    costs, top = [], 0
+    for b in range(n):
+        _, items, t = run_block(blocks, turned, rets, b, needs[b], types[b])
+        costs.append((1 if b in labelled else 0) + items)
+        top = max(top, t)
+    for b in range(n):
+        if ent[b][1] + costs[b] > 1000:
+            raise SystemExit(
+                f"error: block {b}'s highest entry ({ent[b][1]} words) and its budget "
+                f"({costs[b]} items) exceed 1000 words: the stack bound of the recursion's cut "
+                "points (rec_cuts.BOUND) leaves the block too little room"
+            )
+    return {
+        "offsets": offsets,
+        "needs": needs,
+        "top": (top + 31) // 32 * 32,
+        "turned": turned,
+        "costs": costs,
+        "types": types,
+        "rets": rets,
+        "env": env,
+        "reads": reads,
+        "maxs": [e[1] for e in ent],
+        "heads": sorted(heads),
+        "frames": {
+            "blocks": sorted(frame),
+            "calls": [(t, calls[t][0], calls[t][1]) for t in sorted(calls)],
+        },
+    }
+
+
+def lean_frames(c):
+    """The frames of infer_frames as a Lean AssembleRec.Frames literal."""
+    fr = c["frames"]
+    calls = ", ".join(
+        f"({t}, {lean_tys(keep)}, {'none' if pos is None else f'some {pos}'})"
+        for t, keep, pos in fr["calls"]
+    )
+    return "{ blocks := " + str(fr["blocks"]) + ", calls := [" + calls + "] }"

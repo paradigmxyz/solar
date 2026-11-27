@@ -5,10 +5,12 @@
         --dump-lean's verification conditions: the generator's comment, import Verify.VC.Term,
         namespace NAMESPACE once, the script and transcript definitions, and end NAMESPACE as the
         last line, ended by a newline
-    export_check.py spec FILE MODULE --source SOURCE [--contract CONTRACT]
+    export_check.py spec FILE MODULE --source SOURCE [--contract CONTRACT] [--bytecode-sha256 HEX]
         --emit-lean-spec's specification: import Verify.Spec.Contract first, namespace MODULE once,
-        its manifest with SOURCE's SHA-256, the contract's Bundle (CONTRACT's, when named), the
-        trusted list, and end MODULE as the last line, ended by a newline
+        its one manifest with SOURCE's SHA-256 (and, with --bytecode-sha256, that bytecode SHA-256),
+        the contract's Bundle (CONTRACT's, when named), the trusted list, and end MODULE as the last
+        line, ended by a newline. The digests are read from the manifest's own definition only, each
+        exactly once
 
 A truncated file (a producer killed halfway, a full disk, a stale partial file) lacks the end line
 or the definitions after the cut, and fails with what is missing. Exit 0 whole, 1 not.
@@ -24,11 +26,40 @@ def fail(msg):
     sys.exit(1)
 
 
+def manifest_fields(lines):
+    """The k := "v" fields of the manifest's definition: the lines after def manifest : Manifest :=
+    up to the first blank line or the next definition."""
+    i = next(
+        j for j, l in enumerate(lines) if l.startswith("def manifest : Manifest :=")
+    )
+    out = {}
+    for l in lines[i + 1 :]:
+        if not l.strip() or re.match(r"^(def|theorem|abbrev|end|namespace|/-)", l):
+            break
+        for k, v in re.findall(r'(\w+) := "([^"\\]*)"', l):
+            out.setdefault(k, []).append(v)
+    return out
+
+
+def digest(manifest, field, path):
+    vs = manifest.get(field, [])
+    if len(vs) != 1:
+        fail(
+            f"the spec export {path}'s manifest records {field} {len(vs)} times, not once"
+        )
+    if not re.fullmatch(r"[0-9a-f]{64}", vs[0]):
+        fail(
+            f"the spec export {path}'s manifest {field} {vs[0][:80]!r} is not a SHA-256"
+        )
+    return vs[0]
+
+
 def main():
     a = sys.argv[1:]
     if len(a) < 3 or a[0] not in ("vc", "spec") or len(a) % 2 == 0:
         fail(
             "usage: export_check.py vc FILE NAMESPACE | spec FILE MODULE --source SOURCE [--contract C]"
+            " [--bytecode-sha256 HEX]"
         )
     kind, path, ns = a[0], a[1], a[2]
     opts = dict(zip(a[3::2], a[4::2]))
@@ -76,8 +107,10 @@ def main():
                 f"the spec export {path} does not start with import Verify.Spec.Contract"
             )
         for need in ("def manifest : Manifest :=", "def trusted : List String :="):
-            if not any(l.startswith(need) for l in lines):
-                fail(f"the spec export {path} has no '{need}'")
+            n = sum(l.startswith(need) for l in lines)
+            if n != 1:
+                fail(f"the spec export {path} has {n} '{need}', not one")
+        manifest = manifest_fields(lines)
         bundles = [
             m.group(1)
             for l in lines
@@ -94,13 +127,21 @@ def main():
         if not src:
             fail("export_check.py spec needs --source")
         sha = hashlib.sha256(open(src, "rb").read()).hexdigest()  # noqa: SIM115  # ty: ignore[no-matching-overload]
-        m = re.search(r'sourceSha256 := "([0-9a-f]{64})"', text)
-        if not m:
-            fail(f"the spec export {path} records no sourceSha256")
-        if m.group(1) != sha:  # ty: ignore[unresolved-attribute]
+        got = digest(manifest, "sourceSha256", path)
+        if got != sha:
             fail(
-                f"the spec export {path} is of a source with SHA-256 {m.group(1)}, not {src} ({sha})"  # ty: ignore[unresolved-attribute]
+                f"the spec export {path} is of a source with SHA-256 {got}, not {src} ({sha})"
             )
+        want = opts.get("--bytecode-sha256")
+        if want is not None:
+            want = want.lower()
+            if not re.fullmatch(r"[0-9a-f]{64}", want):
+                fail(f"--bytecode-sha256 {want[:80]!r} is not a SHA-256")
+            got = digest(manifest, "bytecodeSha256", path)
+            if got != want:
+                fail(
+                    f"the spec export {path} is about bytecode with SHA-256 {got}, not the run's ({want})"
+                )
     print(f"export: {path} is whole ({len(lines)} lines, ends with end {ns})")
 
 

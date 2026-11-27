@@ -33,6 +33,7 @@ import cutpoints
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import asm_cert
+import rec_cuts
 
 AXIOMS = "[propext, Classical.choice, Quot.sound]"
 
@@ -199,6 +200,169 @@ def split_segments(out, pm, module, p, body, imports, ns, opens, what):
     return rest, mods
 
 
+def rec_heads(gen, last):
+    """rec_frame_heads' heads."""
+    return rec_frame_heads(gen, last)[0]
+
+
+def rec_frame_heads(gen, last):
+    """The heads of the assembly checker for a recursive function (AssembleRec.checkR), and the
+    function's entry block: the cut
+    points of the final EVM IR, the function's entry and the blocks it resumes at after a
+    recursive call (rec_cuts.EvmView), each with its highest entry height, entry height from below
+    and entry types. The stage relations bound the stack below a frame by rec_cuts.BOUND, so the
+    entry is at most the frame's words over that; the frame's words are its return label (a label)
+    and the caller's words (data), and a resume point has the call's result on top."""
+    mir = cutpoints.parse_mir((gen / "Stage0.lean").read_text())
+    F, sites, outer = rec_cuts.shape(last["pass"], mir)
+    sf = gen / "Schedule.json"
+    if not sf.exists():
+        raise rec_cuts.Unsupported("no Schedule.json from the exporter")
+    view = rec_cuts.EvmView(
+        last["pass"],
+        cutpoints.parse_evm((gen / f"{last['module']}.lean").read_text()),
+        json.loads(sf.read_text()),
+        F,
+        sites,
+        outer,
+    )
+
+    def types(layout):
+        return [x == "ret" for x in layout]
+
+    heads = {view.entry: (len(view.entry_layout) + rec_cuts.BOUND, len(view.entry_layout),
+                          types(view.entry_layout))}
+    for s in sites:
+        ty = [False] + types(view.below[s])
+        heads[view.ret[s]] = (len(ty) + rec_cuts.BOUND, len(ty), ty)
+    return heads, view.entry
+
+
+def rel_patterns(runs_text, d):
+    """For each relation of the last stage's cut points (rec_cuts' D_rels), the rcases pattern
+    that names the second stack's bound: the first configurations' pair, then for each cut point
+    its existential words, both configurations, the two bounds and the frames."""
+    m = re.search(rf"def {d}_rels \(call : Call\)[^\n]*:=\n  \[(.*?)\]\n\n", runs_text, re.S)
+    if m is None:
+        raise rec_cuts.Unsupported(f"the last stage's module defines no {d}_rels")
+    pats = []
+    for rel in re.split(r",\n   (?=fun x x' =>)", m.group(1)):
+        q = re.match(r"fun x x' => ∃ ((?:\([^()]*\) ?)+),", rel.strip())
+        if q is None:
+            pats.append(None)
+            continue
+        names = [n for g in re.findall(r"\(([^():]*):", q.group(1)) for n in g.split()]
+        pats.append("⟨" + ", ".join(["_"] * len(names) + ["-", "rfl", "-", "h1", "-"]) + "⟩")
+    return pats
+
+
+def rec_execution(args, ns, exported, label, contract, stages, last_text, code, gm, pm):
+    """The Execution module of a program with one recursive function: AssembleRec.checkF on the
+    certificate and frames asm_cert.infer_frames gives, the heads' bound read off the last stage's
+    cut-point simulation (reach_cut), and the bytecode run as the final EVM IR and the first
+    lowered MIR end. Returns the module's text, or raises SystemExit or rec_cuts.Unsupported with
+    the reason it cannot."""
+    first, prev, last = stages[0], stages[-2], stages[-1]
+    heads, entry = rec_frame_heads(args.gen, last)
+    c = asm_cert.infer_frames(last_text, code, heads, entry)
+    cert, maxs = asm_cert.lean_cert(c)
+    frames = asm_cert.lean_frames(c)
+    d, p = last["def"], prev["def"]
+    runs = (args.proof_dir / "Runs" / f"{last['module']}.lean").read_text()
+    pats = rel_patterns(runs, d)
+    hl = sorted(heads)
+    alts = " ∨ ".join(f"x.1 = {t}" for t in hl)
+    rf = " | ".join(["rfl"] * len(hl))
+    cases = []
+    for pat in pats:
+        if pat is None:
+            cases.append("  · obtain ⟨-, rfl⟩ := hPy\n    simp at hx\n")
+        else:
+            cases.append(
+                f"  · obtain {pat} := hPy\n"
+                "    simp only [SolidCore.Refinement.Solar.AssembleLoop.maxH, maxs, List.length_cons]\n"
+                "    simp\n    omega\n"
+            )
+    A = "SolidCore.Refinement.Solar.Assemble"
+    R = "SolidCore.Refinement.Solar.AssembleRec"
+    ex = header(
+        [f"{pm}.Stages", f"{gm}.Bytecode", R],
+        f"The bytecode of `{contract}` runs as its final EVM IR does, by the assembly checker with "
+        "frames (AssembleRec.checkF) on an inferred certificate the kernel's evaluation of the checker "
+        "re-derives: the recursive function's dynamic jumps return through the frames its call sites "
+        "push, and its cut points' heights come from the last stage's relation, which bounds the "
+        "stack below a frame by the recursion's measure. With the backend stages read forwards, "
+        "every end of the first lowered MIR is the bytecode's, at a gas the checker bounds.",
+        ns,
+        f"SolarTV {exported} {R}",
+    )
+    ex += (
+        "/-- The runtime bytecode, as bytes. -/\n"
+        "def code : ByteArray := ⟨(bytecode.map UInt8.ofNat).toArray⟩\n\n"
+        "/-- The checker's certificate (tools/certify/asm_cert.py, infer_frames). -/\n"
+        f"def cert : {A}.Cert :=\n  {cert}\n\n"
+        "/-- The highest stack each block is entered with; at the heads, the run's bound. -/\n"
+        f"def maxs : List Nat := {maxs}\n\n"
+        "/-- The recursive function's cut points: its entry and where it resumes after its calls. -/\n"
+        f"def heads : List Nat := {hl}\n\n"
+        "/-- The recursive function's blocks and its call sites: each return label with the types of "
+        "the words its call\nkeeps below the callee and where the caller's own label is among them. -/\n"
+        f"def frames : Frames := {frames}\n\n"
+        "set_option maxRecDepth 100000 in\n"
+        "/-- The checker with frames accepts the bytecode for the final EVM IR: one kernel evaluation "
+        "of its fast form. -/\n"
+        f"theorem check_ok : checkF {d} code cert maxs heads frames = true :=\n"
+        "  checkF_of_checkFS (by decide +kernel)\n\n"
+        "/-- The run's bound at the heads, from the last stage's relation: every cut point the final "
+        "EVM IR reaches is\nrelated to one of the stage before it (reach_cut), whose relation bounds "
+        "the stack below the frame. -/\n"
+        f"theorem heads_ok (o : Machine.Oracle) (call : Call) : HeadsOk o call {d} maxs heads := by\n"
+        "  intro k x hk hlt hhd\n"
+        f"  have hS : SolarTV.CutPoint.Sim (EVM.Program.block o call {p}) {d}_cutA\n"
+        f"      (EVM.Program.block o call {d}) {d}_cutB Machine.Agree\n"
+        f"      (fun x x' => ∃ P ∈ {d}_rels call, P x x') := ({d}_sim o).sim call trivial\n"
+        f"  have hx : {alts} := by simp [heads] at hhd; omega\n"
+        "  rcases Nat.eq_zero_or_pos k with rfl | hk1\n"
+        "  · simp only [SolarTV.CutPoint.steps, Option.some.injEq, Sum.inr.injEq] at hk\n"
+        "    subst hk\n    simp at hx\n"
+        f"  have hcut : {d}_cutB x = true := by\n"
+        "    obtain ⟨b, st, s⟩ := x\n    simp only at hx\n"
+        f"    rcases hx with {rf} <;> rfl\n"
+        "  obtain ⟨y, P, hP, hPy⟩ := reach_cut hS k (0, [], Machine.State.initial call)\n"
+        f"    (0, [], Machine.State.initial call) (({d}_sim o).start call trivial) x hk1 hk hcut\n"
+        f"  simp only [{d}_rels, List.mem_cons, List.not_mem_nil, or_false] at hP\n"
+        f"  rcases hP with {' | '.join(['rfl'] * len(pats))}\n"
+        + "".join(cases)
+        + "\n/-- **The assembly stage**: whenever the final EVM IR's run ends within `n` blocks, the "
+        "bytecode at any gas from the\nchecker's bound for `n` blocks ends as it does. -/\n"
+        f"theorem {label}_bytecode (o : Machine.Oracle) (ho : cert.env = true → {A}.OracleOk o)\n"
+        f"    (he : cert.reads = true → {A}.EnvOk o) (call : Call) (n : Nat)\n"
+        f"    (ends : ∃ r, Machine.iterate (EVM.Program.block o call {d}) n (0, [], Machine.State.initial call) =\n"
+        "      some r)\n"
+        "    {gas : Nat} (hg : SolidCore.Refinement.Solar.AssembleLoop.gasBoundL cert n ≤ gas)\n"
+        f"    (obs : Observable) (hrun : (evmirSem o).run {d} call = some obs) :\n"
+        "    SolidCore.Refinement.Final.Target.runWith gas code call = some obs :=\n"
+        "  stage_of_checkF_gas check_ok o ho he call (heads_ok o call) n ends hg obs hrun\n\n"
+        "/-- **The first lowered MIR to the exact bytecode**: every end of the first lowered MIR on a "
+        "call is matched by an\nagreeing end of the final EVM IR within some number of blocks, which "
+        "the bytecode ends with at every gas from\nthe checker's bound for them. -/\n"
+        f"theorem {label}_bytecode_of_mir (o : Machine.Oracle) (ho : cert.env = true → {A}.OracleOk o)\n"
+        f"    (he : cert.reads = true → {A}.EnvOk o) (call : Call) (r : Machine.Halt × Machine.State)\n"
+        f"    (hends : MIR.Lowered.moduleLayer.Ends o {first['def']} call r) :\n"
+        "    ∃ r' n, Machine.Agree r r' ∧ ∀ gas, SolidCore.Refinement.Solar.AssembleLoop.gasBoundL cert n ≤ gas →\n"
+        "      SolidCore.Refinement.Final.Target.runWith gas code call = some (Machine.observe call r'.2 r'.1) := by\n"
+        f"  obtain ⟨r', ⟨n, hn⟩, hag⟩ := {label}_certified o call trivial r hends\n"
+        f"  refine ⟨r', n, hag, fun gas hg => {label}_bytecode o ho he call n ⟨r', hn⟩ hg _ ?_⟩\n"
+        f"  change (EVM.Program.layer.result o {d} call).map _ = _\n"
+        "  rw [EVM.Program.layer.result_of_ends ⟨n, hn⟩]\n  rfl\n\n"
+        + axioms_check(ns, "check_ok", "[propext, Quot.sound]")
+        + "\n" + axioms_check(ns, f"{label}_bytecode")
+        + "\n" + axioms_check(ns, f"{label}_bytecode_of_mir")
+        + f"\nend {ns}\n"
+    )
+    return ex
+
+
 def write_cut_points(
     args, manifest, stages, ns, opens, label, every_doc, scope="anyCall", scope_def=""
 ):
@@ -244,6 +408,9 @@ def write_cut_points(
             "W1Proofs.Stage",
             "W1Proofs.Axioms",
             "SolarTV.Termination",
+            # A recursive function's stages cut at its call frames (rec_cuts.py) close their
+            # segments with rec_seg.
+            *(["Verify.Phase3.RecSeg"] if rec_cuts.is_recursive(args.gen) else []),
             f"{gm}.{b['module']}",
             f"{gm}.{a['module']}",
         ]
@@ -817,12 +984,14 @@ def main():
     # The bytecode runs as the final EVM IR does: the assembly checker for code with loops
     # (AssembleLoop.checkL) on a certificate tools/certify/asm_cert.py infers, which the kernel's
     # evaluation of the checker re-derives, composed with the backend stages read backwards.
-    executes = None
+    executes, rec_exec = None, False
     outside = asm_cert.outside(last_text)
     # Memory at offsets the constant-offset checker cannot bound, GAS or CALLDATACOPY: the checker
     # whose memory operations run at the frame's own gas (AssembleCut.checkC), whose theorems hold at
     # every gas below 2 ^ 256.
-    dyn = outside is not None or not asm_cert.static_ok(last_text, code)
+    # A recursive program's heights settle only with its cut points as heads (below).
+    recursive = rec_cuts.is_recursive(args.gen)
+    dyn = outside is not None or (not recursive and not asm_cert.static_ok(last_text, code))
     if dyn:
         outside = asm_cert.outside(last_text, dyn=True)
     if not cut:
@@ -838,6 +1007,26 @@ def main():
             f"assembly: decoded only; the final EVM IR is outside the executed fragment: {outside}",
             file=sys.stderr,
         )
+    elif recursive:
+        # A recursive function's cut points are the checker's heads and its dynamic jumps return
+        # through its frames (AssembleRec.checkF): the run bounds the heads' entry heights by the
+        # measure, and the frame relation types the caller's words where it resumes.
+        why = None
+        if excluded or dyn:
+            why = ("the checker with frames (AssembleRec.checkF) takes no excluded calls"
+                   if excluded else "the checker with frames bounds memory at constant offsets only")
+        else:
+            try:
+                ex = rec_execution(
+                    args, ns, exported, label, contract, stages, last_text, code, gm, pm
+                )
+            except (SystemExit, rec_cuts.Unsupported) as e:
+                why = str(e).removeprefix("error: ")
+        if why is not None:
+            print(f"assembly: decoded only; {why}", file=sys.stderr)
+        else:
+            executes, rec_exec = f"{label}_bytecode", True
+            write(out / "Execution.lean", ex)
     else:
         cert, maxs = asm_cert.lean_cert(asm_cert.infer(last_text, code, dyn))
         executes = f"{label}_bytecode"
@@ -854,7 +1043,11 @@ def main():
                 "SolidCore.Refinement.Solar.EndToEnd",
                 "SolidCore.Refinement.Solar.RunOracle",
             ]
-            + ([C] if dyn else []),
+            + (
+                [C, "SolidCore.Refinement.Solar.AssembleCutCheckFast"]
+                if dyn
+                else ["SolidCore.Refinement.Solar.AssembleCheckFast"]
+            ),
             f"The bytecode of `{contract}` runs as its final EVM IR does, at every gas, by the "
             "assembly checker for code with loops on an inferred certificate the kernel's evaluation "
             "of the checker re-derives; with the backend stages read backwards, every result of the "
@@ -871,33 +1064,16 @@ def main():
             f"def cert : {A}.Cert :=\n  {cert}\n\n"
             "/-- The highest stack each block is entered with. -/\n"
             f"def maxs : List Nat := {maxs}\n\n"
+            # One kernel evaluation of the checker's fast form: the walk on the code's suffixes,
+            # which implies the labels' check (Solar/AssembleCheckFast.lean, AssembleCutCheckFast.lean).
             "set_option maxRecDepth 100000 in\n"
-            "/-- The code's linear decoding is the lowered program at the layout. -/\n"
-            f"theorem walk_ok : (SolarTV.Assembly.walk ({A}.bytesOf code) cert.offset 0\n"
-            f"    ({A}.lower {last['def']} cert)).isSome = true := by\n"
-            f"  have hw := {A}.walkS_drop ({A}.bytesOf code) cert.offset ({A}.lower {last['def']} cert) 0\n"
-            "    (Nat.zero_le _)\n"
-            "  rw [List.drop_zero] at hw\n"
-            "  rw [← hw]\n"
-            "  decide +kernel\n\n"
-            "set_option maxRecDepth 100000 in\n"
-            "/-- Every block checks within its budget and stack bounds. -/\n"
-            + (
-                f"theorem blocks_ok : {C}.blocksOkC {last['def']} cert maxs 0 {last['def']}.blocks = true := by\n"
-                if dyn
-                else f"theorem blocks_ok : {L}.blocksOkL {last['def']} cert maxs 0 {last['def']}.blocks = true := by\n"
-            )
-            + "  decide +kernel\n\n"
-            f"theorem labels_ok : {A}.labelsValid {last['def']} cert code = true :=\n"
-            f"  {A}.labelsValid_of_walk walk_ok\n\n"
-            "theorem size_ok : code.size < 2 ^ 32 := by decide +kernel\n\n"
             + (
                 (
-                    "/-- The checker with memory at any offset accepts the bytecode for the final EVM IR. -/\n"
-                    f"theorem check_ok : {C}.checkC {last['def']} code cert maxs = true := by\n"
-                    f"  simp only [{C}.checkC, walk_ok, blocks_ok, labels_ok, decide_eq_true size_ok, Bool.and_true,\n"
-                    "    Bool.true_and]\n"
-                    "  decide\n\n"
+                    "/-- The checker with memory at any offset accepts the bytecode for the final EVM IR: "
+                    "one kernel\nevaluation of its fast form (the walk on the code's suffixes, which "
+                    "implies the labels' check). -/\n"
+                    f"theorem check_ok : {C}.checkC {last['def']} code cert maxs = true :=\n"
+                    f"  {C}.checkC_of_checkCS (by decide +kernel)\n\n"
                     "/-- **The assembly stage, run by run, at every gas below 2 ^ 256**: an oracle meeting the "
                     "certificate's\nconstraints under which every result of the bytecode is the final EVM IR's or "
                     "a failure that changes\nnothing. -/\n"
@@ -917,11 +1093,11 @@ def main():
                 )
                 if dyn
                 else (
-                    "/-- The checker of code with loops accepts the bytecode for the final EVM IR. -/\n"
-                    f"theorem check_ok : {L}.checkL {last['def']} code cert maxs = true := by\n"
-                    f"  simp only [{L}.checkL, walk_ok, blocks_ok, labels_ok, decide_eq_true size_ok, Bool.and_true,\n"
-                    "    Bool.true_and]\n"
-                    "  decide\n\n"
+                    "/-- The checker of code with loops accepts the bytecode for the final EVM IR: one "
+                    "kernel evaluation\nof its fast form (the walk on the code's suffixes, which implies "
+                    "the labels' check). -/\n"
+                    f"theorem check_ok : {L}.checkL {last['def']} code cert maxs = true :=\n"
+                    f"  {L}.checkL_of_checkLS (by decide +kernel)\n\n"
                     "/-- **The assembly stage at every gas.** -/\n"
                     f"theorem assembly (o : Machine.Oracle) (ho : cert.env = true → {A}.OracleOk o)\n"
                     f"    (he : cert.reads = true → {A}.EnvOk o) (scope : Call → Prop) (gas : Nat) :\n"
@@ -980,7 +1156,8 @@ def main():
                 "final": f"{ns}.{final}",
                 **({"executes": f"{ns}.{executes}"} if executes and not dyn else {}),
                 **({"executes_gas_below": "2^256"} if executes and dyn else {}),
-                **({"executes_run": f"{ns}.{executes}_run"} if executes else {}),
+                **({"executes_run": f"{ns}.{executes}_run"} if executes and not rec_exec else {}),
+                **({"executes_mir": f"{ns}.{executes}_of_mir"} if rec_exec else {}),
                 "last": last["def"],
                 "first": first["def"],
                 "stages": [s["def"] for s in stages],

@@ -958,11 +958,12 @@ PYEOF
             die "the build left a module named like the toolchain's $r in the package's build"
     done
     # The checker reads the compiled environments with nothing but Lean imported: final's type is
-    # exactly the statement module's Statement, that module does not import the proof module, and
-    # final's axioms are the three admitted.
+    # exactly the statement module's Statement, that module does not import the proof module,
+    # final's axioms are the three admitted, and (the fresh-byte gate) the statement binds a list
+    # literal of exactly the bytes this run's solar emitted (plain) and states its claim of them.
     proof_mod="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["proof_module"])' "$dir/shape.json")"
     no_planted_bins
-    if ! lake env "$toolchain/bin/lean" --run "$here/check_final.lean" "$name" "$proof_mod" > "$log" 2>&1; then
+    if ! lake env "$toolchain/bin/lean" --run "$here/check_final.lean" "$name" "$proof_mod" "$plain" > "$log" 2>&1; then
         cat "$log" >&2
         die "the checker refuses the published statement of $name"
     fi

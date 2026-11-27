@@ -3,39 +3,50 @@
 From this run's own artifacts (the stage export's final EVM IR and runtime bytecode, the loop
 numbers of tools/certify/fixed_fuel.py: header, B, X, E and the gas parts, and the loop checker's
 certificate from tools/certify/asm_cert.py), write a Lean module that proves, on the run's runtime
-bytes and with no premise left open:
+bytes and with no premise left open, the fixed-fuel premises of the erasure join's
+`GeneratedTarget` (solidity-lean's Verify/LoopSource/Equiv/EraseLoopCounterJoin.lean):
 
-* the loop record (condition: the counter word; measure: the iterations it has left) and its
-  `Bridge` (At, iter, done) over the final EVM IR, every path of an iteration and of the exit a
-  block fact this module states and proves by `sym_exec`;
-* `Loops` from the program's entry for every call of `Valid K`;
-* an inhabited `Valid K`;
-* `checkL`, the loop checker, on the exact runtime bytes, and the verdict
-  `verdictOf (some K) perIter exit = .bounded (K * perIter + exit)` for every `K ≤ Kmax`;
-* totality of the final EVM IR on `Valid K`, and `Shapes.Resources` of its semantics on the bytes
-  through `Verify.Gas.FixedFuel.resources_of_verdict` (stage: the final EVM IR to itself);
+* `loops`: `Loops` from the program's entry for every call of `Valid`, by the base's
+  `Verify.Gas.FixedFuel.Measured.loops_of` (its loop record: a flag and the iterations left), every
+  path of the entry, of an iteration and of the exit a chain of block facts this module states and
+  proves by `sym_exec`;
+* `check_ok`: `checkL`, the loop checker, on the exact runtime bytes;
+* `fit`: `gasBoundL cert (fixedFuel E B X M) < 2 ^ 64`;
+* `premises`: the three in the form `GeneratedTarget` takes them, at `Shapes.oracle`;
+* the verdict `verdictOf (some M) perIter exit = .bounded (M * perIter + exit)`, an inhabited
+  `Valid`, totality of the final EVM IR on `Valid`, and `Shapes.Resources` of its semantics on the
+  bytes through `Verify.Gas.FixedFuel.resources_of_verdict` (stage: the final EVM IR to itself);
 * with a lifecycle run's composed theorem, the joint theorem: that theorem, the run's bytes equal to
   the bytes it names, and all of the above at every `K` it admits.
 
-`Valid K`: a call of the loop's function, its arguments ABI-encoded uint256 words, no value, any
-storage, and the loop's limit argument at most `K`.
+`M` is the loop's iteration bound. A limit the call chooses (a calldata argument, or a storage word
+of the call's initial state) keeps the bounded form: `Valid K` bounds that limit by `K`, `M = K`,
+and every theorem holds for every `K ≤ Kmax`, the largest bound whose gas fits in 64 bits. The
+universal form (any limit) is refuted, since a call can ask for `2^256 - 1` iterations. A literal
+limit gives a constant `M` and no `K`.
 
-The supported loop shape; anything else is refused by name (`Unsupported`), never a weaker proof:
+The supported layouts of a counted loop in the final EVM IR (one loop, one header block, entered
+with stacks of one depth, inside the loop checker's fragment) are the ones the backend gives the
+loops `eraseLoopStmt` erases, each a guard `G` on header stacks and a measure `μ` of them:
 
-* the final EVM IR is inside the loop checker's fragment and has exactly one loop, with one header
-  block (fixed_fuel.cfg_loop), entered with stacks of one depth;
-* the header's first branch tests one header stack word `w` directly (nonzero: iterate), and every
-  iteration path returns to the header with `w` replaced by `w + 1`; the measure is
-  `(2^256 - w) % 2^256`;
-* on every entry path the counter word enters the header as `0 - a` for one calldata argument
-  `a`, the loop's limit, so the entry measure is `a ≤ K`;
-* no block on a path that continues (entry to header, header to header) writes memory or storage;
-  a path that halts may, within the exit's X blocks;
-* the gas of the exit alone is below `2^64`.
+* **down**: the header's first branch tests one header word `w` directly (nonzero: iterate); every
+  iteration returns with `w` replaced by `w + 1`; `μ = (2^256 - w) % 2^256`, `G` none;
+* **up**: the header's first branch is `w_k < w_j`; every iteration returns with `w_k + 1` and `w_j`
+  unchanged; `μ = w_j - w_k` when `w_k < w_j`, else `0`, `G` none;
+* **rotated**: the test ends the body block, so the header is the body: `G` is `w ≠ 0`, every
+  iteration returns with `w + 1` after testing it nonzero, and the entry tests `w` nonzero; `μ`
+  as for down.
+
+On every entry path the measure at the header is bounded by one limit: for down and rotated the
+counter enters as `0 - L` (or a literal), for up the compared word is `L` (or both are literals),
+with `L` a calldata argument, a storage word of the initial state, or a literal. Blocks may write
+memory and storage on any path: a storage read after a write in the same block is placed when both
+slots are literals and refused otherwise. Anything else is refused by name (`Unsupported`), never a
+weaker proof, and so is an exit alone that needs `2^64` gas.
 
 What it does not give: the source join. `resources_of_verdict` over the source semantics needs a
-stage from the source to the final EVM IR, and the generic one for a loop body needs `BodyRuns`
-of it, which no generic Lean lemma derives yet (generic.py's LOOP_SOURCE_GAP names the lemma).
+stage from the source to the final EVM IR; the erasure join (`eraseLoop_certified_generated`) takes
+this module's `premises` for its fixed-fuel part.
 """
 
 import pathlib
@@ -144,11 +155,16 @@ def evaluate(e, facts):
 
 def run_path(instrs, stack, state, facts, choices):
     """The block on one path: CHOICES says, for each jumpi in order, whether it is taken (None for a
-    decided one). Returns (jumpis, end) where jumpis are (word, taken, decided)."""
+    decided one). Returns (jumpis, end) where jumpis are (word, taken, decided). A storage read
+    sees the block's own earlier writes: a literal slot it wrote reads the word written, another
+    literal slot reads the entry state; a read the writes could alias is refused. A write at a
+    computed slot may overwrite any slot, so it forgets every literal slot written before it, and
+    every later read is refused unless a later write at a literal slot names that slot again."""
     st = list(stack)
     js = []
     ci = 0
     i = 0
+    stored, computed = {}, False
     while i < len(instrs):
         ins = instrs[i]
         op = ins[0]
@@ -178,8 +194,23 @@ def run_path(instrs, stack, state, facts, choices):
         elif op == "effect" and ins[1] == "calldataload":
             st.insert(0, ("cdw", st.pop(0)))
         elif op == "effect" and ins[1] == "sload":
-            st.insert(0, ("sload", state, st.pop(0)))
-        elif op == "effect" and ins[1] == "sstore" or op == "store":
+            key = st.pop(0)
+            if key[0] == "lit" and key[1] in stored:
+                st.insert(0, stored[key[1]])
+            elif computed or (key[0] != "lit" and stored):
+                raise Unsupported(
+                    "a storage read after a write in the same block, at a slot the write may alias"
+                )
+            else:
+                st.insert(0, ("sload", state, key))
+        elif op == "effect" and ins[1] == "sstore":
+            key, value = st.pop(0), st.pop(0)
+            if key[0] == "lit":
+                stored[key[1]] = value
+            else:
+                stored.clear()
+                computed = True
+        elif op == "store":
             st.pop(0), st.pop(0)
         elif op == "jump":
             return js, ("goto", ins[1], st)
@@ -217,10 +248,18 @@ def outcomes(instrs, stack, state, facts):
     return out
 
 
-def writes(instrs):
-    return any(
-        i[0] == "store" or (i[0] == "effect" and i[1] == "sstore") for i in instrs
-    )
+def facts_of(e):
+    """The names of the call's facts (callvalue, calldata size, selector) that evaluate reads."""
+    k = e[0]
+    if k == "cv":
+        return {"hcv"}
+    if k == "cds":
+        return {"hsz"}
+    if k == "op" and e[1] == "shr" and e[2] == lit(224) and e[3] == ("cdw", lit(0)):
+        return {"hsel"}
+    if k == "op":
+        return set().union(*(facts_of(a) for a in e[2:]))
+    return set()
 
 
 def abstract(stack):
@@ -253,18 +292,24 @@ def hyp(c, taken):
     return q if taken == pos else f"¬{q}"
 
 
+def nonzero_by(c, taken, w):
+    """Whether a decision proves the word W nonzero: a jump on W taken, or on W = 0 not taken."""
+    return (c == w and taken is True) or (c == ("op", "iszero", w) and taken is False)
+
+
 def paren(s):
     return s if re.fullmatch(r"[\w.']+", s) else f"({s})"
 
 
 class Module:
-    def __init__(self, prog, X):
-        self.prog, self.X = prog, X
+    def __init__(self, prog):
+        self.prog = prog
         self.lemmas, self.cache = [], {}
 
     def block_lemma(self, b, stack, choices, end_kind, facts):
-        """The fact for block B entered with STACK on the path CHOICES: its name and the words it
-        is applied to (the abstracted stack's arguments)."""
+        """The fact for block B entered with STACK on the path CHOICES, by name. Its words are
+        implicit: a use names only its hypotheses, one per jumpi, and the goal's configuration
+        fixes the rest."""
         abs_st, args = abstract(stack)
         js, end = run_path(
             BLOCKS[b], abs_st, "s", {}, choices_for(BLOCKS[b], stack, facts, choices)
@@ -273,22 +318,50 @@ class Module:
         if key not in self.cache:
             name = f"b{b}_{len(self.lemmas)}"
             vs = " ".join(f"v{i}" for i in range(len(args)))
-            binder = f" ({vs} : EvmRules.Word)" if args else ""
+            binder = f" {{{vs} : EvmRules.Word}}" if args else ""
             hs = "".join(f" (h{i} : {hyp(c, t)})" for i, (c, t, _) in enumerate(js))
             stl = "[" + ", ".join(render(e) for e in abs_st) + "]"
+            st = reads_after_write(BLOCKS[b])
             if end_kind == "goto":
                 nst = "[" + ", ".join(render(e) for e in end[2]) + "]"
                 stmt = f"∃ s', EVM.Program.block o call {self.prog} ({b}, {stl}, s) =\n      some (.inr ({end[1]}, {nst}, s'))"
-                proof = "⟨_, by sym_exec⟩"
+                proof = (
+                    f"⟨_, by{STORE_READS.replace(chr(10), chr(10) + '  ')}⟩"
+                    if st
+                    else "⟨_, by sym_exec⟩"
+                )
             else:
                 stmt = f"halts (EVM.Program.block o call {self.prog} ({b}, {stl}, s)) = true"
-                proof = "by\n  sym_exec"
+                proof = f"by{STORE_READS}" if st else "by\n  sym_exec"
             self.lemmas.append(
-                "set_option maxHeartbeats 4000000 in\n"
-                f"theorem {name} (o : Oracle) (call : Call){binder} (s : State){hs} :\n    {stmt} := {proof}\n"
+                f"theorem {name} {{o : Oracle}} {{call : Call}}{binder} {{s : State}}{hs} :\n    {stmt} := {proof}\n"
             )
-            self.cache[key] = (name, len(js))
-        return self.cache[key], args
+            self.cache[key] = name
+        return self.cache[key]
+
+
+# The proof of a block fact that reads storage after writing it: Measured's sym_exec_st, which
+# resolves the reads through the machine's update after every split, after resolving them once
+# before any split. A path that splits on no condition (a straight-line block, or one whose
+# conditions its hypotheses decide) otherwise reaches sym_exec_st's closing tactics with the reads
+# unresolved and fails. Resolving them can close a path outright (its hypotheses contradict).
+STORE_READS = """
+  obtain ⟨cd, hcd⟩ : ∃ cd, cd = calldataWord call := ⟨_, rfl⟩
+  sym_norm
+  try simp (config := { decide := true }) only
+    [Verify.Gas.FixedFuel.Measured.update_apply, ite_true, ite_false] at *
+  all_goals sym_exec_st"""
+
+
+def reads_after_write(instrs):
+    """Whether a block reads storage after writing it: its fact is proved by STORE_READS."""
+    wrote = False
+    for ins in instrs:
+        if ins[0] == "effect" and ins[1] == "sstore":
+            wrote = True
+        elif ins[0] == "effect" and ins[1] == "sload" and wrote:
+            return True
+    return False
 
 
 def choices_for(instrs, stack, facts, choices):
@@ -304,36 +377,41 @@ BLOCKS = None
 
 
 class Tree:
-    """Emits the tactic proof of one obligation (entry, iteration) path by path."""
+    """Emits the tactic proof of one obligation path by path, one block fact per block: NXT chains a
+    block that continues (Reaches.next or ends_next of Verify.Gas.FixedFuel.Counted), and
+    LEAF(kind, depth, stack, app, hyps) is the term that closes a path DEPTH blocks in, at the
+    header ("header", with its STACK) or at the block fact APP that halts ("end"). HYPS are the
+    path's free decisions so far, (word, taken, hypothesis name)."""
 
-    def __init__(self, mod, header, facts, fact_names, mode, leaf):
+    def __init__(self, mod, header, facts, fact_names, nxt, leaf):
         self.mod, self.header, self.facts, self.fact_names = (
             mod,
             header,
             facts,
             fact_names,
         )
-        self.mode, self.leaf = mode, leaf
+        self.nxt, self.leaf = nxt, leaf
         self.n = 0
 
     def fresh(self, p):
         self.n += 1
         return f"{p}{self.n}"
 
-    def decided(self):
-        fs = ", ".join(self.fact_names)
+    def decided(self, c):
+        used = facts_of(c)
+        fs = ", ".join(f for f in self.fact_names if f in used)
         return f"(by simp only [{fs}]; decide)"
 
-    def walk(self, b, stack, state, reach, forced, ind):
+    def walk(self, b, stack, state, depth, forced, ind, acc=()):
         outs = outcomes(BLOCKS[b], stack, state, self.facts)
-        return self.split(b, stack, state, reach, forced, outs, [], {}, ind)
+        return self.split(b, stack, state, depth, forced, outs, [], {}, ind, acc)
 
-    def split(self, b, stack, state, reach, forced, outs, prefix, names, ind):
+    def split(self, b, stack, state, depth, forced, outs, prefix, names, ind, acc):
         pad = "  " * ind
         here = [o for o in outs if o[0][: len(prefix)] == prefix]
         done = [o for o in here if len(o[0]) == len(prefix)]
         if done:
-            return self.leaf_lines(b, stack, state, reach, done[0], names, ind)
+            return self.leaf_lines(b, stack, depth, done[0], names, ind, acc)
         # the next free decision's word
         o = here[0]
         free = [c for c, _, d in o[1] if not d]
@@ -342,7 +420,16 @@ class Tree:
         if forced is not None and c == forced[0]:
             names = {**names, len(prefix): forced[1]}
             return self.split(
-                b, stack, state, reach, None, outs, prefix + [forced[2]], names, ind
+                b,
+                stack,
+                state,
+                depth,
+                None,
+                outs,
+                prefix + [forced[2]],
+                names,
+                ind,
+                acc,
             )
         h = self.fresh("hc")
         lines = [f"{pad}by_cases {h} : {q}"]
@@ -351,58 +438,177 @@ class Tree:
                 b,
                 stack,
                 state,
-                reach,
+                depth,
                 forced,
                 outs,
                 prefix + [branch],
                 {**names, len(prefix): h},
                 ind + 1,
+                acc,
             )
             lines.append(f"{pad}· " + sub[0].lstrip())
             lines += sub[1:]
         return lines
 
-    def leaf_lines(self, b, stack, state, reach, out, names, ind):
+    def leaf_lines(self, b, stack, depth, out, names, ind, acc):
         pad = "  " * ind
         choices, js, end = out
         kind = "goto" if end[0] == "goto" else "end"
-        (name, _), args = self.mod.block_lemma(b, stack, choices, kind, self.facts)
-        proofs, fi = [], 0
+        name = self.mod.block_lemma(b, stack, choices, kind, self.facts)
+        proofs, fi, hyps = [], 0, list(acc)
         for c, t, d in js:
             if d:
-                proofs.append(self.decided())
+                proofs.append(self.decided(c))
             else:
                 proofs.append(names[fi])
+                hyps.append((c, t, names[fi]))
                 fi += 1
-        app = " ".join(
-            [name, "o", "call"] + [paren(render(a)) for a in args] + [state] + proofs
-        )
+        app = paren(" ".join([name] + proofs))
         if kind == "end":
-            return self.leaf(("end", b, stack, state, reach, app), ind)
-        s2, hr = self.fresh("s"), self.fresh("hr")
-        lines = [f"{pad}obtain ⟨{s2}, {hr}⟩ := {app}"]
+            return [f"{pad}exact {self.leaf('end', depth, None, app, hyps)}"]
         nb, nst = end[1], end[2]
-        # the next block's words name the state they were read from
         if nb == self.header:
-            lines += self.leaf(("header", nb, nst, s2, reach + [hr]), ind)
+            leaf = self.leaf("header", depth + 1, nst, None, hyps)
+            return [f"{pad}exact {self.nxt} {app} fun _ => {leaf}"]
+        # the next block's words name the state they were read from
+        s2 = self.fresh("s")
+        sub = self.walk(nb, nst, s2, depth + 1, None, ind, tuple(hyps))
+        bind = s2 if any(re.search(rf"\b{s2}\b", l) for l in sub) else "_"
+        if len(sub) == 1 and sub[0].lstrip().startswith("exact "):
+            return [f"{pad}exact {self.nxt} {app} fun {bind} => {sub[0].lstrip()[6:]}"]
+        return [f"{pad}refine {self.nxt} {app} fun {bind} => ?_"] + sub
+
+
+# --- the loop's shape ----------------------------------------------------------------------------
+
+
+class Shape:
+    """A guard and a measure of header stacks: KIND down (word K steps up to zero), up (word K
+    steps below word J) or rotated (down, with the guard that word K is nonzero). FIRST is the
+    header's first decision when the shape cases on it (down, up), else None."""
+
+    def __init__(self, kind, k, j=None, first=None):
+        self.kind, self.k, self.j, self.first = kind, k, j, first
+
+    def __repr__(self):
+        return f"{self.kind}(k={self.k}, j={self.j})"
+
+    def guard(self):
+        return f"(Measured.nonzero {self.k})" if self.kind == "rotated" else "Measured.always"
+
+    def measure(self):
+        if self.kind == "up":
+            return f"(Measured.up {self.k} {self.j})", f"(Measured.up_lt {self.k} {self.j})"
+        return f"(Measured.down {self.k})", f"(Measured.down_lt {self.k})"
+
+    def iter_have(self):
+        w = f"w{self.k}"
+        if self.kind == "up":
+            return f"have hk : {w} < w{self.j} := Measured.upM_pos (i := {w}) (n := w{self.j}) hμ0"
+        if self.kind == "rotated":
+            return f"have hk : ¬{w} = 0 := hg"
+        return f"have hk : ¬{w} = 0 := Measured.down_ne (w := {w}) hμ0"
+
+    def done_have(self):
+        w = f"w{self.k}"
+        if self.kind == "up":
+            return f"have hk : ¬{w} < w{self.j} := Measured.upM_zero (i := {w}) (n := w{self.j}) hμ0"
+        return f"have hk : {w} = 0 := Measured.down_zero (w := {w}) hμ0"
+
+    def guard_proof(self, nst, hyps):
+        """The guard at a header stack NST, from the path's decisions."""
+        if self.kind != "rotated":
+            return "trivial"
+        for c, t, name in hyps:
+            if nonzero_by(c, t, nst[self.k]):
+                return name
+        raise Unsupported(
+            "a rotated loop reaches its header without testing its counter word nonzero"
+        )
+
+    def step_proof(self, nst, n):
+        """The lower measure at the header stack NST an iteration returns with."""
+        k = self.k
+        if len(nst) != n:
+            raise Unsupported("an iteration returns to the header with another stack depth")
+        w = ("var", f"w{k}")
+        if self.kind == "up":
+            if nst[self.j] != ("var", f"w{self.j}"):
+                raise Unsupported("an iteration changes the loop's limit word")
+            steps = {
+                ("op", "add", lit(1), w): "Measured.upM_step hk",
+                ("op", "add", w, lit(1)): "Measured.upM_step' hk",
+            }
         else:
-            lines += self.walk(nb, nst, s2, reach + [hr], None, ind)
-        return lines
+            steps = {
+                ("op", "add", lit(1), w): "Counted.meas_add_one hk",
+                ("op", "add", w, lit(1)): "Counted.meas_add_one' hk",
+            }
+        if nst[k] not in steps:
+            raise Unsupported(
+                "an iteration returns to the header without stepping the counter by one"
+            )
+        return steps[nst[k]]
 
 
-def reach_term(rs):
-    t = "(Reach.refl _)"
-    for r in reversed(rs):
-        t = f"(Reach.cont {r} {t})"
-    return t
+def shapes_of(houts, n):
+    """The shapes to try, in order, from the header's paths at symbolic stack words."""
+    out = []
+    firsts = {repr(js[0][0]) for _, js, _ in houts if js and not js[0][2]}
+    c0 = houts[0][1][0][0] if houts[0][1] else None
+    if len(firsts) == 1 and c0 is not None:
+        if c0[0] == "var":
+            out.append(Shape("down", int(c0[1][1:]), first=c0))
+        cmp = None
+        if c0[0] == "op" and c0[1] == "lt":
+            cmp = (c0[2], c0[3])
+        elif c0[0] == "op" and c0[1] == "gt":
+            cmp = (c0[3], c0[2])
+        if cmp and cmp[0][0] == "var" and cmp[1][0] == "var":
+            out.append(Shape("up", int(cmp[0][1][1:]), int(cmp[1][1][1:]), first=c0))
+    out += [Shape("rotated", k) for k in range(n)]
+    return out
 
 
-def words(st):
-    return ", ".join(
-        f"({render(e)}).toNat"
-        if e[0] not in ("lit",)
-        else f"({render(e)} : EvmRules.Word).toNat"
-        for e in st
+def limit_of(e, nargs, initial):
+    """The limit word E bounds a measure by: ("arg", m) for calldata argument m, ("slot", n) for
+    storage slot n of the initial state INITIAL, or None."""
+    if e[0] == "cdw" and e[1][0] == "lit":
+        off = e[1][1]
+        if off >= 4 and (off - 4) % 32 == 0 and (off - 4) // 32 < nargs:
+            return ("arg", (off - 4) // 32)
+    if e[0] == "sload" and e[1] == initial and e[2][0] == "lit":
+        return ("slot", e[2][1])
+    return None
+
+
+def meas_val(w):
+    return (WORD - w) % WORD
+
+
+def entry_bound(shape, nst, nargs, initial):
+    """How the measure of the entry's header stack NST is bounded: ("arg", m) or ("slot", n) for
+    a limit word, or ("const", M) for a measure the words fix."""
+    if shape.kind == "up":
+        vi, vn = evaluate(nst[shape.k], {}), evaluate(nst[shape.j], {})
+        if vi is not None and vn is not None:
+            return ("const", vn - vi if vi < vn else 0)
+        lim = limit_of(nst[shape.j], nargs, initial)
+        if lim is None:
+            raise Unsupported(
+                f"the loop's limit enters the header as {render(nst[shape.j])}, not a call argument, an initial storage word or a literal"
+            )
+        return lim
+    e = nst[shape.k]
+    v = evaluate(e, {})
+    if v is not None:
+        return ("const", meas_val(v))
+    if e[0] == "op" and e[1] == "sub" and e[2] == lit(0):
+        lim = limit_of(e[3], nargs, initial)
+        if lim is not None:
+            return lim
+    raise Unsupported(
+        f"the loop's counter word enters the header as {render(e)}, not 0 - a call argument, an initial storage word or a literal"
     )
 
 
@@ -425,8 +631,9 @@ def generate(
     joint=None,
     source=None,
 ):
-    """The Lean module's text. OB is fixed_fuel.obligation's result for this export, with M the
-    iteration bound (K for a word limit), and code_term the run's fresh runtime bytes."""
+    """The Lean module's text. OB is fixed_fuel.obligation's result for this export, and code_term
+    the run's fresh runtime bytes. The shapes are tried in order (shapes_of); the first whose every
+    path closes is the proof, and when none does every refusal is named."""
     global BLOCKS
     text = (gen_dir / f"{last[0].upper() + last[1:]}.lean").read_text()
     outside = asm_cert.outside(text)
@@ -435,27 +642,20 @@ def generate(
             f"the final EVM IR is outside the loop checker's fragment: {outside}"
         )
     BLOCKS = asm_cert.parse_program(text)
-    prog = f"SolarTV.Export.{contract}.{last}"
-    H, B, X, E, _M = ob["header"], ob["B"], ob["X"], ob["E"], ob["M"]
+    H, B, X, E = ob["header"], ob["B"], ob["X"], ob["E"]
     if X < 1:
         raise Unsupported("the exit takes no block")
-    mod = Module(prog, X)
     facts = {"cv": 0, "cds": 4 + 32 * nargs, "sel": sel}
-    fact_names = ["hcv", "hsz", "hsel"]
 
-    # The header: its depth from every entry path, and the word it tests.
+    # The header: its depth from every entry path.
     arrivals = []
 
     def scan(b, st, depth):
         if depth > E:
             raise Unsupported(f"an entry path is longer than E = {E} blocks")
-        for ch, js, end in outcomes(BLOCKS[b], st, f"s{depth}", facts):
+        for _ch, _js, end in outcomes(BLOCKS[b], st, f"s{depth}", facts):
             if end[0] == "halt":
                 continue
-            if writes(BLOCKS[b]):
-                raise Unsupported(
-                    f"entry block {b} writes memory or storage on a path that continues"
-                )
             if end[1] == H:
                 arrivals.append(end[2])
             else:
@@ -467,121 +667,145 @@ def generate(
     n = len(arrivals[0])
     W = [("var", f"w{i}") for i in range(n)]
     houts = outcomes(BLOCKS[H], W, "s", {})
-    firsts = {repr(js[0][0]) for _, js, _ in houts if js and not js[0][2]}
-    c0 = houts[0][1][0][0] if houts[0][1] else None
-    if len(firsts) != 1 or c0 is None or c0[0] != "var":
-        raise Unsupported("the header does not test one header word directly")
-    k = int(c0[1][1:])
-    if writes(BLOCKS[H]) and any(js[0][1] for _, js, _ in houts if js):
-        pass  # the exit may write; the iteration paths are checked block by block below
-    # Entry: the counter word must be 0 - a for one call argument a (the loop's limit), the same
-    # argument on every entry path.
-    found = set()
-    for a in arrivals:
-        e = a[k]
-        m = None
-        if (
-            e[0] == "op"
-            and e[1] == "sub"
-            and e[2] == lit(0)
-            and e[3][0] == "cdw"
-            and e[3][1][0] == "lit"
-        ):
-            off = e[3][1][1]
-            if off >= 4 and (off - 4) % 32 == 0 and (off - 4) // 32 < nargs:
-                m = (off - 4) // 32
-        if m is None:
-            raise Unsupported(
-                f"the loop's counter word enters the header as {render(e)}, not 0 - a call argument"
+    reasons = []
+    for shape in shapes_of(houts, n):
+        try:
+            return emit(
+                shape,
+                ns=ns,
+                contract=contract,
+                last=last,
+                gen_dir=gen_dir,
+                ob=ob,
+                code_term=code_term,
+                code_import=code_import,
+                sel=sel,
+                nargs=nargs,
+                limit_arg=limit_arg,
+                joint=joint,
+                source=source,
+                n=n,
+                facts=facts,
+                text=text,
             )
-        found.add(m)
-    if len(found) != 1 or (limit_arg is not None and found != {limit_arg}):
-        raise Unsupported(
-            f"the loop's limit is not one call argument on every entry path: {sorted(found)}"
-        )
-    limit_arg = found.pop()
-    bound_ok = lambda w: (
-        w == ("op", "add", lit(1), ("var", f"w{k}"))
-        or w == ("op", "add", ("var", f"w{k}"), lit(1))
-    )
+        except Unsupported as e:
+            reasons.append(f"{shape}: {e}")
+    raise Unsupported("no loop shape closes: " + "; ".join(reasons))
 
-    hs = " ".join(f"w{i}" for i in range(n))
-    hsc = ", ".join(f"w{i}" for i in range(n))
-    wl = ", ".join(f"w{i}.toNat" for i in range(n))
-    at = f"∃ {hs} s, x = ({H}, [{', '.join(f'w{i}' for i in range(n))}], s) ∧ σ = val [1, {wl}]"
 
-    # Iteration tree.
-    def iter_leaf(leaf, ind):
-        pad = "  " * ind
-        if leaf[0] == "header":
-            _, _, nst, s2, reach = leaf
-            if len(nst) != n or not bound_ok(nst[k]):
-                raise Unsupported(
-                    "an iteration returns to the header without stepping the counter by one"
-                )
-            step = "measA_step" if nst[k][2] == lit(1) else "measA_step'"
-            ws = ", ".join(paren(render(e)) for e in nst)
-            return [
-                f"{pad}exact ⟨val [1, {words(nst)}], ({H}, [{', '.join(render(e) for e in nst)}], {s2}),",
-                f"{pad}  ⟨trivial, hc, trivial, by simp only [m_head, List.getD_cons_succ, List.getD_cons_zero]; exact {step} _ hk⟩,",
-                f"{pad}  Or.inl ⟨{ws}, {s2}, rfl, rfl⟩, ⟨{len(reach)}, by omega, {reach_term(reach)}⟩⟩",
-            ]
-        _, b, st, s0, reach, app = leaf
-        if len(reach) > B:
-            raise Unsupported("an iteration ends after more than B blocks")
-        return [
-            f"{pad}exact ⟨val [0], ({b}, [{', '.join(render(e) for e in st)}], {s0}),",
-            f"{pad}  ⟨trivial, hc, trivial, by simp only [m_zero, m_head, List.getD_cons_succ, List.getD_cons_zero]; exact meas_pos _ hk⟩,",
-            f"{pad}  Or.inr ⟨rfl, ends_of_halts ({app}) {X - 1}⟩, ⟨{len(reach)}, by omega, {reach_term(reach)}⟩⟩",
-        ]
+def emit(
+    shape,
+    *,
+    ns,
+    contract,
+    last,
+    gen_dir,
+    ob,
+    code_term,
+    code_import,
+    sel,
+    nargs,
+    limit_arg,
+    joint,
+    source,
+    n,
+    facts,
+    text,
+):
+    """The module for one shape, or Unsupported."""
+    prog = f"SolarTV.Export.{contract}.{last}"
+    H, B, X, E = ob["header"], ob["B"], ob["X"], ob["E"]
+    mod = Module(prog)
+    fact_names = ["hcv", "hsz", "hsel"]
+    W = [("var", f"w{i}") for i in range(n)]
+    first = shape.first
+    initial = "(State.initial call)"
 
-    it = Tree(mod, H, {}, [], "iter", iter_leaf)
-    iter_lines = it.walk(H, W, "s", [], (c0, "hk", True), 3)
+    # Iteration: from the header with the guard and a nonzero measure, within B blocks the header
+    # again with the guard and a lower measure, or a block that halts.
+    def iter_leaf(kind, depth, nst, app, hyps):
+        if depth > B:
+            raise Unsupported("an iteration takes more than B blocks")
+        if kind == "end":
+            return f".here (.inr (ends_of_halts {app}))"
+        mp = shape.step_proof(nst, n)
+        return f".here (.inl ⟨_, _, rfl, rfl, {shape.guard_proof(nst, hyps)}, {mp}⟩)"
 
-    # Exit tree: from the header with the counter word zero, the run ends within X blocks.
-    def done_leaf(leaf, ind):
-        pad = "  " * ind
-        if leaf[0] == "header":
+    it = Tree(mod, H, {}, [], ".next", iter_leaf)
+    iter_lines = it.walk(H, W, "s", 0, (first, "hk", True) if first else None, 3)
+
+    # Exit: from the header with the guard and measure zero, a block that halts within X blocks.
+    def done_leaf(kind, depth, _nst, app, _hyps):
+        if kind == "header":
             raise Unsupported("the loop's exit returns to its header")
-        _, _b, _st, _s0, reach, app = leaf
-        if len(reach) + 1 > X:
+        if depth + 1 > X:
             raise Unsupported(f"the exit takes more than X = {X} blocks")
-        return [
-            f"{pad}obtain ⟨r, hr⟩ := ends_of_halts ({app}) 0",
-            f"{pad}exact ⟨r, iterate_mono_le (by omega) (iterate_of_reach {reach_term(reach)} hr)⟩",
-        ]
+        return f"ends_of_halts {app}"
 
-    dn = Tree(mod, H, {}, [], "done", done_leaf)
-    done_lines = dn.walk(H, W, "s", [], (c0, "hk", False), 3)
+    if shape.kind == "rotated":
+        done_lines = [f"      exact absurd (Measured.down_zero (w := w{shape.k}) hμ0) hg"]
+    else:
+        dn = Tree(mod, H, {}, [], "ends_next", done_leaf)
+        done_lines = [f"      {shape.done_have()}"] + dn.walk(
+            H, W, "s", 0, (first, "hk", False), 3
+        )
 
-    # Entry tree.
-    def entry_leaf(leaf, ind):
-        pad = "  " * ind
-        if leaf[0] == "header":
-            _, _, nst, s2, reach = leaf
-            ws = ", ".join(paren(render(e)) for e in nst)
-            e = nst[k]
-            meas = (
-                "by simp only [m_head, List.getD_cons_succ, List.getD_cons_zero, negA, ha]; exact hK"
-                if e[0] == "op"
-                else "by simp only [m_head, List.getD_cons_succ, List.getD_cons_zero]; decide"
+    # Entry: from the program's entry, within E blocks the header with the guard at a measure of
+    # at most M, or a block that halts.
+    bounds = []
+
+    def entry_leaf(kind, depth, nst, app, hyps):
+        if depth > E:
+            raise Unsupported("an entry path takes more than E blocks")
+        if kind == "end":
+            return f".here (.inr (ends_of_halts {app}))"
+        if len(nst) != n:
+            raise Unsupported("the header is entered with stacks of different depths")
+        i = len(bounds)
+        bounds.append((entry_bound(shape, nst, nargs, initial), nst))
+        gp = shape.guard_proof(nst, hyps)
+        # Tactic blocks: elaborated once rfl has fixed the header stack.
+        return f".here (.inl ⟨_, _, rfl, rfl, by exact {gp}, by exact @@M{i}@@⟩)"
+
+    en = Tree(mod, H, facts, fact_names, ".next", entry_leaf)
+    entry_lines = en.walk(0, [], initial, 0, None, 2)
+    kinds = {b[0][0] for b in bounds}
+    if len(kinds) != 1:
+        raise Unsupported(
+            f"the loop's limit is not of one kind on every entry path: {sorted(kinds)}"
+        )
+    lkind = kinds.pop()
+    lval = None
+    if lkind == "const":
+        Mc = max(b[0][1] for b in bounds)
+    else:
+        found = {b[0][1] for b in bounds}
+        if len(found) != 1:
+            raise Unsupported(
+                f"the loop's limit is not one {lkind} on every entry path: {sorted(found)}"
             )
-            return [
-                f"{pad}exact ⟨val [1, {words(nst)}], ({H}, [{', '.join(render(e) for e in nst)}], {s2}),",
-                f"{pad}  ⟨{len(reach)}, by omega, {reach_term(reach)}⟩, Or.inl ⟨{ws}, {s2}, rfl, rfl⟩, trivial,",
-                f"{pad}  {meas}⟩",
-            ]
-        _, b, st, s0, reach, app = leaf
-        if len(reach) > E:
-            raise Unsupported("an entry path ends after more than E blocks")
-        return [
-            f"{pad}exact ⟨val [0], ({b}, [{', '.join(render(e) for e in st)}], {s0}),",
-            f"{pad}  ⟨{len(reach)}, by omega, {reach_term(reach)}⟩,",
-            f"{pad}  Or.inr ⟨rfl, ends_of_halts ({app}) {X - 1}⟩, trivial, by rw [m_zero]; exact Nat.zero_le _⟩",
-        ]
+        lval = found.pop()
+        if lkind == "arg" and limit_arg is not None and lval != limit_arg:
+            raise Unsupported(
+                f"the loop's limit is argument {lval}, not argument {limit_arg}"
+            )
+    Mterm = "M" if lkind == "const" else "K"
 
-    en = Tree(mod, H, facts, fact_names, "entry", entry_leaf)
-    entry_lines = en.walk(0, [], "(State.initial call)", [], None, 1)
+    def mproof(nst):
+        if lkind == "const":
+            if shape.kind == "up":
+                return f"(by exact (by decide : Measured.upM ({render(nst[shape.k])}) ({render(nst[shape.j])}) ≤ {Mc}))"
+            return f"(by exact (by decide : Counted.meas ({render(nst[shape.k])}).toNat ≤ {Mc}))"
+        lp = "Measured.arg_le ha hK" if lkind == "arg" else "hst"
+        if shape.kind == "up":
+            # The limit word is read off the header stack first: unifying List.getD with the word
+            # itself could unfold the word (a calldata read) instead.
+            return f"(by refine Measured.up_le ?_; simp only [List.getD_cons_succ, List.getD_cons_zero]; exact {lp})"
+        return f"(Measured.meas_neg_le ({lp}))"
+
+    entry_text = "\n".join(entry_lines)
+    for i, (_lim, nst) in enumerate(bounds):
+        entry_text = entry_text.replace(f"@@M{i}@@", mproof(nst))
 
     # The certificate of the loop checker on the exact runtime bytes.
     bt = (gen_dir / "Bytecode.lean").read_text()
@@ -598,61 +822,94 @@ def generate(
         raise Unsupported(
             "the exit alone needs 2^64 gas: out of gas, not a resource proof"
         )
-    Kmax * pi + ex
+    if lkind == "const" and Mc > Kmax:
+        raise Unsupported(
+            f"the loop's {Mc} iterations need 2^64 gas or more: out of gas, not a resource proof"
+        )
+    if joint and lkind == "const":
+        raise Unsupported(
+            "the joint consumer takes an iteration bound K; this loop's limit is a literal"
+        )
+
     args = " ".join(f"a{i}" for i in range(nargs))
     arglist = ", ".join(f"a{i}" for i in range(nargs))
-    lt = " ∧ ".join(f"a{i} < 2 ^ 256" for i in range(nargs))
-    if limit_arg is None:
-        raise Unsupported(
-            "the loop's limit is not a call argument (literal limits are outside this generator)"
-        )
-    bound = f" ∧ a{limit_arg} ≤ K"
+    the_call = f"({{ calldata := Abi.calldata {sel} [{arglist}], callvalue := 0, storage := σs }} : Call)"
+    ws = ", ".join(f"w{i}" for i in range(n))
     A, L = (
         "SolidCore.Refinement.Solar.Assemble",
         "SolidCore.Refinement.Solar.AssembleLoop",
     )
-    ha = ""
-    if limit_arg is not None:
-        ha = (
-            f"  have ha : (calldataWord ({{ calldata := Abi.calldata {sel} [{arglist}], callvalue := 0, storage := σs }} : Call) {4 + 32 * limit_arg}).toNat = a{limit_arg} := by\n"
-            f"    have := hf.args {limit_arg} (by simp) (by decide)\n"
-            f"    simpa [WExpr.eval, Nat.mod_eq_of_lt h{limit_arg}] using this\n"
+    # Valid, by the limit's kind.
+    conj = []
+    if nargs:
+        conj.append(" ∧ ".join(f"a{i} < 2 ^ 256" for i in range(nargs)))
+    if lkind == "arg":
+        conj.append(f"a{lval} ≤ K")
+        lim_doc = f"argument {lval} (the loop's limit) at most `K`"
+    elif lkind == "slot":
+        conj.append(f"SolarTV.slotValue σ {lval} ≤ K")
+        lim_doc = f"storage slot {lval} (the loop's limit) at most `K`"
+    else:
+        lim_doc = f"no bound on the call: the loop's literal limit gives at most {Mc} iterations"
+    conj_s = "".join(c + " ∧ " for c in conj)
+    pats = [f"h{i}" for i in range(nargs)] + (["hK"] if lkind != "const" else [])
+    pat = "".join(p + ", " for p in pats)
+    exist = " ".join(["σ"] + ([args] if nargs else []))
+    kpar, kapp = (" (K : Nat)", " K") if lkind != "const" else ("", "")
+    kb = " {K : Nat} (hK : K ≤ Kmax)" if lkind != "const" else ""
+    kb_ = " {K : Nat} (_hK : K ≤ Kmax)" if lkind != "const" else ""
+    if nargs:
+        has = (
+            "(fun x hx => by simp only [List.mem_cons, List.not_mem_nil, or_false] at hx; rcases hx with "
+            + " | ".join(["rfl"] * nargs)
+            + (" <;> " if nargs > 1 else "; ")
+            + "assumption)"
         )
-    hcases = " ".join(f"h{i}" for i in range(nargs))
-    meas_lemmas = """
-/-- The iterations left from a counter word that the body steps by one up to zero. -/
-def meas (w : Nat) : Nat := (2 ^ 256 - w) % 2 ^ 256
-
-theorem measA_step (h : EvmRules.Word) (hh : ¬h = 0) :
-    meas (EvmRules.Evm.add 1 h).toNat < meas h.toNat := by
-  unfold meas EvmRules.Evm.add
-  have := h.isLt
-  have : h.toNat ≠ 0 := fun e => hh (BitVec.eq_of_toNat_eq (by simpa using e))
-  rw [BitVec.toNat_add]
-  have h1 : (1 : BitVec 256).toNat = 1 := rfl
-  rw [h1]
-  omega
-
-theorem measA_step' (h : EvmRules.Word) (hh : ¬h = 0) :
-    meas (EvmRules.Evm.add h 1).toNat < meas h.toNat := by
-  have e : EvmRules.Evm.add h 1 = EvmRules.Evm.add 1 h := by
-    unfold EvmRules.Evm.add; exact BitVec.add_comm _ _
-  rw [e]; exact measA_step h hh
-
-theorem meas_pos (h : EvmRules.Word) (hh : ¬h = 0) : 0 < meas h.toNat := by
-  unfold meas
-  have := h.isLt
-  have : h.toNat ≠ 0 := fun e => hh (BitVec.eq_of_toNat_eq (by simpa using e))
-  omega
-
-theorem negA (x : EvmRules.Word) : meas (EvmRules.Evm.sub 0 x).toNat = x.toNat := by
-  unfold meas EvmRules.Evm.sub
-  have := x.isLt
-  rw [BitVec.toNat_sub]
-  have h0 : (0 : BitVec 256).toNat = 0 := rfl
-  rw [h0]
-  omega
+    else:
+        has = "(fun x hx => by simp at hx)"
+    if lkind == "arg":
+        facts_line = f"""obtain ⟨hcv, hsz, hsel, ha⟩ := call_facts {sel} (by decide) [{arglist}]
+    {has} σs
+    (n := {nargs}) rfl {lval} (by decide) (by decide)"""
+        gen_hyps = "hcv hsz hsel ha"
+    else:
+        facts_line = f"""obtain ⟨hcv, hsz, hsel⟩ := Measured.call_facts0 {sel} (by decide) [{arglist}]
+    {has} σs (n := {nargs}) rfl"""
+        gen_hyps = "hcv hsz hsel"
+    if lkind == "slot":
+        facts_line += f"""
+  have hst : ((State.initial {the_call}).storage {lval}).toNat ≤ K :=
+    Measured.initial_storage_le hK"""
+        gen_hyps += " hst"
+    inh = ", ".join(
+        ["by decide"] * nargs + (["Nat.zero_le K"] if lkind != "const" else []) + ["rfl"]
+    )
+    zeros = "".join("0, " for _ in range(nargs))
+    inh_term = f"⟨_, [], {zeros}{inh}⟩"
+    mu, hmu = shape.measure()
+    if lkind == "const":
+        mdef = f"""
+/-- The loop's iteration bound: its limit is a literal. -/
+abbrev M : Nat := {Mc}
 """
+        kmax_doc = f"`M = {Mc} ≤ Kmax = {Kmax}`"
+        verdict_s = f"""theorem verdict :
+    verdictOf (some M) (perIterGas cert {B}) (exitGas cert {E} {X}) = .bounded (M * {pi} + {ex}) :=
+  verdict_of (by decide +kernel) (by decide +kernel) (by decide)"""
+        fit_s = f"""theorem fit : {L}.gasBoundL cert (fixedFuel {E} {B} {X} M) < 2 ^ 64 :=
+  Measured.fit_of (pi := {pi}) (ex := {ex}) (by decide +kernel) (by decide +kernel) (by decide)"""
+        fitapp, verapp, totapp = "fit", "verdict", "total"
+    else:
+        mdef = ""
+        kmax_doc = f"`K ≤ Kmax = {Kmax}`"
+        verdict_s = f"""theorem verdict {{K : Nat}} (hK : K ≤ Kmax) :
+    verdictOf (some K) (perIterGas cert {B}) (exitGas cert {E} {X}) = .bounded (K * {pi} + {ex}) :=
+  verdict_of (by decide +kernel) (by decide +kernel) (by unfold Kmax at hK; omega)"""
+        fit_s = f"""theorem fit {{K : Nat}} (hK : K ≤ Kmax) :
+    {L}.gasBoundL cert (fixedFuel {E} {B} {X} K) < 2 ^ 64 :=
+  Measured.fit_of (pi := {pi}) (ex := {ex}) (by decide +kernel) (by decide +kernel)
+    (by unfold Kmax at hK; omega)"""
+        fitapp, verapp, totapp = "fit hK", "verdict hK", "total hK"
     srcpart = ""
     if joint:
         srcpart = f"""
@@ -678,21 +935,38 @@ theorem joint {{K : Nat}} (hK : K ≤ {joint["bound"]}) :
 #guard_msgs (whitespace := lax) in
 #print axioms joint
 """
-    body = f"""import Verify.Gas.FixedFuel.Gas
-import W1Proofs.Tactic
-import SolarTV.Composition
-import {code_import}
-{("import " + joint["import"] + chr(10)) if joint else ""}{"".join("import " + m + chr(10) for m in (source or {}).get("imports", []))}
+    imports = [
+        "Verify.Gas.FixedFuel.Measured",
+        "Verify.ShapeGeneric",
+        "W1Proofs.Tactic",
+        "SolarTV.Composition",
+        code_import,
+    ]
+    if joint:
+        imports.append(joint["import"])
+    imports += (source or {}).get("imports", [])
+    seen = []
+    for m in imports:
+        if m not in seen:
+            seen.append(m)
+    shape_doc = {
+        "down": f"header word {shape.k} steps by one up to zero",
+        "up": f"header word {shape.k} steps by one below header word {shape.j}",
+        "rotated": f"rotated: header word {shape.k} is nonzero at the header and steps by one up to zero",
+    }[shape.kind]
+    body = f"""{"".join("import " + m + chr(10) for m in seen)}
 -- Generated by solar's tools/certify/loop_resources.py from this run's stage export
 -- ({gen_dir.name}/{last}), tools/certify/fixed_fuel.py's obligation and tools/certify/asm_cert.py's
 -- certificate; do not edit. Untrusted data: the kernel re-derives every claim.
 
 /-!
-# {contract}: the fixed-fuel resource bound of its runtime loop
+# {contract}: the fixed-fuel premises of its runtime loop
 
-Header block {H} (depth {n}, counter word {k}), B = {B}, X = {X}, E = {E}; for an iteration bound
-`K ≤ Kmax = {Kmax}` the gas bound is `verdictOf (some K) {pi} {ex} = .bounded (K * {pi} + {ex})`. `Valid`: a call of selector {sel:#x} with {nargs}
-ABI word argument(s), no value, any storage, and argument {limit_arg} (the loop limit) at most `K`.
+Header block {H} (depth {n}; {shape_doc}), B = {B}, X = {X}, E = {E}; for {kmax_doc} the gas
+bound is `verdictOf (some {Mterm}) {pi} {ex} = .bounded ({Mterm} * {pi} + {ex})`. `Valid`: a call of
+selector {sel:#x} with {nargs} ABI word argument(s), no value, any storage, and {lim_doc}.
+`loops` is `Verify.Gas.FixedFuel.Measured.loops_of` on this program's block facts; `premises` are
+`check_ok`, `loops` and `fit` in the form the erasure join's `GeneratedTarget` takes them.
 -/
 
 namespace {ns}
@@ -700,6 +974,8 @@ namespace {ns}
 open SolarTV SolarTV.Machine SolarTV.Milestone.W1
 open SolidCore.Refinement SolidCore.Refinement.Solar SolidCore.Refinement.Generic Verify.Gas.FixedFuel
 open Verify.LoopSource.Interface
+open Verify.Gas.FixedFuel.Counted (halts ends_of_halts ends_next call_facts checkL_of verdict_of
+  total_of_loops)
 
 /-- The runtime bytes this run emitted. -/
 abbrev code : ByteArray := {code_term}
@@ -712,142 +988,84 @@ def cert : {A}.Cert :=
 def maxs : List Nat := {maxs}
 
 set_option maxRecDepth 100000 in
-theorem walk_ok : (SolarTV.Assembly.walk ({A}.bytesOf code) cert.offset 0
-    ({A}.lower {prog} cert)).isSome = true := by
-  have hw := {A}.walkS_drop ({A}.bytesOf code) cert.offset ({A}.lower {prog} cert) 0
-    (Nat.zero_le _)
-  rw [List.drop_zero] at hw
-  rw [← hw]
-  decide +kernel
-
-set_option maxRecDepth 100000 in
-theorem blocks_ok : {L}.blocksOkL {prog} cert maxs 0 {prog}.blocks = true := by
-  decide +kernel
-
-theorem labels_ok : {A}.labelsValid {prog} cert code = true :=
-  {A}.labelsValid_of_walk walk_ok
-
-theorem size_ok : code.size < 2 ^ 32 := by decide +kernel
-
 /-- The checker of code with loops accepts the exact bytecode for the final EVM IR. -/
-theorem check_ok : {L}.checkL {prog} code cert maxs = true := by
-  simp only [{L}.checkL, walk_ok, blocks_ok, labels_ok, decide_eq_true size_ok, Bool.and_true,
-    Bool.true_and]
-  decide
+theorem check_ok : {L}.checkL {prog} code cert maxs = true :=
+  checkL_of (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide)
 
 /-- The largest iteration bound whose fixed gas is below `2 ^ 64`. -/
 def Kmax : Nat := {Kmax}
+{mdef}
+/-- **The resource verdict**: bounded. -/
+{verdict_s}
 
-theorem perIter_eq : perIterGas cert {B} = {pi} := by decide +kernel
+/-- **The fit**: the fixed fuel's gas is below `2 ^ 64`. -/
+{fit_s}
 
-theorem exit_eq : exitGas cert {E} {X} = {ex} := by decide +kernel
-
-/-- **The resource verdict**: bounded for every iteration bound up to `Kmax`. -/
-theorem verdict {{K : Nat}} (hK : K ≤ Kmax) :
-    verdictOf (some K) (perIterGas cert {B}) (exitGas cert {E} {X}) = .bounded (K * {pi} + {ex}) := by
-  rw [perIter_eq, exit_eq]
-  have h : K * {pi} + {ex} < 2 ^ 64 := by unfold Kmax at hK; omega
-  simp only [verdictOf, h, ite_true]
-
-/-- The valid calls at iteration bound `K`. -/
-def Valid (K : Nat) (call : Call) : Prop :=
-  ∃ σ {args}, {lt}{bound} ∧ call = {{ calldata := Abi.calldata {sel} [{arglist}], callvalue := 0, storage := σ }}
+/-- The valid calls. -/
+def Valid{kpar} (call : Call) : Prop :=
+  ∃ {exist}, {conj_s}call = {{ calldata := Abi.calldata {sel} [{arglist}], callvalue := 0, storage := σ }}
 
 /-- **Inhabited**: the call with every argument zero, from empty storage. -/
-theorem inhabited (K : Nat) : ∃ call, Valid K call :=
-  ⟨_, [], {" ".join("0" for _ in range(nargs))}, {", ".join(["by decide"] * nargs + ["Nat.zero_le K"])}, rfl⟩
+theorem inhabited{kpar} : ∃ call, Valid{kapp} call :=
+  {inh_term}
 
-/-- A valuation of header words. -/
-def val (as : List Nat) : Val := ⟨as, fun _ => 0, fun _ _ => 0, 0⟩
-{meas_lemmas}
-/-- The loop's record: word 0 tells the header (1) from an end (0); the condition is the counter
-word, the measure the iterations it has left. -/
-def record : LoopRecord where
-  H := {{ scopes := [], writes := [], logs := [] }}
-  P _ := True
-  m σ := if σ.args.getD 0 0 = 0 then 0 else meas (σ.args.getD {k + 1} 0)
-  c := .sel (.arg 0) (.arg {k + 1}) (.lit 0)
-  bb := .leaf (.normal {{ scopes := [], writes := [], logs := [] }})
+/-- The loop's record: a flag and the iterations left. -/
+abbrev record : LoopRecord := Measured.record
 
-@[reducible] def halts : Option ((Halt × State) ⊕ (Nat × EVM.Stack × State)) → Bool
-  | some (.inl _) => true
-  | _ => false
+/-! ## Block facts of the final EVM IR -/
 
-theorem ends_of_halts {{o : Oracle}} {{call : Call}} {{x : Nat × EVM.Stack × State}}
-    (h : halts (EVM.Program.block o call {prog} x) = true) (k : Nat) :
-    ∃ r, iterate (EVM.Program.block o call {prog}) (k + 1) x = some r := by
-  cases hs : EVM.Program.block o call {prog} x with
-  | none => simp [hs] at h
-  | some v =>
-    cases v with
-    | inl r => exact ⟨r, by simp [iterate, hs]⟩
-    | inr _ => simp [hs] at h
-
-theorem m_head (ws : List Nat) : record.m (val (1 :: ws)) = meas (ws.getD {k} 0) := by
-  simp [record, val]
-
-theorem m_zero : record.m (val [0]) = 0 := by simp [record, val]
-
-theorem c_head (ws : List Nat) : record.c.eval (val (1 :: ws)) = ws.getD {k} 0 % Generic.wordSize := by
-  simp [record, val, WExpr.eval]
-
-theorem c_zero : record.c.eval (val [0]) = 0 := by simp [record, val, WExpr.eval]
+section
+set_option maxHeartbeats 4000000
 
 {chr(10).join(mod.lemmas)}
-/-- **The bridge** of the loop over the final EVM IR. -/
-def bridge (o : Oracle) (call : Call) :
-    Bridge record (EVM.Program.block o call {prog}) {B} {X} where
-  At σ x := ({at}) ∨ (σ = val [0] ∧ ∃ r, iterate (EVM.Program.block o call {prog}) {X} x = some r)
-  iter := by
-    intro σ x hx _ hc
-    rcases hx with ⟨{hsc}, s, rfl, rfl⟩ | ⟨rfl, -⟩
-    · have hk : ¬w{k} = 0 := by
-        intro h0; apply hc; simp [c_head, h0]
-{chr(10).join(iter_lines)}
-    · exact absurd c_zero hc
-  done := by
-    intro σ x hx _ hc
-    rcases hx with ⟨{hsc}, s, rfl, rfl⟩ | ⟨-, h⟩
-    · have hk : w{k} = 0 := by
-        have := w{k}.isLt
-        simp only [c_head, List.getD_cons_succ, List.getD_cons_zero, Generic.wordSize, Nat.mod_eq_of_lt this] at hc
-        exact BitVec.eq_of_toNat_eq (by simpa using hc)
-{chr(10).join(done_lines)}
-    · exact h
+end
 
-/-- **Loops**: from the entry, every valid call reaches the header within E blocks at a measure
-at most M, or ends. -/
-theorem loops (o : Oracle) (K : Nat) (call : Call) (hv : Valid K call) :
-    Loops (EVM.Program.block o call {prog}) (0, [], State.initial call) record {E} {B} {X} K := by
-  obtain ⟨σs, {args}, {hcases}{" , hK" if limit_arg is not None else ""}, rfl⟩ := hv
-  have hf := callFacts {sel} (by decide) [{arglist}]
-    (fun x hx => by simp only [List.mem_cons, List.not_mem_nil, or_false] at hx; rcases hx with {" | ".join(["rfl"] * nargs)}{" <;> " if nargs > 1 else "; "}assumption) σs
-  have hcv : ({{ calldata := Abi.calldata {sel} [{arglist}], callvalue := 0, storage := σs }} : Call).callvalue = 0 := rfl
-  have hsz : ({{ calldata := Abi.calldata {sel} [{arglist}], callvalue := 0, storage := σs }} : Call).calldata.size = {4 + 32 * nargs} := hf.size
-  have hsel := hf.selector
-{ha}  generalize ({{ calldata := Abi.calldata {sel} [{arglist}], callvalue := 0, storage := σs }} : Call) = call at hcv hsz hsel {"ha" if limit_arg is not None else ""} ⊢
-  refine ⟨bridge o call, ?_⟩
-{chr(10).join(entry_lines)}
+/-- **Loops**: from the entry, every valid call reaches the header within E blocks with the guard
+at a measure at most {Mterm}, or ends; from the header, an iteration takes at most B blocks and the
+exit X. -/
+theorem loops (o : Oracle){kpar} (call : Call) (hv : Valid{kapp} call) :
+    Loops (EVM.Program.block o call {prog}) (0, [], State.initial call) record {E} {B} {X} {Mterm} := by
+  obtain ⟨σs, {(args.replace(" ", ", ") + ", ") if nargs else ""}{pat}rfl⟩ := hv
+  {facts_line}
+  generalize {the_call} = call at {gen_hyps} ⊢
+  refine Measured.loops_of (H := {H}) (n := {n}) {shape.guard()} {mu} {hmu}
+    (fun ws s hn hg hμ0 => ?_) (fun ws s hn hg hμ0 => ?_) ?_
+  · match ws, hn with
+    | [{ws}], _ =>
+      {shape.iter_have()}
+{chr(10).join(iter_lines)}
+  · match ws, hn with
+    | [{ws}], _ =>
+{chr(10).join(done_lines)}
+  · {entry_text.lstrip()}
+
+/-- **The premises of the erasure join** (`GeneratedTarget`'s `checkL`, `Loops` and fit), at
+`Shapes.oracle`. -/
+theorem premises{kb} :
+    {L}.checkL {prog} code cert maxs = true ∧
+    (∀ call, Valid{kapp} call → Loops (EVM.Program.block Shapes.oracle call {prog})
+      (0, [], SolarTV.Machine.State.initial call) record {E} {B} {X} {Mterm}) ∧
+    {L}.gasBoundL cert (fixedFuel {E} {B} {X} {Mterm}) < 2 ^ 64 :=
+  ⟨check_ok, fun call hv => loops Shapes.oracle{kapp} call hv, {fitapp}⟩
 
 /-- **Totality** of the final EVM IR on the valid calls, from `Loops`. -/
-theorem total {{K : Nat}} (_hK : K ≤ Kmax) :
-    ∀ call, Valid K call → ∃ obs, (evmirSem Shapes.oracle).run {prog} call = some obs := by
-  intro call hv
-  obtain ⟨r, hr⟩ := ends_of_loops (loops Shapes.oracle K call hv)
-  have hr' : EVM.Program.run Shapes.oracle {prog} call (fixedFuel {E} {B} {X} K) = some r := hr
-  exact ⟨_, by
-    change (SolarTV.EVM.Program.layer.result Shapes.oracle {prog} call).map _ = _
-    rw [SolarTV.EVM.Program.layer.result_of_ends ⟨fixedFuel {E} {B} {X} K, hr'⟩]
-    rfl⟩
+theorem total{kb_} :
+    ∀ call, Valid{kapp} call → ∃ obs, (evmirSem Shapes.oracle).run {prog} call = some obs :=
+  total_of_loops fun call hv => loops Shapes.oracle{kapp} call hv
 
 /-- **The final EVM IR's resources** on the exact bytes: `resources_of_verdict` with the stage of
 the final EVM IR to itself and the loop's bound for totality. -/
-theorem resources_evmir {{K : Nat}} (hK : K ≤ Kmax) :
-    SolidCore.Refinement.Shapes.Resources (evmirSem Shapes.oracle) {prog} code (Valid K) (fun _ => K * {pi} + {ex}) :=
-  resources_of_verdict (verdict hK) check_ok Shapes.oracle (fun _ => Shapes.oracle_ok.1)
+theorem resources_evmir{kb} :
+    SolidCore.Refinement.Shapes.Resources (evmirSem Shapes.oracle) {prog} code (Valid{kapp})
+      (fun _ => {Mterm} * {pi} + {ex}) :=
+  resources_of_verdict ({verapp}) check_ok Shapes.oracle (fun _ => Shapes.oracle_ok.1)
     (fun _ => Shapes.oracle_ok.2)
-    (total hK)
-    (Stage.refl _ _ _) (fun call hv => loops Shapes.oracle K call hv)
+    ({totapp})
+    (Stage.refl _ _ _) (fun call hv => loops Shapes.oracle{kapp} call hv)
+
+/-- info: '{ns}.premises' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms premises
 
 /-- info: '{ns}.resources_evmir' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in

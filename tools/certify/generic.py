@@ -410,6 +410,11 @@ def envelope(
         raise Failed(f"no contract {contract} in the source")
     cdef = cdefs[0]
     own = {n["id"] for n in walk(cdef) if "id" in n}
+    import loop_cuts
+
+    # Each loop's function and why the source erasure (eraseLoopStmt) certainly does not cover it,
+    # or None, by node.
+    loop_why = {id(n): (fname, why) for n, fname, why in loop_cuts.loop_shapes(cdef)}
     creation, creation_unresolved = creation_reach(cdef)
     enums = {}
     for n in walk(ast):
@@ -443,14 +448,25 @@ def envelope(
                 }
             )
         elif t in ("ForStatement", "WhileStatement", "DoWhileStatement"):
+            fname, why = loop_why.get(id(n), ("", "a loop outside every function"))
             block(
                 "loop",
                 n,
-                "loops need a kernel-checked invariant certificate; the generic source stage at this base is loop-free"
+                (
+                    f"{fname}: outside the source erasure's counted loop: {why}"
+                    if why is not None
+                    else f"{fname}: a while loop, the while route's shape (eraseWhile through an "
+                    "invariant; bodyRuns_of_eraseWhile): the loop cut hook generates its source "
+                    "premises and obligations, and the published statement does not apply them yet"
+                    if t == "WhileStatement"
+                    else f"{fname}: a counted for loop, the source erasure's shape (eraseLoopStmt; "
+                    "bodyRuns_of_eraseLoop): the loop cut hook generates its source premises and "
+                    "obligations, and the published statement does not apply them yet"
+                )
                 + (
-                    ", and the supplied invariants file is not consumed yet"
+                    "; the supplied invariants file is not consumed"
                     if invariants
-                    else " (no --invariants given)"
+                    else ""
                 ),
             )
         elif t == "FunctionDefinition":
@@ -516,8 +532,10 @@ def envelope(
                 n,
                 f"{n['name']} is outside the source semantics' environment",
             )
-    # Recursion: the generic stage proofs need a cut point at every back edge, and a recursive call
-    # site has none (the stage proofs have no measure to cut at), so the call graph must be acyclic.
+    # Recursion: the generic stage proofs need a cut point at every back edge. One function calling
+    # itself, with its measure written (@custom:decreases), has them: the backend stages cut it at
+    # its call frames (rec_cuts.py), bounded by the measure. Any other cycle has no cut points at
+    # its call sites, so it stays refused.
     variables = {
         n["id"]
         for n in walk(ast)
@@ -525,11 +543,24 @@ def envelope(
     }
     cycles, values = recursion_cycles(cdef, variables)
     for names, call in cycles:
+        fns = [
+            n
+            for n in walk(cdef)
+            if n.get("nodeType") == "FunctionDefinition" and n.get("name") == names[0]
+        ]
+        doc = ((fns[0].get("documentation") or {}).get("text", "")) if len(fns) == 1 else ""
+        if len(names) == 1 and re.search(r"@custom:decreases\s+\S", doc):
+            continue
         block(
             "recursion",
             call,
-            f"unsupported: {' and '.join(names)} can call {'itself' if len(names) == 1 else 'each other'} "
-            "(the generic stage needs an acyclic call graph; recursive calls have no cut points)",
+            f"unsupported: {' and '.join(names)} can call "
+            f"{'itself' if len(names) == 1 else 'each other'} "
+            + (
+                "(only one function calling itself, with @custom:decreases, has cut points)"
+                if len(names) > 1
+                else "(no @custom:decreases measure for its recursive call sites)"
+            ),
         )
     for call in values:
         block(
@@ -1057,14 +1088,53 @@ def lean_str(s):
     return json.dumps(s)
 
 
-def nested_splits(eqs):
-    """The tactic lines of `funext; unfold` by one `split` per table entry, nested under bullets."""
-    n, out = len(eqs), []
-    for i, e in enumerate(eqs):
-        out.append("  split" if i == 0 else "  " * i + "· split")
-        out.append("  " * (i + 1) + f"· next h => subst h; exact {e}")
-    out.append("  " * n + "· rfl")
-    return "\n".join(out) + "\n"
+def kernel_table(doc, name, eq, ty, f, pre, entries):
+    """F : String → TY by a table of its values at ENTRIES' signatures ((signature, value literal)
+    pairs): each entry is PRE{i}_eq : PRE{i} = value, F on its signature by kernel_rfl alone (F
+    costs the kernel too much to evaluate inside a larger check); NAME is the table
+    (KernelTable.tableOr) and EQ : F = NAME follows from those equations by KernelTable.eq_tableOr,
+    in one line whatever the number of entries."""
+    defs = "".join(
+        f"def {pre}{i} : {ty} :=\n  {f} {lean_str(s)}\n\nkernel_rfl {pre}{i}_eq {pre}{i} {v}\n\n"
+        for i, (s, v) in enumerate(entries)
+    )
+    rows = ",\n     ".join(f"({lean_str(s)}, {v})" for s, v in entries)
+    eqs = [f"{pre}{i}_eq" for i in range(len(entries))]
+    agrees = f"⟨{', '.join(eqs)}, trivial⟩" if eqs else "trivial"
+    return (
+        f"{defs}/-- {doc} -/\ndef {name} : String → {ty} :=\n  KernelTable.tableOr {f}\n    [{rows}]\n\n"
+        f"theorem {eq} : {f} = {name} :=\n  KernelTable.eq_tableOr {agrees}\n"
+    )
+
+
+SELECTOR_TABLE = (
+    "§ABI.selectorFromSignature§, with the contract's signatures by table.",
+    "selectorTable",
+    "selector_eq",
+    "SolidCore.Solidity.Shared.Word",
+    "SolidCore.Solidity.Source.ABI.selectorFromSignature",
+    "selSig",
+)
+DIGEST_TABLE = (
+    "§Keccak.digestWord§, with the events' signatures by table.",
+    "digestTable",
+    "digest_eq",
+    "Nat",
+    "SolidCore.Solidity.Source.Keccak.digestWord",
+    "topicSig",
+)
+
+
+def runtime_lean(deployed, plain):
+    """The runtime code a creation installs, as a Lean term: DEPLOYED's bytes, or with immutables
+    the term `runtime` (PLAIN) with each word the constructor patches."""
+    patches = immutable_patches(deployed, plain)
+    if patches is None:
+        return lean_bytes(deployed)
+    code = "runtime"
+    for off, w in patches:
+        code = f"patchWord ({code}) {off} {hex(w)}"
+    return code
 
 
 def lowering_lean(name, contract, fns, events, core_lit, storage_lit, sym=False):
@@ -1078,34 +1148,15 @@ def lowering_lean(name, contract, fns, events, core_lit, storage_lit, sym=False)
         for i, f in enumerate(fns)
     )
     fnlist = ", ".join(f"fn{i}" for i in range(len(fns)))
-    kr = []
-    for i, f in enumerate(fns):
-        kr.append(
-            f"def selSig{i} : SolidCore.Solidity.Shared.Word :=\n  SolidCore.Solidity.Source.ABI.selectorFromSignature {lean_str(f['sig'])}\n\n"
-            f"kernel_rfl selSig{i}_eq selSig{i} sel{i}\n"
-        )
-    for i, e in enumerate(events):
-        kr.append(
-            f"def topicSig{i} : Nat := SolidCore.Solidity.Source.Keccak.digestWord {lean_str(e['sig'])}\n\n"
-            f"kernel_rfl topicSig{i}_eq topicSig{i} {hex(e['topic'])}\n"
-        )
-    table = "".join(
-        f"  if s = {lean_str(f['sig'])} then sel{i}\n  else" for i, f in enumerate(fns)
+    table = kernel_table(
+        *SELECTOR_TABLE, [(f["sig"], f"sel{i}") for i, f in enumerate(fns)]
     )
-    splits = nested_splits([f"selSig{i}_eq" for i in range(len(fns))])
     using = "selector_eq"
     digest = ""
     if events:
-        dt = "".join(
-            f"  if s = {lean_str(e['sig'])} then {hex(e['topic'])}\n  else"
-            for e in events
-        )
-        dsplits = nested_splits([f"topicSig{i}_eq" for i in range(len(events))])
         digest = (
-            f"/-- §Keccak.digestWord§, with the events' signatures by table. -/\n"
-            f"def digestTable (s : String) : Nat :=\n{dt} SolidCore.Solidity.Source.Keccak.digestWord s\n\n"
-            f"theorem digest_eq : SolidCore.Solidity.Source.Keccak.digestWord = digestTable := by\n"
-            f"  funext s\n  unfold digestTable\n{dsplits}\n"
+            kernel_table(*DIGEST_TABLE, [(e["sig"], hex(e["topic"])) for e in events])
+            + "\n"
         )
         using += " digest_eq"
     # The check for every caller (caller_route, the any route only): Generic.checkSym and
@@ -1131,8 +1182,10 @@ theorem checkValueSym_stage0 :
         else ""
     )
     return f"""import SolidCore.Refinement.Generic.Value
+import SolidCore.Refinement.Generic.Shape
 {sym_import}import SolidCore.Refinement.KernelCopies
 import SolidCore.Refinement.KernelRfl
+import SolidCore.Refinement.KernelTable
 import {name}.Source
 import {name}.gen.{contract}.Stage0
 
@@ -1176,20 +1229,9 @@ def storageLit : List (Nat × Nat) := {storage_lit}
 
 /-! ## Selectors and topics, each by Keccak-256 once, then by table -/
 
-{chr(10).join(kr)}
-/-- §ABI.selectorFromSignature§, with the contract's signatures by table. -/
-def selectorTable (s : String) : SolidCore.Solidity.Shared.Word :=
-{table} SolidCore.Solidity.Source.ABI.selectorFromSignature s
-
-theorem selector_eq : SolidCore.Solidity.Source.ABI.selectorFromSignature = selectorTable := by
-  funext s
-  unfold selectorTable
-{splits}
+{table}
 {digest}/-- SolidCore's checked core, and whether the constructor leaves exactly §storageLit§ and no logs. -/
-def shape? : Option (Contract × Bool) :=
-  match contract? with
-  | .ok c => some (c.core, Wide.deployedAt fuel c storageLit)
-  | .error _ => none
+def shape? : Option (Contract × Bool) := Generic.shapeOf fuel contract? storageLit
 
 kernel_rfl shape_eq shape? (some (coreLit, true)) using {using}
 
@@ -1206,12 +1248,8 @@ theorem checkValue_stage0 :
   decide +kernel
 {sym_thms}
 theorem deployed_of {{c : TypeCheck.CheckedContract}} (hc : contract? = .ok c) :
-    c.core = coreLit ∧ ∃ d, Wide.DeployedAt fuel c d storageLit := by
-  have h := shape_eq
-  unfold shape? at h
-  rw [hc] at h
-  obtain ⟨hk, hd⟩ := Prod.mk.inj (Option.some.inj h)
-  exact ⟨hk, Wide.deployedAt_of hd⟩
+    c.core = coreLit ∧ ∃ d, Wide.DeployedAt fuel c d storageLit :=
+  Generic.deployed_of_shapeOf shape_eq hc
 
 end {ns}
 """.replace("§§", "§§").replace("§", "\u0060")
@@ -1229,7 +1267,7 @@ def probe_lean(name, contract, fns):
         f"Generic.symTree SolarTV.Export.{contract}.stage0 {f['sel']} {len(f['params'])} mirFuel .all with\n"
         f'      | none, _ => "source tree undefined (erasure)"\n'
         f'      | _, none => "MIR symbolic run undefined"\n'
-        f'      | some a, some b => if a.canon.beq b.canon then "agree" else ("trees differ: source " ++ (reprStr a.canon).replace "\\n" " " ++ " MIR " ++ (reprStr b.canon).replace "\\n" " ")))'
+        f'      | some a, some b => if Generic.Tree.agree a b then "agree" else ("trees differ: source " ++ (reprStr a.canon).replace "\\n" " " ++ " MIR " ++ (reprStr b.canon).replace "\\n" " ")))'
         for f in fns
     )
     # The same check for every caller (Generic.checkFnSym): the source erased with msg.sender a
@@ -1241,7 +1279,7 @@ def probe_lean(name, contract, fns):
         f"Generic.symTree SolarTV.Export.{contract}.stage0 {f['sel']} {len(f['params'])} mirFuel .allSym with\n"
         f'      | none, _ => "source tree undefined (erasure)"\n'
         f'      | _, none => "MIR symbolic run undefined"\n'
-        f'      | some a, some b => if a.canon.beq b.canon then "agree" else ("trees differ: source " ++ (reprStr a.canon).replace "\\n" " " ++ " MIR " ++ (reprStr b.canon).replace "\\n" " ")))'
+        f'      | some a, some b => if Generic.Tree.agree a b then "agree" else ("trees differ: source " ++ (reprStr a.canon).replace "\\n" " " ++ " MIR " ++ (reprStr b.canon).replace "\\n" " ")))'
         for f in fns
     )
     return f"""import SolidCore.Refinement.Generic.Value
@@ -2029,23 +2067,8 @@ def lifecycle_lean(
     init, code and ws are proved equal to its init code, runtime and words (fuel_same,
     contract_same, init_same, code_same, ws_same), so the certificate and the theorem share one
     source unit, constructor and runtime."""
-    patches = immutable_patches(deployed, plain)
-    if patches is None:
-        code = lean_bytes(deployed)
-    else:
-        code = "runtime"
-        for off, w in patches:
-            code = f"patchWord ({code}) {off} {hex(w)}"
-    sel = []
-    for i, g in enumerate(sigs):
-        sel.append(
-            f"def selSig{i} : SolidCore.Solidity.Shared.Word :=\n  SolidCore.Solidity.Source.ABI.selectorFromSignature {lean_str(g['sig'])}\n\n"
-            f"kernel_rfl selSig{i}_eq selSig{i} {hex(g['sel'])}\n"
-        )
-    table = "".join(
-        f"  if s = {lean_str(g['sig'])} then {hex(g['sel'])}\n  else" for g in sigs
-    )
-    splits = nested_splits([f"selSig{i}_eq" for i in range(len(sigs))])
+    code = runtime_lean(deployed, plain)
+    table = kernel_table(*SELECTOR_TABLE, [(g["sig"], hex(g["sel"])) for g in sigs])
     bind_imports = (
         "".join(f"import {m}\n" for m in bind_modules(bind))
         + "import Verify.Generic.Expected\n"
@@ -2079,9 +2102,10 @@ theorem ws_same : ws = [{", ".join(str(w) for w in bind["ws"])}] := rfl
         else ""
     )
     head = f"""import Verify.Lifecycle.CreationFrame
-import Verify.Lifecycle.Route
+import Verify.Lifecycle.Life
 import Verify.Lifecycle.KernelIndex
 import SolidCore.Refinement.KernelRfl
+import SolidCore.Refinement.KernelTable
 import {src_import}
 {bind_imports}
 -- Generated by solar's tools/certify/generic.py from this run's init code, arguments and storage;
@@ -2144,15 +2168,7 @@ def contract? : Except TypeCheck.TypeError TypeCheck.CheckedContract :=
 
 /-! ## Selectors, each by Keccak-256 once, then by table -/
 
-{chr(10).join(sel)}
-/-- §ABI.selectorFromSignature§, with the contract's signatures by table. -/
-def selectorTable (s : String) : SolidCore.Solidity.Shared.Word :=
-{table} SolidCore.Solidity.Source.ABI.selectorFromSignature s
-
-theorem selector_eq : SolidCore.Solidity.Source.ABI.selectorFromSignature = selectorTable := by
-  funext s
-  unfold selectorTable
-{splits}
+{table}
 /-- The generic creation frame's check of this creation. -/
 def checkB : Bool := check frameFuel (initArgs init ws) code storageLit
 
@@ -2165,21 +2181,14 @@ theorem deploys : Deploys (initArgs init ws) code storageLit :=
   deploys_of_check frameFuel checkB_eq
 
 /-- Whether the contract checks and its constructor, called with §ws§, leaves §storageLit§ and no logs. -/
-def life? : Bool :=
-  match contract? with
-  | .ok c => deployedAtWith fuel c (wordArgs ws) storageLit
-  | .error _ => false
+def life? : Bool := lifeOf fuel contract? ws storageLit
 
 kernel_rfl life_eq life? true using selector_eq mkIdx_eq
 
 /-- **The lifecycle statement**: the checked contract's constructor on §ws§ leaves §storageLit§,
 and solar's init code with §ws§ deploys §code§ with the same storage. -/
-theorem statement : ∃ c, contract? = .ok c ∧ Statement fuel c init code ws storageLit := by
-  have h := life_eq
-  unfold life? at h
-  split at h
-  next c hc => exact ⟨c, hc, deploys, deployedAtWith_of h⟩
-  next => simp at h
+theorem statement : ∃ c, contract? = .ok c ∧ Statement fuel c init code ws storageLit :=
+  statement_of_lifeOf deploys life_eq
 
 /-- info: '{ns}.statement' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
@@ -2384,13 +2393,7 @@ def lifecycle_all_lean(ns, contract, init, plain, deployed, ws, storage):
     reads off (Verify.Lifecycle.Creation.Sym.deploys_allArgs), and this run's creation, WS with
     DEPLOYED and STORAGE, is its instance at WS (deploys_at). Untrusted text: the specification is
     the kernel's own evaluation of the symbolic run, and every literal is checked by the kernel."""
-    patches = immutable_patches(deployed, plain)
-    if patches is None:
-        code = lean_bytes(deployed)
-    else:
-        code = "runtime"
-        for off, w in patches:
-            code = f"patchWord ({code}) {off} {hex(w)}"
+    code = runtime_lean(deployed, plain)
     words = ", ".join(f"{w}#256" for w in ws)
     return f"""import Verify.Lifecycle.Symbolic
 import SolidCore.Refinement.KernelRfl
@@ -2962,7 +2965,7 @@ def lifecycle_run(
                 loops_note = (
                     f"; runtime loop ({', '.join(o['where'] for o in opened)}) resources: the final "
                     f"EVM IR subedge is proved on these bytes ({lr['theorem']}); the source join stays "
-                    f"OPEN: {LOOP_SOURCE_GAP}"
+                    f"OPEN: {LOOP_SOURCE_JOIN}"
                 )
         finish(
             "CERTIFIED",
@@ -2985,17 +2988,15 @@ def lifecycle_run(
     )
 
 
-# The edge the loop-resource generator cannot derive within tools/certify: the source loop's body
-# summary. resources_of_verdict over the source semantics needs a stage from the source to the final
-# EVM IR, and Verify.LoopSource.Equiv.loop_stage needs BodyRuns of the loop's body, which
-# SolidCore.Refinement.Generic.eraseStmt (no loop case) cannot give.
-LOOP_SOURCE_GAP = (
-    "no generic BodyRuns for a loop body. SolidCore.Refinement.Generic.bodyRuns_of_erase needs "
-    "`eraseStmt E fuel fn.body (initState fn) = some b`, and eraseStmt has no case for a loop. "
-    "Missing: a loop-aware eraser `eraseLoopStmt (E : EraseEnv) : Nat → Stmt → SymState → Option Br` "
-    "and `theorem bodyRuns_of_eraseLoop {E : EraseEnv} {fuel : Nat} {fn : FunctionDef} {b : Br} "
-    "(h : eraseLoopStmt E fuel fn.body (initState fn) = some b) : BodyRuns E fuel fn b`, the premise "
-    "`hb` of Verify.LoopSource.Equiv.loop_stage"
+# What the lifecycle tier's loop subedge leaves open. The source side exists in the base:
+# eraseLoopStmt erases a counted loop and bodyRuns_of_eraseLoop gives the BodyRuns that
+# Verify.LoopSource.Equiv.loop_stage needs; the loop cut hook (loop_cuts.py) generates the erasure,
+# its tree and obligations on a run's own source. This tier runs neither that hook nor the join
+# (EraseLoopJoin.GeneratedTarget) of those premises with this subedge.
+LOOP_SOURCE_JOIN = (
+    "the source side of the loop is not composed with this subedge at this tier: the loop cut "
+    "hook's erasure-route obligations (eraseLoopStmt, bodyRuns_of_eraseLoop) and their join "
+    "(EraseLoopJoin.GeneratedTarget) are not part of the lifecycle statement"
 )
 
 # The composed theorem's binder the joint consumer reuses: one iteration bound K under a named bound.
@@ -3063,7 +3064,7 @@ def lifecycle_loop_resources(
         "lean_sha256": hashlib.sha256(text.encode()).hexdigest(),
         "export_runtime_sha256": hashlib.sha256(bytes.fromhex(runtime)).hexdigest(),
         "obligation": facts,
-        "source_join": LOOP_SOURCE_GAP,
+        "source_join": LOOP_SOURCE_JOIN,
         "detail": (
             "Shapes.Resources of the final EVM IR on Valid K, K ≤ Kmax, joined with the composed theorem"
             if ok
@@ -3806,8 +3807,9 @@ def loop_cuts(record, src, ast, a, work, name, src_sha):
     function solar-verify's manifest gives a loop, the manifest, loop_equiv.py's certificate and
     the base's obligation modules, built in a clone of the base. Records loop_heads, loop_cuts
     (only the functions every step completed for) and loop_cuts_blocked, and returns the extra
-    BLOCKED reasons. The run stays BLOCKED in every case: the published statement does not apply
-    loop_equiv yet."""
+    BLOCKED reasons. A function whose loop is certainly outside the source erasure's shape
+    (loop_cuts.shape_refusals) stops at step "shape" before any build. The run stays BLOCKED in
+    every case: the published statement does not apply the join yet."""
     import fixed_fuel
     import loop_cuts as lc
 
@@ -3816,6 +3818,12 @@ def loop_cuts(record, src, ast, a, work, name, src_sha):
     except fixed_fuel.Unsupported as e:
         record["loop_cuts_blocked"] = {"*": {"step": "abi", "why": str(e)}}
         return lc.reasons({}, record["loop_cuts_blocked"])
+    cdefs = [
+        n
+        for n in ast.get("nodes", [])
+        if n.get("nodeType") == "ContractDefinition" and n.get("name") == contract
+    ]
+    refused = lc.shape_refusals(cdefs[0]) if len(cdefs) == 1 else {}
 
     def tool(build):
         def get():
@@ -3876,6 +3884,7 @@ def loop_cuts(record, src, ast, a, work, name, src_sha):
             f'\nlean_lib «{name}» where\n  srcDir := "Certified"\n  globs := #[.submodules `{name}]\n',
             (lean_lib_body(name),),
         )
+        record["loop_cuts_clone"] = str(d)
         return d
 
     heads, cuts, blocked = lc.hook(
@@ -3893,6 +3902,7 @@ def loop_cuts(record, src, ast, a, work, name, src_sha):
         lake_env=lambda d: lake_jobs_env(d, dict(os.environ, LEAN_NUM_THREADS="1")),
         log=log,
         summary=loop_summaries(a.loop_summary or []).get,
+        shape=refused.get,
         keep=keep_log,
     )
     record["loop_heads"] = heads
@@ -3901,10 +3911,89 @@ def loop_cuts(record, src, ast, a, work, name, src_sha):
     return lc.reasons(cuts, blocked)
 
 
+def loop_final(record, reasons, src, ast, a, work, name):
+    """The loop's published theorem (tools/certify/loop_final.py) in the loop cut hook's clone, once
+    the hook built the obligations of every loop function: the stage proofs of this run's export, the
+    fixed-fuel module, the join, final.py's statement, lake build NAME.Final and check_final with this
+    run's bytes. Records loop_final. The run stays BLOCKED either way: the statement covers only the
+    loop function's calls, from any storage (runtime only), with the specification declared vacuous.
+    On success the loop function's OPEN reasons become one reason naming the checked theorem; on a
+    refusal its reason is added."""
+    import fixed_fuel
+    import loop_final as lf
+
+    contract = fixed_fuel.contract_of(ast, a.contract)
+    solar = build_solar()
+    plain, err = solar_runtime(solar, src, contract)
+    clone = record.get("loop_cuts_clone")
+    if plain is None or clone is None:
+        why = (
+            "no clone from the loop cut hook"
+            if clone is None
+            else f"solar: {err.strip()[:200]}"
+        )
+        record["loop_final"] = {"refused": {"step": "internal", "why": why}}
+        return reasons + [lf.reason(lf.Refused("internal", why))]
+    out = lf.attach(
+        record,
+        run=run,
+        name=name,
+        contract=contract,
+        ast=ast,
+        solar=solar,
+        src=src,
+        work=work,
+        lean_dir=clone,
+        lake_env=lake_jobs_env(clone, dict(os.environ, LEAN_NUM_THREADS="1")),
+        plain=plain,
+        log=log,
+    )
+    if out:
+        return reasons + out
+    fname = record["loop_final"]["function"]
+    # The envelope's reason names the function at the start of its detail (its where is a line);
+    # the loop cut hook's names it in where.
+    kept = [
+        r
+        for r in reasons
+        if not (
+            r["feature"] == "loop"
+            and (
+                r.get("where") == fname
+                or r.get("detail", "").startswith(f"{fname}: a counted for loop")
+            )
+        )
+    ]
+    # The specification the final states: solar-verify's export when the bridge proved it
+    # (loop_final.attach records it), else True.
+    fin = (record.get("loop_final") or {}).get("final", {})
+    spec_s = (
+        "specification: solar-verify's export in the fixed frame TreeLoop.ctx0"
+        + (
+            ""
+            if fin.get("vacuity") is None and fin.get("allowed_vacuity") is None
+            else " (not shown non-vacuous: "
+            + (fin.get("vacuity") or "the allowed statuses: " + fin["allowed_vacuity"])
+            + ")"
+        )
+        if fin.get("spec_bound_to_export")
+        else "specification True (declared vacuous)"
+    )
+    return kept + [
+        {
+            "feature": "loop",
+            "where": fname,
+            "detail": f"loop final checked (Certified.{name}.Final.final, record loop_final): runtime "
+            f"only, the loop function's calls only, {spec_s}",
+        }
+    ]
+
+
 def loop_summaries(specs):
     """--loop-summary FN=MODULE:CONSTANT, each a GenObl.Summary of FN's body. It is untrusted:
     the generator checks its shape against the run's imported function, and the obligation
-    modules prove that check by kernel_rfl. Without one, the generator refuses FN."""
+    modules prove that check by kernel_rfl. Without one (the default), the generator takes the
+    erasure route for FN (eraseLoopStmt of its body)."""
     out = {}
     for spec in specs:
         fn, eq, rest = spec.partition("=")
@@ -4876,11 +4965,19 @@ def main():
     )
     ap.add_argument("--no-negatives", action="store_true")
     ap.add_argument(
+        "--refute-in-kernel",
+        action="store_true",
+        help="a decided NatSpec refutation (natspec_checks) does not stop the run: the run goes on to "
+        "spec_connect.py, whose kernel-checked refutation names the declaration it refutes; the run is "
+        "REJECTED either way (the negative controls, tools/certify/stage_neg.sh)",
+    )
+    ap.add_argument(
         "--loop-summary",
         action="append",
         metavar="FN=MODULE:CONSTANT",
         help="a GenObl.Summary of loop function FN's body for the loop cut hook (checked by the "
-        "generator against the imported function); without one the hook blocks FN",
+        "generator against the imported function); without one the generator erases FN's body "
+        "itself (eraseLoopStmt)",
     )
     ap.add_argument(
         "--probe-cache",
@@ -4981,8 +5078,32 @@ def main():
                 # The cut points first, so the record holds them whatever loop_resources decides;
                 # its REJECTED still decides the verdict, and BLOCKED stays the floor otherwise.
                 extra = loop_cuts(record, src, ast, a, work, name, src_sha)
-                loop_resources(record, src, ast, a.contract)
-                raise Blocked(b.reasons + extra) from b
+                __import__("loop_any_caller").from_driver(
+                    record,
+                    src,
+                    ast,
+                    a.contract,
+                    work,
+                    build_solar,
+                    build_solar_verify,
+                    log,
+                )
+                # The unbounded fixed-fuel obligation's out of gas stays the verdict, but only
+                # after the loop's final theorem, which bounds the loop's limit by K and carries
+                # its own gas bound, is built and recorded beside it.
+                out_of_gas = None
+                try:
+                    loop_resources(record, src, ast, a.contract)
+                except Failed as e:
+                    if record.get("rejected_for") != "resource: out of gas":
+                        raise
+                    out_of_gas = e
+                reasons = b.reasons + extra
+                if record.get("loop_cuts") and not record.get("loop_cuts_blocked"):
+                    reasons = loop_final(record, reasons, src, ast, a, work, name)
+                if out_of_gas is not None:
+                    raise out_of_gas
+                raise Blocked(reasons) from b
             raise
         if lifecycle_open:
             record["lifecycle_open"] = lifecycle_open
@@ -4997,8 +5118,11 @@ def main():
             refuted, invs = natspec_checks(ast, contract)
             if invs:
                 record["invariants"] = invs
-            if refuted:
+            if refuted and not a.refute_in_kernel:
                 raise Failed(refuted)
+            if refuted:
+                # Recorded, never dropped: a run that reaches no kernel refutation is REJECTED with it.
+                record["natspec_refuted"] = refuted
         record["contract"] = contract
         record["functions"] = [
             {
@@ -5298,6 +5422,8 @@ def main():
             tail = lines[-3:]
             hit = resource_failures(lines)
             spec_rej = spec_rejection(lines)
+            if spec_rej and not hit and record.get("natspec_refuted"):
+                record["natspec_refuted_in_kernel"] = spec_rej[0][:600]
             if spec_rej and not hit:
                 # spec_connect.py elaborated its module and a theorem of it does not check: the spec
                 # is false of the code (or beyond the tactics), named by that theorem.
@@ -5320,6 +5446,12 @@ def main():
                 "REJECTED",
                 1,
                 f"REJECTED: scripts/certify: exits {rc}: {' | '.join(tail)}",
+            )
+        if record.get("natspec_refuted"):
+            finish(
+                "REJECTED",
+                1,
+                f"REJECTED: {record['natspec_refuted']} (decided; the kernel refuted no declaration)",
             )
         rec = json.loads(inner.read_text())
         shutil.copy(inner, rec_dir / "certify-record.json")
@@ -5351,10 +5483,30 @@ def main():
             **res,
         )
     except Blocked as b:
+        if record.get("natspec_refuted"):
+            finish(
+                "REJECTED",
+                1,
+                f"REJECTED: {record['natspec_refuted']} (decided; then BLOCKED: {b})",
+                blocked=b.reasons,
+            )
         finish("BLOCKED", 3, f"BLOCKED: {b}", blocked=b.reasons)
     except Failed as f:
+        if record.get("natspec_refuted") and "refuted in the kernel" not in str(f):
+            finish(
+                "REJECTED",
+                1,
+                f"REJECTED: {record['natspec_refuted']} (decided; then: {f})",
+            )
         finish("REJECTED", 1, f"REJECTED: {f}")
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as e:
+        if record.get("natspec_refuted"):
+            finish(
+                "REJECTED",
+                1,
+                f"REJECTED: {record['natspec_refuted']} (decided; then the driver failed: "
+                f"{type(e).__name__}: {e})",
+            )
         finish("REJECTED", 1, f"REJECTED: driver: {type(e).__name__}: {e}")
 
 

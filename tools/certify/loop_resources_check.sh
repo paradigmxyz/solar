@@ -6,7 +6,7 @@
 #
 #   control      the generated module, unchanged: must build (rc 0) and print the joint theorem's
 #                axioms within {propext, Classical.choice, Quot.sound};
-#   wrong-measure  meas w := (2^256 - w - 1) % 2^256: must fail in the measure lemmas;
+#   wrong-counter  the measure reads the header word after the loop's counter: must fail in loops;
 #   wrong-edge   one block fact's successor block is changed: must fail in that fact (sym_exec);
 #   byte         one runtime byte (a PUSH4 selector byte) is flipped in code: must fail in the
 #                loop checker on the bytes (walk_ok / check_ok) and in the joint's byte identity.
@@ -53,11 +53,18 @@ run control "$M"
 expect control 0 .
 grep -q "joint' depends on axioms: \[propext, Classical.choice, Quot.sound\]" "$OUT/control.log" \
   || grep -q "LoopResourcesMut" "$OUT/control.log" || true
-# wrong measure
-sed 's/^def meas (w : Nat) : Nat := (2 ^ 256 - w) % 2 ^ 256$/def meas (w : Nat) : Nat := (2 ^ 256 - w - 1) % 2 ^ 256/' "$M" > "$OUT/m.in"
-cmp -s "$M" "$OUT/m.in" && { echo "wrong-measure: no meas definition to mutate"; fail=1; }
-run wrong-measure "$OUT/m.in"
-expect wrong-measure 1 "negA|measA_step|meas_pos"
+# wrong counter: the measure's counter word moves one header word on
+python3 - "$M" "$OUT/m.in" <<'EOF'
+import re, sys
+t = open(sys.argv[1]).read()
+t = re.sub(r"\(Measured\.(down|up) (\d+)( \d+)?\) \(Measured\.(down|up)_lt (\d+)( \d+)?\)",
+           lambda m: f"(Measured.{m[1]} ({m[2]} + 1){m[3] or ''}) (Measured.{m[4]}_lt ({m[5]} + 1){m[6] or ''})",
+           t, count=1)
+open(sys.argv[2], "w").write(t)
+EOF
+cmp -s "$M" "$OUT/m.in" && { echo "wrong-counter: no record to mutate"; fail=1; }
+run wrong-counter "$OUT/m.in"
+expect wrong-counter 1 "loops"
 # wrong edge: the first block fact that goes to another block goes to the block after it
 python3 - "$M" "$OUT/e.in" <<'EOF'
 import re, sys

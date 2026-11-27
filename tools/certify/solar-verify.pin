@@ -1,0 +1,8 @@
+{
+  "about": "The solar-verify that exports a loop function's spec (tools/certify/loop_final.py spec_exporter): an immutable copy of O6's binary, checked by SHA-256; the shared checkout's solar-verify lacks O6's spec-scope fixes (review 189). Built with cargo build --locked -p solar-verify --bin solar-verify (debug, local, no SHIPPY_REMOTE) in the tree at the commit, cargo reporting it fresh, then copied read-only to binary. Debug builds are not reproducible across machines and caches, so nothing rebuilds it at run time.",
+  "branch": "o6/spec-loop-bridge",
+  "commit": "1306b47e95a64b3ff6719009ef46128156b8a49b",
+  "tree": "/home/hand/simp/o6/vfix-o6",
+  "binary": "/home/hand/simp/climb/pins/solar-verify-6da9c89d21a2ef96e2f924c6d3dc58a8c1beb0ea18bd7c5980d7bd854069466f",
+  "sha256": "6da9c89d21a2ef96e2f924c6d3dc58a8c1beb0ea18bd7c5980d7bd854069466f"
+}

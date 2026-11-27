@@ -1,0 +1,506 @@
+"""Unit tests of tools/certify/loop_final.py's pure parts: refusals, the parsed resources, the generated
+join and shape.json. The Lean side is checked by running the loop route (see loop_final.py)."""
+
+import json
+import pathlib
+import sys
+import unittest
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+
+import loop_final
+
+RES = """namespace Certified.n.LoopResources
+def Kmax : Nat := 13042098468400
+
+def Valid (K : Nat) (call : Call) : Prop :=
+  ∃ σ a0, a0 < 2 ^ 256 ∧ a0 ≤ K ∧ call = { calldata := Abi.calldata 2987307204 [a0], callvalue := 0, storage := σ }
+
+theorem loops (o : Oracle) (K : Nat) (call : Call) (hv : Valid K call) :
+    Loops (EVM.Program.block o call SolarTV.Export.C.evm7) (0, [], State.initial call) record 2 2 3 K) := by
+"""
+
+CONST = (
+    RES.replace("def Valid (K : Nat)", "def Valid")
+    .replace(" ∧ a0 ≤ K", "")
+    .replace("record 2 2 3 K)", "record 2 2 3 M)")
+    + "abbrev M : Nat := 10\n"
+)
+
+STAGES = """namespace SolarTV.Milestone.X
+theorem n_mir_to_evmir (o : Oracle) : Stage (mirSem o) (evmirSem o) stage0 evm7 anyCall :=
+"""
+
+
+def facts(text=RES):
+    f = loop_final.parse_resources(text)
+    f.update(final_evm_ir="evm7", per_iteration_gas=1414400, exit_gas=3536012)
+    return f
+
+
+class Refusals(unittest.TestCase):
+    def refused(self, step, fn, *a):
+        with self.assertRaises(loop_final.Refused) as c:
+            fn(*a)
+        self.assertEqual(c.exception.step, step)
+        return c.exception.why
+
+    def test_route(self):
+        rec = {"loop_cuts": {"bump": {"route": "summary"}}, "loop_cuts_blocked": {}}
+        self.assertIn("summary", self.refused("route", loop_final.loop_function, rec))
+
+    def test_blocked(self):
+        rec = {
+            "loop_cuts": {},
+            "loop_cuts_blocked": {"f": {"step": "shape", "why": "a while loop"}},
+        }
+        self.assertIn(
+            "a while loop", self.refused("route", loop_final.loop_function, rec)
+        )
+
+    def test_functions(self):
+        rec = {"loop_cuts": {"a": {"route": "erasure"}, "b": {"route": "erasure"}}}
+        self.refused("functions", loop_final.loop_function, rec)
+        self.refused("functions", loop_final.loop_function, {"loop_cuts": {}})
+
+    def test_abi(self):
+        self.refused("abi", loop_final.resources, "n", "C", None, "", 0, 1, ["uint8"])
+
+    def test_stages(self):
+        self.refused(
+            "stages", loop_final.compose_of, "namespace SolarTV.Milestone.X\n", facts()
+        )
+        self.refused(
+            "stages",
+            loop_final.compose_of,
+            STAGES.replace("evm7 anyCall", "evm6 anyCall"),
+            facts(),
+        )
+        self.refused(
+            "stages",
+            loop_final.compose_of,
+            STAGES.replace("stage0 evm7", "sched evm7"),
+            facts(),
+        )
+
+    def test_resources_text(self):
+        self.refused("resources", loop_final.parse_resources, "def Kmax : Nat := 1\n")
+
+
+class Generated(unittest.TestCase):
+    def test_parse(self):
+        f = facts()
+        self.assertTrue(f["bounded"])
+        self.assertEqual(
+            (f["Kmax"], f["E"], f["B"], f["X"], f["M"]), (13042098468400, 2, 2, 3, None)
+        )
+        g = facts(CONST)
+        self.assertFalse(g["bounded"])
+        self.assertEqual(g["M"], 10)
+
+    def test_valid_is_the_same_body(self):
+        v = loop_final.valid_module("n", facts())
+        self.assertIn(
+            "def valid (K : Nat) (call : Call) : Prop :=\n  ∃ σ a0, a0 < 2 ^ 256 ∧ a0 ≤ K ∧ call =",
+            v,
+        )
+
+    def test_join(self):
+        st = loop_final.compose_of(STAGES, facts())
+        j = loop_final.join_module("n", "C", "bump", 2987307204, 1, st, facts())
+        self.assertIn("theorem join {K : Nat} (hK : K ≤ 13042098468400) :", j)
+        self.assertIn("(fun _ => K * 1414400 + 3536012)", j)
+        self.assertIn(
+            "(SolarTV.Milestone.X.n_mir_to_evmir SolidCore.Refinement.Shapes.oracle)", j
+        )
+        self.assertIn("kernel_rfl sig_eq sigV (some ([256], true))", j)
+        self.assertIn("rintro call ⟨σ, a0, h0, -, rfl⟩", j)
+        self.assertIn(loop_final.JOIN_LEMMA, j)
+        for bad in ("sorry", "native_decide", "axiom "):
+            self.assertNotIn(bad, j)
+        c = loop_final.join_module("n", "C", "run", 1, 0, st, facts(CONST))
+        self.assertIn("theorem join :", c)
+        self.assertIn("rintro call ⟨σ, rfl⟩", c)
+        self.assertIn("(fun _ => 10 * 1414400 + 3536012)", c)
+
+    def test_shape(self):
+        s = loop_final.shape("n", "C", "bump", "bump(uint256)", facts())
+        self.assertEqual(s["iteration_bound"], {"var": "K", "max": 13042098468400})
+        self.assertEqual(
+            s["source_ast"],
+            {
+                "file": "Certified/n/Source.lean",
+                "namespace": "Certified.n.Src",
+                "contract": "C",
+            },
+        )
+        self.assertTrue(s["excluded"][0].startswith("runtime only"))
+        self.assertIn("vacuity", s)
+        self.assertEqual(s["fuel"], "2 ^ 256 + 8")
+        json.dumps(s)
+        c = loop_final.shape("n", "C", "run", "run()", facts(CONST))
+        self.assertNotIn("iteration_bound", c)
+        self.assertEqual(c["valid"], "Certified.n.LoopValid.valid")
+
+
+SPEC = {
+    "loop_spec": "Certified.n.LoopSpec.bump_loop_spec",
+    "index": 1,
+    "verify_sha256": "0" * 64,
+    "receipt": None,
+}
+
+
+class SpecBridge(unittest.TestCase):
+    def test_route_switch(self):
+        rec = {"loop_cuts": {"bump": {"route": "erasure-inferred"}}}
+        self.assertEqual(loop_final.loop_function(rec), "bump")
+        self.assertEqual(loop_final.loop_route(rec, "bump"), "erasure-inferred")
+        st = loop_final.compose_of(STAGES, facts())
+        j = loop_final.join_module(
+            "n", "C", "bump", 2987307204, 1, st, facts(), "erasure-inferred"
+        )
+        self.assertIn(f"import {loop_final.ROUTE_MODULE}\n", j)
+        self.assertIn(f"  {loop_final.JOIN_W} (by decide)", j)
+        s = loop_final.spec_join_module(
+            "n",
+            "C",
+            "bump",
+            2987307204,
+            1,
+            st,
+            facts(),
+            "erasure-inferred",
+            SPEC,
+            False,
+        )
+        self.assertIn(f"    {loop_final.JOIN_W_SPEC} (bd :=", s)
+        self.assertIn(
+            "Certified.n.Loops.bump.leaves Certified.n.Loops.bump.seqs Certified.n.Loops.bump.valid",
+            s,
+        )
+
+    def test_spec_join(self):
+        st = loop_final.compose_of(STAGES, facts())
+        j = loop_final.join_module(
+            "n", "C", "bump", 2987307204, 1, st, facts(), "erasure", SPEC, True
+        )
+        self.assertIn("import n.LoopSpec\nimport n.LoopNonVac\n", j)
+        self.assertIn(
+            f"    {loop_final.JOIN_OBL_SPEC} (bd := Certified.n.gen.C.Spec.C)", j
+        )
+        self.assertIn(
+            f"({loop_final.OBL_OF_SEQS} Certified.n.Loops.bump.seqs Certified.n.Loops.bump.valid)",
+            j,
+        )
+        self.assertIn(
+            "(fun c hc => Certified.n.LoopSpec.bump_loop_spec (core_eq.trans hc))", j
+        )
+        self.assertIn(
+            "theorem core_eq : Certified.n.LoopCore.contract? = "
+            'SolidCore.Solidity.TypeCheck.CheckedInput.contract Certified.n.Src.importedSourceUnit "C" := rfl',
+            j,
+        )
+        # The statement's spec: the export in the fixed frame, named.
+        self.assertIn(
+            "(SolidCore.Refinement.Shapes.bundleAllowed Certified.n.gen.C.Spec.C (fun _ => SolidCore.Spec.TreeLoop.ctx0))",
+            j,
+        )
+        self.assertIn(
+            "SolidCore.Spec.TreeLoop.certified_ctx0 (by rintro call ⟨σ, a0, -, -, rfl⟩; rfl) h⟩",
+            j,
+        )
+        for bad in ("sorry", "native_decide", "axiom "):
+            self.assertNotIn(bad, j)
+        nv = loop_final.join_module(
+            "n", "C", "bump", 2987307204, 1, st, facts(), "erasure", SPEC, False
+        )
+        self.assertNotIn("LoopNonVac", nv)
+
+    def test_witness(self):
+        w = loop_final.nonvac_module("n", "C", 2987307204, 1, facts(), 1)
+        self.assertIn("theorem post_rejects {K : Nat} (_hK : K ≤ 13042098468400) :", w)
+        self.assertIn(
+            "{ calldata := Abi.calldata 2987307204 [0], callvalue := 0, storage := [(1, 0)] }",
+            w,
+        )
+        self.assertIn("(Certified.n.gen.C.Spec.C.spec.specs[1]'(by decide))", w)
+        self.assertIn("⟨true, [], [], fun _ => 1⟩", w)
+        for bad in ("sorry", "native_decide", "axiom "):
+            self.assertNotIn(bad, w)
+        c = loop_final.nonvac_module("n", "C", 1, 0, facts(CONST), 0)
+        self.assertIn("theorem post_rejects :", c)
+        with self.assertRaises(loop_final.Refused):
+            loop_final.witness_call("∃ σ a0, call = f σ", 1)
+
+    def test_spec_shape(self):
+        s = loop_final.shape("n", "C", "bump", "bump(uint256)", facts(), SPEC, True)
+        for k in ("allowed", "post", "vacuity"):
+            self.assertNotIn(k, s)
+        self.assertTrue(s["allowed_export"])
+        self.assertEqual(
+            s["spec_export"],
+            {
+                "ctx": "fun _ => SolidCore.Spec.TreeLoop.ctx0",
+                "step": "SolidCore.Refinement.Shapes.idStep",
+            },
+        )
+        self.assertEqual(s["nonvacuous"], "Certified.n.LoopNonVac.post_rejects")
+        self.assertIn("succeeds-if", s["allowed_vacuity"])
+        self.assertIn("Verify.Spec.TreeLoop", s["spec_modules"])
+        self.assertTrue(
+            any(e.startswith("environment: the fixed frame") for e in s["excluded"])
+        )
+        self.assertFalse(any(e.startswith("spec:") for e in s["excluded"]))
+        w = loop_final.shape(
+            "n",
+            "C",
+            "bump",
+            "bump(uint256)",
+            facts(),
+            SPEC,
+            "the witness does not check",
+        )
+        self.assertNotIn("nonvacuous", w)
+        self.assertIn("the witness does not check", w["vacuity"])
+        r = loop_final.shape(
+            "n", "C", "bump", "bump(uint256)", facts(), "no spec index"
+        )
+        self.assertEqual(r["post"], "fun _ _ => True")
+        self.assertIn("the spec bridge refused: no spec index", r["vacuity"])
+
+    def test_core_module(self):
+        body = (
+            "namespace Certified\nnamespace n\nnamespace LoopCore\n\n"
+            'def importedSourceName : String := "/tmp/x/n.sol"\n\n'
+            "def importedSourceUnit : SourceUnit := { items := [] }\n\n"
+            "end LoopCore\nend n\nend Certified\n"
+        )
+        m = loop_final.core_module(
+            "n", "C", body, "Certified/n/n.sol", [("bump(uint256)", 2987307204)]
+        )
+        self.assertIn('def importedSourceName : String := "Certified/n/n.sol"', m)
+        self.assertNotIn("/tmp/x", m)
+        self.assertIn("def fuel : Nat := 2 ^ 256 + 8", m)
+        self.assertIn("theorem selector_eq :", m)
+        self.assertNotIn(chr(0xA7), m)
+        with self.assertRaises(loop_final.Refused):
+            loop_final.core_module("n", "C", "namespace X\nend X\n", "a.sol", [])
+
+    def test_selector_entries(self):
+        fn = {
+            "nodeType": "FunctionDefinition",
+            "name": "bump",
+            "functionSelector": "b20eb4c4",
+            "parameters": {
+                "parameters": [{"typeDescriptions": {"typeString": "uint256"}}]
+            },
+        }
+        getter = {
+            "nodeType": "VariableDeclaration",
+            "name": "count",
+            "functionSelector": "06661abd",
+            "typeName": {"nodeType": "ElementaryTypeName"},
+        }
+        mapping = {
+            "nodeType": "VariableDeclaration",
+            "name": "m",
+            "functionSelector": "aaaaaaaa",
+            "typeName": {"nodeType": "Mapping"},
+        }
+        ast = {
+            "nodes": [
+                {
+                    "nodeType": "ContractDefinition",
+                    "name": "C",
+                    "nodes": [fn, getter, mapping],
+                }
+            ]
+        }
+        self.assertEqual(
+            loop_final.selector_entries(ast, "C"),
+            [("bump(uint256)", 0xB20EB4C4), ("count()", 0x06661ABD)],
+        )
+
+
+def _receipt_fixture(d, source_bytes=b"contract C {}\n", exporter="e" * 64):
+    """A run directory D with Certified/n/n.sol, a LoopSpec.lean stating the digests and the receipt
+    spec_connect.py would write for them. Returns (src, receipt, module, record)."""
+    import hashlib
+
+    d = pathlib.Path(d)
+    src = d / "C.sol"
+    src.write_bytes(source_bytes)
+    s = hashlib.sha256(source_bytes).hexdigest()
+    c = d / "Certified" / "n"
+    c.mkdir(parents=True)
+    (c / "n.sol").write_bytes(source_bytes)
+    digests = {
+        "sourceSha256": s,
+        "exportedSha256": "b" * 64,
+        "exporterSha256": exporter,
+        "astToolSha256": "c" * 64,
+        "astToolCacheSha256": "d" * 64,
+        "solcSha256": "f" * 64,
+    }
+    module = c / "LoopSpec.lean"
+    module.write_text(
+        "".join(f'def {k} : String := "{v}"\n' for k, v in digests.items())
+    )
+    rec = {
+        "module": "Certified.n.LoopSpec",
+        "contract": "C",
+        "source": "Certified/n/n.sol",
+        **digests,
+        "moduleSha256": hashlib.sha256(module.read_bytes()).hexdigest(),
+    }
+    receipt = c / "LoopSpec.lean.receipt.json"
+    receipt.write_text(json.dumps(rec))
+    return src, receipt, module, {"source": {"file": str(src), "sha256": s}}
+
+
+class Receipt(unittest.TestCase):
+    """Review 189: the receipt is required, and its source digest is the run's."""
+
+    def check(self, d, receipt, module, src_sha, exporter="e" * 64):
+        return loop_final.receipt_problem(
+            receipt,
+            module="Certified.n.LoopSpec",
+            contract="C",
+            source="Certified/n/n.sol",
+            source_sha=src_sha,
+            exporter_sha=exporter,
+            module_file=module,
+        )
+
+    def test_accepts_the_runs_receipt(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            src, receipt, module, record = _receipt_fixture(d)
+            s = record["source"]["sha256"]
+            self.assertIsNone(self.check(d, receipt, module, s))
+            self.assertIsNone(
+                loop_final.acceptance_problem(record, src, d, "n", "C", "e" * 64)
+            )
+
+    def test_refusals(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            src, receipt, module, record = _receipt_fixture(d)
+            s = record["source"]["sha256"]
+            # Another source digest, another exporter.
+            self.assertIn("sourceSha256", self.check(d, receipt, module, "0" * 64))
+            self.assertIn(
+                "exporterSha256", self.check(d, receipt, module, s, exporter="1" * 64)
+            )
+            # The module changed after the receipt.
+            module.write_text(module.read_text() + "-- edited\n")
+            self.assertIn("moduleSha256", self.check(d, receipt, module, s))
+        with tempfile.TemporaryDirectory() as d:
+            src, receipt, module, record = _receipt_fixture(d)
+            s = record["source"]["sha256"]
+            # A coherent receipt of a module whose own digests are not the receipt's.
+            r = json.loads(receipt.read_text())
+            r["exportedSha256"] = "9" * 64
+            receipt.write_text(json.dumps(r))
+            self.assertIn("exportedSha256", self.check(d, receipt, module, s))
+            receipt.write_text("{")
+            self.assertIn("does not parse", self.check(d, receipt, module, s))
+            receipt.unlink()
+            self.assertIn("no receipt", self.check(d, receipt, module, s))
+
+    def test_acceptance_binds_the_runs_source(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            src, receipt, module, record = _receipt_fixture(d)
+            self.assertIn(
+                "no source digest",
+                loop_final.acceptance_problem({}, src, d, "n", "C", "e" * 64),
+            )
+            other = {"source": {"sha256": "0" * 64}}
+            self.assertIn(
+                "not the run's",
+                loop_final.acceptance_problem(other, src, d, "n", "C", "e" * 64),
+            )
+            # A stale coherent pair: the receipt and module of other bytes than the run's.
+            src.write_bytes(b"contract C { uint x; }\n")
+            fresh = {"source": {"sha256": loop_final.sha(src)}}
+            self.assertIn(
+                "Certified/n/n.sol",
+                loop_final.acceptance_problem(fresh, src, d, "n", "C", "e" * 64),
+            )
+            (pathlib.Path(d) / "Certified/n/n.sol").write_bytes(src.read_bytes())
+            self.assertIn(
+                "sourceSha256",
+                loop_final.acceptance_problem(fresh, src, d, "n", "C", "e" * 64),
+            )
+
+
+class Exporter(unittest.TestCase):
+    """Review 189: the spec is exported by the pinned solar-verify with O6's fixes, never the
+    shared checkout's."""
+
+    def fake(self, missing=()):
+        def run(cmd, cwd=None, env=None):
+            if cmd[:2] == ["git", "-C"] and cmd[3] == "merge-base":
+                return (1 if cmd[5] in missing else 0), "", ""
+            raise AssertionError(f"spec_exporter runs only git merge-base: {cmd}")
+
+        return run
+
+    def test_pin(self):
+        import hashlib
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            exe = pathlib.Path(d) / "solar-verify-pinned"
+            exe.write_bytes(b"binary")
+            good = hashlib.sha256(b"binary").hexdigest()
+            pin = pathlib.Path(d) / "pin"
+
+            def write(sha, binary=exe):
+                pin.write_text(
+                    json.dumps(
+                        {"commit": "a" * 40, "sha256": sha, "tree": d, "binary": str(binary)}
+                    )
+                )
+
+            write(good)
+            path, prov = loop_final.spec_exporter(self.fake(), pin)
+            self.assertEqual(path, exe)
+            self.assertEqual(prov["sha256"], good)
+            self.assertEqual(prov["fixes"], list(loop_final.VERIFY_FIXES))
+            for sha, binary, run, why in (
+                (good, exe, self.fake((loop_final.VERIFY_FIXES[3],)), "lacks"),
+                ("0" * 64, exe, self.fake(), "not the pinned"),
+                (good, pathlib.Path(d) / "gone", self.fake(), "missing"),
+            ):
+                write(sha, binary)
+                with self.assertRaises(loop_final.Refused) as e:
+                    loop_final.spec_exporter(run, pin)
+                self.assertEqual(e.exception.step, "exporter")
+                self.assertIn(why, e.exception.why)
+            pin.write_text("{}")
+            with self.assertRaises(loop_final.Refused):
+                loop_final.spec_exporter(self.fake(), pin)
+
+    def test_pinned_commit_has_the_fixes(self):
+        import subprocess
+
+        pin = json.loads(loop_final.VERIFY_PIN.read_text())
+        root = pathlib.Path(loop_final.HERE).parent.parent
+        for c in loop_final.VERIFY_FIXES:
+            r = subprocess.run(
+                ["git", "-C", str(root), "merge-base", "--is-ancestor", c, pin["commit"]],
+                capture_output=True,
+            )
+            if r.returncode == 128:
+                self.skipTest("the pinned commit is not in this repository")
+            self.assertEqual(r.returncode, 0, c)
+
+
+if __name__ == "__main__":
+    unittest.main()

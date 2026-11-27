@@ -46,6 +46,15 @@ def fail(msg):
     sys.exit(1)
 
 
+def contract_ok_lean(ns):
+    """`contract_ok`: SolidCore type checks the contract, read off the Lowering module's `shape_eq`."""
+    return (
+        f"/-- SolidCore type checks the contract. -/\n"
+        f"theorem contract_ok : ∃ c, {ns}.contract? = .ok c := by\n"
+        f"  have h := {ns}.shape_eq\n  unfold {ns}.shape? at h\n  split at h <;> simp_all\n"
+    )
+
+
 def last_stage(stages_text):
     """The last EVM IR stage of Stages.lean: names, fuels and the composition theorem."""
     ns = re.search(r"^namespace (SolarTV\.Milestone\.\w+)", stages_text, re.MULTILINE)
@@ -129,13 +138,7 @@ theorem guard_eq : AssembleCtxGas.guard {C}.F (AssembleCtx.norm {last}) = {last}
 
 theorem gas_le : AssembleLoop.gasBoundL {C}.cx.base {N} ≤ {K} := by decide +kernel
 
-theorem contract_ok : ∃ c, {ns}.contract? = .ok c := by
-  have h := {ns}.shape_eq
-  unfold {ns}.shape? at h
-  split at h
-  · next c hc => exact ⟨c, hc⟩
-  · simp at h
-
+{contract_ok_lean(ns)}
 /-- **{contract} from every caller.** -/
 theorem published_any : ∀ ctx : SolidCore.Verify.Generic.Context, ctx.Ok →
     ∃ c, {sns}.contract? = .ok c ∧ ∀ call, {shape["valid"]} call →
@@ -306,19 +309,15 @@ def main():
     env = shape.get("env", [])
     binders = " ".join(f"_h{i}" for i in range(len(env)))
     if g["style"] == "core":
+        # The Lowering module's checks are about its literal core; `hk` is that it is `c.core`.
         start = (
             f"  obtain ⟨hk, d, hd⟩ := {ns}.deployed_of hc\n"
-            f"  have hchk := {ns}.{g['check']}\n  rw [← hk] at hchk\n"
+            f"  have hchk := hk ▸ {ns}.{g['check']}\n"
         )
         if value:
-            start += f"  have hval := {ns}.{g['check_value']}\n  rw [← hk] at hval\n"
+            start += f"  have hval := hk ▸ {ns}.{g['check_value']}\n"
         okthm = "contract_ok"
-        okdef = (
-            f"/-- SolidCore type checks the contract. -/\n"
-            f"theorem contract_ok : ∃ c, {ns}.contract? = .ok c := by\n"
-            f"  have h := {ns}.shape_eq\n  unfold {ns}.shape? at h\n  split at h\n"
-            f"  · next c hc => exact ⟨c, hc⟩\n  · simp at h\n\n"
-        )
+        okdef = contract_ok_lean(ns) + "\n"
     elif g["style"] == "checked":
         hs = " ".join(f"h{i}" for i in range(len(g["checks"])))
         start = f"  obtain ⟨d, hd⟩ := {ns}.deployed hc\n"
@@ -338,7 +337,8 @@ def main():
     comp = (
         f"{S}.compiled{'' if value else '0'} hd hchk {'hval ' if value else ''}"
         f"({S}.genericValid{'' if value else '0'}_inhabited _ _ _)\n"
-        f"      ({M}.{stages['compose']} {S}.oracle) (fun _ _ => trivial) ends check_ok gas_lt"
+        f"      ({M}.{stages['compose']} {S}.oracle) (fun _ _ => trivial) ends check_ok\n"
+        f"      (Nat.lt_of_le_of_lt gas_le (by decide))"
     )
     if kind == "compiled":
         shape_t = f"{S}.Compiled (solidCore {sns}.fuel) c code ({valid}) ({gas})"
@@ -463,9 +463,8 @@ def main():
             fail(
                 "generic.spec_connect.witness must name a connected function with succeeds-if conditions"
             )
-        wsel, wn = fnd[wit]
         storage = g["storage"]
-        nonvac = f"""
+        nonvac_main = f"""
 /-- **Non-vacuity**: `{wit}` on zero words with no value, from the constructor's slots written with 0,
 meets its precondition and its succeeds-if conditions, so the spec requires it to succeed: the same call
 reverting is rejected by the exported postcondition and by the exported allowed statuses. -/
@@ -473,17 +472,9 @@ theorem nonvacuous :
     (∃ (call : SolarTV.Call) (obs : SolarTV.Observable), ({valid}) call ∧ ¬ {post_t} call obs) ∧
       (∃ (call : SolarTV.Call) (obs : SolarTV.Observable), ({valid}) call ∧ obs.success = false ∧
         ¬ {allowed_t} call obs) := by
-  let wcall : SolarTV.Call := {{ calldata := SolidCore.Refinement.Abi.calldata {wsel} (List.replicate {wn} 0), callvalue := 0, storage := {S}.zeros ({storage}) }}
-  have hpre : SolidCore.Spec.Pre {B} (({B}).spec.specs[{idx[wit]}]'(by decide))
-      ({S}.ctxOfCall wcall) ⟨fun _ => 0, SolidCore.Spec.Ghost.zero, 0⟩ wcall (List.replicate {wn} 0) := by
-    refine ⟨{S}.decodes_zero (by decide) (by rfl) (by first | rfl | decide | simp [{B}, SolidCore.Spec.decodeWords, SolidCore.Spec.Ty.ofWord]) 0 _,
-      ({S}.slotValue_zeros _).symm, by simp [{S}.ctxOfCall], ?_, ?_⟩ <;>
-      simp [SolidCore.Spec.Bundle.satAll, {B}]
   refine {S}.nonvacuous_of_succeeds ({S}.valid{"" if value else "0"}_of_find ({S}.covers_zeros _) (by decide))
-    (List.getElem_mem _) hpre (by simp [{B}]) ?_
-  simp [SolidCore.Spec.Bundle.satAll, SolidCore.Spec.Bundle.sat, {B}, SolidCore.Spec.eval,
-    SolidCore.Spec.BinOp.apply, SolidCore.Spec.mkEnv, SolidCore.Spec.Env.cur, SolidCore.Spec.ofProp,
-    SolidCore.Spec.slotOf, SolidCore.Spec.Ty.ofBits, SolidCore.Spec.toWord, {S}.ctxOfCall]
+    (List.getElem_mem _) pre_sat_{wit} (by simp [{B}]) ?_
+  spec_sat [{B}]
 
 /-- info: 'Certified.{a.name}.Shape.nonvacuous' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
@@ -508,17 +499,20 @@ theorem pre_sat_{fid} :
     SolidCore.Spec.Pre {B} (({B}).spec.specs[{i}]'(by decide))
       ({S}.ctxOfCall wcall) ⟨fun _ => 0, SolidCore.Spec.Ghost.zero, 0⟩ wcall (List.replicate {fn_n} 0) := by
   intro wcall
-  refine ⟨{S}.decodes_zero (by decide) (by rfl) (by first | rfl | decide | simp [{B}, SolidCore.Spec.decodeWords, SolidCore.Spec.Ty.ofWord]) 0 _,
-    ({S}.slotValue_zeros _).symm, by simp [{S}.ctxOfCall], ?_, ?_⟩ <;>
-    simp [SolidCore.Spec.Bundle.satAll, SolidCore.Spec.Bundle.sat, {B}, SolidCore.Spec.eval,
-      SolidCore.Spec.BinOp.apply, SolidCore.Spec.mkEnv, SolidCore.Spec.Env.cur, SolidCore.Spec.ofProp,
-      SolidCore.Spec.slotOf, SolidCore.Spec.Ty.ofBits, SolidCore.Spec.toWord, {S}.ctxOfCall]
+  spec_pre_zero [{B}]
 
 /-- info: 'Certified.{a.name}.Shape.pre_sat_{fid}' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms pre_sat_{fid}
 """.replace("§", "\u0060")
-        g["imports"] = [*g["imports"], "Verify.ShapeSpecExport", SC]
+        # The witness's precondition is its pre_sat theorem above.
+        nonvac += nonvac_main
+        g["imports"] = [
+            *g["imports"],
+            "Verify.ShapeSpecExport",
+            "Verify.ShapeSpecExportTac",
+            SC,
+        ]
     else:
         fail("kind must be compiled or certified")
     # Negative controls the module proves: the loop checker rejects the bytecode with a jump
@@ -544,16 +538,20 @@ theorem pre_sat_{fid} :
                 )
             )
             break
-    negs = "".join(
-        f"set_option maxRecDepth 100000 in\n/-- The checker rejects the bytecode with {what} (byte {i}). -/\n"
-        f"theorem rejects_{tag} : {L}.checkL {last} (mutant {i} {b}) cert maxs = false := by\n"
-        "  decide +kernel\n\n"
-        for tag, what, i, b in mutants
+    negs = (
+        "set_option maxRecDepth 100000 in\n/-- The checker rejects the bytecode with one byte changed: "
+        + "; ".join(f"{what} (byte {i})" for _, what, i, _ in mutants)
+        + ". -/\ntheorem rejects : ["
+        + ", ".join(f"({i}, {b})" for _, _, i, b in mutants)
+        + f"].all fun (i, b) => !{L}.checkL {last} (mutant i b) cert maxs := by\n  decide +kernel\n\n"
+        if mutants
+        else ""
     )
     premises = "".join(f"({e}) →\n    " for e in env)
     intro = f"  intro {binders}\n" if env else ""
     mods = [
         "Verify.ShapeGeneric",
+        "SolidCore.Refinement.Solar.AssembleCheckFast",
         g["lowering"],
         f"{a.name}.Proofs.Stages",
         f"{a.name}.gen.{contract}.Bytecode",
@@ -591,28 +589,10 @@ def cert : {A}.Cert :=
 def maxs : List Nat := {maxs}
 
 set_option maxRecDepth 100000 in
-theorem walk_ok : (SolarTV.Assembly.walk ({A}.bytesOf code) cert.offset 0
-    ({A}.lower {last} cert)).isSome = true := by
-  have hw := {A}.walkS_drop ({A}.bytesOf code) cert.offset ({A}.lower {last} cert) 0
-    (Nat.zero_le _)
-  rw [List.drop_zero] at hw
-  rw [← hw]
-  decide +kernel
-
-set_option maxRecDepth 100000 in
-theorem blocks_ok : {L}.blocksOkL {last} cert maxs 0 {last}.blocks = true := by
-  decide +kernel
-
-theorem labels_ok : {A}.labelsValid {last} cert code = true :=
-  {A}.labelsValid_of_walk walk_ok
-
-theorem size_ok : code.size < 2 ^ 32 := by decide +kernel
-
-/-- The checker of code with loops accepts the exact bytecode for the final EVM IR. -/
-theorem check_ok : {L}.checkL {last} code cert maxs = true := by
-  simp only [{L}.checkL, walk_ok, blocks_ok, labels_ok, decide_eq_true size_ok, Bool.and_true,
-    Bool.true_and]
-  decide
+/-- The checker of code with loops accepts the exact bytecode for the final EVM IR: one kernel
+evaluation of its fast form (the walk on the code's suffixes, which implies the labels' check). -/
+theorem check_ok : {L}.checkL {last} code cert maxs = true :=
+  {L}.checkL_of_checkLS (by decide +kernel)
 
 /-- The final EVM IR ends within {N} blocks on every call, under the bytecode's oracle. -/
 theorem ends (call : Call) : (EVM.Program.run {S}.oracle {last} call {N}).isSome = true :=
@@ -623,9 +603,7 @@ theorem ends (call : Call) : (EVM.Program.run {S}.oracle {last} call {N}).isSome
 /-- The bytecode with byte `i` replaced by `b`. -/
 def mutant (i b : Nat) : ByteArray := ⟨(({X}.bytecode.set i b).map UInt8.ofNat).toArray⟩
 
-{negs}theorem gas_lt : {L}.gasBoundL cert {N} < 2 ^ 64 := by decide +kernel
-
-theorem gas_le : {L}.gasBoundL cert {N} ≤ {K} := by decide +kernel
+{negs}theorem gas_le : {L}.gasBoundL cert {N} ≤ {K} := by decide +kernel
 
 {okdef}
 /-- **What the published statement asks of this module.** -/

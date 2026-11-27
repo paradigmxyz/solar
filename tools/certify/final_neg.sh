@@ -95,7 +95,7 @@ EOF
     fi
     local vproof
     vproof="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["proof_module"])' "$d/shape.json")"
-    if ! lean_in "$olean" lean --run "$here/check_final.lean" "$name" "$vproof" > "$d/check.out" 2>&1; then
+    if ! lean_in "$olean" lean --run "$here/check_final.lean" "$name" "$vproof" "$hex" > "$d/check.out" 2>&1; then
         echo "$label: refused by the checker ($(grep -m1 -E 'check_final|error|exception' "$d/check.out" | clip))"
         return
     fi

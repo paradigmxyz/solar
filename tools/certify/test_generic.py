@@ -1694,9 +1694,42 @@ class RecursionBoundary(unittest.TestCase):
     function decrement(uint256 n) public { if (n > 0) { x = n; decrement(n - 1); } }""")
         self.assertEqual(code, 3, line)
         self.assertIn(
-            "BLOCKED: recursion (1x, first line 5: unsupported: decrement can call itself",
+            "BLOCKED: recursion (1x, first line 5: unsupported: decrement can call itself "
+            "(no @custom:decreases measure",
             line,
         )
+
+    def test_self_recursion_with_measure_admitted(self):
+        # One function calling itself with its measure written: the backend stages cut it at its
+        # call frames (rec_cuts.py), so the envelope lets it through.
+        _code, line = self.blocked("""    /// @custom:decreases n
+    function sum(uint256 n) internal pure returns (uint256) { return n == 0 ? 0 : sum(n - 1) + n; }
+    function total(uint256 n) external pure returns (uint256) { require(n <= 64); return sum(n); }""")
+        self.assertNotIn("recursion", line)
+
+    def test_mutual_recursion_with_measures_refused(self):
+        code, line = (
+            self.blocked("""    /// @custom:decreases n
+    function even(uint256 n) internal pure returns (bool) { return n == 0 ? true : odd(n - 1); }
+    /// @custom:decreases n
+    function odd(uint256 n) internal pure returns (bool) { return n == 0 ? false : even(n - 1); }
+    function f(uint256 n) external pure returns (bool) { return even(n); }""")
+        )
+        self.assertEqual(code, 3, line)
+        self.assertIn(
+            "unsupported: even and odd can call each other (only one function calling itself, "
+            "with @custom:decreases, has cut points)",
+            line,
+        )
+
+    def test_overloaded_self_recursion_refused(self):
+        # The measure must belong to the one function of that name.
+        code, line = self.blocked("""    /// @custom:decreases n
+    function g(uint256 n) internal pure returns (uint256) { return n; }
+    function g(uint256 n, uint256 m) internal pure returns (uint256) { return n == 0 ? m : g(n - 1, m); }
+    function f(uint256 n) external pure returns (uint256) { return g(n, 0) + g(n); }""")
+        self.assertEqual(code, 3, line)
+        self.assertIn("unsupported: g can call itself (no @custom:decreases measure", line)
 
     def test_mutual_recursion(self):
         code, line = (
@@ -1836,7 +1869,7 @@ class ExpectedStatement(unittest.TestCase):
 
 class SpecConnectEmission(unittest.TestCase):
     """A succeeds-if over the call's environment alone leaves some of tree_succeeds's steps
-    nothing to rewrite; the emitted proof must allow that, not call the macro."""
+    nothing to rewrite; the emitted proof must allow that: tree_succeeds_try, not tree_succeeds."""
 
     def test_tolerant_succeeds_proof(self):
         import spec_connect
@@ -1854,9 +1887,9 @@ class SpecConnectEmission(unittest.TestCase):
         )
         text = "\n".join(lines)
         self.assertNotIn("tree_succeeds [", text)
-        self.assertIn("try simp only [set_tree, set_spec, M.spec, B, M.ctx, *", text)
-        self.assertIn("first | omega | (simp_all; done) | (simp_all; omega)", text)
-        self.assertNotIn("@DS@", text)
+        self.assertIn(
+            "  tree_succeeds_try [set_tree, set_spec, M.spec, B, M.ctx]\n", text
+        )
 
 
 class ResourceFailures(unittest.TestCase):
@@ -2718,9 +2751,10 @@ BASE_DRIVER = "128b674ed"
 
 
 class NoConstructorRoute(unittest.TestCase):
-    """The lifecycle kernel stage leaves the other tiers' generated text byte-identical to the
-    driver it is built on (BASE_DRIVER), and their envelope unchanged for a source without
-    constructor parameters."""
+    """The lifecycle kernel stage leaves the probe and the lakefile stanza byte-identical to the
+    driver it is built on (BASE_DRIVER), and the envelope unchanged for a source without
+    constructor parameters. The generated source check changed on purpose since (its tables and
+    proofs by library lemmas, LoweringTemplate), so it is checked there instead."""
 
     def test_identical(self):
         p = subprocess.run(
@@ -2742,16 +2776,17 @@ class NoConstructorRoute(unittest.TestCase):
             {"sig": "get()", "sel": 0x6D4CE63C, "params": []},
             {"sig": "set(uint256)", "sel": 0x60FE47B1, "params": [".uint 256"]},
         ]
-        events = [{"sig": "E(uint256)", "topic": 0x1234}]
         for m in (old, generic):
             m.out = [
-                m.lowering_lean("x_0000abcd", "C", fns, events, "core", "[]"),
-                m.lowering_lean(
-                    "x_0000abcd", "C", fns, events, "core", "[(0, 1)]", sym=True
-                ),
                 m.probe_lean("x_0000abcd", "C", fns),
                 m.lakefile_lib("x_0000abcd", "C"),
             ]
+        # The one change on purpose since: the probe compares the two trees as the stage does
+        # (Generic.Tree.agree, Stage.checkFn), not by equal canonical forms alone.
+        agree = "if Generic.Tree.agree a b then"
+        self.assertEqual(old.out[0].count("if a.canon.beq b.canon then"), 2 * len(fns))
+        old.out[0] = old.out[0].replace("if a.canon.beq b.canon then", agree)
+        self.assertEqual(generic.out[0].count(agree), 2 * len(fns))
         self.assertEqual(old.out, generic.out)
         if SOLC.exists():
             src = LIFE / "NoArgCtor.sol"
@@ -2760,6 +2795,83 @@ class NoConstructorRoute(unittest.TestCase):
                 old.envelope(src.read_text(), ast, contracts, None, None, False),
                 generic.envelope(src.read_text(), ast, contracts, None, None, False),
             )
+
+
+class LoweringTemplate(unittest.TestCase):
+    """The generated modules state each Keccak table as data (KernelTable.tableOr) and prove it
+    in one line from one equation per entry, whatever the number of entries; the source check's
+    deployed_of and the lifecycle's statement are one library lemma each (Generic.shapeOf,
+    Verify.Lifecycle.lifeOf), with no tactic script."""
+
+    FNS: typing.ClassVar = [
+        {"sig": "get()", "sel": 0x6D4CE63C, "params": []},
+        {"sig": "set(uint256)", "sel": 0x60FE47B1, "params": [".uint 256"]},
+    ]
+
+    def test_lowering(self):
+        events = [{"sig": "E(uint256)", "topic": 0x1234}]
+        t = generic.lowering_lean("x_0000abcd", "C", self.FNS, events, "core", "[]")
+        for want in (
+            "import SolidCore.Refinement.KernelTable\n",
+            "import SolidCore.Refinement.Generic.Shape\n",
+            (
+                "def selectorTable : String → SolidCore.Solidity.Shared.Word :=\n"
+                "  KernelTable.tableOr SolidCore.Solidity.Source.ABI.selectorFromSignature\n"
+                '    [("get()", sel0),\n     ("set(uint256)", sel1)]\n'
+            ),
+            (
+                "theorem selector_eq : SolidCore.Solidity.Source.ABI.selectorFromSignature = "
+                "selectorTable :=\n  KernelTable.eq_tableOr ⟨selSig0_eq, selSig1_eq, trivial⟩\n"
+            ),
+            '    [("E(uint256)", 0x1234)]\n',
+            "  KernelTable.eq_tableOr ⟨topicSig0_eq, trivial⟩\n",
+            "def shape? : Option (Contract × Bool) := Generic.shapeOf fuel contract? storageLit\n",
+            "kernel_rfl shape_eq shape? (some (coreLit, true)) using selector_eq digest_eq\n",
+            "  Generic.deployed_of_shapeOf shape_eq hc\n",
+        ):
+            self.assertIn(want, t)
+        for gone in ("split", "unfold", "by\n  have"):
+            self.assertNotIn(gone, t)
+        sym = generic.lowering_lean(
+            "x_0000abcd", "C", self.FNS, events, "core", "[(0, 1)]", sym=True
+        )
+        self.assertIn("theorem check_sym_stage0", sym)
+        self.assertNotIn("check_sym_stage0", t)
+
+    def test_no_entries(self):
+        t = generic.lowering_lean("x_0000abcd", "C", [], [], "core", "[]")
+        self.assertIn("    []\n", t)
+        self.assertIn("  KernelTable.eq_tableOr trivial\n", t)
+        self.assertNotIn("digestTable", t)
+        self.assertIn("using selector_eq\n", t)
+
+    def test_lifecycle(self):
+        sigs = [{"sig": f["sig"], "sel": f["sel"]} for f in self.FNS]
+        code = bytes.fromhex("6001600055")
+        args = (
+            "Certified.T.X",
+            "M",
+            "M.importedSourceUnit",
+            "X",
+            sigs,
+            code,
+            code,
+            code,
+        )
+        t = generic.lifecycle_lean(*args, [7], [(0, 7)])
+        for want in (
+            "import Verify.Lifecycle.Life\n",
+            '    [("get()", 0x6d4ce63c),\n     ("set(uint256)", 0x60fe47b1)]\n',
+            "  KernelTable.eq_tableOr ⟨selSig0_eq, selSig1_eq, trivial⟩\n",
+            "def life? : Bool := lifeOf fuel contract? ws storageLit\n",
+            "kernel_rfl life_eq life? true using selector_eq mkIdx_eq\n",
+            "  statement_of_lifeOf deploys life_eq\n",
+        ):
+            self.assertIn(want, t)
+        self.assertNotIn("split", t)
+        r = generic.lifecycle_lean(*args, [7], [(0, 7)], refute=True)
+        self.assertIn("theorem refuted", r)
+        self.assertNotIn("selectorTable", r)
 
 
 LEAN_PATH = os.environ.get("LIFECYCLE_LEAN_PATH")
