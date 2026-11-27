@@ -91,7 +91,7 @@ stated subset of Solidity and refuses everything else before any build, with exi
 `BLOCKED: <feature> (...)` line naming the first place each feature appears; the record's
 `status` is `BLOCKED` and its `blocked` list holds every refusal. A `BLOCKED` run proves
 and claims nothing. The subset is one self-contained file and one concrete contract in it that has
-no bases, no constructor parameters and no fallback or receive function. The file may hold other
+no bases and no fallback or receive function (constructor parameters: see below). The file may hold other
 contracts, interfaces and libraries: with several concrete contracts, `--contract` names the one
 certified, and the statement is about it alone (its source is the whole unit with that contract
 named, its bytes that contract's export). A sibling is part of the certified contract only as the
@@ -116,6 +116,26 @@ an external call. The contract and the code it inlines have none of:
 
 A natspec spec may in addition read only `msg.value` from the environment. Nothing in the subset
 is selected by contract name or hash.
+
+### Constructor parameters
+
+A constructor whose parameters are all static `uintN` or `address` words is inside the subset on
+the compiled tier (no specification): the published statement holds for every argument list
+(`∀ (A0 A1 … : Nat), A0 < 2 ^ W0 → …`), against the source deployed with those words
+(`solidCoreFromArgs callerAddress fuel [A0, …]`), from any storage covering the slots that deployment
+writes. The probe prints the erasure of the constructor's body over the argument words, and the
+Lowering module checks it in the kernel (`Generic.ctorShapeOf`, solidity-lean
+`Verify/Generic/CtorWords.lean`); its leaves must be normal with one set of writes and no logs, or
+revert. When some leaf reverts (a checked operation that may overflow, a `require`), the statement
+has the premise `Generic.CtorReturns fuel contract? [A0, …]` (SolidCore's constructor returns on
+those words) and states one witness list on which it returns. Refused, each with its reason:
+dynamic and multi-word arguments (`bytes`, `string`, arrays, structs), the word types not bound yet
+(`bool`, `intN`, `bytesN`, enums, contract and function types), immutables (the runtime bytes
+depend on the arguments), a specification (SpecConnect and the Expected statement run the
+constructor with no arguments), and a constructor body the erasure does not cover (for one, a write
+to a storage field other than an unsigned scalar or mapping). The creation bytecode is not part of
+the statement, as for a constructor without parameters; the lifecycle tier
+(`--tier lifecycle --constructor-args`) states it for given words.
 
 ### Loop cut-point certificates
 
