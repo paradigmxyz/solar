@@ -1762,11 +1762,12 @@ def reason(e, where=""):
     }
 
 
-def toolchain(run, solar, src):
+def toolchain(run, solar, src, name=None):
     """The compiler and the options the driver's stage export ran with (generic.export_stages), for
     the expected statement's binding of the stage manifest: the solc-compatible version the pinned
     solar reports, and the arguments it was given (the source's name, generic.OPTIONS, the runtime
-    emit and the stage export)."""
+    emit and the stage export, under run NAME's own namespace when NAME is given, as
+    generic.export_stages passes it: export_ns.run_prefix)."""
     import generic
 
     rc, out, err = run([str(solar), "--version"])
@@ -1779,7 +1780,13 @@ def toolchain(run, solar, src):
     level = next(o for o in opts if o.startswith("-O"))[2:]
     return {
         "compiler": m.group(1),
-        "arguments": [pathlib.Path(src).name, *opts, "--emit=bin-runtime", "-Zemit-lean-stages=gen"],
+        "arguments": [
+            pathlib.Path(src).name,
+            *opts,
+            "--emit=bin-runtime",
+            "-Zemit-lean-stages=gen",
+            *([f"-Zlean-stages-namespace={export_ns.run_prefix(name)}"] if name is not None else []),
+        ],
         "evm_version": opts[opts.index("--evm-version") + 1],
         "optimization": level[:1].upper() + level[1:],
     }
@@ -1966,7 +1973,7 @@ def attach(
             # The expected statement (final.py): the driver's compiler and options, and the export's
             # inventory, which the statement states and the kernel checks against the exports.
             "expected": {
-                "toolchain": toolchain(run, solar, src),
+                "toolchain": toolchain(run, solar, src, name),
                 "inventory": [[n, s] for n, s in inventory],
                 "inventory_module": f"{name}.LoopSpecInventory",
             },
