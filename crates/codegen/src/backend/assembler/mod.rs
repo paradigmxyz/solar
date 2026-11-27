@@ -15,6 +15,7 @@ use crate::{
     debugify::Origins,
     link::{EmbeddedBytecodes, LibraryRelocation, LibraryTable, Trailer},
     mir::{ImmutableId, TypeSize},
+    solar_tv::indexed,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
@@ -107,6 +108,7 @@ pub(in crate::backend) struct PreparedAssembly {
     /// With `-Zemit-lean-stages`, each data entry before linking: its key, the entry and offset it
     /// is at in `program`, and its length.
     pub(in crate::backend) data_keys: Vec<(String, ir::DataRef, usize)>,
+    pub(in crate::backend) indexed_audit: Option<indexed::Capture>,
 }
 
 /// Relocating assembler for finalized EVM IR.
@@ -336,7 +338,7 @@ impl<'gcx> Assembler<'gcx> {
 
     #[tracing::instrument(name = "assemble", level = "debug", skip_all)]
     fn assemble_owned(&mut self, prepared: PreparedAssembly) -> AssembledCode {
-        let PreparedAssembly { program, evm_ir, data_keys } = prepared;
+        let PreparedAssembly { program, evm_ir, data_keys, indexed_audit } = prepared;
 
         // Label-free constructor and deployment snippets need neither offset
         // discovery nor push-width relaxation.
@@ -355,6 +357,7 @@ impl<'gcx> Assembler<'gcx> {
                 FxHashMap::default(),
                 FxHashMap::default(),
                 &FxHashMap::default(),
+                None,
             );
             result.evm_ir = evm_ir;
             result.data_places = data_places(&result.data, data_keys);
@@ -362,10 +365,49 @@ impl<'gcx> Assembler<'gcx> {
         }
 
         let (label_offsets, data_offsets, push_widths) = self.resolve_offsets(&program);
-        let mut result = self.emit_bytecode(&program, label_offsets, data_offsets, &push_widths);
+        let mut emitted_offsets =
+            indexed_audit.as_ref().map(|_| Vec::with_capacity(program.instructions.len()));
+        let mut result = self.emit_bytecode(
+            &program,
+            label_offsets,
+            data_offsets,
+            &push_widths,
+            emitted_offsets.as_mut(),
+        );
+        if let (Some(capture), Some(offsets)) = (indexed_audit, emitted_offsets) {
+            self.audit_indexed_tables(capture, &program, &offsets, &result.bytecode);
+        }
         result.evm_ir = evm_ir;
         result.data_places = data_places(&result.data, data_keys);
         result
+    }
+
+    fn audit_indexed_tables(
+        &self,
+        capture: indexed::Capture,
+        program: &AssemblyProgram,
+        offsets: &[usize],
+        bytecode: &[u8],
+    ) {
+        // Measure label definitions in the emitted stream. The offsets used to encode the table
+        // relocations must not supply the expected destinations.
+        let mut code_end = bytecode.len();
+        let mut labels = Vec::new();
+        for (inst, &pc) in program.instructions.iter().zip(offsets) {
+            match inst.kind() {
+                AsmInstKind::Label(label) => {
+                    if let Some(&block) = capture.original_labels.get(&label) {
+                        labels.push((block, pc));
+                    }
+                }
+                AsmInstKind::Data(_) => {
+                    code_end = pc;
+                    break;
+                }
+                _ => {}
+            }
+        }
+        capture.audit(self.gcx, bytecode, code_end, &labels, offsets);
     }
 
     /// Resolves all ordinary label pushes against the complete assembly
@@ -485,9 +527,13 @@ impl<'gcx> Assembler<'gcx> {
         label_offsets: FxHashMap<Label, usize>,
         data_offsets: FxHashMap<ir::DataId, usize>,
         push_widths: &FxHashMap<usize, u8>,
+        mut emitted_offsets: Option<&mut Vec<usize>>,
     ) -> AssembledCode {
         let mut out = BytecodeAssembler::new(self.gcx, program.source_spans.is_some());
         for (idx, inst) in program.instructions.iter().enumerate() {
+            if let Some(offsets) = &mut emitted_offsets {
+                offsets.push(out.bytecode.len());
+            }
             let origins =
                 program.source_spans.as_ref().map_or_else(SourceOrigins::default, |origins| {
                     SourceOrigins { spans: origins[idx].spans.as_slice(), all: origins[idx].all }

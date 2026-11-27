@@ -830,6 +830,7 @@ def main(arguments):
         tail = call_tail.extract(
             decoded, location[1] + 1, resume_stack, catalog, VERSION
         )
+        call_tail.check_no_code_exit(decoded, location[3], catalog, VERSION)
         sites = callers.extract(scheduled, finalized, decoded, entry, catalog, VERSION)
         extra_stack = max(prefix_depth, tail.peak_depth) - len(ENTRY)
         prove(scheduled_trace, trace, directory, args.timeout)

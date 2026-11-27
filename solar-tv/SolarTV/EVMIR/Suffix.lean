@@ -54,9 +54,9 @@ theorem stopped (executePrefix : List String → PrefixResult World Halt)
 less gas. Its shared prefix may itself be gas-sensitive and change return data. -/
 theorem resource (executePrefix : List String → PrefixResult World Halt)
     (handler : Effects.Handler World) (fork : Fork)
-    (common : List String) (before after : List Effects.Op)
+    (common : List String) (before after : List Effects.Op) {allowSourceFault : Bool}
     (same : ∀ ctx stack, Effects.Refines (Effects.expand ctx fork after stack 0)
-      (Effects.expand ctx fork before stack 0))
+      (Effects.expand ctx fork before stack 0) allowSourceFault)
     (exit : Effects.Exit) (gas : Nat) (world : World)
     (success : execute executePrefix handler fork common before = .done exit gas world) :
     ∃ remaining, execute executePrefix handler fork common after = .done exit remaining world ∧

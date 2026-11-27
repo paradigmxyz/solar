@@ -7,6 +7,7 @@
 
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
+use solar_data_structures::bit_set::DenseBitSet;
 use solar_interface::{ColorChoice, Session, source_map::FileName};
 use solar_mir::{
     AbiEncodeMode, AbiParamType, AbiType, AbiWordValidator, AllocationFailure,
@@ -66,44 +67,44 @@ fn export_module(module: &Module, name: Option<&str>, whole_module: bool) -> Res
     if module.backend_memory.is_some() {
         return Err("backend memory records are not direct MIR semantics".into());
     }
-    let (id, body) = if whole_module {
-        module.functions.iter_enumerated().next().ok_or("empty MIR module")?
+    let entry = if whole_module {
+        None
     } else if let Some(name) = name {
         let mut bodies =
             module.functions.iter_enumerated().filter(|(_, f)| f.name.to_string() == name);
-        let selected = bodies.next().ok_or("missing MIR function")?;
+        let (id, _) = bodies.next().ok_or("missing MIR function")?;
         if bodies.next().is_some() {
             return Err("ambiguous MIR function".into());
         }
-        selected
+        Some(id)
     } else {
-        let id = module.dispatch_entry().ok_or("MIR world needs an entry or --function")?;
-        (id, &module.functions[id])
+        Some(module.dispatch_entry().ok_or("MIR world needs an entry or --function")?)
     };
-    let mut reachable = CallGraphInfo::collect_internal_callees(body, module.functions.len());
-    reachable.insert(id);
-    if whole_module {
-        reachable.insert_all();
-    }
-    let mut count = reachable.count();
-    if count > 128 {
-        return Err("MIR model function limit of 128".into());
-    }
-    let mut pending = reachable.iter().collect::<Vec<_>>();
-    while let Some(caller) = pending.pop() {
-        let callees = CallGraphInfo::collect_internal_callees(
-            &module.functions[caller],
-            module.functions.len(),
-        );
-        for callee in callees.iter() {
-            if reachable.insert(callee) {
-                count += 1;
-                if count > 128 {
-                    return Err("MIR model function limit of 128".into());
+    let mut reachable = DenseBitSet::new_empty(module.functions.len());
+    if let Some(id) = entry {
+        reachable.insert(id);
+        let mut count = 1;
+        let mut pending = vec![id];
+        while let Some(caller) = pending.pop() {
+            let callees = CallGraphInfo::collect_internal_callees(
+                &module.functions[caller],
+                module.functions.len(),
+            );
+            for callee in callees.iter() {
+                if reachable.insert(callee) {
+                    count += 1;
+                    if count > 128 {
+                        return Err("MIR model function limit of 128".into());
+                    }
+                    pending.push(callee);
                 }
-                pending.push(callee);
             }
         }
+    } else {
+        if module.functions.len() > 128 {
+            return Err("MIR model function limit of 128".into());
+        }
+        reachable.insert_all();
     }
     // Bound repeated type metadata before constructing the JSON response.
     let mut type_nodes = 0;
@@ -120,7 +121,7 @@ fn export_module(module: &Module, name: Option<&str>, whole_module: bool) -> Res
         for &ty in function.params.iter().chain(function.return_components()) {
             count(ty)?;
         }
-        if owner == id {
+        if entry == Some(owner) {
             for &ty in function.params.iter().chain(function.return_components()) {
                 count(ty)?;
             }
@@ -172,20 +173,20 @@ fn export_module(module: &Module, name: Option<&str>, whole_module: bool) -> Res
             }
         }
     }
-    for owner in reachable.iter() {
-        let f = &module.functions[owner];
-        for inst in f.instructions() {
-            // A structural export retains GAS as data. It never executes it or supplies a
-            // budget. The normal source interpreter keeps its isolated-window restriction.
-            if !whole_module
-                && matches!(f.inst(inst).kind.semantics(), Some(Semantics::Opcode("gas", _)))
-                && (owner != id
-                    || module.dispatch_entry() == Some(owner)
-                    || f.blocks.len() != 1
-                    || f.instructions().count() != 1
-                    || !matches!(&f.blocks[solar_mir::BlockId::ENTRY].terminator,Some(Terminator::Return {values}) if values.as_slice()==f.inst(inst).result().as_slice()))
-            {
-                return Err("GAS requires an isolated opcode window".into());
+    // A structural export retains GAS as data and supplies no execution budget.
+    if let Some(id) = entry {
+        for owner in reachable.iter() {
+            let f = &module.functions[owner];
+            for inst in f.instructions() {
+                if matches!(f.inst(inst).kind.semantics(), Some(Semantics::Opcode("gas", _)))
+                    && (owner != id
+                        || module.dispatch_entry() == Some(owner)
+                        || f.blocks.len() != 1
+                        || f.instructions().count() != 1
+                        || !matches!(&f.blocks[solar_mir::BlockId::ENTRY].terminator,Some(Terminator::Return {values}) if values.as_slice()==f.inst(inst).result().as_slice()))
+                {
+                    return Err("GAS requires an isolated opcode window".into());
+                }
             }
         }
     }
@@ -203,6 +204,43 @@ fn export_module(module: &Module, name: Option<&str>, whole_module: bool) -> Res
             export_function(module, id.index(), function)
         })
         .collect::<Result<Vec<_>, String>>()?;
+    let Some(id) = entry else {
+        let route = |id| {
+            let func = module.function(id);
+            json!({
+                "id": id.index(),
+                "payable": func.attributes.state_mutability.to_str() == "payable",
+                "wrapper": func.attributes.is_abi_wrapper,
+                "mutability": func.attributes.state_mutability.to_str(),
+            })
+        };
+        let selectors = module
+            .functions
+            .iter_enumerated()
+            .filter_map(|(id, f)| {
+                let selector = u32::from_be_bytes(f.selector?);
+                let mut row = route(id);
+                row["selector"] = selector.into();
+                Some(row)
+            })
+            .collect::<Vec<_>>();
+        return Ok(json!({
+            "version": 1,
+            "structural_module": true,
+            "dispatch_entry": module.dispatch_entry().map(|id| id.index()),
+            "runtime_entries": module.runtime_entries().iter().map(|id| id.index()).collect::<Vec<_>>(),
+            "constructor": module.constructor().map(|id| id.index()),
+            "receive": module.receive().map(|id| id.index()),
+            "fallback": module.fallback().map(|id| id.index()),
+            "selectors": selectors,
+            "receive_route": module.receive().map(route),
+            "fallback_route": module.fallback().map(route),
+            "library": module.is_library,
+            "library_immutable": module.library_deploy_address().map(|id| id.index()),
+            "functions": functions,
+        }));
+    };
+    let body = module.function(id);
     // Link/placement windows retain table identity across a rewrite. Structural
     // SSA types may disappear during type lowering; they do not key link inputs.
     let mut linked = false;
@@ -220,7 +258,7 @@ fn export_module(module: &Module, name: Option<&str>, whole_module: bool) -> Res
         })
         .collect::<Vec<_>>()
         .join("\n");
-    let mut model = json!({
+    Ok(json!({
         "version": 1,
         "name": body.name.to_string(),
         "layout_declarations": declarations,
@@ -229,11 +267,7 @@ fn export_module(module: &Module, name: Option<&str>, whole_module: bool) -> Res
         "params": body.params.iter().map(|&ty|value_type(module, ty)).collect::<Result<Vec<_>, _>>()?,
         "returns": body.return_components().iter().map(|&ty|value_type(module, ty)).collect::<Result<Vec<_>, _>>()?,
         "functions": functions,
-    });
-    if whole_module {
-        model["structural_module"] = true.into();
-    }
-    Ok(model)
+    }))
 }
 
 fn export_function(module: &Module, id: usize, function: &Function) -> Result<Json, String> {

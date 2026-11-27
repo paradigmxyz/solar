@@ -199,12 +199,22 @@ def replay_command(
     evm_version: str | None = None,
     replay: str | None = None,
     function: str | None = None,
+    storage_loop: str | None = None,
     window: str | None = None,
     region: str | None = None,
     stack_height: int | None = None,
     world: Path | None = None,
     prefix: str | None = None,
+    funded_call: str | None = None,
+    stack_schedule: str | None = None,
+    return_path: str | None = None,
+    erc20_layout: str | None = None,
     prune: bool = False,
+    debug_reverts: bool = False,
+    interaction_trace: bool = False,
+    entry_trace: bool = False,
+    entry_stack: bool = False,
+    valid_heap: bool = False,
 ) -> str:
     checker = Path(__file__).resolve().parents[1] / "solar-tv"
     argv = [
@@ -219,8 +229,26 @@ def replay_command(
     ]
     if prefix is not None:
         argv.extend(["--prefix", prefix])
+    if funded_call is not None:
+        argv.extend(["--funded-call", funded_call])
+    if stack_schedule is not None:
+        argv.extend(["--stack-schedule", stack_schedule])
+    if return_path is not None:
+        argv.extend(["--return-path", return_path])
+    if erc20_layout:
+        argv.append(f"--{erc20_layout}-layout")
     if prune:
         argv.append("--prune")
+    if debug_reverts:
+        argv.append("--debug-reverts")
+    if interaction_trace:
+        argv.append("--interaction-trace")
+    if entry_trace:
+        argv.append("--entry-trace")
+    if entry_stack:
+        argv.append("--entry-stack")
+    if valid_heap:
+        argv.append("--valid-heap")
     if world is not None:
         argv.extend(["--world", str(world.resolve())])
     if gas is not None:
@@ -231,6 +259,8 @@ def replay_command(
         argv.extend(["--replay", replay])
     if function is not None:
         argv.extend(["--function", function])
+    if storage_loop is not None:
+        argv.extend(["--storage-loop", storage_loop])
     if window is not None:
         argv.extend(["--window", window])
     if region is not None:

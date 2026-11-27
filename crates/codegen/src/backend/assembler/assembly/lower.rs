@@ -13,6 +13,7 @@ use crate::{
     },
     debugify::Origins,
     link::{EmbeddedBytecodes, LibraryTable},
+    solar_tv::indexed,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 
@@ -119,7 +120,8 @@ impl Assembler<'_> {
         }
         let data_keys = data_keys(data.unwrap_or_default(), remap.as_ref());
         let errors_before = self.gcx.dcx().err_count();
-        let program = lower_evm_ir(self, &mut ir_program, &mut labels, capture_debug_info);
+        let (program, indexed_audit) =
+            lower_evm_ir(self, &mut ir_program, &mut labels, capture_debug_info);
         validate_program_evm_version(self, &program);
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
@@ -133,7 +135,7 @@ impl Assembler<'_> {
         };
         self.block_labels = labels;
         self.block_labels.clear();
-        PreparedAssembly { evm_ir, program, data_keys }
+        PreparedAssembly { evm_ir, program, data_keys, indexed_audit }
     }
 }
 
@@ -200,12 +202,14 @@ pub(in crate::backend) fn lower_evm_ir(
     module: &mut ir::Module,
     labels: &mut Vec<Option<Label>>,
     capture_debug_info: bool,
-) -> Program {
+) -> (Program, Option<indexed::Capture>) {
     // Finalized EVM IR represents every control-flow reference as a `BlockId`; the builder's
     // assembler-label table is no longer authoritative. Rebuild it for the final module so a
     // transform that deletes a block and reuses its sparse textual label cannot inherit the
     // deleted block's assembler label.
     reset_assembler_labels(labels);
+    let indexed_source = indexed::enabled(assembler.gcx, module)
+        .then(|| (module.to_text().to_string(), module.blocks.len()));
     let (mut indexed_jump_lowerings, mut tables) = indexed_jump::materialize_tables_with_metadata(
         module,
         assembler.gcx.sess.opts.evm_version,
@@ -219,6 +223,7 @@ pub(in crate::backend) fn lower_evm_ir(
     );
     let data_layout_is_observable = ir::data_layout_is_observable(module);
     for _ in 0..=32 {
+        let mut sites = Vec::new();
         let program = lower_evm_ir_once(
             assembler,
             module,
@@ -226,10 +231,11 @@ pub(in crate::backend) fn lower_evm_ir(
             &indexed_jump_lowerings,
             data_layout_is_observable,
             capture_debug_info,
+            indexed_source.as_ref().map(|_| (&tables[..], &mut sites)),
         );
         // Without indexed tables, only final bytecode emission needs resolved offsets.
         if tables.is_empty() {
-            return program;
+            return (program, None);
         }
         let (label_offsets, _) = assembler.resolve_label_offsets(&program);
         if !indexed_jump::refine_indexed_jump_widths(
@@ -241,7 +247,28 @@ pub(in crate::backend) fn lower_evm_ir(
             assembler.gcx.sess.opts.evm_version,
             TablePacking::new(assembler.gcx, module.optimization),
         ) {
-            return program;
+            let indexed_audit = indexed_source.map(|(source, original_blocks)| {
+                let original_labels = module
+                    .blocks
+                    .iter()
+                    .take(original_blocks)
+                    .filter_map(|block| {
+                        labels
+                            .get(block.label as usize)
+                            .copied()
+                            .flatten()
+                            .map(|label| (label, block.label))
+                    })
+                    .collect();
+                indexed::Capture {
+                    source,
+                    module: module.name().to_string(),
+                    artifact: assembler.artifact_kind.name().to_string(),
+                    original_labels,
+                    sites,
+                }
+            });
+            return (program, indexed_audit);
         }
     }
     panic!("indexed jump widths did not reach a fixed point")
@@ -254,6 +281,7 @@ fn lower_evm_ir_once(
     indexed_jump_lowerings: &IndexVec<BlockId, indexed_jump::IndexedJumpLowering>,
     data_layout_is_observable: bool,
     capture_debug_info: bool,
+    indexed_audit: Option<(&[indexed_jump::IndexedJumpTable], &mut Vec<indexed::Site>)>,
 ) -> Program {
     allocate_referenced_labels(assembler, module, labels, indexed_jump_lowerings);
 
@@ -273,7 +301,15 @@ fn lower_evm_ir_once(
     let mut program = Program::with_debug_info(capture_debug_info);
     let valid_lent_invokes = module.valid_lent_invokes();
     let mut pending_block_invoke = None;
+    let (audit_tables, mut audit_sites) = match indexed_audit {
+        Some((tables, sites)) => (tables, Some(sites)),
+        None => (&[][..], None),
+    };
+    let mut audit_tables = audit_tables.iter().peekable();
     for (block_id, block) in module.blocks.iter_enumerated() {
+        let table = audit_tables.next_if(|table| table.source == block_id);
+        let mask_index = table.and_then(|_| indexed::mask_producer(block));
+        let mut mask_start = None;
         program.set_source_span(None);
         let block_modifier_depth = block.instructions.first().map_or_else(
             || block.terminator.as_ref().map_or(0, |term| term.metadata.modifier_depth()),
@@ -302,10 +338,13 @@ fn lower_evm_ir_once(
             program.mark_last_function_invoke(pending_block_invoke.take());
         }
 
-        for inst in &block.instructions {
+        for (index, inst) in block.instructions.iter().enumerate() {
             program.set_source_origins(&inst.metadata);
             program.set_modifier_depth(inst.metadata.modifier_depth());
             let first = program.instructions.len();
+            if mask_index == Some(index) {
+                mask_start = Some(first);
+            }
             lower_instruction(assembler, &mut program, inst, module, labels);
             if first < program.instructions.len() {
                 if let Some(function) = pending_block_invoke.take() {
@@ -322,6 +361,16 @@ fn lower_evm_ir_once(
             program.set_source_origins(&terminator.metadata);
             program.set_modifier_depth(terminator.metadata.modifier_depth());
             let first = program.instructions.len();
+            if let Some(table) = table
+                && let Some(sites) = &mut audit_sites
+            {
+                sites.push(indexed::Site {
+                    block: block.label,
+                    start: first,
+                    mask_start,
+                    jumps: if table.entries.is_empty() { 1 } else { 2 },
+                });
+            }
             lower_terminator(
                 assembler,
                 &mut program,

@@ -5,9 +5,10 @@ import SolarTV.EVMIR.Prefix
 Scalar instructions use the existing checked stack semantics and fork prices.
 Other admitted instructions request their actual consumed words. A handler may
 fail, or return a word, a new world and its full dynamic charge. It cannot read
-the private stack tail or remaining gas. Code/GAS observers, calls and gas-sensitive
-storage writes are therefore excluded by the importer. Memory and logs may alias
-arbitrarily. The same requests must occur in the same order.
+the private stack tail or remaining gas. The storage-write sentry is enforced
+before invoking the handler. Code/GAS observers and calls remain excluded.
+Memory and storage may alias arbitrarily. The same requests must occur in the
+same order.
 
 Refinement permits no greater scalar charge between any two effects. Every
 successful original execution then has the same stack/world with no less gas
@@ -26,7 +27,18 @@ structure Request where
   opcode : Nat
   arguments : List Word
   returnsWord : Bool
+  minimumGas : Nat
   deriving DecidableEq
+
+def minimumGas (fork : Fork) (opcode : Nat) : Nat :=
+  if opcode == 0x55 && fork.atLeast .istanbul then 2301 else 0
+
+theorem sstore_sentry (fork : Fork) (gas : Nat) :
+    gas < minimumGas fork 0x55 ↔ fork.atLeast .istanbul = true ∧ gas ≤ 2300 := by
+  cases active : fork.atLeast .istanbul <;> simp [minimumGas, active] <;> omega
+
+def request (fork : Fork) (opcode inputs outputs : Nat) (stack : Stack) : Request :=
+  ⟨opcode, stack.take inputs, outputs == 1, minimumGas fork opcode⟩
 
 inductive Exit where
   | continuation (stack : Stack)
@@ -37,6 +49,7 @@ inductive Op where
   | scalar (operation : EVM.Op)
   | effect (opcode inputs outputs : Nat)
   | guard (label pushCharge jumpCharge : Nat)
+  | reserve (scratch : Nat)
 
 inductive Tree where
   | fault
@@ -88,36 +101,42 @@ def expand (ctx : Context) (fork : Fork) : List Op → Stack → Nat → Tree
   | .effect opcode inputs outputs :: ops, stack, charge =>
     if stack.length < inputs || stack.length - inputs + outputs > 1024 || stack.length > 1024 then
       .fault
-    else .request charge ⟨opcode,stack.take inputs,outputs == 1⟩ fun word =>
+    else .request charge (request fork opcode inputs outputs stack) fun word =>
       expand ctx fork ops (if outputs == 1 then word :: stack.drop inputs else stack.drop inputs) 0
-  | .guard label pushCharge jumpCharge :: ops, stack, charge =>
-    match guardStack label stack with
-    | none => .fault
-    | some (.continuation next) => expand ctx fork ops next (charge + (pushCharge + jumpCharge))
-    | some exit => .done (charge + (pushCharge + jumpCharge)) exit
+  | .guard label pushCharge jumpCharge :: ops, condition :: rest, charge =>
+    if rest.length + 1 + 1 > 1024 then .fault else
+      if condition = 0 then expand ctx fork ops rest (charge + (pushCharge + jumpCharge))
+      else .done (charge + (pushCharge + jumpCharge)) (.jump label rest)
+  | .guard .. :: _, [], _ => .fault
+  | .reserve scratch :: ops, stack, charge =>
+    if stack.length + scratch > 1024 then .fault else expand ctx fork ops stack charge
 
-@[simp↓] theorem expand_guard_cons (ctx : Context) (fork : Fork)
+theorem expand_guard (ctx : Context) (fork : Fork)
     (label pushCharge jumpCharge charge : Nat) (ops : List Op) (condition : Word) (rest : Stack) :
     expand ctx fork (.guard label pushCharge jumpCharge :: ops) (condition :: rest) charge =
-      if rest.length + 1 + 1 > 1024 then .fault else
-        if condition = 0 then expand ctx fork ops rest (charge + (pushCharge + jumpCharge))
-        else .done (charge + (pushCharge + jumpCharge)) (.jump label rest) := by
-  by_cases full : rest.length + 1 + 1 > 1024 <;>
-    by_cases zero : condition = 0#256 <;>
+      match guardStack label (condition :: rest) with
+      | none => .fault
+      | some (.continuation next) => expand ctx fork ops next (charge + (pushCharge + jumpCharge))
+      | some exit => .done (charge + (pushCharge + jumpCharge)) exit := by
+  by_cases full : rest.length + 1 + 1 > 1024 <;> by_cases zero : condition = 0#256 <;>
       simp [expand,guardStack,full,zero]
 
 /-- Syntactic interaction refinement retains every effect and terminal stack.
 Each interval's scalar work may only become cheaper. -/
-def Refines : Tree → Tree → Prop
+def Refines (after before : Tree) (allowSourceFault : Bool := false) : Prop :=
+  match after, before with
   | .fault,.fault => True
+  | _,.fault => allowSourceFault = true
   | .done newer stack,.done older original => newer ≤ older ∧ stack = original
   | .request newer effect next,.request older original rest =>
-    newer ≤ older ∧ effect = original ∧ ∀ reply, Refines (next reply) (rest reply)
+    newer ≤ older ∧ effect = original ∧ ∀ reply, Refines (next reply) (rest reply) allowSourceFault
   | _,_ => False
 
-@[simp] theorem refines_ite (condition : Prop) [Decidable condition] (a b c d : Tree) :
-    Refines (if condition then a else b) (if condition then c else d) ↔
-      if condition then Refines a c else Refines b d := by split <;> rfl
+@[simp] theorem refines_ite (condition : Prop) [Decidable condition] (a b c d : Tree)
+    (allowSourceFault : Bool) :
+    Refines (if condition then a else b) (if condition then c else d) allowSourceFault ↔
+      if condition then Refines a c allowSourceFault else Refines b d allowSourceFault := by
+  split <;> rfl
 
 abbrev Handler (World : Type) := Request → World → Option (Word × Nat × World)
 
@@ -126,7 +145,7 @@ def execute (handler : Handler World) : Tree → Nat → World → Option (Exit 
   | .done charge stack, gas, world =>
     if gas < charge then none else some (stack,gas - charge,world)
   | .request charge effect next, gas, world =>
-    if gas < charge then none else do
+    if gas < charge ∨ gas - charge < effect.minimumGas then none else do
       let (reply,dynamic,world) ← handler effect world
       if gas - charge < dynamic then none else execute handler (next reply) (gas - charge - dynamic) world
 
@@ -142,8 +161,9 @@ def charged (handler : Handler World) (ctx : Context) (fork : Fork) :
       | .ok next => charged handler ctx fork ops next (gas - Gas.pureCost op fork) world
   | .effect opcode inputs outputs :: ops, stack, gas, world =>
     if stack.length < inputs || stack.length - inputs + outputs > 1024 || stack.length > 1024 then none
+    else if gas < (request fork opcode inputs outputs stack).minimumGas then none
     else do
-      let (reply,dynamic,world) ← handler ⟨opcode,stack.take inputs,outputs == 1⟩ world
+      let (reply,dynamic,world) ← handler (request fork opcode inputs outputs stack) world
       if gas < dynamic then none else
         charged handler ctx fork ops
           (if outputs == 1 then reply :: stack.drop inputs else stack.drop inputs)
@@ -153,6 +173,8 @@ def charged (handler : Handler World) (ctx : Context) (fork : Fork) :
     match exit with
     | .continuation next => charged handler ctx fork ops next gas world
     | exit => some (exit,gas,world)
+  | .reserve scratch :: ops, stack, gas, world =>
+    if stack.length + scratch > 1024 then none else charged handler ctx fork ops stack gas world
 
 /-- Accumulating unobservable scalar charges does not change execution, including
 failure order, dynamic charges and the complete live world on success. -/
@@ -183,10 +205,12 @@ theorem expansion_correct (handler : Handler World) (ctx : Context) (fork : Fork
       simp only [expand, charged]
       split
       · simp [execute]
-      · simp only [execute]
-        split
-        · rfl
-        · cases handled : handler ⟨opcode,stack.take inputs,outputs == 1⟩ world with
+      · by_cases prior : gas < pending
+        · simp [execute, prior]
+        · by_cases sentry : gas - pending < (request fork opcode inputs outputs stack).minimumGas
+          · simp [execute, prior, sentry]
+          simp only [execute, prior, sentry, or_self, ite_false]
+          cases handled : handler (request fork opcode inputs outputs stack) world with
           | none => rfl
           | some result =>
             obtain ⟨reply,dynamic,world'⟩ := result
@@ -197,36 +221,42 @@ theorem expansion_correct (handler : Handler World) (ctx : Context) (fork : Fork
                 ih (if outputs == 1 then reply :: stack.drop inputs else stack.drop inputs)
                   0 (gas - pending - dynamic) world'
     | guard label pushCharge jumpCharge =>
-      simp only [expand, charged, guardCharged_eq]
-      cases branch : guardStack label stack with
-      | none => simp [execute]
-      | some exit =>
-        cases exit with
-        | continuation next =>
-          simp only [Option.bind_some]
-          rw [ih]
-          by_cases prior : gas < pending
-          · have total : gas < pending + (pushCharge + jumpCharge) := by omega
-            simp [prior,total]
-          · by_cases enough : gas - pending < pushCharge + jumpCharge
+      cases stack with
+      | nil => simp [expand, charged, guardCharged_eq, guardStack, execute]
+      | cons condition rest =>
+        simp only [expand_guard, charged, guardCharged_eq]
+        cases branch : guardStack label (condition :: rest) with
+        | none => simp [execute]
+        | some exit =>
+          cases exit with
+          | continuation next =>
+            simp only [Option.bind_some]
+            rw [ih]
+            by_cases prior : gas < pending
             · have total : gas < pending + (pushCharge + jumpCharge) := by omega
-              simp [prior,enough,total]
-            · have total : ¬gas < pending + (pushCharge + jumpCharge) := by omega
-              simp [prior,enough,total,Nat.sub_add_eq]
-        | jump target next =>
-          by_cases prior : gas < pending
-          · have total : gas < pending + (pushCharge + jumpCharge) := by omega
-            simp [execute, prior,total]
-          · by_cases enough : gas - pending < pushCharge + jumpCharge
+              simp [prior,total]
+            · by_cases enough : gas - pending < pushCharge + jumpCharge
+              · have total : gas < pending + (pushCharge + jumpCharge) := by omega
+                simp [prior,enough,total]
+              · have total : ¬gas < pending + (pushCharge + jumpCharge) := by omega
+                simp [prior,enough,total,Nat.sub_add_eq]
+          | jump target next =>
+            by_cases prior : gas < pending
             · have total : gas < pending + (pushCharge + jumpCharge) := by omega
-              simp [execute, prior,enough,total]
-            · have total : ¬gas < pending + (pushCharge + jumpCharge) := by omega
-              simp [execute, prior,enough,total,Nat.sub_add_eq]
+              simp [execute, prior,total]
+            · by_cases enough : gas - pending < pushCharge + jumpCharge
+              · have total : gas < pending + (pushCharge + jumpCharge) := by omega
+                simp [execute, prior,enough,total]
+              · have total : ¬gas < pending + (pushCharge + jumpCharge) := by omega
+                simp [execute, prior,enough,total,Nat.sub_add_eq]
+    | reserve scratch =>
+      by_cases full : stack.length + scratch > 1024 <;>
+        simp [expand, charged, execute, full, ih]
 
 /-- The generic handler is shared, not assumed successful or memory-disjoint.
 It includes the entire effect charge, including memory expansion and log data. -/
-theorem resource (handler : Handler World) (before after : Tree)
-    (refines : Refines after before) (world final : World) (stack : Exit)
+theorem resource (handler : Handler World) (before after : Tree) {allowSourceFault : Bool}
+    (refines : Refines after before allowSourceFault) (world final : World) (stack : Exit)
     (gas remaining extra : Nat)
     (success : execute handler before gas world = some (stack,remaining,final)) :
     ∃ remaining', execute handler after (gas + extra) world = some (stack,remaining',final) ∧
@@ -254,7 +284,10 @@ theorem resource (handler : Handler World) (before after : Tree)
       by_cases enough : gas < charge
       · simp [execute, enough] at success
       · have enough' : ¬gas + extra < newer := by omega
-        simp only [execute, enough, enough', ite_false] at success ⊢
+        by_cases sentry : gas - charge < request.minimumGas
+        · simp [execute, sentry] at success
+        have sentry' : ¬gas + extra - newer < request.minimumGas := by omega
+        simp only [execute, enough, enough', sentry, sentry', or_self, ite_false] at success ⊢
         cases handled : handler request world with
         | none => simp [handled] at success
         | some result =>
@@ -270,18 +303,19 @@ theorem resource (handler : Handler World) (before after : Tree)
             exact ih reply (next reply) (children reply) world' final stack
               _ remaining _ success
 
-example : ¬ Refines (.done 4 (.continuation [])) (.done 3 (.continuation [])) := by simp [Refines]
+example : ¬ Refines (.done 4 (.continuation [])) (.done 3 (.continuation [])) := by
+  simp [Refines]
 
-example : charged (fun _ (_ : Nat) => none) ⟨0,0,0,[]⟩ .cancun
+example : charged (fun _ (_ : Nat) => none) ⟨0,0,0,[], 0⟩ .cancun
     [.scalar (.push 1)] [] 2 0 = none := by decide
 
 example : execute (fun _ (world : Nat) => some (0,10,world+1))
-    (.request 3 ⟨0xa4,[0,0,0,0,0,0],false⟩ (fun _ => .done 0 (.continuation []))) 12 0 = none := by decide
+    (.request 3 ⟨0xa4,[0,0,0,0,0,0],false,0⟩ (fun _ => .done 0 (.continuation []))) 12 0 = none := by decide
 
 example : guardCharged 0 2 10 [1,9] 12 = some (.jump 0 [9],0) := by decide
 example : guardCharged 7 3 10 [0,9] 13 = some (.continuation [9],0) := by decide
 example : guardCharged 7 3 10 [1] 12 = none := by decide
-example : charged (fun _ (_ : Nat) => none) ⟨0,0,0,[]⟩ .cancun
+example : charged (fun _ (_ : Nat) => none) ⟨0,0,0,[], 0⟩ .cancun
     [.guard 7 3 10,.scalar .pop] [1] 13 0 = some (.jump 7 [],0,0) := by decide
 
 example (stack : Stack) (full : stack.length = 1024) (gas pushCharge jumpCharge : Nat) :

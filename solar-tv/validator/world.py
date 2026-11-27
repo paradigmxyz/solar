@@ -307,15 +307,28 @@ def configuration(
     replay: str | None = None,
     *,
     root_is_mir: bool = False,
+    allow_precompile_entry: bool = False,
 ) -> str:
     catalog = native.catalog(replay or native.default(solar), timeout)
     precompiles = catalog.get("precompiles")
     if not isinstance(precompiles, dict):
         raise Unsupported("rebuild the native replay helper for precompile activation")
-    if not root_is_mir and fixture["address"] in precompiles.get(version, []):
+    if (
+        not root_is_mir
+        and not allow_precompile_entry
+        and fixture["address"] in precompiles.get(version, [])
+    ):
         raise Unsupported(
             "world root must be a bytecode account, not an active precompile"
         )
+    rows = opcode_rows(catalog, version)
+    context = context_expression(fixture)
+    unknown = f"some {fixture['address']}" if root_is_mir else "none"
+    return f"def tvWorldConfig : EVM.State.Config := ⟨.{version}, {rows}, {fixture['address']}, {context}, {unknown}⟩\n"
+
+
+def opcode_rows(catalog, version):
+    """Render the fork-specific raw-byte opcode data shared by world proofs."""
     definitions = {op["opcode"]: op for op in catalog["evmir"]}
     rows = []
     for opcode in range(256):
@@ -328,9 +341,7 @@ def configuration(
         rows.append(
             f"⟨{'true' if fork['available'] else 'false'}, {fork['base_gas']}, {fork['dynamic_gas']}, {inputs}, {outputs}⟩"
         )
-    context = context_expression(fixture)
-    unknown = f"some {fixture['address']}" if root_is_mir else "none"
-    return f"def tvWorldConfig : EVM.State.Config := ⟨.{version}, [{', '.join(rows)}], {fixture['address']}, {context}, {unknown}⟩\n"
+    return "[" + ", ".join(rows) + "]"
 
 
 def context_expression(fixture):
@@ -440,6 +451,19 @@ def replay_input(fixture: dict) -> dict:
         "mir_layout",
     }
     return {key: value for key, value in fixture.items() if key in keys}
+
+
+def with_runtime(fixture, image):
+    """Install the assembled root image for independent raw-bytecode replay."""
+    return {
+        **fixture,
+        "accounts": [
+            {**account, "code": list(image)}
+            if account["address"] == fixture["address"]
+            else account
+            for account in fixture["accounts"]
+        ],
+    }
 
 
 def accounts_expression(fixture, image=None):

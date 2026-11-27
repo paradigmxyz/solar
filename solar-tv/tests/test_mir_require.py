@@ -1,7 +1,9 @@
 """Exact require payloads against lower-checks, ABI lowering and independent replay."""
 
+import re
 import unittest
 
+import test_lower_abi_encode as lower_abi_encode
 import test_mir_abi as abi
 import test_mir_abi_encode_recursive as encoding
 import test_mir_state as state
@@ -79,3 +81,61 @@ class MirRequireTests(unittest.TestCase):
             "fn @f(arg0: i1, arg1: i1) -> i256",
         )
         self.lowered_pair(source, PIPELINE)
+
+    automatic = lower_abi_encode.LowerAbiEncodeTests.automatic
+
+    def test_automatic_short_string_helper_and_changed_length(self):
+        data = int.from_bytes(b"bad".ljust(32, b"\xff"), "big")
+        before = state.module(
+            f"""v0 = calldataload 0
+v1 = ne v0, 0
+icall require<short_string>, v1, 3, {data}
+ret 7"""
+        )
+        after = self.lower(before, "lower-checks")
+        function = self.automatic(before, after, 0)
+        module = self.automatic(before, after, 0, function=None)
+        for kind, proof in (("function", function), ("module", module)):
+            self.assertEqual(proof["evidence"], "kernel-proof")
+            self.assertEqual(proof["region"]["kind"], kind)
+            self.assertEqual(
+                proof["region"]["proof"], "kernel-checked-conditional-checks"
+            )
+        changed, count = re.subn(r"(?m)^(\s*mstore 64, )arg0\b", r"\g<1>4", after)
+        self.assertEqual(count, 1)
+        self.automatic(before, changed, 2, function=None)
+        self.automatic(before, changed, 2)
+        self.pair(before, after, fixture=encoding.calldata(bytes(32)))
+        self.pair(before, after, fixture=encoding.calldata(bytes([1]) * 32))
+        _, record = self.pair(after, changed, status=1)
+        self.assertEqual(
+            record["witness"]["observations"], record["witness"]["native_observations"]
+        )
+
+    def test_automatic_static_custom_errors_and_changed_word(self):
+        selector = 0x11223344 << 224
+        memory = bytes([255]) * 64 + (193).to_bytes(32, "big") + bytes([255]) * 256
+        fixture = {"memory": {"size": len(memory), "data": "0x" + memory.hex()}}
+        for shapes, words in (("word", "7"), ("word, word, word", "7, 8, 9")):
+            with self.subTest(shapes=shapes):
+                before = state.module(
+                    f"""v0 = calldataload 0
+v1 = ne v0, 0
+icall require<custom_error [{shapes}]>, v1, {selector}, {words}
+ret 7"""
+                )
+                after = self.lower(before, "lower-checks")
+                proof = self.automatic(before, after, 0)
+                self.assertEqual(proof["evidence"], "kernel-proof")
+                self.assertEqual(
+                    proof["region"]["proof"], "kernel-checked-conditional-checks"
+                )
+                changed, count = re.subn(r"(?m)^(\s*mstore 32, )7\b", r"\g<1>6", after)
+                self.assertEqual(count, 1)
+                self.automatic(before, changed, 2)
+                self.pair(before, after, fixture=fixture)
+                _, record = self.pair(after, changed, fixture=fixture, status=1)
+                self.assertEqual(
+                    record["witness"]["observations"],
+                    record["witness"]["native_observations"],
+                )

@@ -13,17 +13,52 @@ import re
 import tempfile
 from pathlib import Path
 
-from . import audit, correspondence, native, regions
+from . import audit, code_relocations, correspondence, native, regions, stack_layout
 from .common import Program, Unsupported, literal
 
+INTERACTION_OPS = frozenset({"gas", "extcodesize", "call", "staticcall"})
 
-def render(model, catalog, version, entry, *, dynamic_exit=False):
+
+def render(
+    model,
+    catalog,
+    version,
+    entry,
+    *,
+    dynamic_exit=False,
+    max_growth=1,
+    interactions=False,
+):
+    root, nodes = render_nodes(
+        model,
+        catalog,
+        version,
+        entry,
+        dynamic_exit=dynamic_exit,
+        max_growth=max_growth,
+        interactions=interactions,
+    )
+    return f"⟨{root},#[{','.join(nodes)}]⟩"
+
+
+def render_nodes(
+    model,
+    catalog,
+    version,
+    entry,
+    *,
+    dynamic_exit=False,
+    max_growth=1,
+    interactions=False,
+    from_entry=False,
+    inherited=False,
+):
     if not isinstance(model, dict) or not isinstance(model.get("nodes"), list):
         raise Unsupported("invalid source-identity graph")
     rows = model.get("nodes", [])
     if (
         set(model) != {"entry", "nodes"}
-        or not 1 <= len(rows) <= 4096
+        or not 1 <= len(rows) <= (32768 if from_entry else 4096)
         or any(
             not isinstance(row, dict) or type(row.get("id")) is not int for row in rows
         )
@@ -66,14 +101,22 @@ def render(model, catalog, version, entry, *, dynamic_exit=False):
                     and catalog["push0"]["forks"][version]["available"]
                     else "push1"
                 )
+            elif (
+                (interactions or from_entry)
+                and stack_layout.immutable_push(operation)
+                or (from_entry and code_relocations.operation(operation))
+            ):
+                name = "push1"
             elif match := re.fullmatch(r"(dup|swap) (\d+)", operation):
                 name = match[1] + match[2]
             definition = catalog.get(name)
             if (
                 definition is None
                 or not definition["forks"][version]["available"]
-                or definition["observes_code"]
-                or definition["sets_returndata"]
+                or (
+                    (definition["observes_code"] or definition["sets_returndata"])
+                    and not (interactions and name in INTERACTION_OPS)
+                )
                 or definition["stack"] is None
                 or name in {"jump", "jumpi"}
             ):
@@ -87,7 +130,7 @@ def render(model, catalog, version, entry, *, dynamic_exit=False):
             kind == "jump"
             and set(node) == {"kind", "growth", "next"}
             and type(node["growth"]) is int
-            and node["growth"] in {0, 1}
+            and 0 <= node["growth"] <= max_growth
         ):
             nodes.append(f".jump {label} {node['growth']} {target(node['next'])}")
         elif kind == "branch" and set(node) == {"kind", "yes", "no"}:
@@ -99,21 +142,24 @@ def render(model, catalog, version, entry, *, dynamic_exit=False):
                 node["operation"] in {"stop", "invalid", "return", "revert"}
                 or dynamic_exit
                 and node["operation"] == "jump"
+                or inherited
+                and re.fullmatch(r"resume [0-9]+", node["operation"])
             )
         ):
             nodes.append(f".terminal {label} {json.dumps(node['operation'])}")
         else:
             raise Unsupported("unsupported source-identity node")
-    return f"⟨{root},#[{','.join(nodes)}]⟩"
+    return root, nodes
 
 
-def check(paths, solar, replay, version, timeout, entry):
-    from .check import PRELUDE, ROOT, build_model, run
+def parse_pair(paths, solar, version, timeout, entry):
+    from .check import ROOT, run
 
-    if not re.fullmatch(r"bb[0-9]{1,10}", entry) or int(entry[2:]) >= 2**32:
+    if entry is not None and (
+        not re.fullmatch(r"bb[0-9]{1,10}", entry) or int(entry[2:]) >= 2**32
+    ):
         raise Unsupported("source identity requires a valid region label")
-    catalog = {row["name"]: row for row in native.catalog(replay, timeout)["evmir"]}
-    texts, models, expressions, headers = [], [], [], []
+    texts, headers = [], []
     for path in paths:
         if path.suffix != ".evmir" or path.stat().st_size > 1024 * 1024:
             raise Unsupported("source identity requires EVM IR files of at most 1 MiB")
@@ -131,21 +177,44 @@ def check(paths, solar, replay, version, timeout, entry):
         if parsed.returncode:
             raise Unsupported(parsed.stderr)
         text = parsed.stdout
-        model = correspondence.export(text, entry, version, replay, timeout)
         texts.append(text)
-        models.append(model)
         header = re.split(r"(?m)^bb\d+", text, maxsplit=1)[0]
         headers.append(
             [line for line in header.splitlines() if not line.startswith(";")]
         )
     if headers[0] != headers[1]:
         raise Unsupported("source identity changed shared declarations")
+    return texts
+
+
+def check(paths, solar, replay, version, timeout, entry, *, interactions=False):
+    from .check import PRELUDE, ROOT, build_model, run
+
+    catalog = {row["name"]: row for row in native.catalog(replay, timeout)["evmir"]}
+    texts = parse_pair(paths, solar, version, timeout, entry)
+    if interactions:
+        from . import continuation_flow
+
+        return continuation_flow.check(
+            texts, replay, catalog, version, timeout, entry, interactions=True
+        )
+    try:
+        models = [
+            correspondence.export(text, entry, version, replay, timeout)
+            for text in texts
+        ]
+    except Unsupported as error:
+        if str(error) != "EVM source graph: escaping label in EVM source graph":
+            raise
+        from . import continuation_flow
+
+        return continuation_flow.check(texts, replay, catalog, version, timeout, entry)
     dynamic_exit = any(
         row["node"] == {"kind": "terminal", "operation": "jump"}
         for row in models[0]["nodes"]
     )
     if models[0] != models[1] or dynamic_exit:
-        from . import stack_layout
+        from . import cfg_flow, stack_layout
 
         expressions = [
             render(model, catalog, version, entry, dynamic_exit=True)
@@ -155,11 +224,8 @@ def check(paths, solar, replay, version, timeout, entry):
             return stack_layout.check_data(
                 texts, models, expressions, entry, catalog, version, timeout
             )
-        except Unsupported as error:
-            raise Unsupported(
-                "reachable source graphs differ; an instruction/CFG proof is required\n"
-                + str(error)
-            ) from None
+        except Unsupported:
+            return cfg_flow.check(texts, models, entry, catalog, version, timeout)
     expressions = [render(model, catalog, version, entry) for model in models]
     code = (
         PRELUDE

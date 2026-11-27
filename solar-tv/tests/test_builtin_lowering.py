@@ -1,6 +1,7 @@
 """Check lower-builtins on typed SSA, including operands outside the cut."""
 
 import json
+import os
 import re
 import subprocess
 import tempfile
@@ -18,6 +19,15 @@ fn @f(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
+}
+"""
+
+LOAD = """@module Load
+
+fn @f(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = load_storage_bytes arg0
+    ret v0
 }
 """
 
@@ -151,6 +161,103 @@ class BuiltinLoweringTests(unittest.TestCase):
         ):
             with self.subTest(pattern=pattern):
                 self.mutated(lowered, pattern, replacement)
+
+    def test_storage_loader_checks_index_phi_and_memory_stride(self):
+        lowered = self.lower(LOAD)
+        record = self.cli(lowered)
+        self.assertEqual(record["region"]["proof"], "contextual-storage-bytes-load")
+        self.assertFalse(record["whole_pass"])
+        for pattern, replacement in (
+            (r"( = phi [^\n]*?: )0(?=[,\]])", r"\g<1>1"),
+            (r"( = mul v\d+, )32", r"\g<1>64"),
+            (r"(mstore 32, )34", r"\g<1>65"),
+        ):
+            with self.subTest(pattern=pattern):
+                self.mutated(lowered, pattern, replacement)
+
+    def test_storage_loader_wrong_stride_replays_independently(self):
+        source = state.module(
+            "v0 = load_storage_bytes 3\nv1 = ptradd v0, 64\nv2 = mload v1\nret v2"
+        )
+        lowered = self.lower(source)
+        broken, count = re.subn(r"( = mul v\d+, )32", r"\g<1>64", lowered, count=1)
+        self.assertEqual(count, 1)
+        world = storage.fixture({3: 67, storage.BASE: 17, storage.BASE + 1: 255})
+        state.MirStateTests.pair(self, source, lowered, fixture=world)
+        _, report = state.MirStateTests.pair(
+            self, source, broken, fixture=world, status=1
+        )
+        self.assertEqual(report["evidence"], "kernel-and-rust-replay")
+        self.assertEqual(
+            report["witness"]["observations"], report["witness"]["native_observations"]
+        )
+
+    def test_live_storage_module_keeps_the_typed_caller(self):
+        source = (
+            LOAD.replace("@f(", "@load(")
+            + "\n"
+            + STORE[STORE.index("fn @f") :].replace("@f(", "@store(")
+            + """
+fn @caller(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = icall @load, arg0
+    icall @store, arg0, v0
+    ret v0
+}
+"""
+        )
+        lowered = self.lower(source)
+        audit = self.directory / "audit"
+        checked = subprocess.check_output(
+            [
+                SOLAR,
+                self.before,
+                "-j1",
+                "-Zmir-pipeline=lower-builtins",
+                "-Zvalidate-ir=true",
+                f"-Zsolar-tv={audit}",
+            ],
+            env={**os.environ, "SOLAR_TV": CLI, "SOLAR": SOLAR},
+            text=True,
+            timeout=120,
+        )
+        self.assertEqual(lowered, checked)
+        records = [
+            json.loads(path.read_text()) for path in (audit / "audits").glob("*.json")
+        ]
+        (module,) = (
+            row for row in records if row.get("region", {}).get("kind") == "module"
+        )
+        self.assertEqual(module["status"], "verified")
+        self.assertEqual(module["evidence"], "kernel-proof")
+        self.assertEqual(module["region"]["proof"], "contextual-storage-bytes-module")
+        self.assertEqual(
+            module["import_correspondence"][1]["replaced"],
+            {"load": "load", "store": "store"},
+        )
+        broken = lowered.replace("icall @store, arg0, v0", "icall @store, 4, v0")
+        self.assertNotEqual(broken, lowered)
+        self.after.write_text(broken)
+        report = self.directory / "broken.json"
+        result = subprocess.run(
+            [
+                CLI,
+                "mir",
+                self.before,
+                self.after,
+                "--solar",
+                SOLAR,
+                "--prune",
+                "--report",
+                report,
+            ],
+            text=True,
+            capture_output=True,
+            timeout=120,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(json.loads(report.read_text())["status"], "unsupported")
 
     def test_broken_raw_call_replays_independently(self):
         original = calls.source(object_result=True)

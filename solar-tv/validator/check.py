@@ -8,6 +8,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+from functools import partial
 from pathlib import Path
 
 from . import (
@@ -148,12 +149,38 @@ def load(
         except Unsupported as error:
             if str(error).startswith("unmodeled EVM IR instruction: "):
                 raise evm_region.UnmodeledInstruction(str(error)) from None
-            if (
-                stack_height is None
-                or str(error) != "cyclic EVM regions require loop invariants"
+            if stack_height is None and str(error) in {
+                "region entry stack cannot execute its instructions",
+                "region branch lacks its condition",
+                "region CALLDATALOAD lacks its offset",
+                "region output lacks offset and size",
+            }:
+                try:
+                    executable = replay_executable or native.default(solar)
+                    model = correspondence.export(
+                        projection, region, evm_version or "cancun", executable, timeout
+                    )
+                    catalog = {
+                        row["name"]: row
+                        for row in native.catalog(executable, timeout)["evmir"]
+                    }
+                    demand, peak = correspondence.stack_bounds(
+                        model["nodes"], model["entry"], catalog
+                    )
+                    if demand + peak > evm_region.PROOF_STACK_LIMIT:
+                        raise
+                    program = evm_region.translate(
+                        projection, region, None, demand=demand
+                    )
+                except Unsupported:
+                    raise error from None
+            elif (
+                stack_height is not None
+                and str(error) == "cyclic EVM regions require loop invariants"
             ):
+                program = evm_region.cyclic(projection, region, stack_height)
+            else:
                 raise
-            program = evm_region.cyclic(projection, region, stack_height)
         program.evm_version = evm_version or "cancun"
         # The source witness belongs to the compiler parse, not to a field an
         # importer can accidentally replace along with its generated tree.
@@ -621,11 +648,74 @@ def check(
         )
 
 
+def check_mir_lowering(paths, solar, replay, version, timeout, function, verbose):
+    from . import (
+        dead_arguments,
+        lower_arithmetic,
+        lower_checks,
+        lower_immutables,
+        lower_integers,
+        lower_mapping_slots,
+        lower_memory_objects,
+        lower_memory_zero,
+        lower_slices,
+        merge_aborts,
+        mir_schedule,
+        width_guards,
+    )
+
+    for validate in (
+        dead_arguments.check,
+        mir_schedule.check,
+        merge_aborts.check,
+        lower_integers.check,
+        lower_immutables.check,
+        lower_mapping_slots.check,
+        lower_arithmetic.check,
+        lower_checks.check,
+        lower_slices.check,
+        lower_memory_zero.check,
+        lower_memory_objects.check,
+    ):
+        result = validate(
+            paths, solar, replay, version, timeout, function, verbose=verbose
+        )
+        if result is not None:
+            return result
+    if width_guards.matches(paths, function):
+        from . import mir_cfg
+
+        try:
+            return mir_cfg.check(
+                paths, solar, replay, version, timeout, function, width_checks=True
+            )
+        except Unsupported as error:
+            if verbose:
+                print(f"MIR width guards: {error}", file=sys.stderr)
+    return None
+
+
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == "transaction":
+        from . import transaction
+
+        return transaction.main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "heap-entry":
+        from . import heap_entry
+
+        return heap_entry.main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "call-budget":
         from . import call_budget
 
         return call_budget.main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "encoded-table":
+        from . import encoded_table
+
+        return encoded_table.main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "indexed-tables":
+        from . import indexed_tables
+
+        return indexed_tables.main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "summarize":
         return audit.summarize(sys.argv[2:])
     parser = argparse.ArgumentParser(
@@ -666,9 +756,32 @@ def main() -> int:
     parser.add_argument(
         "--report", type=Path, help="write a versioned JSON audit record"
     )
+    parser.add_argument(
+        "--debug-reverts",
+        action="store_true",
+        help="validate dispatch with compiler-generated Error(string) payloads",
+    )
+    parser.add_argument(
+        "--interaction-trace",
+        action="store_true",
+        help="compare MIR function or EVM region requests under shared responses",
+    )
+    parser.add_argument(
+        "--entry-stack",
+        action="store_true",
+        help="derive a region's stack bound from both physical entries",
+    )
+    parser.add_argument(
+        "--valid-heap",
+        action="store_true",
+        help="admit an initialized free-memory pointer at the relevant logical MIR entries",
+    )
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument(
         "--function", help="check one function in the full MIR module"
+    )
+    selection.add_argument(
+        "--storage-loop", help="check a supported MIR storage search-to-shift region"
     )
     selection.add_argument(
         "--window", help="check one complete EVM block by stable label"
@@ -677,12 +790,43 @@ def main() -> int:
         "--region", help="check a complete acyclic EVM CFG from a stable entry label"
     )
     selection.add_argument(
+        "--entry-trace",
+        action="store_true",
+        help="check EVM layout or compact PUSH recipes from physical entry",
+    )
+    selection.add_argument(
         "--prefix", help="prove a block prefix for every incoming stack"
+    )
+    selection.add_argument(
+        "--funded-call",
+        help="check a block through a zero-value CALL return under a stable child policy",
+    )
+    selection.add_argument(
+        "--stack-schedule", help="check an unpriced EVM stack schedule by block label"
+    )
+    selection.add_argument(
+        "--return-path",
+        metavar="SELECTOR",
+        help="check a relocated EVM ABI return path",
+    )
+    selection.add_argument(
+        "--mint-layout",
+        dest="erc20_layout",
+        action="store_const",
+        const="mint",
+        help="prove gas refinement of the ERC20Mock mint layout",
+    )
+    selection.add_argument(
+        "--burn-layout",
+        dest="erc20_layout",
+        action="store_const",
+        const="burn",
+        help="prove gas refinement of the ERC20Mock burn layout",
     )
     selection.add_argument(
         "--prune",
         action="store_true",
-        help="prove unreachable-function or unused-type erasure in MIR modules",
+        help="prove a structural MIR module change (pruning, phase advance, or empty dispatch)",
     )
     parser.add_argument(
         "--stack-height",
@@ -706,17 +850,33 @@ def main() -> int:
         evm_version=version,
         replay=args.replay,
         function=args.function,
+        storage_loop=args.storage_loop,
         window=args.window,
         region=args.region,
         stack_height=args.stack_height,
         world=args.world,
         prefix=args.prefix,
+        funded_call=args.funded_call,
+        stack_schedule=args.stack_schedule,
+        return_path=args.return_path,
+        erc20_layout=args.erc20_layout,
         prune=args.prune,
+        debug_reverts=args.debug_reverts,
+        interaction_trace=args.interaction_trace,
+        entry_trace=args.entry_trace,
+        entry_stack=args.entry_stack,
+        valid_heap=args.valid_heap,
     )
     programs: list[Program] = []
     model = audit.semantics()
     try:
         gas.validate(args.gas, version or "cancun")
+        if args.debug_reverts and not args.prune:
+            raise Unsupported("--debug-reverts requires --prune")
+        if args.valid_heap and (
+            args.ir != "mir" or not args.function or args.world or args.gas
+        ):
+            raise Unsupported("--valid-heap requires an unpriced MIR function proof")
         solar = shutil.which(args.solar)
         if not solar or args.timeout <= 0:
             raise Unsupported(
@@ -734,14 +894,181 @@ def main() -> int:
             evm_version=version,
             replay=rust_replay,
             function=args.function,
+            storage_loop=args.storage_loop,
             window=args.window,
             region=args.region,
             stack_height=args.stack_height,
             world=args.world,
             prefix=args.prefix,
+            funded_call=args.funded_call,
+            stack_schedule=args.stack_schedule,
+            return_path=args.return_path,
+            erc20_layout=args.erc20_layout,
             prune=args.prune,
+            debug_reverts=args.debug_reverts,
+            interaction_trace=args.interaction_trace,
+            entry_trace=args.entry_trace,
+            entry_stack=args.entry_stack,
+            valid_heap=args.valid_heap,
         )
-        if args.prune:
+        if args.entry_stack and not args.stack_schedule:
+            if (
+                args.ir != "evmir"
+                or not args.region
+                or args.gas is not None
+                or args.world is not None
+                or args.stack_height is not None
+            ):
+                raise Unsupported("--entry-stack requires an unpriced EVM IR region")
+            from . import compact_pushes, continuation_flow
+
+            paths = (args.before, args.after)
+            try:
+                result = compact_pushes.check(
+                    paths,
+                    solar,
+                    rust_replay,
+                    version,
+                    args.timeout,
+                    args.region,
+                    None,
+                    interactions=args.interaction_trace,
+                    bound_from_entry=True,
+                )
+            except compact_pushes.RecipeRejected:
+                raise
+            except Unsupported as error:
+                try:
+                    result = continuation_flow.check_entry(
+                        paths,
+                        solar,
+                        rust_replay,
+                        version,
+                        args.timeout,
+                        region=args.region,
+                        interactions=args.interaction_trace,
+                    )
+                except Unsupported as layout_error:
+                    raise Unsupported(
+                        f"{error}; layout: {layout_error}"
+                    ) from layout_error
+            programs = list(result.pair)
+        elif args.entry_trace:
+            if (
+                args.ir != "evmir"
+                or args.gas is not None
+                or args.world is not None
+                or args.stack_height is not None
+                or args.interaction_trace
+            ):
+                raise Unsupported(
+                    "--entry-trace requires unpriced EVM IR from an empty entry stack"
+                )
+            from . import compact_pushes, continuation_flow
+
+            paths = (args.before, args.after)
+            try:
+                result = compact_pushes.check(
+                    paths,
+                    solar,
+                    rust_replay,
+                    version,
+                    args.timeout,
+                    None,
+                    None,
+                    interactions=True,
+                )
+            except compact_pushes.RecipeRejected:
+                raise
+            except Unsupported as error:
+                try:
+                    result = continuation_flow.check_entry(
+                        paths, solar, rust_replay, version, args.timeout
+                    )
+                except Unsupported as layout_error:
+                    raise Unsupported(
+                        f"{error}; layout: {layout_error}"
+                    ) from layout_error
+            programs = list(result.pair)
+        elif args.interaction_trace and args.ir == "mir":
+            if (
+                not args.function
+                or args.gas is not None
+                or args.world is not None
+                or args.stack_height is not None
+                or args.valid_heap
+            ):
+                raise Unsupported(
+                    "--interaction-trace requires an unpriced MIR function"
+                )
+            from . import mir_effects
+
+            result = mir_effects.check_interactions(
+                (args.before, args.after),
+                solar,
+                rust_replay,
+                version,
+                args.timeout,
+                args.function,
+            )
+            programs = list(result.pair)
+        elif args.interaction_trace:
+            if (
+                args.ir != "evmir"
+                or not args.region
+                or args.gas is not None
+                or args.world is not None
+                or args.stack_height is not None
+            ):
+                raise Unsupported(
+                    "--interaction-trace requires an unpriced EVM IR region with symbolic stack and world"
+                )
+            from . import compact_pushes, peephole, source_identity
+
+            paths = (args.before, args.after)
+            try:
+                result = source_identity.check(
+                    paths,
+                    solar,
+                    rust_replay,
+                    version,
+                    args.timeout,
+                    args.region,
+                    interactions=True,
+                )
+            except Inconclusive:
+                raise
+            except Unsupported as error:
+                try:
+                    result = compact_pushes.check(
+                        paths,
+                        solar,
+                        rust_replay,
+                        version,
+                        args.timeout,
+                        args.region,
+                        None,
+                        interactions=True,
+                    )
+                except compact_pushes.RecipeRejected as retry:
+                    raise retry from None
+                except Unsupported:
+                    try:
+                        result = peephole.check(
+                            paths,
+                            solar,
+                            rust_replay,
+                            version,
+                            args.timeout,
+                            args.region,
+                            paired_observers=True,
+                        )
+                    except Unsupported as retry:
+                        if args.verbose:
+                            print(f"EVM peephole trace: {retry}", file=sys.stderr)
+                        raise error from None
+            programs = list(result.pair)
+        elif args.prune:
             if (
                 args.ir != "mir"
                 or args.world
@@ -759,6 +1086,120 @@ def main() -> int:
                 version,
                 args.timeout,
                 executable=rust_replay,
+                debug_reverts=args.debug_reverts,
+            )
+            programs = list(result.pair)
+        elif args.storage_loop:
+            if (
+                args.ir != "mir"
+                or args.world
+                or args.gas
+                or args.stack_height is not None
+            ):
+                raise Unsupported(
+                    "--storage-loop requires unpriced MIR without a world fixture or stack height"
+                )
+            from . import storage_induction
+
+            result = storage_induction.check(
+                (args.before, args.after),
+                solar,
+                rust_replay,
+                version,
+                args.timeout,
+                args.storage_loop,
+                replay=replay,
+                verbose=args.verbose,
+            )
+            programs = list(result.pair)
+        elif args.erc20_layout:
+            if (
+                args.ir != "evmir"
+                or not args.world
+                or args.gas not in (None, "refine")
+                or args.stack_height is not None
+            ):
+                raise Unsupported(
+                    f"--{args.erc20_layout}-layout requires EVM IR and a concrete replay world, with gas refinement"
+                )
+            from . import erc20_layout
+
+            result = erc20_layout.check(
+                (args.before, args.after),
+                args.world,
+                solar,
+                rust_replay,
+                version,
+                args.timeout,
+                erc20_layout.ENTRIES[args.erc20_layout],
+            )
+            programs = list(result.pair)
+        elif args.return_path:
+            if (
+                args.ir != "evmir"
+                or not args.world
+                or args.gas
+                or args.stack_height is not None
+            ):
+                raise Unsupported(
+                    "--return-path requires EVM IR and a concrete world without a gas comparison or fixed height"
+                )
+            from . import relocated_return
+
+            result = relocated_return.check(
+                (args.before, args.after),
+                solar,
+                rust_replay,
+                version,
+                args.timeout,
+                args.return_path,
+                args.world,
+                replay,
+            )
+            programs = list(result.pair)
+        elif args.stack_schedule:
+            if args.ir != "evmir" or args.world or args.gas or args.interaction_trace:
+                raise Unsupported("--stack-schedule requires an unpriced EVM IR pair")
+            if args.entry_stack and args.stack_height is not None:
+                raise Unsupported(
+                    "--entry-stack and --stack-height select different stack domains"
+                )
+            from . import evm_schedule
+
+            inputs = (
+                (args.before, args.after),
+                solar,
+                rust_replay,
+                version,
+                args.timeout,
+                args.stack_schedule,
+                args.stack_height,
+            )
+            try:
+                result = evm_schedule.check(*inputs, from_entry=args.entry_stack)
+            except evm_schedule.ScheduleMismatch:
+                if args.entry_stack or args.stack_height is not None:
+                    raise
+                result = evm_schedule.check(*inputs, from_entry=True)
+            programs = list(result.pair)
+        elif args.funded_call:
+            if (
+                args.ir != "evmir"
+                or args.world
+                or args.gas
+                or args.stack_height is not None
+            ):
+                raise Unsupported("--funded-call requires a symbolic EVM IR block")
+            from . import peephole
+
+            result = peephole.check(
+                (args.before, args.after),
+                solar,
+                rust_replay,
+                version,
+                args.timeout,
+                args.funded_call,
+                funded_call=True,
             )
             programs = list(result.pair)
         elif args.prefix:
@@ -775,6 +1216,25 @@ def main() -> int:
                 version,
                 args.gas,
             )
+            programs = list(result.pair)
+        elif (
+            args.ir == "mir"
+            and args.function
+            and args.world is None
+            and args.gas is None
+            and (
+                result := check_mir_lowering(
+                    (args.before, args.after),
+                    solar,
+                    rust_replay,
+                    version,
+                    args.timeout,
+                    args.function,
+                    args.verbose,
+                )
+            )
+            is not None
+        ):
             programs = list(result.pair)
         else:
             try:
@@ -801,24 +1261,71 @@ def main() -> int:
                     and args.region
                     and not args.world
                     and not args.gas
-                    and isinstance(error, evm_region.UnmodeledInstruction)
+                    and (
+                        isinstance(error, evm_region.UnmodeledInstruction)
+                        or str(error)
+                        in {
+                            "region entry stack cannot execute its instructions",
+                            "region label escapes its static transfer",
+                            "region branch lacks its condition",
+                            "cyclic EVM regions require loop invariants",
+                            "region expansion budget exceeded",
+                        }
+                    )
                 ):
-                    from . import source_identity
+                    from . import outline, source_identity
 
-                    # Identical independently parsed source graphs admit a
-                    # separate structural proof. Never replace a failed import
-                    # certificate or an actual counterexample with this route.
-                    try:
-                        result = source_identity.check(
-                            (args.before, args.after),
-                            solar,
-                            rust_replay,
-                            version,
-                            args.timeout,
-                            args.region,
-                        )
-                    except Unsupported:
-                        raise error from None
+                    result = None
+                    if (
+                        args.stack_height is not None
+                        and str(error).removeprefix("unmodeled EVM IR instruction: ")
+                        in evmir.CONTEXT_READS
+                    ):
+                        # A fixed scalar entry lacks these frame inputs. Retry
+                        # with the stronger all-stacks, arbitrary-context proof.
+                        try:
+                            contextual = [
+                                load(
+                                    "evmir",
+                                    path,
+                                    solar,
+                                    args.timeout,
+                                    evm_version=version,
+                                    region=args.region,
+                                    replay_executable=rust_replay,
+                                )
+                                for path in (args.before, args.after)
+                            ]
+                            result = evm_region.check_universal(
+                                *contextual, args.timeout
+                            )
+                        except Unsupported:
+                            pass
+                    if result is None and args.stack_height is None:
+                        try:
+                            result = outline.check(
+                                (args.before, args.after),
+                                solar,
+                                rust_replay,
+                                version,
+                                args.timeout,
+                                args.region,
+                            )
+                        except Unsupported:
+                            pass
+                    if result is None:
+                        # Equal resolved graphs still admit structural identity.
+                        try:
+                            result = source_identity.check(
+                                (args.before, args.after),
+                                solar,
+                                rust_replay,
+                                version,
+                                args.timeout,
+                                args.region,
+                            )
+                        except Unsupported:
+                            raise error from None
                     programs = list(result.pair)
                 elif (
                     args.ir == "mir"
@@ -828,19 +1335,54 @@ def main() -> int:
                     and str(error)
                     in {
                         "symbolic MIR cycles require an invariant",
+                        "recursive symbolic MIR calls require an invariant",
                         "MIR source: GAS requires an isolated opcode window",
                     }
                 ):
-                    from . import builtin_lowering, coalesce, dead_ssa
+                    from . import (
+                        abi_effects,
+                        abi_encode,
+                        bounded_fill,
+                        builtin_lowering,
+                        coalesce,
+                        dead_ssa,
+                        induction,
+                        lower_alloc,
+                        memory_induction,
+                        mir_cfg,
+                    )
 
                     validators = (
-                        (coalesce, dead_ssa, builtin_lowering)
+                        (
+                            coalesce.check,
+                            dead_ssa.check,
+                            mir_cfg.check,
+                            abi_encode.check,
+                            abi_effects.check,
+                            partial(
+                                induction.check, replay=replay, verbose=args.verbose
+                            ),
+                            partial(
+                                memory_induction.check,
+                                replay=replay,
+                                verbose=args.verbose,
+                            ),
+                            partial(
+                                bounded_fill.check, replay=replay, verbose=args.verbose
+                            ),
+                            builtin_lowering.check,
+                        )
                         if str(error) == "symbolic MIR cycles require an invariant"
-                        else (builtin_lowering,)
+                        else (
+                            abi_encode.check,
+                            abi_effects.check,
+                            mir_cfg.check,
+                            builtin_lowering.check,
+                        )
                     )
-                    for validator in validators:
+                    for validate in (*validators, lower_alloc.check):
                         try:
-                            result = validator.check(
+                            result = validate(
                                 (args.before, args.after),
                                 solar,
                                 rust_replay,
@@ -848,9 +1390,15 @@ def main() -> int:
                                 args.timeout,
                                 args.function,
                             )
-                        except Unsupported:
+                        except Unsupported as retry:
+                            if args.verbose and validate in (
+                                abi_effects.check,
+                                abi_encode.check,
+                            ):
+                                print(f"ABI contextual proof: {retry}", file=sys.stderr)
                             continue
-                        break
+                        if result is not None:
+                            break
                     else:
                         raise error from None
                     programs = list(result.pair)
@@ -864,6 +1412,7 @@ def main() -> int:
                     or str(error)
                     not in {
                         "unmodeled EVM IR instruction: caller",
+                        "unmodeled EVM IR instruction: callvalue",
                         "unmodeled EVM IR instruction: calldataload",
                         "unmodeled EVM IR instruction: gas",
                         "unmodeled EVM IR instruction: staticcall",
@@ -893,6 +1442,173 @@ def main() -> int:
                     verbose=args.verbose,
                 )
     except (Unsupported, OSError, subprocess.TimeoutExpired) as error:
+        fallback = None
+        entry = (
+            args.region
+            or args.prefix
+            or (args.window if args.stack_height is not None else None)
+        )
+        if (
+            isinstance(error, Unsupported)
+            and not isinstance(error, Inconclusive)
+            and args.ir == "evmir"
+            and not args.interaction_trace
+            and entry
+            and args.world is None
+            and args.gas is None
+        ):
+            from . import compact_pushes, peephole
+
+            try:
+                fallback = compact_pushes.check(
+                    (args.before, args.after),
+                    solar,
+                    rust_replay,
+                    version,
+                    args.timeout,
+                    entry,
+                    args.stack_height,
+                )
+            except (
+                compact_pushes.RecipeRejected,
+                subprocess.TimeoutExpired,
+                OSError,
+            ) as retry:
+                error = retry
+            except Unsupported:
+                pass
+            if fallback is None:
+                try:
+                    fallback = peephole.check(
+                        (args.before, args.after),
+                        solar,
+                        rust_replay,
+                        version,
+                        args.timeout,
+                        entry,
+                        preserve_stack_faults=args.prefix is not None,
+                    )
+                except peephole.UnpairedContinuation as retry:
+                    error = retry
+                except (Unsupported, OSError, subprocess.TimeoutExpired) as retry:
+                    if args.verbose:
+                        print(f"EVM peephole proof: {retry}", file=sys.stderr)
+        elif (
+            isinstance(error, subprocess.TimeoutExpired)
+            and args.ir == "mir"
+            and args.function
+            and not programs
+            and args.world is None
+            and args.gas is None
+            and not args.valid_heap
+            and not args.interaction_trace
+        ):
+            # A timeout while importing either symbolic body leaves no pair
+            # for the fallback below. Typed CFG import is independent of it.
+            from . import mir_cfg
+
+            paths = (args.before, args.after)
+            try:
+                if mir_cfg.changed_control(paths, args.function):
+                    fallback = mir_cfg.check(
+                        paths, solar, rust_replay, version, args.timeout, args.function
+                    )
+            except (Unsupported, OSError, subprocess.TimeoutExpired) as retry:
+                if args.verbose:
+                    print(
+                        f"MIR CFG proof after import timeout: {retry}", file=sys.stderr
+                    )
+        elif (
+            isinstance(error, (Unsupported, subprocess.TimeoutExpired))
+            and not isinstance(error, Inconclusive)
+            and args.ir == "mir"
+            and args.function
+            and args.world is None
+            and args.gas is None
+            and (args.valid_heap or len(programs) == 2)
+        ):
+            # A failed direct proof can still admit an action-by-action
+            # certificate without duplicating the unfolding of shared tails.
+            from . import abi_effects, abi_encode, lower_abi, lower_alloc, mir_cfg
+
+            if (
+                isinstance(error, Unsupported)
+                and len(programs) == 2
+                and programs[0].interface != programs[1].interface
+            ):
+                try:
+                    fallback = lower_abi.check(
+                        programs, args.function, rust_replay, version, args.timeout
+                    )
+                except (Unsupported, OSError, subprocess.TimeoutExpired) as retry:
+                    error = retry
+            if fallback is None:
+                for validate in (abi_encode.check, abi_effects.check):
+                    try:
+                        fallback = validate(
+                            (args.before, args.after),
+                            solar,
+                            rust_replay,
+                            version,
+                            args.timeout,
+                            args.function,
+                        )
+                    except Unsupported:
+                        continue
+                    except (OSError, subprocess.TimeoutExpired) as retry:
+                        error = retry
+                    else:
+                        break
+
+            if fallback is None:
+                fallback = lower_alloc.check(
+                    (args.before, args.after),
+                    solar,
+                    rust_replay,
+                    version,
+                    args.timeout,
+                    args.function,
+                    verbose=args.verbose,
+                )
+
+            if fallback is None and (
+                args.valid_heap
+                or all(program.symbolic_mir is not None for program in programs)
+            ):
+                try:
+                    fallback = mir_cfg.check(
+                        (args.before, args.after),
+                        solar,
+                        rust_replay,
+                        version,
+                        args.timeout,
+                        args.function,
+                        valid_heap=args.valid_heap,
+                    )
+                except (Unsupported, OSError, subprocess.TimeoutExpired) as retry:
+                    if args.verbose:
+                        print(f"MIR CFG proof: {retry}", file=sys.stderr)
+                    if isinstance(retry, Unsupported) and not args.valid_heap:
+                        try:
+                            fallback = mir_cfg.check(
+                                (args.before, args.after),
+                                solar,
+                                rust_replay,
+                                version,
+                                args.timeout,
+                                args.function,
+                                specialize=True,
+                            )
+                        except (
+                            Unsupported,
+                            OSError,
+                            subprocess.TimeoutExpired,
+                        ) as specialization:
+                            if args.verbose:
+                                print(
+                                    f"MIR private specialization: {specialization}",
+                                    file=sys.stderr,
+                                )
         status = (
             "timeout"
             if isinstance(error, subprocess.TimeoutExpired)
@@ -902,7 +1618,7 @@ def main() -> int:
             if isinstance(error, Unsupported)
             else "error"
         )
-        result = audit.Result(
+        result = fallback or audit.Result(
             status,
             stderr=report.inconclusive(error, replay, verbose=args.verbose),
             program=programs[0] if len(programs) == 2 else None,
@@ -929,7 +1645,32 @@ def main() -> int:
             after=args.after,
             model=model,
         )
-        if args.function or args.window or args.region or args.prefix:
+        if args.storage_loop:
+            record["whole_pass"] = False
+            record["region"] = {
+                **record.get("region", {}),
+                "kind": "loop-region",
+                "name": args.storage_loop,
+            }
+        if args.stack_schedule:
+            record["whole_pass"] = False
+            record["region"] = {
+                "kind": "window",
+                "name": args.stack_schedule,
+                "stack_height": args.stack_height,
+                **(
+                    {"proof": "kernel-checked-stack-schedule"}
+                    if result.status == "verified"
+                    else {}
+                ),
+            }
+        if (
+            args.function
+            or args.window
+            or args.region
+            or args.prefix
+            or args.funded_call
+        ):
             record["region"] = {
                 **record.get("region", {}),
                 "kind": "function"
@@ -937,7 +1678,11 @@ def main() -> int:
                 else "region"
                 if args.region
                 else "window",
-                "name": args.function or args.window or args.region or args.prefix,
+                "name": args.function
+                or args.window
+                or args.region
+                or args.prefix
+                or args.funded_call,
                 "stack_height": args.stack_height,
             }
             record["whole_pass"] = False
@@ -950,13 +1695,16 @@ def main() -> int:
                     "effectful-prefix",
                     "shared-prefix-suffix",
                     "interior-window",
+                    "stack-terminal-stop",
                 }
             ):
                 shared = result.program and result.program.import_evidence.get(
                     "shared_prologue_operations"
                 )
                 record["region"]["proof"] = (
-                    "universal-post-precompile-suffix"
+                    "kernel-checked-terminal-pop-deletion"
+                    if result.program and result.program.scope == "stack-terminal-stop"
+                    else "universal-post-precompile-suffix"
                     if result.program and result.program.scope == "shared-prefix-suffix"
                     else "universal-branching-effect-prefix"
                     if result.program
@@ -972,6 +1720,10 @@ def main() -> int:
                 )
                 if args.stack_height is not None:
                     record["region"]["requested_stack_height"] = args.stack_height
+                record["region"]["stack_height"] = None
+            if result.program and result.program.scope == "peephole-window":
+                record["region"]["kind"] = "window"
+                record["region"]["proof"] = result.program.import_evidence["kind"]
                 record["region"]["stack_height"] = None
             if args.region and len(programs) == 2:
                 record["region"]["blocks_before"] = list(
@@ -992,6 +1744,8 @@ def main() -> int:
                     record["region"]["stack_height"] = None
                     if args.stack_height is not None:
                         record["region"]["requested_stack_height"] = args.stack_height
+                if result.program and result.program.scope == "outlined-prefix":
+                    record["region"]["proof"] = result.program.import_evidence["kind"]
         if args.report:
             audit.write(args.report, record)
     except OSError as error:

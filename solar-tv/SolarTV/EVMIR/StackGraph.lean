@@ -1,4 +1,5 @@
 import SolarTV.EVMIR.SourceGraph
+import SolarTV.EVMIR.ProofTable
 
 /-! Layout simulation with checked stack-height invariants.
 
@@ -6,7 +7,8 @@ Opcode signatures come from the compiler schema. The height is architectural
 state; all other state, including operand values, memory, accounts and resource
 state, is carried by arbitrary shared handlers. Successful opcodes change height
 by their signature. Branches consume one word after checking a temporary label
-slot. Unconditional transfers retain their actual zero/one-slot growth check.
+slot. Unconditional transfers retain their temporary growth checks. Recipe
+projections may also use a guard for more than one temporary slot.
 
 A finite local certificate matches source nodes under a renaming and proves an
 upper height at every reachable node. Different jump checks may match only when
@@ -72,8 +74,9 @@ def compatible (size : Nat) (rename bounds : Nat → Nat) (signatures : Signatur
       | some (inputs,outputs) => inputs ≤ 1024 && outputs ≤ 1024 &&
         (bounds pc < inputs || postHeight (bounds pc) inputs outputs ≤ bounds next)
   | .jump label growth next, some (.jump other extra target) =>
-    label == other && growth ≤ 1 && extra ≤ 1 && target == rename next && next < size &&
-      (growth == extra || bounds pc ≤ 1023) && min (bounds pc) (1024-growth) ≤ bounds next
+    label == other && growth ≤ 1024 && extra ≤ 1024 && target == rename next && next < size &&
+      (growth == extra || bounds pc + max growth extra ≤ 1024) &&
+      min (bounds pc) (1024-growth) ≤ bounds next
   | .branch label yes no, some (.branch other targetYes targetNo) =>
     label == other && targetYes == rename yes && targetNo == rename no &&
       yes < size && no < size &&
@@ -82,15 +85,57 @@ def compatible (size : Nat) (rename bounds : Nat → Nat) (signatures : Signatur
     label == other && instruction == opcode
   | _, _ => false
 
-def Valid (before after : Program) (rename bounds : Nat → Nat) (signatures : Signatures) : Prop :=
+def Valid (before after : Program) (rename bounds : Nat → Nat) (signatures : Signatures)
+    (entryBound : Nat := 1024) : Prop :=
   before.entry < before.nodes.size ∧ rename before.entry = after.entry ∧
-    bounds before.entry = 1024 ∧
+    entryBound ≤ bounds before.entry ∧
     ∀ i : Fin before.nodes.size, bounds i ≤ 1024 ∧
       compatible before.nodes.size rename bounds signatures i before.nodes[i] after.nodes[rename i]? = true
 
-instance : Decidable (Valid before after rename bounds signatures) := by
+instance : Decidable (Valid before after rename bounds signatures entryBound) := by
   unfold Valid
   infer_instance
+
+def checkIndex (before after : ProofTable.View Node) (rename bounds : Nat → Nat)
+    (signatures : Signatures) (i : Nat) : Bool :=
+  match before.get? i with
+  | none => false
+  | some node => bounds i ≤ 1024 &&
+      compatible before.size rename bounds signatures i node (after.get? (rename i))
+
+theorem valid_checked (before after : Program) (rename bounds : Nat → Nat)
+    (signatures : Signatures) (entryBound : Nat)
+    (entry : before.entry < before.nodes.size) (mapped : rename before.entry = after.entry)
+    (height : entryBound ≤ bounds before.entry)
+    (checked : (List.range before.nodes.size).all (checkIndex (ProofTable.ofArray before.nodes)
+      (ProofTable.ofArray after.nodes) rename bounds signatures) = true) :
+    Valid before after rename bounds signatures entryBound := by
+  refine ⟨entry, mapped, height, ?_⟩
+  intro i
+  have part := List.all_eq_true.mp checked i (List.mem_range.mpr i.isLt)
+  simpa [checkIndex, ProofTable.ofArray, Array.getElem?_eq_getElem i.isLt, Bool.and_eq_true] using part
+
+theorem valid_views (before after : Program) (left right : ProofTable.View Node)
+    (rename bounds : Nat → Nat) (signatures : Signatures) (entryBound : Nat)
+    (leftEq : left = ProofTable.ofArray before.nodes)
+    (rightEq : right = ProofTable.ofArray after.nodes)
+    (entry : before.entry < before.nodes.size) (mapped : rename before.entry = after.entry)
+    (height : entryBound ≤ bounds before.entry)
+    (checked : (List.range left.size).all (checkIndex left right rename bounds signatures) = true) :
+    Valid before after rename bounds signatures entryBound := by
+  rw [leftEq, rightEq] at checked
+  exact valid_checked before after rename bounds signatures entryBound entry mapped height checked
+
+theorem valid_rows (before after : Program) (left right : ProofTable.View Node)
+    (rename bounds : Nat → Nat) (signatures : Signatures) (entryBound : Nat)
+    (leftEq : left = ProofTable.ofArray before.nodes)
+    (rightEq : right = ProofTable.ofArray after.nodes)
+    (entry : before.entry < before.nodes.size) (mapped : rename before.entry = after.entry)
+    (height : entryBound ≤ bounds before.entry)
+    (checked : ∀ i < left.size, checkIndex left right rename bounds signatures i = true) :
+    Valid before after rename bounds signatures entryBound :=
+  valid_views before after left right rename bounds signatures entryBound leftEq rightEq
+    entry mapped height (List.all_eq_true.mpr (fun i inside => checked i (List.mem_range.mp inside)))
 
 theorem post_height_bound (height bound inputs outputs : Nat)
     (small : height ≤ bound) (enough : inputs ≤ height)
@@ -100,7 +145,8 @@ theorem post_height_bound (height bound inputs outputs : Nat)
   omega
 
 theorem bounded_simulation (before after : Program) (rename bounds : Nat → Nat)
-    (signatures : Signatures) (valid : Valid before after rename bounds signatures)
+    (signatures : Signatures) {entryBound : Nat}
+    (valid : Valid before after rename bounds signatures entryBound)
     (handlers : Handlers World Observation) (fuel pc : Nat) (state : State World)
     (inside : pc < before.nodes.size) (small : state.height ≤ bounds pc) :
     execute before signatures handlers fuel pc state =
@@ -201,6 +247,6 @@ theorem contextual (before after : Program) (rename bounds : Nat → Nat)
     · simp [execute,full]
     · rw [← valid.2.1]
       exact bounded_simulation before after rename bounds signatures valid handlers _ _ state
-        valid.1 (by rw [valid.2.2.1]; omega)
+        valid.1 (by have entry := valid.2.2.1; omega)
 
 end SolarTV.EVM.StackGraph

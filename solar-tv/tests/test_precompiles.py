@@ -108,15 +108,29 @@ class PrecompileTests(unittest.TestCase):
     def test_nontrivial_signature_is_kernel_checked(self):
         source = """import SolarTV
 open SolarTV SolarTV.Precompiles
+open SolarTV.Precompiles.CurveChunks
 set_option maxRecDepth 16384
 set_option maxHeartbeats 8000000
 set_option exponentiation.threshold 8192
 example : powMod 3 5 7 = 5 := by decide +kernel
-theorem signature_vector : Signatures.recover
-    (be 32 0 ++ be 32 27 ++
+example : powMod 3 5 7 = 5 := calc
+  powFinish 7 (2 + 1) (3,5,1) = powFinish 7 1 (powAdvance 7 2 (3,5,1)) := pow_split 7 2 1 _
+  _ = 5 := rfl
+def signatureInput : List EVM.State.Byte :=
+    be 32 0 ++ be 32 27 ++
      be 32 0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 ++
-     be 32 0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798) =
-    be 32 0x7e5f4552091a69125d5dfcb7b8c2659029395bdf := by decide +kernel
+     be 32 0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798
+def signatureOutput := be 32 0x7e5f4552091a69125d5dfcb7b8c2659029395bdf
+theorem signature_vector : Signatures.recover signatureInput = signatureOutput := by decide +kernel
+def checked : CheckedComputation := ⟨1,signatureInput,.ok (some signatureOutput), by
+  change Except.ok (some (Signatures.recover signatureInput)) = _
+  rw [signature_vector]⟩
+def memo := withChecks [checked]
+example : execute .cancun 1 signatureInput 3000 memo = .ok (.success,signatureOutput,0) := by rfl
+example : execute .cancun 1 signatureInput 2999 memo = .ok (.outOfGas,[],0) := by rfl
+example : execute .cancun 1 [] 3000 memo = .ok (.success,[],0) := by rfl
+example : execute .cancun 4 signatureInput 100 memo = execute .cancun 4 signatureInput 100 := by
+  rfl
 #print axioms signature_vector
 """
         with tempfile.TemporaryDirectory() as directory:

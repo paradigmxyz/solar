@@ -122,7 +122,7 @@ jobs:
         working-directory: solar-tv
         run: lake build
       - name: Evaluate pinned real-contract pass samples
-        run: uv run --locked python solar-tv/evaluate --limit 4 --timeout 10 --output target/tv-evaluation
+        run: uv run --locked python solar-tv/evaluate --limit 24 --timeout 15 --output target/tv-evaluation
       - name: Retain translation-validation evaluation
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -258,6 +258,10 @@ jobs:
             lean-v2-${{ runner.os }}-${{ runner.arch }}-
       - name: Install Lean
         run: bash .github/scripts/install_lean.sh
+      - name: Install Foundry for gas trace tests
+        uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
+        with:
+          version: v1.8.6
       - name: Python checks and tests
         run: bash scripts/check-python.sh
 

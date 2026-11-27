@@ -20,6 +20,7 @@ use std::{
 };
 
 mod evm;
+pub(crate) mod indexed;
 mod mir;
 pub(crate) use evm::EvmSnapshot;
 pub(crate) use mir::MirSnapshot;
@@ -50,14 +51,22 @@ impl<'a> Snapshot<'a> {
         module: impl Display,
         text: impl Display,
         (region, rejection): (Option<&Region>, Option<&str>),
-    ) -> Result {
+    ) -> Result<bool> {
         let after = text.to_string();
         if self.before == after {
-            return Ok(());
+            return Ok(false);
         }
+        let entry = region.is_some_and(|r| r.kind == "entry");
+        let schedule = region.is_some_and(|r| r.kind == "stack-schedule");
+        let rooted_inline = layer == "mir"
+            && pass == "inline"
+            && region.is_none()
+            && rejection == Some("function was removed or its identity changed");
         let gas_policy = (layer == "evmir").then(|| env::var_os("SOLAR_TV_GAS")).flatten();
         let mut context = format!("solar-tv: {layer} pass `{pass}` on `{module}`");
-        if let Some(region) = region {
+        if entry {
+            context.push_str(" at physical entry");
+        } else if let Some(region) = region {
             context.push_str(&format!(" {} `{}`", region.kind, region.name));
         }
         if let Some(policy) = &gas_policy {
@@ -76,8 +85,9 @@ impl<'a> Snapshot<'a> {
                 .emit()
         };
         fs::create_dir_all(self.directory).map_err(io_error)?;
+        let debug_dispatch = pass == "lower-dispatch" && gcx.sess.opts.revert_strings.is_debug();
         if gcx.sess.opts.unstable.solar_tv_capture {
-            let record = serde_json::json!({
+            let mut record = serde_json::json!({
                 "version": 1, "status": "captured", "layer": layer,
                 "pass": pass, "module": module.to_string(), "target": gcx.sess.opts.evm_version.to_string(),
                 "rejection": rejection,
@@ -86,13 +96,16 @@ impl<'a> Snapshot<'a> {
                 })),
                 "whole_pass": false,
             });
-            return self.capture_pair(layer, &after, &record).map_err(io_error);
+            if debug_dispatch {
+                record["debug_reverts"] = true.into();
+            }
+            return self.capture_pair(layer, &after, &record).map(|()| false).map_err(io_error);
         }
         // Capture keeps the original selection and rejection for stable corpus sampling.
         // Universal prefix and terminal-region proofs need no guessed stack height.
-        // Deleted functions require rooted function-table correspondence, and unused type
-        // declarations require a module-level erasure proof. The checker must reject every
-        // other shared declaration or phase edit; no missing body becomes an executable entry.
+        // Deleted functions require rooted function-table correspondence. Unused type
+        // declarations, phase advances, materialized dispatch and the private allocation and
+        // revert helpers have module certificates.
         // Other rejected regions retain their original boundary restrictions.
         let prefix = layer == "evmir"
             && gas_policy.is_none()
@@ -102,12 +115,17 @@ impl<'a> Snapshot<'a> {
             && gas_policy.is_none()
             && region.is_some_and(|r| r.kind == "region")
             && rejection == Some("incoming EVM stack height is unknown");
+        let added_private_helper =
+            matches!(pass, "lower-checks" | "lower-alloc" | "lower-builtins")
+                && rejection == Some("functions were added; interprocedural edits are not modeled");
         let prune = layer == "mir"
-            && matches!(
-                rejection,
-                Some("function was removed or its identity changed")
-                    | Some("shared MIR declarations or phase changed; no function-local claim")
-            );
+            && (added_private_helper
+                || matches!(
+                    rejection,
+                    Some("function was removed or its identity changed")
+                        | Some("shared MIR declarations or phase changed; no function-local claim")
+                        | Some("runtime dispatch was materialized")
+                ));
         let rejection = if prefix || universal_region || prune { None } else { rejection };
         let pair = tempfile::Builder::new()
             .prefix(&format!("{layer}-"))
@@ -132,9 +150,23 @@ impl<'a> Snapshot<'a> {
                     command.arg(layer).arg(before_path).arg(after_path).arg("--solar").arg(solar);
                     command.arg("--report").arg(pair.path().join("result.json"));
                     command.arg("--evm-version").arg(gcx.sess.opts.evm_version.to_string());
-                    if prune {
+                    if entry {
+                        command.arg("--entry-trace");
+                        if matches!(
+                            pass,
+                            "cfg-simplify-early" | "terminal-dedup" | "inline-returns"
+                        ) {
+                            command.args(["--timeout", "120"]);
+                        }
+                    } else if prune {
                         command.arg("--prune");
+                        if debug_dispatch {
+                            command.arg("--debug-reverts");
+                        }
                     } else if let Some(region) = region {
+                        if schedule {
+                            command.args(["--timeout", "120"]);
+                        }
                         command
                             .arg(if prefix {
                                 "--prefix".into()
@@ -222,6 +254,11 @@ impl<'a> Snapshot<'a> {
                 }
             }
         };
+        let inconclusive = matches!(outcome, "unsupported" | "timeout" | "inconclusive");
+        if (entry || rooted_inline || schedule) && inconclusive {
+            // The regional checks will report their own results and retain replay pairs.
+            return Ok(false);
+        }
         let mut record = record.unwrap_or_else(|| serde_json::json!({"version": 1}));
         record["context"] = serde_json::Value::String(context.clone());
         record["layer"] = layer.into();
@@ -231,7 +268,9 @@ impl<'a> Snapshot<'a> {
             record["diagnostic"] = reason.into();
         }
         if let Some(region) = region
+            && !entry
             && !prune
+            && !schedule
         {
             if !record["region"].is_object() {
                 record["region"] = serde_json::json!({});
@@ -246,7 +285,7 @@ impl<'a> Snapshot<'a> {
         if outcome == "verified" {
             archive_record(self.directory, &record).map_err(io_error)?;
             eprintln!("{context}: verified");
-            return Ok(());
+            return Ok(true);
         }
         let path = pair.keep();
         let message = format!("{context}: {outcome}");
@@ -257,9 +296,9 @@ impl<'a> Snapshot<'a> {
         fs::write(path.join("result.json"), json).map_err(io_error)?;
         archive_record(self.directory, &record).map_err(io_error)?;
         let saved = format!("pair and checker output saved in `{}`", path.display());
-        if matches!(outcome, "unsupported" | "timeout" | "inconclusive") {
+        if inconclusive {
             gcx.dcx().warn(message).note(diagnostic).note(saved).emit();
-            Ok(())
+            Ok(false)
         } else {
             Err(gcx.dcx().err(message).note(diagnostic).note(saved).emit())
         }

@@ -283,4 +283,209 @@ def abiEncodeTree (cfg : Config) (frame : Frame) (mode : Nat) (hasBase hasSelect
   | .error .invalid => .ok .invalid
   | .ok (value,state) => .ok (.returned (value,state.frame))
 
+/- Exact staging of selector-bearing, static error payloads. The mode-2 encoder
+   reads the cursor and does not reserve or advance it. -/
+
+private def abiStageWords : Word → List Word → AbiM Unit
+  | _, [] => pure ()
+  | address, word :: words => do
+    abiSpend 1
+    abiStore address word
+    abiStageWords (address + 32) words
+
+private def abiEncodeStatic (cfg : Config) (selector : Word) (words : List Word) : AbiM Value := do
+  let base ← abiInputWord cfg false 64
+  abiStore base selector
+  abiStageWords (base + 4) words
+  return .aggregate [abiScalar base, abiScalar (BitVec.ofNat 256 (4 + 32 * words.length))]
+
+private theorem abiEncodeNode_word (cfg : Config) (rule : AbiRule)
+    (word head tupleBase tail : Word) :
+    abiEncodeNode 33 cfg (.word rule) (.value (.scalar ⟨256,word⟩) false)
+        head tupleBase tail = (do abiSpend 1; abiStore head word; pure tail) := by
+  rfl
+
+private theorem static_total (base size : Word) : base + size - (base + 4#256) + 4#256 = size := by
+  rw [← BitVec.sub_sub, BitVec.sub_add_cancel, BitVec.add_comm base size, BitVec.add_sub_cancel]
+
+private theorem abiEncodeFields_one (cfg : Config) (rule : AbiRule) (selector a : Word) :
+    abiEncodeFields cfg 2 false true [.word rule] [false] [abiScalar selector, abiScalar a] =
+      abiEncodeStatic cfg selector [a] := by
+  simp [abiEncodeFields, abiEncodeStatic, abiStageWords, abiEncodeNode_word, abiWord, abiScalar,
+    Value.word, Scalar.ofWord, AbiEncodeShape.head, AbiEncodeShape.dynamic,
+    AbiEncodeShape.layout, BitVec.add_assoc]
+  apply congrArg (fun (next : Word → AbiM Value) => abiInputWord cfg false 64 >>= next)
+  funext base
+  rw [static_total base 36#256]
+
+private theorem abiEncodeFields_three (cfg : Config) (ra rb rc : AbiRule)
+    (selector a b c : Word) :
+    abiEncodeFields cfg 2 false true [.word ra, .word rb, .word rc] [false, false, false]
+        [abiScalar selector, abiScalar a, abiScalar b, abiScalar c] =
+      abiEncodeStatic cfg selector [a,b,c] := by
+  simp [abiEncodeFields, abiEncodeStatic, abiStageWords, abiEncodeNode_word, abiWord, abiScalar,
+    Value.word, Scalar.ofWord, AbiEncodeShape.head, AbiEncodeShape.dynamic,
+    AbiEncodeShape.layout, BitVec.add_assoc]
+  apply congrArg (fun (next : Word → AbiM Value) => abiInputWord cfg false 64 >>= next)
+  funext base
+  rw [static_total base 100#256]
+
+private theorem abiInputWord_expanded (cfg : Config) (state : AbiState) (active : List Byte)
+    (step : expand state.frame.memory 64 32 = .ok active) :
+    (abiInputWord cfg false 64).run state =
+      .ok (readWord active 64, {state with frame := {state.frame with memory := active}}) := by
+  simp [abiInputWord, abiMemory, StateT.run, Bind.bind, StateT.bind, Except.bind,
+    MonadState.get, getThe, MonadStateOf.get, StateT.get, MonadStateOf.set, StateT.set,
+    Pure.pure, StateT.pure, Except.pure, step]
+
+private theorem abiStore_expanded (state : AbiState) (address word : Word) (active : List Byte)
+    (step : expand state.frame.memory address.toNat 32 = .ok active) :
+    (abiStore address word).run state =
+      .ok ((), {state with frame := {state.frame with
+        memory := writeBytes active address.toNat (wordBytes word)}}) := by
+  simp [abiStore, abiMemory, StateT.run, Bind.bind, StateT.bind, Except.bind,
+    MonadState.get, getThe, MonadStateOf.get, StateT.get, MonadStateOf.set, StateT.set,
+    Pure.pure, StateT.pure, Except.pure, step]
+
+private theorem abiSpend_one (state : AbiState) (positive : 0 < state.work) :
+    (abiSpend 1).run state = .ok ((), {state with work := state.work - 1}) := by
+  simp [abiSpend, StateT.run, Bind.bind, StateT.bind, Except.bind, MonadState.get,
+    getThe, MonadStateOf.get, StateT.get, MonadStateOf.set, StateT.set,
+    Pure.pure, Except.pure, Nat.ne_of_gt positive]
+
+def stageWord (memory : List Byte) (address : Nat) (word : Word) : Except String (List Byte) := do
+  let active ← expand memory address 32
+  return writeBytes active address (wordBytes word)
+
+def stageWords (memory : List Byte) (address : Nat) : List Word → Except String (List Byte)
+  | [] => .ok memory
+  | word :: words => do
+    let memory ← stageWord memory address word
+    stageWords memory (address + 32) words
+
+private theorem abiStore_staged (state : AbiState) (address word : Word) (next : List Byte)
+    (step : stageWord state.frame.memory address.toNat word = .ok next) :
+    (abiStore address word).run state =
+      .ok ((), {state with frame := {state.frame with memory := next}}) := by
+  cases h : expand state.frame.memory address.toNat 32 with
+  | error reason => simp [stageWord, h, Bind.bind, Except.bind] at step
+  | ok active =>
+    simp only [stageWord, Bind.bind, Except.bind, h, Pure.pure, Except.pure, Except.ok.injEq] at step
+    subst next
+    exact abiStore_expanded _ _ _ _ h
+
+private theorem bind_abiRun {α β : Type} (action : AbiM α) (next : α → AbiM β) (state : AbiState) :
+    (StateT.bind action next).run state = (do let (value, state) ← action.run state; (next value).run state) := rfl
+
+private theorem abiStageWords_run (state : AbiState) (address : Word) (words : List Word)
+    (next : List Byte) (work : words.length ≤ state.work)
+    (fits : address.toNat + 32 * words.length < 2^256)
+    (staged : stageWords state.frame.memory address.toNat words = .ok next) :
+    (abiStageWords address words).run state = .ok ((), {state with
+      frame := {state.frame with memory := next}, work := state.work - words.length}) := by
+  induction words generalizing state address with
+  | nil =>
+    simp only [stageWords, Except.ok.injEq] at staged
+    subst next
+    cases state
+    rfl
+  | cons word words ih =>
+    cases step : stageWord state.frame.memory address.toNat word with
+    | error reason => simp [stageWords, Bind.bind, Except.bind, step] at staged
+    | ok updated =>
+      have positive : 0 < state.work := by simp only [List.length_cons] at work; omega
+      let frame := {state.frame with memory := updated}
+      let spent : AbiState := ⟨frame, state.work - 1⟩
+      have advance : (address + 32).toNat = address.toNat + 32 := by
+        rw [BitVec.toNat_add]
+        have within : address.toNat + 32 < 2^256 := by
+          simp only [List.length_cons, Nat.mul_succ] at fits
+          omega
+        exact Nat.mod_eq_of_lt within
+      have fitsTail : (address + 32).toNat + 32 * words.length < 2^256 := by
+        rw [advance]
+        simp only [List.length_cons, Nat.mul_succ] at fits
+        omega
+      have workTail : words.length ≤ spent.work := by simp only [List.length_cons] at work; dsimp [spent]; omega
+      have rest : stageWords spent.frame.memory (address + 32).toNat words = .ok next := by
+        rw [advance]
+        simpa only [stageWords, Bind.bind, Except.bind, step] using staged
+      have store := abiStore_staged {state with work := state.work - 1} address word updated step
+      rw [abiStageWords]
+      dsimp only [Bind.bind]
+      rw [bind_abiRun, abiSpend_one state positive]
+      dsimp only [Bind.bind, Except.bind]
+      rw [bind_abiRun, store]
+      change (abiStageWords (address + 32) words).run spent = _
+      rw [ih spent _ workTail fitsTail rest]
+      have remaining : spent.work - words.length = state.work - (word :: words).length := by
+        simp only [List.length_cons]
+        dsimp [spent]
+        omega
+      cases state
+      simp [spent, frame, remaining]
+
+private theorem abiEncodeStatic_run (cfg : Config) (frame : Frame) (selector : Word)
+    (words : List Word) (active staged final : List Byte)
+    (read : expand frame.memory 64 32 = .ok active)
+    (written : stageWord active (readWord active 64).toNat selector = .ok staged)
+    (rest : stageWords staged ((readWord active 64).toNat + 4) words = .ok final)
+    (work : words.length ≤ 2048)
+    (fits : (readWord active 64).toNat + 4 + 32 * words.length < 2^256) :
+    (abiEncodeStatic cfg selector words).run ⟨frame,2048⟩ =
+      .ok (.aggregate [abiScalar (readWord active 64), abiScalar (BitVec.ofNat 256 (4 + 32 * words.length))],
+        ⟨{frame with memory := final},2048 - words.length⟩) := by
+  let base := readWord active 64
+  have advance : (base + 4).toNat = base.toNat + 4 := by
+    rw [BitVec.toNat_add]
+    exact Nat.mod_eq_of_lt (by change (readWord active 64).toNat + 4 < 2^256; omega)
+  have done := abiStageWords_run ⟨{frame with memory := staged},2048⟩
+    (base + 4) words final work (by simpa only [advance] using fits) (by simpa only [advance] using rest)
+  rw [abiEncodeStatic]
+  dsimp only [Bind.bind]
+  rw [bind_abiRun, abiInputWord_expanded cfg ⟨frame,2048⟩ active read]
+  dsimp only [Bind.bind, Except.bind]
+  rw [bind_abiRun, abiStore_staged _ _ _ _ written]
+  dsimp only [Bind.bind, Except.bind]
+  rw [bind_abiRun, done]
+  rfl
+
+theorem abiEncodeTree_static_one (cfg : Config) (frame : Frame) (rule : AbiRule)
+    (selector a : Word) (active staged final : List Byte)
+    (read : expand frame.memory 64 32 = .ok active)
+    (written : stageWord active (readWord active 64).toNat selector = .ok staged)
+    (rest : stageWords staged ((readWord active 64).toNat + 4) [a] = .ok final)
+    (fits : (readWord active 64).toNat + 36 ≤ 65536) :
+    abiEncodeTree cfg frame 2 false true [.word rule] [false] [abiScalar selector, abiScalar a] =
+      .ok (.returned (.aggregate [abiScalar (readWord active 64), abiScalar 36],
+        {frame with memory := final})) := by
+  have bound : (readWord active 64).toNat + 4 + 32 * ([a] : List Word).length < 2^256 := by
+    change (readWord active 64).toNat + 36 < 2^256
+    omega
+  have work : ([a] : List Word).length ≤ 2048 := by
+    change 1 ≤ 2048
+    decide
+  unfold abiEncodeTree
+  rw [abiEncodeFields_one, abiEncodeStatic_run _ _ _ _ _ _ _ read written rest work bound]
+  rfl
+
+theorem abiEncodeTree_static_three (cfg : Config) (frame : Frame) (ra rb rc : AbiRule)
+    (selector a b c : Word) (active staged final : List Byte)
+    (read : expand frame.memory 64 32 = .ok active)
+    (written : stageWord active (readWord active 64).toNat selector = .ok staged)
+    (rest : stageWords staged ((readWord active 64).toNat + 4) [a, b, c] = .ok final)
+    (fits : (readWord active 64).toNat + 100 ≤ 65536) :
+    abiEncodeTree cfg frame 2 false true [.word ra, .word rb, .word rc] [false, false, false] [abiScalar selector, abiScalar a, abiScalar b, abiScalar c] =
+      .ok (.returned (.aggregate [abiScalar (readWord active 64), abiScalar 100],
+        {frame with memory := final})) := by
+  have bound : (readWord active 64).toNat + 4 + 32 * ([a, b, c] : List Word).length < 2^256 := by
+    change (readWord active 64).toNat + 100 < 2^256
+    omega
+  have work : ([a, b, c] : List Word).length ≤ 2048 := by
+    change 3 ≤ 2048
+    decide
+  unfold abiEncodeTree
+  rw [abiEncodeFields_three, abiEncodeStatic_run _ _ _ _ _ _ _ read written rest work bound]
+  rfl
+
 end SolarTV.MIR.State

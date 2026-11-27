@@ -214,6 +214,7 @@ class FreshHeapTests(unittest.TestCase):
             self.paths[0],
             "-j1",
             "-Ogas",
+            "--evm-version=osaka",
             "-Zmir-pipeline=lower-alloc,lower-memory-objects,lower-evm-shaped",
             "--emit=bin",
         ]

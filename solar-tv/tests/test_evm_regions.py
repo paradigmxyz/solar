@@ -10,6 +10,10 @@ from pathlib import Path
 
 from test_cli import CLI, ROOT, SOLAR
 
+sys.path.insert(0, str(ROOT))
+from validator import check
+from validator.common import Unsupported
+
 
 class EvmRegionTests(unittest.TestCase):
     def setUp(self):
@@ -216,8 +220,17 @@ bb1:
                 f"bb{root + 2}:\n  jump bb{root + 3}\n"
             )
         body += "bb27:\n  stop\n"
-        result, _ = self.pair(body, body, status=2)
-        self.assertIn("expansion budget exceeded", result.stderr)
+        _, record = self.pair(body, body)
+        self.assertEqual(record["region"]["proof"], "universal-source-graph-identity")
+        with self.assertRaisesRegex(Unsupported, "expansion budget exceeded"):
+            check.load(
+                "evmir",
+                self.folder / "before.evmir",
+                SOLAR,
+                45,
+                region="bb0",
+                stack_height=0,
+            )
 
     @unittest.skipIf(os.name == "nt", "executable checker wrapper uses a shebang")
     def test_region_counterexample_stops_the_pass_hook(self):

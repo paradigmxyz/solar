@@ -11,7 +11,7 @@ from pathlib import Path
 from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
-from validator import mir_effects, mir_symbolic, native
+from validator import merge_aborts, mir_effects, mir_symbolic, native
 from validator.common import Unsupported
 
 
@@ -150,6 +150,104 @@ bb0:
         before = program("v0 = alloc checked 32 !metadata(preserves_fmp)\nret 0")
         self.pair(before, program("ret 0"), succeeds=False)
 
+    def test_mask_removal_requires_a_reached_width_bound(self):
+        guard = "v1 = gt v0, 255"
+        mask = "  v2 = and v0, 255\n"
+        before = program(f"""v0 = calldataload 0
+{guard}
+jumpi v1, bb1, bb2
+bb1:
+  revert 0, 0
+bb2:
+{mask}  mstore 0, v2
+  returndata 0, 32""")
+        after = before.replace(mask, "").replace("mstore 0, v2", "mstore 0, v0")
+        self.pair(before, after)
+        self.pair(before.replace("and v0, 255", "and 255, v0"), after)
+
+        widened = "v1 = gt v0, 256"
+        invalid = [text.replace(guard, widened) for text in (before, after)]
+        self.pair(*invalid, succeeds=False)
+
+        paths = [self.directory / f"{side}.mir" for side in ("before", "after")]
+        for path, text in zip(paths, invalid, strict=True):
+            path.write_text(text)
+        world = self.directory / "world.json"
+        world.write_text(json.dumps({"version": 1, "calldata": f"0x{256:064x}"}))
+        report = self.directory / "report.json"
+        result = subprocess.run(
+            [
+                CLI,
+                "mir",
+                *paths,
+                "--solar",
+                SOLAR,
+                "--function",
+                "f",
+                "--world",
+                world,
+                "--timeout",
+                "20",
+                "--report",
+                report,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=90,
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        record = json.loads(report.read_text())
+        self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+        witness = record["witness"]
+        self.assertEqual(witness["observations"], witness["native_observations"])
+
+    def test_mir_interaction_trace_preserves_the_call_gas_operand(self):
+        before = self.directory / "before.mir"
+        after = self.directory / "after.mir"
+        report = self.directory / "report.json"
+        before.write_text(
+            program(
+                "v0 = gas\nv1 = add v0, 0\nv2 = staticcall v1, 4, 0, 0, 0, 0\nret 0"
+            )
+        )
+        equivalent = program("v0 = gas\nv2 = staticcall v0, 4, 0, 0, 0, 0\nret 0")
+        changed = before.read_text().replace("add v0, 0", "add v0, 1")
+        command = [
+            CLI,
+            "mir",
+            before,
+            after,
+            "--solar",
+            SOLAR,
+            "--function",
+            "f",
+            "--interaction-trace",
+            "--timeout",
+            "20",
+            "--report",
+            report,
+        ]
+        for text, status in ((equivalent, 0), (changed, 2)):
+            after.write_text(text)
+            result = subprocess.run(
+                command, capture_output=True, text=True, check=False, timeout=90
+            )
+            self.assertEqual(result.returncode, status, result.stdout + result.stderr)
+            if status == 0:
+                record = json.loads(report.read_text())
+                self.assertEqual(record["gas_policy"], "unpriced-shared-interactions")
+                self.assertNotIn("sufficient gas", record["assumptions"])
+                self.assertEqual(
+                    record["region"],
+                    {
+                        "kind": "function",
+                        "name": "f",
+                        "proof": "kernel-checked-mir-interaction-effects",
+                        "stack_height": None,
+                    },
+                )
+
     def test_unmodeled_callee_instructions_and_excess_expansion_are_rejected(self):
         definitions = {
             row["name"]: row for row in native.catalog(self.replay, 20)["evmir"]
@@ -162,6 +260,261 @@ bb0:
         model = self.model(program("icall @empty\n" * 100 + "ret 0", helper))
         with self.assertRaisesRegex(Unsupported, "expansion exceeds nesting 128"):
             mir_effects.render(model.symbolic_mir["model"], definitions)
+
+    def test_schedule_reorders_immutable_reads_and_preserves_stores(self):
+        before, after, report, fixture = (
+            self.directory / name
+            for name in ("before.mir", "after.mir", "report.json", "world.json")
+        )
+        reads = "v0 = calldataload 0\nv1 = calldataload 32\n"
+        stores = "sstore 0, v0\nsstore 0, v1\n"
+        before.write_text(program(reads + stores + "ret v1"))
+        after.write_text(
+            program("v1 = calldataload 32\nv0 = calldataload 0\n" + stores + "ret v1")
+        )
+        args = [
+            CLI,
+            "mir",
+            before,
+            after,
+            "--solar",
+            SOLAR,
+            "--function",
+            "f",
+            "--timeout",
+            "20",
+            "--report",
+            report,
+        ]
+        result = subprocess.run(
+            args, capture_output=True, text=True, check=False, timeout=90
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        record = json.loads(report.read_text())
+        self.assertEqual(record["region"]["proof"], "kernel-checked-mir-schedule")
+        self.assertEqual(record["gas_policy"], "unpriced-shared-interactions")
+
+        after.write_text(program(reads + "sstore 0, v1\nsstore 0, v0\nret v1"))
+        fixture.write_text(
+            json.dumps({"version": 1, "calldata": f"0x{3:064x}{7:064x}"})
+        )
+        result = subprocess.run(
+            [*args, "--world", fixture],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=90,
+        )
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        record = json.loads(report.read_text())
+        self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+        self.assertEqual(
+            record["witness"]["observations"], record["witness"]["native_observations"]
+        )
+
+    def test_merge_requires_every_original_rejection(self):
+        before, after, report, fixture = (
+            self.directory / name
+            for name in ("before.mir", "after.mir", "report.json", "world.json")
+        )
+        source = """@module MergedGuards
+fn @f() {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb2, bb1
+  bb1:
+    v2 = calldatasize
+    v3 = lt v2, 32
+    jumpi v3, bb2, bb3
+  bb2:
+    revert 0, 0
+  bb3:
+    stop
+}
+"""
+        merged = source.replace("jumpi v1, bb2, bb1", "jump bb1").replace(
+            "jumpi v3, bb2, bb3",
+            "v4 = zext i1 v3 to i256\n    v5 = or v0, v4\n    v6 = ne v5, 0\n    jumpi v6, bb2, bb3",
+        )
+        before.write_text(source)
+        after.write_text(merged)
+        result = merge_aborts.check(
+            (before, after), SOLAR, self.replay, "cancun", 20, "f"
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(
+            result.program.import_evidence["kind"], "kernel-checked-mir-abort-merge"
+        )
+
+        after.write_text(merged.replace("or v0, v4", "and v0, v4"))
+        self.assertIsNone(
+            merge_aborts.check((before, after), SOLAR, self.replay, "cancun", 20, "f")
+        )
+        fixture.write_text('{"version":1,"calldata":"0x"}')
+        result = subprocess.run(
+            [
+                CLI,
+                "mir",
+                before,
+                after,
+                "--solar",
+                SOLAR,
+                "--function",
+                "f",
+                "--timeout",
+                "20",
+                "--world",
+                fixture,
+                "--report",
+                report,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=90,
+        )
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        record = json.loads(report.read_text())
+        self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+        self.assertEqual(
+            record["witness"]["observations"], record["witness"]["native_observations"]
+        )
+
+    def test_schedule_checks_permuted_storage_reads_with_symbolic_memory(self):
+        before, after, report = (
+            self.directory / name for name in ("before.mir", "after.mir", "report.json")
+        )
+        source = """@module ReadSlots
+fn @slots() {
+  bb0:
+    v0 = sload 1
+    v1 = sload 2
+    mstore 0, v0
+    mstore 32, v1
+    returndata 0, 64
+}
+"""
+        before.write_text(source)
+        after.write_text(
+            source.replace(
+                "v0 = sload 1\n    v1 = sload 2", "v1 = sload 2\n    v0 = sload 1"
+            )
+        )
+        result = subprocess.run(
+            [
+                CLI,
+                "mir",
+                before,
+                after,
+                "--solar",
+                SOLAR,
+                "--function",
+                "slots",
+                "--timeout",
+                "20",
+                "--report",
+                report,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=90,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        record = json.loads(report.read_text())
+        self.assertEqual(
+            record["region"]["proof"], "kernel-checked-mir-storage-schedule"
+        )
+
+    def test_interaction_trace_uses_width_facts_after_effects(self):
+        before, after = (self.directory / name for name in ("before.mir", "after.mir"))
+        before.write_text(
+            program("""v0 = calldataload 4
+mstore 0, v0
+v1 = gt v0, 1
+jumpi v1, bb1, bb2
+bb1:
+revert 0, 0
+bb2:
+v2 = ne v0, 0
+v3 = zext i1 v2 to i256
+sstore 0, v3
+v4 = gas
+ret v4""")
+        )
+        lowered = before.read_text().replace(
+            "v2 = ne v0, 0\nv3 = zext i1 v2 to i256\nsstore 0, v3", "sstore 0, v0"
+        )
+        after.write_text(lowered)
+        args = ([before, after], SOLAR, self.replay, "cancun", 20, "f")
+        self.assertEqual(mir_effects.check_interactions(*args).status, "verified")
+
+        before.write_text(before.read_text().replace("gt v0, 1", "gt v0, 2"))
+        after.write_text(lowered.replace("gt v0, 1", "gt v0, 2"))
+        with self.assertRaises(Unsupported):
+            mir_effects.check_interactions(*args)
+
+    def test_interaction_trace_checks_retained_callee_bodies(self):
+        before, after, report = (
+            self.directory / name for name in ("before.mir", "after.mir", "check.json")
+        )
+        helper = """fn @write(arg0: i256) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v1]
+    v2 = ne v0, 0
+    jumpi v2, bb2, bb3
+  bb2:
+    sstore v0, 1
+    v1 = sub v0, 1
+    jump bb1
+  bb3:
+    ret
+}
+"""
+        caller = "icall @write, 2\nv0 = gas\n"
+        before.write_text(program(caller + "v1 = add v0, 0\nret v1", helper))
+        equivalent = program(caller + "ret v0", helper)
+        command = [
+            CLI,
+            "mir",
+            before,
+            after,
+            "--solar",
+            SOLAR,
+            "--function",
+            "f",
+            "--interaction-trace",
+            "--timeout",
+            "20",
+            "--report",
+            report,
+        ]
+        for source, status in (
+            (equivalent, 0),
+            (equivalent.replace("sstore v0, 1", "sstore v0, 2"), 2),
+        ):
+            after.write_text(source)
+            result = subprocess.run(
+                command, capture_output=True, text=True, check=False, timeout=90
+            )
+            self.assertEqual(result.returncode, status, result.stdout + result.stderr)
+            record = json.loads(report.read_text())
+            if status == 0:
+                self.assertEqual(record["gas_policy"], "unpriced-shared-interactions")
+                self.assertEqual(
+                    [
+                        side["retained_closed_callees"]
+                        for side in record["import_correspondence"]
+                    ],
+                    [[1], [1]],
+                )
+            else:
+                self.assertIn(
+                    "effect-tree cycles require an invariant", record["diagnostic"]
+                )
 
     def test_live_pass_keeps_output(self):
         audit = self.directory / "audit"

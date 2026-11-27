@@ -1,5 +1,7 @@
-//! EVM windows, contextual prefixes and acyclic regions.
+//! EVM entry proofs, windows, contextual prefixes and acyclic regions.
 //!
+//! Unpriced layout and terminal rewrite passes first try a proof from physical entry, including
+//! helper continuations.
 //! This adapter never selects instruction slices. It checks a changed block only when its
 //! identity, shared declarations and entry height survive. Adjacent edits, changed successors
 //! and shared-tail changes use a complete reachable region through terminal outcomes instead.
@@ -33,14 +35,38 @@ impl<'a> EvmSnapshot<'a> {
             text.lines().take_while(|line| !line.starts_with("bb")).collect::<Vec<_>>().join("\n")
         };
         if prefix(&self.snapshot.before) != prefix(&after) {
-            return self.snapshot.check(
+            self.snapshot.check(
                 gcx,
                 "evmir",
                 pass,
                 module.name(),
                 &after,
                 (None, Some("shared EVM declarations changed; region correspondence is unknown")),
-            );
+            )?;
+            return Ok(());
+        }
+        if matches!(
+            pass,
+            "block-layout"
+                | "loop-layout"
+                | "compact-pushes"
+                | "cfg-simplify-early"
+                | "terminal-dedup"
+                | "inline-returns"
+        ) && !gcx.sess.opts.unstable.solar_tv_capture
+            && std::env::var_os("SOLAR_TV_GAS").is_none()
+        {
+            let entry = Region { kind: "entry", name: String::new(), height: None };
+            if self.snapshot.check(
+                gcx,
+                "evmir",
+                pass,
+                module.name(),
+                &after,
+                (Some(&entry), None),
+            )? {
+                return Ok(());
+            }
         }
         let version = gcx.sess.opts.evm_version;
         let old_depths = Verifier::stack_entry_exact_depths(&self.before, version);
@@ -52,6 +78,9 @@ impl<'a> EvmSnapshot<'a> {
             .collect::<BTreeMap<_, _>>();
         let structural =
             self.before.blocks.iter().map(|b| b.label).ne(module.blocks.iter().map(|b| b.label));
+        let schedule = matches!(pass, "stack-reschedule" | "reorder-pushes")
+            && !gcx.sess.opts.unstable.solar_tv_capture
+            && std::env::var_os("SOLAR_TV_GAS").is_none();
         let mut checked = false;
         for (old_id, before) in self.before.blocks.iter_enumerated() {
             let Some(&id) = labels.get(&before.label) else { continue };
@@ -80,6 +109,23 @@ impl<'a> EvmSnapshot<'a> {
                 name: format!("bb{}", before.label),
                 height,
             };
+            if schedule
+                && matches!(rejection, None | Some("incoming EVM stack height is unknown"))
+                && before.metadata.call_effect == module.blocks[id].metadata.call_effect
+            {
+                let scheduled =
+                    Region { kind: "stack-schedule", name: region.name.clone(), height };
+                if self.snapshot.check(
+                    gcx,
+                    "evmir",
+                    pass,
+                    module.name(),
+                    &after,
+                    (Some(&scheduled), None),
+                )? {
+                    continue;
+                }
+            }
             self.snapshot.check(
                 gcx,
                 "evmir",
@@ -90,14 +136,14 @@ impl<'a> EvmSnapshot<'a> {
             )?;
         }
         if structural && !checked {
-            return self.snapshot.check(
+            self.snapshot.check(
                 gcx,
                 "evmir",
                 pass,
                 module.name(),
                 &after,
                 (None, Some("no surviving changed entry for EVM region correspondence")),
-            );
+            )?;
         }
         Ok(())
     }

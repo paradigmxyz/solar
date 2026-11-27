@@ -31,31 +31,56 @@ EFFECTS = {
     "log3",
     "log4",
 }
+COMPOSED_EFFECTS = EFFECTS | {"address", "calldatacopy", "sload", "sstore", "timestamp"}
 
 
-def instructions(lines, catalog, version, labels=None):
+def instructions(
+    lines,
+    catalog,
+    version,
+    labels=None,
+    *,
+    code_tail=False,
+    composed=False,
+    label_pushes=False,
+):
+    admitted = COMPOSED_EFFECTS if composed else EFFECTS
     rendered = []
     required = peak = delta = 0
     index = 0
     while index < len(lines):
         line = lines[index]
+        if line == "size-init-tail" and code_tail:
+            # The recognized PUSH/CODESIZE/SUB sequence uses two scratch
+            # slots and leaves one word. Its matched relocation and charge
+            # are supplied by the bound constructor code context.
+            rendered.extend((".reserve 2", ".effect 256 0 1"))
+            peak = max(peak, delta + 2)
+            delta += 1
+            index += 1
+            continue
         if guard := re.fullmatch(r"push bb(\d+)", line):
             target = int(guard[1])
-            if (
-                labels is None
-                or f"bb{target}" not in labels
-                or index + 1 == len(lines)
-                or lines[index + 1] != "jumpi"
-            ):
+            if labels is None or f"bb{target}" not in labels:
+                raise Unsupported("effectful prefix requires a declared target")
+            if lines[index + 1 : index + 2] == ["jumpi"]:
+                rendered.append(
+                    f".guard {target} (prices {target}).1 (prices {target}).2"
+                )
+                # The temporary label PUSH precedes consumption of the condition.
+                peak = max(peak, delta + 1)
+                required = max(required, 1 - delta)
+                delta -= 1
+                index += 2
+                continue
+            if not label_pushes:
                 raise Unsupported(
                     "effectful prefix requires a paired static conditional target"
                 )
-            rendered.append(f".guard {target} (prices {target}).1 (prices {target}).2")
-            # The temporary label PUSH precedes consumption of the condition.
-            peak = max(peak, delta + 1)
-            required = max(required, 1 - delta)
-            delta -= 1
-            index += 2
+            rendered.append(f".scalar (.push (labelAddress {target}))")
+            delta += 1
+            peak = max(peak, delta)
+            index += 1
             continue
         scalar = prefix.operation(line, catalog, version)
         if scalar is not None:
@@ -64,11 +89,12 @@ def instructions(lines, catalog, version, labels=None):
         else:
             row = catalog.get(line)
             if (
-                line not in EFFECTS
+                line not in admitted
                 or row is None
                 or not row["forks"][version]["available"]
                 or row["observes_code"]
                 or row["observes_gas"]
+                and line != "sstore"
                 or row["sets_returndata"]
                 or row["stack"] is None
             ):
@@ -85,14 +111,23 @@ def instructions(lines, catalog, version, labels=None):
         delta += outputs - inputs
         peak = max(peak, delta)
         index += 1
-    if len(lines) > 64 or required + peak > 32:
+    if not composed and (len(lines) > 64 or required + peak > 32):
         raise Unsupported(
             "effectful prefix exceeds the 64-operation/32-word proof budget"
         )
     return rendered, required, peak
 
 
-def stack_proof(required, peak, extra=""):
+def stack_proof(
+    required,
+    peak,
+    extra="",
+    *,
+    discharger="omega",
+    height=None,
+    bounded=False,
+    max_steps=None,
+):
     definitions = (
         "before, after, EVM.Effects.expand, EVM.Effects.Refines, EVM.stepChecked, "
         "EVM.step, EVM.Effects.guardStack, EVM.Gas.pureCost, Fork.atLeast, Evm.add, BitVec.add_comm, "
@@ -101,36 +136,60 @@ def stack_proof(required, peak, extra=""):
         + ", ".join(f"index{i}" for i in range(16))
         + extra
     )
+    config = (
+        "" if max_steps is None else f"(config := {{{{maxSteps := {max_steps}}}}}) "
+    )
+    solve = f"simp {config}(disch := {discharger}) [{definitions}, {{hypotheses}}]"
 
     def body():
         offset = required + peak
         hypotheses = ", ".join(f"h{i}" for i in range(offset + 1))
+        if bounded:
+            lines = ["try simp only [List.length_cons] at fits"]
+            lines.append("have h0 : ¬1024 < stack.length := by omega")
+            lines += [
+                f"have h{i} : ¬1024 < stack.length + {i} := by omega"
+                for i in range(1, offset + 1)
+            ]
+            return "\n".join([*lines, solve.format(hypotheses=hypotheses)])
         lines = ["by_cases huge : stack.length > 1024"]
         lines += ["· have h0 : 1024 < stack.length := by omega"]
         lines += [
             f"  have h{i} : 1024 < stack.length + {i} := by omega"
             for i in range(1, offset + 1)
         ]
-        lines += [f"  simp [{definitions}, {hypotheses}]"]
+        lines += ["  " + solve.format(hypotheses=hypotheses)]
         for i in range(offset):
             lines += [
                 f"by_cases edge{i} : stack.length = {1024 - i}",
-                f"· simp [{definitions}, edge{i}]",
+                "· " + solve.format(hypotheses=f"edge{i}"),
             ]
         lines += [
             f"have h{i} : ¬1024 < stack.length{' + ' + str(i) if i else ''} := by omega"
             for i in range(offset + 1)
         ]
         # Subtraction-based effect arities need lower as well as upper bounds.
-        lines += [f"simp (disch := omega) [{definitions}, {hypotheses}]"]
+        lines += [solve.format(hypotheses=hypotheses)]
         return "\n".join(lines)
 
     def cases(index):
-        if index == required:
+        if height is not None and index == height:
+            return (
+                "have empty : stack = [] := List.eq_nil_of_length_eq_zero (by "
+                "try simp only [List.length_cons] at fits; omega)\n"
+                "subst stack\n" + solve.format(hypotheses="Nat.add_zero")
+            )
+        if height is None and index == required:
             return body()
         return (
             "cases stack with\n"
-            + f"| nil => simp [{definitions}]\n"
+            + "| nil => "
+            + (
+                "simp at fits"
+                if height is not None
+                else solve.format(hypotheses="Nat.add_zero")
+            )
+            + "\n"
             + f"| cons word{index} stack =>\n"
             + "\n".join("  " + line for line in cases(index + 1).splitlines())
         )

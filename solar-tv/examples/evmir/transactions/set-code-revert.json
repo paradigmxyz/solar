@@ -1,0 +1,58 @@
+{
+  "kind": "set_code",
+  "fork": "prague",
+  "sender": "0x0000000000000000000000000000000000010001",
+  "block_gas_limit": 30000000,
+  "base_fee": "0x0",
+  "accounts": [
+    {
+      "address": "0x0000000000000000000000000000000000010000",
+      "nonce": 1,
+      "balance": "0x0",
+      "code": "0x5f5ffd"
+    },
+    {
+      "address": "0x0000000000000000000000000000000000010001",
+      "nonce": 0,
+      "balance": "0xf4240",
+      "code": "0x"
+    },
+    {
+      "address": "0x0000000000000000000000000000000000010002",
+      "nonce": 1,
+      "balance": "0x0",
+      "code": "0x00"
+    },
+    {
+      "address": "0x7e5f4552091a69125d5dfcb7b8c2659029395bdf",
+      "nonce": 0,
+      "balance": "0x1",
+      "code": "0x"
+    }
+  ],
+  "inspect": [
+    "0x0000000000000000000000000000000000010001",
+    "0x7e5f4552091a69125d5dfcb7b8c2659029395bdf"
+  ],
+  "tx": {
+    "chainId": "0x1",
+    "nonce": "0x0",
+    "gas": "0x10000",
+    "maxFeePerGas": "0x0",
+    "maxPriorityFeePerGas": "0x0",
+    "to": "0x0000000000000000000000000000000000010000",
+    "value": "0x0",
+    "input": "0x",
+    "accessList": [],
+    "authorizationList": [
+      {
+        "chainId": "0x1",
+        "address": "0x0000000000000000000000000000000000010002",
+        "nonce": "0x0",
+        "yParity": "0x0",
+        "r": "0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+        "s": "0x53741b143d3f2b884519695294b3d3116a70b85dbbed0a317111d8c6f9c4ae28"
+      }
+    ]
+  }
+}

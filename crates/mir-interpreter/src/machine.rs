@@ -136,6 +136,8 @@ pub(crate) enum Outcome {
     Invalid,
     /// An explicitly priced message boundary exhausted its caller budget.
     OutOfGas,
+    /// A direct replay host requested a snapshot after a storage read.
+    StorageReadCut,
     /// A returndata copy exceeded the available bytes.
     ReturndataOutOfBounds,
     /// Execution exceeded a limit before it ended.
@@ -200,6 +202,12 @@ pub trait Host {
         None
     }
 
+    /// A supplied pre-GAS balance at an exact semantic MIR instruction site.
+    fn gas_before(&mut self, function: &str, block: usize, instruction: usize) -> Option<U256> {
+        let _ = (function, block, instruction);
+        None
+    }
+
     /// The fixed code image containing this window, when supplied explicitly.
     /// This does not authorize executing unknown MIR root code through a child call.
     fn code_image(&mut self) -> Option<Vec<u8>> {
@@ -217,6 +225,22 @@ pub trait Host {
     /// A message host publishes pending writes before child entry, so subsequent reads see
     /// changes committed by that child. Without messages this is the initial value.
     fn storage(&mut self, slot: U256) -> U256;
+
+    /// Observes a completed persistent storage opcode in execution order.
+    /// Reads report the current value, including unpublished writes.
+    fn observe_storage(&mut self, opcode: u8, slot: U256, value: U256) {
+        let _ = (opcode, slot, value);
+    }
+
+    /// Stops direct semantic replay after a completed SLOAD, including its SSA assignment.
+    fn stop_at_storage_read(&mut self) -> bool {
+        false
+    }
+
+    /// Observes a completed explicit whole-word memory store.
+    fn observe_mstore(&mut self, address: U256, word: U256) {
+        let _ = (address, word);
+    }
 
     /// Returns the host's current transient value, overlaid by unpublished writes.
     /// Without messages this is its value when the run starts: zero for a transaction.
@@ -902,6 +926,8 @@ impl<'a> Run<'_, 'a, '_> {
         let Some(semantics) = instruction.kind.semantics() else {
             return ControlFlow::Break(Outcome::Unsupported(mnemonic));
         };
+        let probe_sload =
+            self.semantic.is_some() && matches!(&semantics, Semantics::Opcode("sload", _));
         let frame = self.frames.last().expect("a run always has a frame");
         if self.semantic.is_some() {
             match semantics {
@@ -1035,12 +1061,21 @@ impl<'a> Run<'_, 'a, '_> {
                     return ControlFlow::Continue(());
                 }
                 Semantics::Opcode("gas", _) => {
-                    if !self.gas_window(body, inst) {
-                        return ControlFlow::Break(Outcome::Unsupported(
-                            "GAS requires an isolated opcode window",
-                        ));
-                    }
-                    let budget = self.placement(PlacementRead::GasBefore)?;
+                    let budget =
+                        if self.gas_window(body, inst) {
+                            self.placement(PlacementRead::GasBefore)?
+                        } else {
+                            let function = body.name.to_string();
+                            let (block, instruction) = (frame.block.index(), frame.next - 1);
+                            let Some(budget) = self.world.as_mut().and_then(|world| {
+                                world.host.gas_before(&function, block, instruction)
+                            }) else {
+                                return ControlFlow::Break(Outcome::Unsupported(
+                                    "GAS requires an isolated opcode window",
+                                ));
+                            };
+                            budget
+                        };
                     let price = U256::from(
                         op::definition(op::GAS)
                             .expect("GAS opcode")
@@ -1385,6 +1420,10 @@ impl<'a> Run<'_, 'a, '_> {
             result
         };
         self.frame().values[value] = Some(RuntimeValue::Word(result));
+        if probe_sload && self.world.as_mut().is_some_and(|world| world.host.stop_at_storage_read())
+        {
+            return ControlFlow::Break(Outcome::StorageReadCut);
+        }
         ControlFlow::Continue(())
     }
 
@@ -1447,6 +1486,9 @@ impl<'a> Run<'_, 'a, '_> {
             (op::MLOAD, &[offset]) => Some(limit(self.memory.load(offset))?),
             (op::MSTORE, &[offset, value]) => {
                 limit(self.memory.store(offset, value))?;
+                if let Some(world) = &mut self.world {
+                    world.host.observe_mstore(offset, value);
+                }
                 None
             }
             (op::MSTORE8, &[offset, value]) => {
@@ -1581,10 +1623,12 @@ impl<'a> Run<'_, 'a, '_> {
             (op::SLOAD, &[slot]) => {
                 let original = world.host.storage(slot);
                 let current = world.effects.storage.get(&slot).copied().unwrap_or(original);
+                world.host.observe_storage(opcode, slot, current);
                 Some(current)
             }
             (op::SSTORE, &[slot, value]) => {
                 world.effects.storage.insert(slot, value);
+                world.host.observe_storage(opcode, slot, value);
                 None
             }
             (op::TLOAD, &[slot]) => Some(match world.effects.transient.get(&slot) {

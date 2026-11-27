@@ -14,8 +14,13 @@ import tempfile
 from collections import deque
 from pathlib import Path
 
-from . import audit, regions
+from . import audit, code_relocations, regions
 from .common import Program, Unsupported
+
+
+def immutable_push(instruction):
+    """A fixed-width PUSH filled from a deployment slot, not a literal."""
+    return re.fullmatch(r"push_immutable \d+, (?:[1-9]|[12]\d|3[0-2])", instruction)
 
 
 def signatures(model, catalog):
@@ -25,7 +30,11 @@ def signatures(model, catalog):
         if node["kind"] != "operation":
             continue
         instruction = name = node["operation"]
-        if instruction.startswith("push "):
+        if (
+            instruction.startswith("push ")
+            or immutable_push(instruction)
+            or code_relocations.operation(instruction)
+        ):
             name = "push1"
         elif match := re.fullmatch(r"(dup|swap) (\d+)", instruction):
             name = match[1] + match[2]
@@ -38,7 +47,38 @@ def signatures(model, catalog):
     return table
 
 
-def certificate(before, after, table):
+def lower_bounds(projected, signatures):
+    """Propose a conservative bound for every reachable provenance point."""
+    bounds = [1025] * len(projected["nodes"])
+    entry = projected["entry"]
+    bounds[entry] = 0
+    pending = deque([entry])
+    updates = 0
+    while pending:
+        pc = pending.popleft()
+        floor = bounds[pc]
+        node = projected["nodes"][pc]["node"]
+        match node["kind"]:
+            case "operation":
+                inputs, outputs = signatures[node["operation"]]
+                edges = [(node["next"], max(floor, inputs) - inputs + outputs)]
+            case "jump":
+                edges = [(node["next"], floor)]
+            case "branch":
+                edges = [(node[edge], max(floor, 1) - 1) for edge in ("yes", "no")]
+            case _:
+                edges = []
+        for target, incoming in edges:
+            if incoming < bounds[target]:
+                bounds[target] = incoming
+                pending.append(target)
+                updates += 1
+                if updates > 65536:
+                    raise Unsupported("stack floor analysis exceeds 65536 updates")
+    return bounds
+
+
+def certificate(before, after, table, *, entry_bound=1024):
     def keys(model):
         counts, result = {}, []
         for row in model["nodes"]:
@@ -66,7 +106,7 @@ def certificate(before, after, table):
         if node != target:
             raise Unsupported("layout changed an operation, operand, terminal or edge")
     bounds = [0] * len(old)
-    bounds[before["entry"]] = 1024
+    bounds[before["entry"]] = entry_bound
     pending = deque(range(len(old)))
     updates = 0
     while pending:
@@ -104,11 +144,9 @@ def certificate(before, after, table):
     changed = []
     for row in before["nodes"]:
         node = row["node"]
-        if (
-            node["kind"] == "jump"
-            and node["growth"] != after["nodes"][rename[row["id"]]]["node"]["growth"]
-        ):
-            if bounds[row["id"]] > 1023:
+        target = after["nodes"][rename[row["id"]]]["node"]
+        if node["kind"] == "jump" and node["growth"] != target["growth"]:
+            if bounds[row["id"]] + max(node["growth"], target["growth"]) > 1024:
                 raise Unsupported("changed transfer may overflow the 1024-word stack")
             changed.append({"node": row["id"], "height_bound": bounds[row["id"]]})
     return rename, bounds, changed

@@ -18,10 +18,15 @@ from pathlib import Path
 from . import audit, evmir, native, regions
 from .common import Program, Unsupported
 
-UNFOLD = "EVM.Prefix.run, EVM.stepChecked, EVM.step, Evm.add, BitVec.add_comm"
+UNFOLD = (
+    "EVM.Prefix.run, EVM.stepChecked, EVM.step, Evm.add, BitVec.add_comm, "
+    "EVM.ContextualPeephole.odd_word"
+)
 
 
-def export(text, entry, version, executable, timeout):
+def export(
+    text, entry, version, executable, timeout, *, code_tail=False, immutables=False
+):
     response = subprocess.run(
         [executable, "--evm-model"],
         input=json.dumps(
@@ -31,6 +36,8 @@ def export(text, entry, version, executable, timeout):
                 "entry": int(entry.removeprefix("bb")),
                 "evm_version": version,
                 "window": True,
+                **({"window_code_tail": True} if code_tail else {}),
+                **({"window_immutables": True} if immutables else {}),
             }
         ),
         text=True,
@@ -74,7 +81,7 @@ def operation(line, catalog, version):
     if not definition or not (
         definition["pure"]
         or name.startswith(("push", "dup", "swap"))
-        or name in {"pop", "calldatasize", "returndatasize", "caller", "calldataload"}
+        or name in evmir.CONTEXT_READS | {"pop", "calldatasize", "returndatasize"}
     ):
         return None
     price = definition["forks"][version]
@@ -182,6 +189,14 @@ def check(paths, solar, executable, timeout, entry, version, policy):
     ]
     if headers[0] != headers[1]:
         raise Unsupported("prefix shared declarations changed")
+    if policy is None:
+        from . import stop_tail
+
+        terminal = stop_tail.try_check(
+            texts, models, entry, catalog, version, executable, timeout
+        )
+        if terminal is not None:
+            return terminal
     for model in models:
         for line in model["instructions"]:
             name = line.split()[0]

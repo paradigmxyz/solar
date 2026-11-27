@@ -1,8 +1,8 @@
 //! Function-scoped audits keep the original module as the parser and replay context.
 //!
-//! Match unchanged function identities, then check every changed body independently. Shared
-//! declarations, added/deleted functions and ambiguous names are explicit unsupported checks;
-//! a local proof never claims that an interprocedural or module-wide edit was verified.
+//! Try module certificates for dispatch, declarations and inlining with removed call targets.
+//! Other checks match unchanged function identities and validate changed bodies independently.
+//! A local proof never certifies an interprocedural or module-wide edit.
 
 use super::{Region, Snapshot};
 use solar_interface::Result;
@@ -25,18 +25,52 @@ impl<'a> MirSnapshot<'a> {
         if self.snapshot.before == after {
             return Ok(());
         }
+        if !gcx.sess.opts.unstable.solar_tv_capture
+            && self.before.dispatch_entry().is_none()
+            && module.dispatch_entry().is_some()
+            && module.functions.len() == self.before.functions.len() + 1
+        {
+            self.snapshot.check(
+                gcx,
+                "mir",
+                pass,
+                module.name,
+                &after,
+                (None, Some("runtime dispatch was materialized")),
+            )?;
+            return Ok(());
+        }
         let prefix = |text: &str| {
             text.lines().take_while(|line| !line.starts_with("fn @")).collect::<Vec<_>>().join("\n")
         };
         if prefix(&self.snapshot.before) != prefix(&after) {
-            return self.snapshot.check(
+            self.snapshot.check(
                 gcx,
                 "mir",
                 pass,
                 module.name,
                 &after,
                 (None, Some("shared MIR declarations or phase changed; no function-local claim")),
-            );
+            )?;
+            return Ok(());
+        }
+        if pass == "inline"
+            && !gcx.sess.opts.unstable.solar_tv_capture
+            && self
+                .before
+                .functions
+                .iter()
+                .any(|before| !module.functions.iter().any(|after| before.name == after.name))
+            && self.snapshot.check(
+                gcx,
+                "mir",
+                pass,
+                module.name,
+                &after,
+                (None, Some("function was removed or its identity changed")),
+            )?
+        {
+            return Ok(());
         }
         for (id, before) in self.before.functions.iter_enumerated() {
             let region = Region { kind: "function", name: before.name.to_string(), height: None };

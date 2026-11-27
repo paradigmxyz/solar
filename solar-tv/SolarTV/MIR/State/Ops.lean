@@ -73,6 +73,16 @@ def memoryOperation (cfg : Config) (frame : Frame) (op : MemoryOp) (args : List 
     value {frame with memory} (hash (readBytes memory offset.toNat size.toNat))
   | _,_ => .error "MIR memory operand count"
 
+/-- A semantic immutable write and its constructor staging store are the
+same memory action for the bound placement. -/
+theorem immutable_store_as_memory (cfg : Config) (frame : Frame) (id address : Nat)
+    (word : Word) (fits : address < 2^256)
+    (slot : layoutBinding cfg.layout.immutableSlots id = some address) :
+    layoutOperation cfg frame (.immutableStore id) [word] =
+      memoryOperation cfg frame .store [BitVec.ofNat 256 address,word] := by
+  simp [layoutOperation, memoryOperation, required, slot, Bind.bind, Except.bind,
+    Pure.pure, Except.pure, effect, BitVec.toNat_ofNat, Nat.mod_eq_of_lt fits, wordBytes]
+
 def storageOperation (cfg : Config) (frame : Frame) (transient write : Bool) (args : List Word) : Step := do
   let owner := cfg.environment.address
   let old := account frame.world owner

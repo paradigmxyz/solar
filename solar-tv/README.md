@@ -141,14 +141,7 @@ and require matching native replay. A concrete scenario that verifies never
 replaces the arbitrary-state proof. Erased pointer/layout preconditions and
 unproved pointer witnesses remain unsupported.
 
-### Compositional MIR effects
-
-Large scalar functions can instead prove equality of their effect trees. Every
-memory, storage, environment and log operation remains an ordered request with
-its opcode and operands. Results are universally quantified. The contextual
-theorem in [MIR/Effects.lean](SolarTV/MIR/Effects.lean) preserves every stateful
-interpretation, including aliasing and early failure; it assumes neither empty
-memory nor successful storage writes.
+### MIR width guards
 
 ```sh
 solar-tv/solar-tv mir \
@@ -161,9 +154,25 @@ solar-tv/solar-tv mir \
 ```
 
 This real `spell-width-tests` pair retains the complete WETH `transferFrom`
-body. Its audit says `compositional-effect-tree`, distinct from
-`universal-caller-state`. The Rust parser/schema export and effect-tree renderer
-remain trusted; this route has no full-state interpreter correspondence proof.
+body. Lean checks the exact typed branch equations, including comparisons at
+power-of-two bounds, shifts tested against zero, and guards combined with OR.
+The typed control-flow proof relates the live state and effects on the
+corresponding edges, including internal callees where present. The audit
+records `width_guards` in the `kernel-checked-typed-jump-chain` proof.
+The compiler structural export and attachment of the guard equations to
+their producer operands remain trusted. This proof uses the unpriced MIR
+effect model. The modified shift in the second command loses the proof and
+produces a counterexample that the independent Rust interpreter confirms.
+
+### Compositional MIR effects
+
+Large scalar functions can instead prove equality of their effect trees. Every
+memory, storage, environment and log operation remains an ordered request with
+its opcode and operands. Results are universally quantified. The contextual
+theorem in [MIR/Effects.lean](SolarTV/MIR/Effects.lean) preserves every stateful
+interpretation, including aliasing and early failure, for arbitrary initial
+memory and storage. The Rust parser/schema export and effect-tree renderer
+remain trusted. The audit labels this route `compositional-effect-tree`.
 Supplied acyclic internal callees also expand into the tree, with private
 arguments/locals and shared effect state. A normal return resumes its caller;
 STOP, raw RETURN, revert and exception end the frame. Allocations retain their
@@ -174,6 +183,25 @@ establish no validity or provenance proof. Constructor base/end queries remain
 distinct ordered requests, with arbitrary results and no selected placement.
 External calls, tail calls, other layout queries, GAS sampling and code observers
 are rejected by this route.
+
+For a typed MIR function that reads `GAS` or makes an external call, request
+the shared-interaction proof explicitly:
+
+```sh
+solar-tv/solar-tv mir before.mir after.mir --function permit \
+  --interaction-trace --report target/tv/permit-interactions.json
+```
+
+Lean compares the ordered requests, including `GAS`, supported code
+observations and calls with their gas operands. It also compares terminal
+outcomes. The theorem quantifies over a shared heap floor, arbitrary typed
+arguments and shared stateful handlers. When expansion reaches an unsupported
+callee, the checker can retain a closed set of unchanged typed callees. Lean
+checks their function tables for equality, and the caller proof preserves
+the requests to the shared handler for those calls. The report lists the
+retained function IDs. Actual `GAS` values, code observations,
+child outcomes and physical gas costs require a separate binding to the emitted
+bytecode. The report records `unpriced-shared-interactions`.
 
 The `lower-alloc` example is reduced from Morpho's constructor. Its FMP read
 becomes `mload(0x40)` followed by a pointer-carrier cast. The request constructors
@@ -255,6 +283,37 @@ shared, universally quantified per-label context supplies the physical PUSH and
 JUMPI charges, including PUSH0. Binding that context to relocated bytecode
 remains trusted. A changed exit is rejected, and a broken decoder store offset
 has a counterexample independently checked by Lean and the Rust interpreter.
+
+### EVM stack and branch peepholes
+
+The contextual peephole check retains an unchanged prefix and continuation
+around the edited operations. Lean checks ordered effect requests, the
+outgoing stack, static branch selection and remaining gas for every
+successful source window. The constructor case binds the ordinary code-tail
+length query to both assembled images. A gas-sensitive continuation can use
+exact gas, paired observations via `--interaction-trace`, or the funded-call
+policy below.
+For `--prefix`, the fallback also requires correspondence for shared code
+reads and message targets, using the same admission check as the dedicated
+post-precompile proof.
+[Pinned audit and proof assumptions](CORRECTNESS.md#pinned-evm-peephole-audit)
+
+For `late-word` low-mask replacements, the kernel checks both expanded
+instruction lists and composes the edits through matched memory, storage
+and guard operations. The proof checks the storage-write gas sentry and
+accounts for the handler's dynamic debit. Windows that reach `GAS` and a
+child call can be checked up to that boundary with `--interaction-trace`.
+[Late-word audit and bytecode replay](CORRECTNESS.md#pinned-evm-late-word-audit)
+
+`--funded-call bbN` composes a Cancun window through `GAS`, a zero-value
+`CALL` or `STATICCALL`, and the resumed parent. The policy requires a
+funded original call and a child that returns the same result and spends
+the same actual gas at each funded budget. Lean checks both call
+transitions, including memory expansion and EIP-150 forwarding. The
+remaining parent code and the correspondence from block entry to the
+emitted call site have separate proof obligations. In the pinned
+evaluator, `--funded-calls` opts into this retry and records the default
+counts separately. [Funded-call audit and replay](CORRECTNESS.md#complete-pinned-evm-ir-capture-coverage)
 
 ### EVM rewrites after precompiles
 
@@ -422,6 +481,23 @@ The count is a 251-bit value, covering word-aligned sizes representable by
 `MSIZE`. Memory outside the prefix is unchanged by every admitted operation.
 All nonempty accesses must have constant offsets and lengths inside the prefix.
 Dynamic addresses and larger ranges are inconclusive, not assumed in bounds.
+
+[MemoryProjection.lean](SolarTV/EVMIR/MemoryProjection.lean) relates bounded
+reads and full active size to the frame interpreter. Its fetched MLOAD,
+KECCAK256, RETURN and REVERT equations retain actual gas and failure branches.
+The theorem's prefix length is a parameter, covering the full 64 KiB domain.
+For aligned heaps in the 64 KiB model domain, expansion and its quadratic gas
+charge commute with projection. The funded MLOAD step also preserves the local
+stack and memory result. Independent raw EVM replay checks emitted reads with
+active heaps of 1,056 and 65,536 bytes, changed addresses and a corrupted
+opcode.
+
+[MemoryWrites.lean](SolarTV/EVMIR/MemoryWrites.lean) connects the local stores
+and overlapping copies to their fetched frame instructions, with explicit
+stack and footprint premises. It preserves the unprojected bytes, proves the
+expansion charge, and recovers full heap equality from matching projections
+and tails. Raw EVM replay checks both copy directions and zero-length copies
+at the exact gas boundary. Whole-CFG correspondence remains open.
 
 A MIR function's successful return retains its live memory for its caller.
 An EVM outgoing edge retains the live stack, memory bytes and active size.
@@ -1079,6 +1155,54 @@ both versions halt successfully with sufficient gas, but only the original
 finishes at budget 10. Reports and replay commands retain the policy, budget,
 target version and remaining gas.
 
+### Check the transaction boundary
+
+Run the kernel and independent `evm2` transaction handler on decoded EIP-7702
+fixtures through Osaka. The fixture supplies the outer sender and signed
+authorization tuples. The kernel checks each signature recovery and then
+compares admission, the message outcome, the gas breakdown, and selected
+account nonces and code. Receipt gas applies the calldata floor after the
+refund cap. The checker compares sender reimbursement and the beneficiary
+tip against the committed transaction state, including when both addresses
+are the same. The revert example checks that authorization changes survive
+failure of the execution message.
+
+```sh
+solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/set-code-revert.json
+solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/amsterdam-reservoir.json
+solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/amsterdam-nested-reservoir.json
+solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/amsterdam-storage-refill.json
+solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/amsterdam-dynamic-fee.json
+solar-tv/solar-tv transaction solar-tv/examples/evmir/transactions/amsterdam-dynamic-fee-block.json
+```
+
+The Amsterdam checks cover reservoir initialization, execution-only debits,
+insufficient gas, and state charges that spill into execution gas. Refills repay
+the spill before crediting the reservoir. The refill trace rolls back a negative
+frame ledger and preserves the execution-only charges. Lean checks each
+snapshot against the pinned `evm2` gas tracker for the supplied charge trace.
+The nested trace supplies the forwarded gas, stipend, upfront state charge,
+and child exit. Lean checks the inherited checkpoint across every transition.
+The replay compares both pools, signed ledgers, refund counters, and depth
+through child success, revert, and halt. Opcode-derived forwarding and charges
+and interpreter integration for nested calls remain open.
+
+The Amsterdam storage fixture executes raw bytecode with supplied execution gas
+and reservoir balances. Lean compares the settled meter, refund, output, and
+persistent state with `evm2`. The regressions exercise cold and warm storage
+pricing, creation and restoration of a zero slot, the execution-gas sentry, and
+spill repayment and journal rollback on revert.
+
+The decoded Amsterdam EIP-1559 fixtures supply the outer signers, initial
+accounts and block fee parameters. Lean checks gas and fee settlement for
+messages in the storage bytecode fragment and for top-level precompiles. The
+checker compares admission, execution and state gas, refunds, floor, output,
+logs and selected accounts with the pinned transaction handler. The block
+fixture carries committed accounts and fresh journals between transactions. It
+checks both block admission limits and compares header gas and cumulative
+receipt gas with independent replay. The header uses the maximum of the two
+block gas counters.
+
 ## Check passes during compilation
 
 From the repository root:
@@ -1122,6 +1246,13 @@ successors or adjacent blocks change, the hook selects the larger region
 described below instead of assuming that stack positions correspond at the old
 window boundary. This allows shared revert code and stack reshuffles spanning
 several blocks.
+
+For unpriced `terminal-dedup` and `inline-returns` checks, the live hook tries
+a proof from the module entry before selecting individual regions. The corpus
+evaluator tries the region first and reuses an entry proof for unresolved
+regions whose labels it reaches in both snapshots. This proves the logical
+execution with shared effect handlers. Transfer gas, forwarded gas, and child
+behavior need separate proofs.
 
 You can select a region when replaying full snapshots:
 
@@ -1171,6 +1302,12 @@ not fit the model. Manual entry heights are explicit assumptions; the hook prove
 a fixed height in both original and edited CFGs. Internal joins may have different
 heights on different paths. Physical conditional continuations and structured
 jump fallthroughs retain the temporary stack growth of their lowering.
+
+Omit `--stack-height` to request a proof for every incoming stack. The importer
+uses input demand from the independent graph and opcode schema to track unknown
+incoming words. This permits regions that begin with stack reads. The kernel
+checks underflow, overflow and every incoming value, with the existing
+constant-address memory bounds and 32-word proof budget.
 
 [Region.lean](SolarTV/EVMIR/Region.lean) composes the existing instruction semantics;
 it does not add an instruction interpreter or obtain observations from native
@@ -1246,6 +1383,134 @@ full-payload exit under a shared logical continuation, not a resolved target or
 a proved physical return address. Code-image observers and calls remain
 excluded. Changed operations or unsafe transfer growth remain unsupported.
 
+### Indexed jumps in emitted bytecode
+
+With `-Zsolar-tv`, the compiler checks indexed transfers at byte emission.
+Each `indexed-tables/artifact-*` bundle contains the finalized EVM IR before
+table stubs are inserted, the emitted byte image, and the measured label and
+table offsets. The validator reads the logical target list independently.
+Lean checks that the emitted table selects those destinations in order,
+including repeated targets. Counterexamples report the selector and both PCs.
+
+```sh
+SOLAR_TV="$PWD/solar-tv/solar-tv" target/debug/solar \
+  tests/ui/codegen/evm-ir/none/indexed_jump.evmir -j1 -Ogas \
+  -Zevm-ir-pipeline=none --evm-version=cancun --emit=bin-runtime \
+  -Zsolar-tv=target/indexed-audit
+```
+
+`-Zsolar-tv-capture` saves the bundle for later checking. Run
+`solar-tv/solar-tv indexed-tables <bundle>/layout.json` to check it.
+
+For a standalone byte image, supply the ordered destination PCs. The
+fixture below has destinations at byte offsets 11 and 13.
+
+```sh
+target/debug/solar tests/ui/codegen/evm-ir/none/indexed_jump.evmir \
+  -j1 -Ogas -Zevm-ir-pipeline=none --evm-version=cancun --emit=bin-runtime \
+  | jq -r '.contracts[]["bin-runtime"]' > target/indexed-table.hex
+solar-tv/solar-tv encoded-table target/indexed-table.hex \
+  --pc=2 --targets=11,13 --report target/indexed-table.json
+```
+
+Lean decodes the raw bytes, checks every in-range selector and verifies that
+each transfer consumes only the selector. The report records the stack peak
+and gas charge up to the destination, before executing its `JUMPDEST`. Use
+`--jumps=2` for an outlined table with an intermediate stub. The caller
+supplies the logical-to-physical destination map. If a literal `PUSH` and
+`AND` precede the table, pass the producer's offset as `--mask-pc`. Lean
+checks the mask in the same bytecode and proves the selector is in range
+for every incoming word. Without a checked mask or guard, the selector
+range is an input obligation.
+
+For a dense switch, the compiler bundle also checks the emitted
+`DUP1`–`GT`–`JUMPI` guard when the corresponding logical branch is present.
+This proof starts at the guard with an arbitrary selector. It checks the
+miss continuation and carries the taken edge through the table, including
+the charge for the intervening `JUMPDEST`. A changed limit produces a
+counterexample with the selector and the two successor PCs.
+
+`entry_coverage` reports whether Lean proved that execution cannot reach
+the table without one of its checked selector producers. The proof starts
+at bytecode PC zero and resumes from every guard miss and table destination.
+Tables in the same image can share the proof, including cyclic dispatches.
+The compiler bundle reports `selector_scope: "from-physical-entry"` for
+that stronger result. Lean tracks known return addresses through PUSH,
+DUP, SWAP, PC, ADD, SUB and the untouched suffix of other operations.
+Both inputs must be known to retain an arithmetic result. The analysis
+retains the top 32 stack facts. Targets that require recovering a memory
+slot or reading an unchecked data suffix can leave the proof scoped to
+the local mask or guard.
+
+The shared-helper regression in `examples/solidity/indexed-table-return.sol`
+checks both public entrypoints against the emitted table. Changing the
+return address of `other()` to the table entry removes the physical-entry
+proof. Independent raw-byte replay confirms that `other(0)` then writes
+storage instead of returning its word. The ABI and creation/runtime bytes
+are identical when compiling with and without validation.
+
+### Removing terminal stack discards
+
+A `--prefix=bbN` check can prove deletion of a `POP` suffix before
+`STOP` even when the compiler cannot assign the block an entry height.
+Lean checks a lower stack bound at the first removed `POP` from the
+physical entry, including transfers through return labels. The proof
+compares terminal outcomes with shared incoming state and leaves
+physical gas out of the claim.
+
+### Relocated internal returns
+
+For the captured ERC20Mock runtime `block-layout` pair, validate the
+`mint(address,uint256)` path from ABI dispatch through the indirect return:
+
+```sh
+solar-tv/solar-tv evmir before.evmir after.evmir \
+  --return-path=0x40c10f19 --world mint-world.json --report mint-return.json
+```
+
+Use a Cancun world fixture whose calldata starts with `0x40c10f19`, followed
+by the ABI-encoded recipient and amount. The tool assembles both versions
+with passes disabled and reads each continuation from its caller's encoded
+PUSH. Lean checks that the address is an instruction-boundary JUMPDEST,
+follows its stack uses and checks the path with the actual bytecode semantics.
+The report identifies both caller pushes, indirect jumps and continuation PCs.
+
+The path comparison preserves the ordinary stack and state effects under
+shared inputs that follow the checked branch decisions. For the supplied world,
+Lean and Rust replay from ABI entry and agree on the live stack, memory and
+returndata, and the final receipt. Lean also checks the full journal at the
+continuation after erasing the root code being compared. The proof covers this
+funded route. A different path or an exact gas comparison requires a separate
+check.
+
+The symbolic check covers the selected mint or burn ABI entry through its exit:
+
+```sh
+solar-tv/solar-tv evmir before.evmir after.evmir \
+  --mint-layout --world mint-world.json --report mint-layout.json
+solar-tv/solar-tv evmir before.evmir after.evmir \
+  --burn-layout --world burn-world.json --report burn-layout.json
+```
+
+The kernel checks both byte images from PC zero for arbitrary calldata with
+the selected entry's selector, call value, current and original storage,
+access warmth, and incoming gas. The entry starts in a writable Cancun frame with empty
+stack, memory and returndata. Both entries cover nonpayable calls and
+malformed ABI input. Mint covers the zero recipient and supply overflow.
+Burn covers the zero sender and insufficient sender balance, including the
+sender, balance and amount in the revert payload. Burn replay uses selector
+`0x9dc29fac` followed by the ABI-encoded sender and amount.
+
+Each version has its own exact gas threshold. The check includes memory
+expansion, storage charges, the SSTORE sentry and rollback on exhaustion.
+When the old version finishes without exhausting gas, the new version
+produces the same exit data and journal and leaves at least as much gas.
+The world fixture is for replay. The report records both interpreters'
+observations just below and at the two thresholds.
+The burn regression also probes the supply store with too little gas to pay
+for it, after the sender store has executed. Both interpreters confirm that
+the original storage is restored and the log list stays empty.
+
 A verified pair produces a message on stderr. A counterexample stops the
 pipeline. Unsupported, timed-out and inconclusive checks warn and compilation continues.
 A checker launch or protocol failure is a compiler error. Each unsuccessful
@@ -1300,6 +1565,8 @@ The pass hook uses this mode for unknown-height block windows. Capture retains
 its original rejection and region identity; evaluation chooses the proof mode
 **after** sampling. A failed universal proof is unsupported, since a hypothetical
 stack need not be reachable. It never fabricates a compiler counterexample.
+The generic pure peephole fallback also checks the complete stack-fault domain
+when selected through `--prefix`.
 
 ### Exact scalar rewrites inside stateful blocks
 
@@ -1322,13 +1589,43 @@ storage sentry, so cheaper rewrites are rejected rather than given a weaker
 gas-insensitivity assumption.
 
 `EVMIR/Suffix.lean` lifts the middle's checked-stack and exact-price proof through
-both shared contexts. Their parser/schema and executor bindings remain trusted;
-this is a local compositional certificate, not full-state importer or physical
-code-placement correspondence. Code-image observers, external calls, broken
-static guards and Amsterdam's two-resource gas remain unsupported. The small
+both shared contexts. Their parser/schema and executor bindings remain trusted,
+including code placement. The shared context can contain a direct Cancun
+`ECRECOVER` call with the same input and available gas, or matched constructor
+code reads bound to independently decoded relocations and shared arguments.
+Other code observers and calls, broken static guards and Amsterdam's
+two-resource gas remain unsupported. The small
 broken-store example has a kernel-confirmed counterexample matched by Rust
 replay. The full storage/log fixture is also replayed independently, including
 static violations and out-of-gas before the island.
+
+### Checking EVM stack schedules
+
+`--stack-schedule bbN` checks the reordered window of a compiler-validated
+block. The proof preserves the complete live stack and ordered memory and
+storage requests under shared effect handlers. A pushed label is a word under
+a shared label-address mapping, including when it is carried to a helper as
+a return address. A guard into a shared direct
+revert chain executes that chain before comparing the revert operands.
+The report records the shared prefix and continuation and any code reads
+resolved against the assembled constructor images.
+
+The same checker can erase a repeated word store if its earlier write is
+still active at the cut. It checks the word and offset, and the memory
+handler must preserve the known bytes across disjoint writes and other
+memory-preserving effects. A shared suffix can forward a GAS sample
+directly into Cancun `ECRECOVER` under a funded policy. Both forwarded
+budgets must cover recovery, which charges a fixed child debit and
+returns the same result for the same input.
+
+The unpriced live `stack-reschedule` hook and corpus evaluator use this
+certificate. A compiler-supplied `--stack-height` can bind a fixed entry.
+For unknown-height blocks, the checker tries a universal stack proof and
+can retry with a cap proved from the source's physical entry. `--entry-stack`
+selects that admission directly. The proof retains original live outcomes
+and modeled reverts with sufficient gas. Shared external responses, physical
+gas and placement of the rest of the block remain separate obligations.
+[Stack rescheduling audit](CORRECTNESS.md#pinned-evm-stack-rescheduling-audit)
 
 ### Terminal regions with unknown incoming stacks
 
@@ -1349,14 +1646,16 @@ The pass hook and sampler use this route for unknown-height terminal regions;
 capture identities stay unchanged. Failed universal checks stay unsupported,
 because their hypothetical entry states need not be reachable.
 
-These proofs also admit `CALLER` and `CALLDATALOAD` over arbitrary caller
-addresses and calldata bytes. Calldata reads preserve big-endian byte order and
-zero extension, and do not expand memory. The caller is widened from 160 bits.
+These proofs also admit `CALLER`, `CALLVALUE`, and `CALLDATALOAD` over arbitrary
+caller addresses, 256-bit call values, and calldata bytes. Calldata reads
+preserve big-endian byte order and zero extension, and do not expand memory.
+The caller is widened from 160 bits.
 Size words are independently quantified, so the proof covers a conservative
 superset of real frame contexts. Regions that consume incoming words split out
 short stacks explicitly; underflow and transfer overflow remain observable.
-Fixed scalar-window inputs do not include these context values and still
-reject the operations rather than substituting zero.
+Fixed scalar-window inputs have no values for these context reads. A terminal
+region with a known stack height can retry with the stronger universal proof,
+which quantifies all incoming stacks and frame inputs.
 
 ```sh
 solar-tv/solar-tv evmir solar-tv/examples/evmir/caller-tail/{before,after}.evmir \
@@ -1414,9 +1713,24 @@ an `unpriced-structural` gas policy. Primitive instruction semantics and state
 are shared abstract parameters. The compiler parser/display, named-reference
 extraction and binding to this call machine remain trusted. This is not an
 instruction-semantics, physical gas or backend-layout certificate. Numeric
-function-pointer dispatchers, backend-memory records, changed surviving bodies
-or globals, and modules without explicit entry points are unsupported. Each
-module is limited to 1 MiB and 128 functions.
+function-pointer dispatchers, backend-memory records, changed globals, and
+modules without explicit entry points are unsupported. Each module is limited
+to 1 MiB and 128 functions.
+
+### Checking MIR inlining across public entries
+
+When inlining removes a called private function and changes a surviving
+body, `--prune` tries the rooted inlining certificate. It checks the public
+entry bindings and independently expands the changed, acyclic call closures
+into typed effect trees. Calls into a closed set of unchanged functions
+keep the same named request. Lean checks equality for arbitrary logical
+arguments and shared handlers, including stateful requests that may fail.
+
+The opt-in compiler hook tries this module certificate before local checks.
+The report uses the `rooted-inline-effects` proof and `semantic-effects` gas
+policy. All 58 pinned `inline` captures verify under this scope. Physical
+gas and return placement are separate proof obligations.
+[Audit results and replay](CORRECTNESS.md#strict-mir-inlining-audit)
 
 ### Removing dead SSA definitions in MIR loops
 
@@ -1449,6 +1763,137 @@ on SSTORE's gas sentry are outside the claim.
 All six previously cycle-rejected DCE pairs in the broader capture set now
 verify. They cover OpenZeppelin's storage-byte helper, `name` and `symbol`, and
 three Morpho `extSloads` captures.
+
+### Checking MIR instruction scheduling
+
+Function checks recognize instruction permutations emitted by
+`evm-inst-schedule`. Each swap preserves SSA dependencies and the order of
+stateful requests. Lean also checks that calldata size, calldata loads and
+the current address read immutable frame data. The result is valid for all
+logical block bounds under shared handlers, including gas and child replies.
+
+When a function permutes storage reads, the direct MIR interpreter can check
+the complete observations with symbolic account state and caller memory.
+The 32 pinned schedules verify in the strict serial audit. Physical gas
+and emitted stack placement have separate obligations.
+[Audit results](CORRECTNESS.md#strict-mir-instruction-scheduling-audit)
+
+### Checking merged MIR abort guards
+
+Function checks recognize `merge-aborts` chains that share a terminal rejection.
+Lean checks the combined guard against the actual source conditions and proves
+that deferring rejection preserves the result when the intervening actions are
+total. Speculated constructor or heap-floor reads require shared, defined
+layout bindings. Handler replies are shared and physical gas is unpriced.
+All 42 pinned captures verify in the strict serial audit.
+[Audit results](CORRECTNESS.md#strict-mir-abort-merge-audit)
+
+### Checking a calldata pointer recurrence
+
+Capture the real `indvar-simplify` rewrite of `CalldataPointerExit.stopAt` and
+check the selected function.
+
+```sh
+out=$(mktemp -d)
+target/debug/solar tests/ui/codegen/mir/indvar-simplify/calldata_pointer_exit.sol \
+  -j1 -Ogas --evm-version=osaka --emit=bin-runtime --allow=2264 \
+  -Zsolar-tv="$out" -Zsolar-tv-capture
+stream=$(rg -l '"pass":"indvar-simplify"' "$out"/captures/*/regions.jsonl)
+pair=${stream%/regions.jsonl}
+solar-tv/solar-tv mir "$pair/before.mir" "$pair/after.mir" \
+  --function stopAt --evm-version osaka
+```
+
+The kernel checks the complete typed SSA against the indexed and pointer
+templates. Their unpriced loop projection uses induction to preserve each
+calldata read and the returned index for any admitted length. The ABI guard
+bounds the distance walked, including when the base address wraps. The
+certificate covers an empty array, a matching element, and reaching the end.
+The parser and typed CFG projection are trusted. A 64-byte stride in place
+of 32 returns 2 instead of 1 for `[4, 5]` searched for `5`. The direct Lean
+interpreter and the independent Rust interpreter confirm the counterexample.
+
+The same check supports `ContinuedCounter.fill` from `continued_counter.sol`.
+Select the `indvar-simplify` capture whose region is `fill`, then use
+`--function fill`. Lean runs both full MIR bodies, records their whole-word
+stores in order, and compares final memory and ABI return bytes. The proof
+covers aligned heap floors from 128 with room for the array in 64 KiB, and
+both already active memory and memory that expands. Changing the recovered
+index changes the second returned element from 8 to 9 in Lean and Rust.
+
+### Checking the storage search-to-shift handoff
+
+Capture the lowered `indvar-simplify` rewrite of `ContinuedCounter.remove`.
+
+```sh
+out=$(mktemp -d)
+target/debug/solar tests/ui/codegen/mir/indvar-simplify/continued_counter.sol \
+  -j1 -Ogas --evm-version=osaka --emit=bin-runtime --allow=2264 \
+  -Zsolar-tv="$out" -Zsolar-tv-capture
+stream=$(rg -l '"pass":"indvar-simplify".*"name":"remove"' "$out"/captures/*/regions.jsonl |
+  while IFS= read -r path; do
+    if rg -q '^fn @remove\(\) \{' "${path%/*}/after.mir"; then
+      printf '%s\n' "$path"
+    fi
+  done)
+pair=${stream%/regions.jsonl}
+solar-tv/solar-tv mir "$pair/before.mir" "$pair/after.mir" \
+  --storage-loop remove --evm-version osaka
+```
+
+The kernel matches the typed CFG at the search preheader and proves that its
+unpriced projection issues the same storage reads and writes in order. The
+base slot, needle and storage replies are arbitrary. This covers a missing
+match, a match in the last record, and wrapping slot arithmetic. The proof
+ends at the common packing continuation or a shared failure. It assumes
+equal live-ins and placement for the clear-edge allocation and trusts the
+typed CFG projection.
+
+Changing the recovery shift from one to two gives a counterexample for
+needle 3. Lean and the independent Rust interpreter agree on the first
+differing write and the return values, 12450 and 13450. The report gives the
+write's ordinal, slot and value on each side.
+
+### Proving runtime-bounded and diverging loops
+
+`WrappingBounds.fillWords` exercises a variable-length memory fill. The
+captured fast loop exits on a pointer sentinel and the slow loop retains its
+index and live header check.
+
+```sh
+out=$(mktemp -d)
+target/debug/solar tests/ui/codegen/mir/indvar-simplify/wrapping_bounds.sol \
+  -j1 -Ogas --evm-version=osaka --emit=bin-runtime --allow=2264 \
+  -Zsolar-tv="$out" -Zsolar-tv-capture
+stream=$(rg -l '"pass":"indvar-simplify".*"name":"fillWords"' "$out"/captures/*/regions.jsonl)
+pair=${stream%/regions.jsonl}
+solar-tv/solar-tv mir "$pair/before.mir" "$pair/after.mir" \
+  --function fillWords --evm-version osaka
+```
+
+The checker matches the complete typed pair from ABI entry through return.
+The allocation checks and fast-edge guard prove that the sentinel's count
+clamp leaves the count unchanged. Both loops preserve ordered stores and
+the first failure for every iteration prefix. The rank bounds termination
+by `min(length, count) + 1` header visits. The proof shares the decoded
+calldata, supplied heap placement and effect handlers. It trusts the typed
+CFG projection and compares unpriced MIR semantics. Doubling the slow
+loop's stride produces a replayed witness with the first differing store
+and returned array element.
+
+For a new proof, define the invariant over the two states at matching
+cutpoints. Prove each side's `Segment` from the typed MIR transition, then
+use `Simulation` to relate the effects and either the next cutpoints or
+the exit. The kernel checks that each segment makes progress, so it also
+preserves divergence when the sides take different numbers of instructions.
+The example below models a loop that repeatedly writes memory, with an
+extra jump on one side.
+
+```sh
+cd solar-tv
+lake build SolarTV.MIR.State.LoopStep SolarTV.MIR.State.StoreTrace
+lake env lean -j1 examples/mir/loop-simulation/Proof.lean
+```
 
 ### Checking builtin lowering
 
@@ -1490,15 +1935,25 @@ success, token revert and false-return fixtures. It checks return words,
 storage and log rollback.
 
 Add `--check-caller-entry` to certify five complete ABI invocations in Cancun.
-The Lean kernel checks the emitted selector dispatch symbolically for all five
-callers. For zero call value, the matching selector, and sufficient dispatch
-gas, the proof carries arbitrary calldata and the complete journal to the ABI
-decoder. The MIR ABI model separately proves decoding for arbitrary canonical
-head words and callback bytes. The concrete invocation certificates use the
-symbolic dispatch proof to enter the captured ABI body, then validate its
-execution to the helper and exit. Each checks the helper live-ins and
-FMP, then resumes each reached frame through the actual helper and caller
-instructions. The final proof compares terminal status, ABI bytes, accounts
+The Lean kernel checks the emitted selector dispatch and ABI decoding for all
+five callers. For zero call value, a matching selector, a canonical bytes
+offset, clean addresses and an in-bounds payload, the proof preserves the
+journal and derives the decoder's stack, memory and gas charge. The decoder's
+market tuple and free memory pointer agree with the MIR entry frame. Rust
+independently replays the decoder exits.
+
+For the four callers that take a market tuple, the symbolic bytecode proof
+continues through the first storage read. It derives the mapping key and
+checks scratch memory, the loaded value and the warm or cold gas charge
+against an arbitrary journal. Both MIR versions reach the same read
+with the same scratch memory and slot-warming effect.
+
+The invocation certificates apply these results to the supplied input, then
+check the concrete execution from the decoder to the helper and ABI exit.
+Other valid offsets use the concrete trace from the dispatcher exit. Each
+certificate checks the helper live-ins and FMP, then resumes each reached
+frame through the actual helper and caller instructions. The final proof
+compares terminal status, ABI bytes, accounts
 and logs. MIR uses the gas samples and message budgets from the checked
 bytecode execution. The exact physical gas and refund are separately checked
 against the Rust replay.
@@ -1509,6 +1964,14 @@ incoming gas, active memory, free memory pointer and account warmth. A
 prefix failure rolls back the invocation without a GAS sample. The kernel
 checks the failure and empty gas ledger against the emitted instruction
 trace, and Rust independently replays the complete ABI call.
+
+At 36,420 root gas, Supply executes GAS and then reaches CALL with zero
+parent gas. The checked schedule supplies that pre-charge budget to MIR,
+which exhausts the parent frame at CALL. At 36,520 gas the parent pays for
+CALL, receives child failure with zero gas left and exhausts the budget in
+the continuation. The kernel checks both the derived paid CALL budget and
+the final residual gas. Independent replay covers the CALL and ABI return
+fee boundaries, including successful publication with exactly enough gas.
 
 Use `--caller-worlds DIR` to supply concrete calldata, accounts, gas and
 child code. Copy the `*.world.json` files saved under `entry/` and edit the
@@ -1562,10 +2025,97 @@ primitive instruction implementations, physical gas and backend layout are
 not certified. Limits are 128 functions, 512 blocks, 4,096 instructions, 65,536
 type nodes and 64 KiB of exported constant data.
 
-Live audits automatically try this module certificate after a shared-declaration
-change. Unsupported edits still fail the checker; the adapter never drops an
-arbitrary header or phase change. Capture-only records retain their original
-rejection and selection, so the frozen corpus denominator stays unchanged.
+Live audits automatically try module certificates after a shared-declaration
+change. Capture-only records retain their original selection so the frozen
+corpus denominator stays unchanged.
+
+### MIR phase advances and final shaping
+
+`lower-evm-shaped` can advance a module from semantic to lowered MIR after
+the earlier passes have already made every function legal in the lowered phase.
+The phase-only certificate checks both modules at their declared phases and
+requires identical canonical MIR apart from the phase marker. Lean checks
+that the independently resolved function tables produce the same direct MIR
+execution for every entry, initial state and work bound.
+
+```sh
+solar-tv/solar-tv mir before.mir after.mir --prune
+```
+
+The pass can also erase pointer casts, turn a call that never returns into a
+tail call, and split an edge that needs a separate phi copy. The
+`phase-shaping` example exercises all three with the real pass. Use a fresh
+capture directory for each run.
+
+```sh
+target/debug/solar solar-tv/examples/mir/phase-shaping/input.mir \
+  -j1 --evm-version=cancun -Zmir-pipeline=lower-evm-shaped -Zvalidate-ir=true \
+  -Zsolar-tv=target/tv-shaping -Zsolar-tv-capture
+solar-tv/solar-tv mir target/tv-shaping/captures/*/{before,after}.mir \
+  --evm-version=cancun --prune
+```
+
+The direct proof checks typed execution over symbolic inputs and byte memory for
+admitted acyclic call graphs. A separate certificate checks that inserted
+forwarding blocks preserve the taken edge and the simultaneous phi reads on
+each traversal, including loop backedges. Reports identify the evidence per
+function. The compiler validates both declared phases before checking either
+certificate. The live audit uses the same proofs. Physical gas and stack
+placement are outside these MIR certificates.
+
+The contextual graph certificate also handles complete captures with loops
+and retained effect requests. It checks that every eliminated full-width
+carrier copy still denotes the same word wherever it is read. Each register
+write invalidates copies of that register, including writes by a phi group.
+The graph proof preserves the order and arguments of effects, including
+`GAS`, without pricing them. A separate direct proof checks the actual
+straight-line revert helper when a call followed by `invalid` or `stop`
+becomes a tail call. The [carrier loop example](examples/mir/phase-carriers/input.mir)
+can be captured with the same commands.
+
+### Materializing a runtime dispatcher
+
+For a module with no selector, receive or fallback routes, `lower-dispatch`
+adds a runtime entry that rejects every call. Use
+`solar-tv/solar-tv mir before.mir after.mir --prune` to check a saved pair.
+The live audit and exhaustive evaluator use the same certificate.
+
+The compiler's structural export supplies the roots and typed function
+bodies. Lean checks that the entry follows a finite path of unconditional
+jumps to `revert 0, 0` and leaves memory and the journal unchanged for every
+calldata and call value. The report gives the required number of MIR steps
+and records the retained function table. Lean checks direct call targets
+after the printer places the new entry before ordinary functions. The
+`empty-runtime-dispatch` certificate covers argument-free entry with at most
+64 KiB initial memory.
+For non-library modules with unchanged ABI wrapper bodies, the
+`routed-runtime-dispatch` certificate compares implicit selector, receive,
+and fallback routing against the actual typed MIR execution. It checks the
+full frame at the selected wrapper entry, or the empty revert, for symbolic
+calldata and call value. This covers short selector prefixes and the
+dispatcher-wide nonpayable guard. The report records the wrapper counts and
+the MIR work bound.
+
+The `calldata-guard-hoist` certificate covers selector-only dispatch when
+the wrappers share a plain ABI head-size check. Lean checks the actual
+dispatcher against the common minimum and executes the original and lowered
+wrapper prefixes. A short selected call must produce the same empty revert.
+An accepted call reaches the same wrapper block with the same locals and
+frame. The complete typed tables must agree after replacing only the wrapper
+guard branches. For libraries, the checker also validates the non-view
+delegatecall guard against the deployed address bound to the runtime
+immutable. This composes with hoisted head-size checks.
+
+For pairs built with compiler-generated revert strings, add
+`--debug-reverts` to the standalone `--prune` command. Compiler pass audits
+and captured evaluations carry that setting automatically. The
+`debug-runtime-dispatch` proof checks which route rejects, and compares its
+byte memory and `Error(string)` payload against an independent encoder.
+It covers empty and routed contracts as well as library guards. These
+certificates cover unpriced MIR through the wrapper entry or continuation.
+On pre-Constantinople targets, the selector shift is still semantic MIR at
+this pass boundary. The proof checks the selector against division by
+`2^224`, which is the arithmetic form used by later lowering.
 
 ### Allocation prefixes before unchanged cyclic callees
 
@@ -1652,6 +2202,49 @@ include dirty heaps at several cursors, changed suffixes and returns, missing
 and disagreeing bindings, independent counterexample replay and unchanged
 compiler bytecode.
 
+For an emitted entry that begins with two `PUSH1` instructions and an
+`MSTORE` to `0x40`, prove that the real entry establishes the cursor
+condition and charge the exact 18 gas including memory expansion from an
+empty frame:
+
+```sh
+solar-tv/solar-tv heap-entry constructor.hex --floor 0xc0 --extent 96
+```
+
+Pass the creation or runtime image as hex. The report binds the image hash,
+entry PC and expected floor. The kernel checks the emitted prefix and proves
+the paid continuation and out-of-gas rollback for every initial gas balance.
+Independent execution checks the boundary at 17 and 18 gas. The proof ends
+at that entry's FMP write. A later call site still needs a proof that the
+cursor and placement binding reach it.
+
+For a runtime that initializes its heap after selector dispatch, supply the
+selector, minimum calldata length, and bytecode PC immediately after the
+store. For the pinned Morpho `createMarket` path, use:
+
+```sh
+solar-tv/solar-tv heap-entry morpho-runtime.hex --floor 288 --extent 192 \
+  --selector 0x8c1358a2 --min-calldata 164 --cut 1442
+```
+
+Lean checks the path from runtime entry for the selected ABI route with zero
+call value and every admitted calldata length and payload. The report records
+the runtime and proof hashes, exact gas cost, and independent Rust replay
+at the paid and unpaid boundary.
+
+For an emitted unsigned-width guard before the store, supply the ABI word
+offset and width with `--word-bound`. Morpho's `borrow` route checks the
+two address words at offsets 228 and 260:
+
+```sh
+solar-tv/solar-tv heap-entry morpho-runtime.hex --floor 288 --extent 0 \
+  --selector 0x50d8cd4b --min-calldata 292 --cut 1442 \
+  --word-bound 228:160 --word-bound 260:160
+```
+
+The report lists the bounds used in the kernel proof. These are preconditions
+on the calldata admitted by the certificate.
+
 ### Reproducible real-contract evaluation
 
 Capture changed pass pairs without running the prover, then check a deterministic
@@ -1675,6 +2268,184 @@ hash ordering inside each group. Rejected and unsupported regions stay in the
 denominator. `results.json` separates selected and unselected checks, every
 status and each case's output identity. Use a fresh output directory for each run.
 CI retains the reports and full before/after pairs as an artifact.
+
+To check every captured region in the selected corpus, use `--all` in place of
+`--limit`. Repeat `--pass` to select specific passes across those contracts.
+Captures from other passes still appear in coverage as unselected. Add
+`--require-verified` to fail the run when an eligible region lacks a proof.
+
+```sh
+solar-tv/evaluate --all --require-verified --timeout 30 \
+  --output target/tv-exhaustive
+```
+
+Each case's `pass_coverage` groups captured, unselected and unverified regions
+by IR layer, pass and EVM target. It preserves the separate checker statuses,
+including unsupported inputs and timeouts. The counts cover the captured
+corpus; a pass that never changes that corpus needs other inputs.
+
+The latest full serial audit checks all 2,228 pinned captures at three
+seconds per prover invocation. It verifies 1,492 and records
+502 unsupported checks, 234 timeouts and 0 failed checks.
+The normal and capture compilations agree on ABI, creation bytecode and
+runtime bytecode. The per-pass counts and fingerprints are in
+[CORRECTNESS.md](CORRECTNESS.md#full-corpus-after-guarded-mir-effect-proofs).
+
+Across saved audits and targeted retries, 2,153 of the same 2,228 capture
+IDs have proofs. The 75 open IDs include cases beyond the automatic
+checker's logical gas and state domains. The coverage join includes
+different checker revisions, proof budgets and proof scopes.
+[Cumulative audit](CORRECTNESS.md#mir-redundant-and-terminal-word-stores)
+
+All 368 pinned EVM IR `block-layout` captures have proofs. Eight
+module-entry certificates with a 120-second per-stage budget cover the
+72 captures left open by the three-second audit. The certificates check
+logical actions, return labels and stack bounds under the unpriced entry
+policy. [Layout audit](CORRECTNESS.md#physical-entry-audit-for-block-layout)
+
+All 118 pinned EVM IR `compact-pushes` captures have proofs. The 47
+entry retries include a Morpho module whose continuation checks, recipe
+rows, address-fold facts and stack bounds are checked in batches. The
+recipe proof checks fork-specific charges under sufficient funding.
+[Compact PUSH audit](CORRECTNESS.md#physical-entry-audit-for-compact-pushes)
+
+The strict serial gate verifies all 124 pinned EVM IR `terminal-dedup`
+captures. Four physical-entry proofs cover the 18 regions left open by the
+three-second audit. Independent replay checks the shared revert and rollback
+on assembled Morpho bytecode. [Terminal deduplication audit](CORRECTNESS.md#physical-entry-audit-for-terminal-deduplication)
+
+All 14 pinned EVM IR `inline-returns` captures have proofs. The Morpho
+entry proof checks stack admission for the canceled swaps, and the pinned
+Rust replay reaches the affected return on the assembled runtime.
+[Return-inlining audit](CORRECTNESS.md#completed-physical-entry-audit-for-return-inlining)
+
+The combined strict gate verifies all 178 pinned captures for MIR ABI
+encoding, checked arithmetic, conditional checks, integer lowering, storage
+slots, memory objects and slice projections at 120 seconds per prover
+invocation. It includes all 31 conditional-check captures and the module
+that introduces the private short-string revert helper.
+[Proof scopes and fingerprints](CORRECTNESS.md#strict-conditional-check-audit)
+
+The allocation gate checks all 19 pinned `lower-alloc` captures, including
+the module that adds the shared checked allocation helper. Its 67-capture
+run also checks conditional branches, ABI encoding and memory zeroing.
+[Allocation audit](CORRECTNESS.md#strict-allocation-lowering-audit)
+
+To check MIR CSE with initialized logical heap entries, run the dedicated gate:
+
+```sh
+solar-tv/evaluate --all --require-verified --valid-heap --pass cse \
+  --timeout 15 --seed 0 --output target/tv-cse-heap
+```
+
+The extra proof mode records its cursor premise in each affected check.
+The selected MIR function starts with active, aligned memory and a live
+free-memory pointer of at least 128 that fits in uint64. Connecting the
+premise to physical ABI callers remains a separate proof obligation.
+
+Selected records for the same dispatch pair share the module-level proof
+report. Early CFG simplification, layout and compact PUSH captures can also
+share a physical-entry proof when it covers the label on both sides. The
+evaluator retains each capture ID in the coverage totals. CI checks 24
+selected records per pinned contract.
+
+EVM IR regions can verify after block coalescing or jump threading when both
+source graphs retain the same actions and branches. The checker contracts
+finite chains of unconditional jumps and carries forward their strongest
+temporary stack-growth check. The same physical point may match multiple
+paths when the rewrite changes tail sharing. Lean checks each successor
+against both source graphs and proves the matched actions preserve all
+incoming stack heights and ordered effects. The certificate counts logical
+work and leaves gas and physical return addresses outside its comparison.
+
+The continuation certificate also follows block labels carried on the stack.
+It checks label copies, swaps and pops before resolving a dynamic return to
+the block named by its push. A label that reaches storage, memory, arithmetic,
+a branch condition or a return or revert operand prevents the proof. The audit
+reports the number of resolved returns for each side. The default unpriced
+region check excludes external messages and code-image observers.
+
+To compare regions that contain `CALL`, `STATICCALL`, `EXTCODESIZE` or
+`GAS`, request an interaction trace proof:
+
+```sh
+solar-tv/solar-tv evmir before.evmir after.evmir --region bb0 --interaction-trace
+```
+
+This checks the requested gas, call destination, value, input bytes and
+memory ranges at each opcode boundary, with shared replies to earlier
+requests. Code identity, actual gas balances and child execution remain
+environment obligations. Use a concrete `--world` check separately to
+execute the children and replay a mismatch.
+[Proof details](CORRECTNESS.md#evm-interaction-traces)
+
+For `compact-pushes`, the kernel evaluates the literal recipes, checks each
+intermediate stack height, and accounts for every opcode's gas on the selected
+fork. The proof can include adjacent literal pushes to compare the peak of the
+entire sequence before the next effect. The audit records the entry height
+bound and each sequence's peak and charge. This check requires both
+executions to fund every reached operation and admission check, including the
+storage-write sentry. With `--interaction-trace`, the same recipe proof also
+covers regions with resolved internal returns and shared replies to supported
+interactions. Relocation placeholders stay outside literal recipes.
+[Proof details](CORRECTNESS.md#compact-push-recipes)
+
+For a compact PUSH or block layout pair with helpers, check from physical entry:
+
+```sh
+solar-tv/solar-tv evmir before.evmir after.evmir --entry-trace
+```
+
+The entry proof starts with an empty EVM stack and follows each call's
+continuation label. It checks stack bounds through the callers before using
+them at a recipe. Shared immutable pushes retain their deployment slot and
+width. The report lists the blocks in the checked graph. The shared-reply and
+funding conditions still apply when interactions are present.
+The layout proof checks the strongest stack requirement of each jump chain,
+including when a fallthrough becomes a physical jump. It reports changes to
+those requirements and checks each against the reachable stack bound.
+It also checks a branch that swaps its successors while exchanging EQ and SUB.
+For an indexed jump immediately after a literal PUSH, it checks the selected
+table entry and proves that the temporary stack peak fits on both sides.
+With `-Zsolar-tv`, the compiler tries this proof once per changed EVM IR
+module for `block-layout`, `loop-layout` and `compact-pushes`. An inconclusive
+entry check falls back to the regional checks. Priced audits continue to
+use their configured gas policy.
+
+For a region inside a larger pass output, derive the incoming stack bound
+from both physical entries:
+
+```sh
+solar-tv/solar-tv evmir before.evmir after.evmir \
+  --region bb207 --entry-stack --interaction-trace
+```
+
+The height proof covers every possible branch from each entry. The region
+proof then compares executions with equal live-in words and world state at
+the selected block. Omit `--interaction-trace` for regions without calls or
+gas observations. This works for layout and compact PUSH pairs. When a helper
+returns across the region boundary, the proof also checks the stack slots
+that carry its caller's return address.
+For large caller graphs, increase `--timeout` to allow each physical-entry
+certificate to finish.
+
+The checker derives inherited return slots from both entries. A regional
+return exposes the same logical continuation and outgoing state. Address
+folds that read a stack word require a kernel-checked constant invariant on
+every predecessor. For constructors, the entry trace also checks supported
+reads of embedded data and appended arguments against the assembled offsets.
+
+The MIR checker validates block coalescing, jump threading and shared tails
+on typed graphs, including backedges. Each pair of source points tracks the
+local values its path needs. A shared block can therefore match separate
+blocks with different local IDs. Phi groups read their predecessor's
+operands before writing any result. Direct callees keep their original
+bindings, and `GAS` and external calls remain ordered requests under the
+shared effect handler. Literal branches follow their selected edge. For
+flat tuples constructed from `undef`, the checker requires every field to
+be initialized before the tuple leaves its chain of inserts. This is an
+unpriced check of the selected function and its direct call closure.
+[Proof details](CORRECTNESS.md#shared-mir-tails)
 
 The same eight-check-per-contract sample now verifies **17 of 24** with
 `--timeout 30`; 7 remain unsupported, with no counterexamples, timeouts or

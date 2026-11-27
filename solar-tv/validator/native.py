@@ -19,7 +19,16 @@ def replay(
     timeout: int,
     probe_pc: int | None = None,
     raw_runtime: bool = False,
+    trace_storage: bool = False,
+    trace_stores: bool = False,
+    amsterdam_reservoir: int | None = None,
+    probe_sloads: int | None = None,
+    mir_gas_samples: list[dict] | None = None,
 ) -> dict:
+    if probe_sloads is not None and not a.world:
+        raise Unsupported("storage read probe requires an explicit MIR world")
+    if mir_gas_samples is not None and (not a.world or a.interface[1] != "mir"):
+        raise Unsupported("gas samples require an explicit MIR world")
     binary = shutil.which(executable)
     if binary is None:
         raise Unsupported(
@@ -51,6 +60,16 @@ def replay(
             request["world"]["probe_pc"] = probe_pc
         if raw_runtime:
             request["world"]["raw_runtime"] = True
+        if trace_storage:
+            request["world"]["trace_storage"] = True
+        if trace_stores:
+            request["world"]["trace_stores"] = True
+        if amsterdam_reservoir is not None:
+            request["world"]["amsterdam_reservoir"] = amsterdam_reservoir
+        if probe_sloads is not None:
+            request["world"]["probe_sloads"] = probe_sloads
+        if mir_gas_samples is not None:
+            request["world"]["mir_gas_samples"] = mir_gas_samples
     try:
         result = subprocess.run(
             [binary],

@@ -64,6 +64,32 @@ class MirMessageGasTests(unittest.TestCase):
         self.assertEqual(obs[0]["outcome"], "out-of-gas")
         self.assertEqual(obs[0]["accounts"][0][4], [])
 
+    def test_output_expansion_can_exhaust_a_paid_input(self):
+        before = state.module(
+            f"v0 = call 100000, {messages.ADDRESS}, 0, 96, 32, 192, 32\n"
+            "v1 = zext i1 v0 to i256\nret v1"
+        )
+        # Four input words cost 12 gas and three more output words cost 9.
+        for incoming in (120, 121):
+            with self.subTest(incoming=incoming):
+                _, record = self.pair(
+                    before,
+                    state.module("ret 7"),
+                    fixture=self.fixture(
+                        code="00",
+                        warm_addresses=[messages.ADDRESS],
+                        message_gas=[incoming],
+                    ),
+                    status=1,
+                )
+                witness = record["witness"]
+                observations = witness["observations"]
+                self.assertEqual(observations, witness["native_observations"])
+                if incoming == 120:
+                    self.assertEqual(observations[0]["outcome"], "out-of-gas")
+                else:
+                    self.assertEqual(observations[0]["message_gas"], [0])
+
     def test_value_stipend_and_new_account_charge(self):
         fixture = {
             "accounts": [{"address": 65536, "balance": 10}],

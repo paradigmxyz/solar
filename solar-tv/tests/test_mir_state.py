@@ -3,11 +3,16 @@
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 from test_cli import CLI, ROOT, SOLAR
+
+sys.path.insert(0, str(ROOT))
+from validator import native, world
+from validator.common import Program, Unsupported
 
 REPLAY = str(Path(SOLAR).with_name("solar-tv-replay"))
 
@@ -17,6 +22,53 @@ def module(body, signature="fn @f() -> i256"):
 
 
 class MirStateTests(unittest.TestCase):
+    def test_replay_probes_completed_storage_reads(self):
+        body = module(
+            "mstore 0, 7\nv0 = sload 1\nsstore 2, v0\nv1 = sload 2\n"
+            "mstore 0, 8\nv2 = gas\nret v2"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory) / "world.json"
+            fixture.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "accounts": [{"address": 65536, "storage": {"1": 19}}],
+                    }
+                )
+            )
+            state = world.read(fixture, SOLAR, None, kind="mir")
+        program = Program(
+            ("world-entry", "mir"),
+            [],
+            "",
+            "",
+            world=state,
+            evm_version="cancun",
+            selector="f",
+            canonical_ir=body,
+        )
+        result = native.replay(
+            program,
+            program,
+            [],
+            executable=REPLAY,
+            timeout=10,
+            probe_sloads=2,
+            trace_stores=True,
+        )
+        expected = {
+            "outcome": "storage-read-cut",
+            "memory": list((7).to_bytes(32, "big")),
+            "storage_trace": [[84, "1", "19"], [85, "2", "19"], [84, "2", "19"]],
+            "store_trace": [["0", "7"]],
+        }
+        self.assertEqual(list(map(json.loads, result["observations"])), [expected] * 2)
+        with self.assertRaisesRegex(Unsupported, "GAS requires an isolated opcode"):
+            native.replay(
+                program, program, [], executable=REPLAY, timeout=10, probe_sloads=3
+            )
+
     def pair(
         self, before, after, *, fixture=None, status=0, version="cancun", solar=SOLAR
     ):

@@ -183,6 +183,15 @@ def sampleCharge (entry : Entry) (selectorExtra : Nat := 0) : Nat :=
   if entry.hasCode then beforeCall entry selectorExtra
   else (referenceTrace selectorExtra).guardBase + probe (referenceTrace selectorExtra) entry.warm
 
+/-- The residual parent budget when the helper reaches CALL but cannot pay
+its warm access charge. The checked encoder has already paid for its memory. -/
+def unpaidCallBudget (entry : Entry) (selectorExtra : Nat := 0) : Option Nat :=
+  let trace := referenceTrace selectorExtra
+  let paid := beforeCall entry selectorExtra + trace.afterSample
+  if entry.hasCode && paid ≤ entry.gas && entry.gas - paid < trace.callWarm then
+    some (entry.gas - paid)
+  else none
+
 def reference (entry : Entry) (selectorExtra : Nat := 0) : Outcome :=
   let guard := 20 + (if entry.warm then 100 else 2600)
   if entry.gas < guard then .outOfGas

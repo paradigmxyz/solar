@@ -3,8 +3,30 @@
 import json
 from pathlib import Path
 
-from . import caller_replay, dispatch_proof, entry_proof, mir_state, native, world
-from .callers import require
+from . import (
+    authorization_entry,
+    caller_context,
+    caller_gas,
+    caller_replay,
+    collateral_mir,
+    collateral_mir_tail,
+    collateral_proof,
+    collateral_tail,
+    decoder_proof,
+    dispatch_proof,
+    entry_proof,
+    flashloan_rejection,
+    market_proof,
+    market_rejection,
+    mir_state,
+    native,
+    owner_reentry,
+    packing_boundary,
+    prehelper_calls,
+    recovery_boundary,
+    world,
+)
+from .callers import SELECTORS, require
 from .check import PRELUDE, ROOT, build_model, run
 from .common import Program
 
@@ -255,13 +277,122 @@ theorem {side}_live :
     return source
 
 
+def certify_authorization(
+    kernel,
+    runtime,
+    decoded,
+    catalog,
+    tables,
+    state,
+    config,
+    executable,
+    timeout,
+    *,
+    nonce_pc,
+    signing_pc,
+):
+    layout = authorization_entry.plan(runtime, decoded, catalog)
+    calldata = list(layout.selector.to_bytes(4, "big")) + [0] * 256
+    probe = {**state, "calldata": calldata, "gas": 300000}
+    reached = replay(probe, layout.pc, executable, timeout)
+    route = dispatch_proof.plan(runtime, layout, reached["pcs"], catalog)
+    stack = [
+        str(
+            word
+            if isinstance(word, int)
+            else decoder_proof.read_word(calldata, word[1])
+        )
+        for word in layout.stack
+    ]
+    memory = b"".join(
+        caller_replay.word(
+            word
+            if isinstance(word, int)
+            else decoder_proof.read_word(calldata, word[1])
+        )
+        for word in layout.memory
+    )
+    require(
+        reached["pc"] == layout.pc
+        and reached["gas"] == probe["gas"] - route.gas - layout.gas
+        and reached["stack"] == stack
+        and reached["memory"] == list(memory)
+        and reached["pcs"]
+        == [inst.pc for inst in route.instructions]
+        + [step.inst.pc for step in layout.instructions],
+        "authorization ABI cut disagrees with raw runtime",
+    )
+    return authorization_entry.certify(
+        kernel,
+        runtime,
+        decoded,
+        layout,
+        route,
+        config,
+        tables,
+        catalog,
+        nonce_pc,
+        signing_pc,
+        timeout,
+    )
+
+
+def certify_prehelper_calls(
+    directory,
+    kernel,
+    runtime,
+    decoded,
+    catalog,
+    helper,
+    solar,
+    executable,
+    config,
+    timeout,
+):
+    # Cover the callback routes even when the supplied fixtures take the empty branch.
+    cuts = {}
+    probes, snapshots = [], []
+    for name in SELECTORS:
+        fixture = default_fixture(name, solar, timeout)
+        data = caller_replay.calldata(name)
+        fixture["calldata"] = (
+            "0x" + (data[:-32] + caller_replay.word(1) + b"\xab" + bytes(31)).hex()
+        )
+        file = directory / f"{name}-callback.world.json"
+        file.write_text(json.dumps(fixture))
+        probe = world.read(file, solar, "exact")
+        probe["accounts"][0]["code"] = list(runtime)
+        reached = replay(probe, helper, executable, timeout)
+        probes.append(probe)
+        snapshots.append(reached)
+        cuts[name] = [
+            (pc, decoded[pc][0])
+            for pc in reached["pcs"]
+            if decoded[pc][0] in {"call", "staticcall"}
+        ]
+        require(cuts[name], f"missing {name} pre-helper message")
+        for pc, opcode in cuts[name]:
+            if opcode == "call":
+                stack = replay(probe, pc, executable, timeout)["stack"]
+                require(stack[2] == "0", "pre-helper CALL sends value")
+    evidence = prehelper_calls.certify(kernel, cuts, config, catalog, timeout)
+    meter = caller_gas.certify(kernel, helper, config, timeout)
+    reports = caller_gas.evaluate(kernel, probes, timeout)
+    for report, probe, snapshot in zip(reports, probes, snapshots, strict=True):
+        caller_gas.check_reached(report, probe, snapshot)
+    evidence["abi_meter"] = meter
+    return evidence
+
+
 def check(
     runtime, helper_pc, sites, tables, directory, solar, executable, timeout, worlds
 ):
+    from .call_budget import decode_runtime
+
     directory.mkdir()
     built = build_model(timeout, entry_proof.MODULE)
     require(not built.returncode, built.stdout + built.stderr)
-    built = build_model(timeout, "SolarTV.MIR.Transforms.TransferFromABI")
+    built = build_model(timeout, "SolarTV.MIR.Transforms.TransferFromCollateral")
     require(not built.returncode, built.stdout + built.stderr)
     kernel = directory / "kernel"
     kernel.mkdir()
@@ -279,9 +410,62 @@ def check(
     catalog = {
         row["opcode"]: row for row in native.catalog(executable, timeout)["evmir"]
     }
+    names = {row["name"]: row for row in catalog.values()}
+    context = caller_context.certify(kernel, tables, sites, names, timeout)
+    decoded = decode_runtime(runtime, names)
+    boundaries = None
+    meter_inputs = []
     for site in sites:
         state = fixtures(runtime, site, directory, solar, timeout, worlds)
+        if boundaries is None:
+            recovery = recovery_boundary.find(decoded)
+            packing = packing_boundary.plan(runtime, decoded, recovery.gas, names)
+            owner = owner_reentry.steps(runtime, decoded, names)
+            config = world.configuration(solar, FORK, state, timeout, executable)
+            authorization = certify_authorization(
+                kernel,
+                runtime,
+                decoded,
+                catalog,
+                tables,
+                state,
+                config,
+                executable,
+                timeout,
+                nonce_pc=recovery.nonce,
+                signing_pc=packing.steps[0].pc,
+            )
+            boundaries = {
+                "prehelper_calls": certify_prehelper_calls(
+                    directory,
+                    kernel,
+                    runtime,
+                    decoded,
+                    catalog,
+                    helper_pc,
+                    solar,
+                    executable,
+                    config,
+                    timeout,
+                ),
+                "authorization_entry": authorization,
+                "recovery_boundary": recovery_boundary.certify(
+                    kernel,
+                    recovery,
+                    packing,
+                    state,
+                    solar,
+                    executable,
+                    timeout,
+                    tables=tables,
+                    entry=authorization["signing_record"]["proof"],
+                ),
+                "reentrant_owner": owner_reentry.certify(
+                    kernel, owner, config, tables, names, timeout
+                ),
+            }
         observed = replay(state, helper_pc, executable, timeout)
+        meter_inputs.append((site.name, state, observed))
         routed = replay(state, site.abi_pc, executable, timeout)
         route = dispatch_proof.plan(runtime, site, observed["pcs"], catalog)
         require(
@@ -298,6 +482,55 @@ def check(
             f"{site.name} dispatcher disagrees with raw bytecode replay",
         )
         (directory / f"{site.name}-dispatch.json").write_text(json.dumps(routed))
+        decoder = decoder_proof.plan(runtime, site, observed["pcs"], catalog)
+        market = (
+            market_proof.plan(
+                runtime,
+                decoder,
+                observed["pcs"],
+                catalog,
+                market_proof.mir_markets(tables, site.name, catalog),
+            )
+            if site.name != "flashLoan"
+            else None
+        )
+        concrete = decoder.accepts(state["calldata"])
+        collateral = None
+        if site.name == "supplyCollateral":
+            write = collateral_proof.plan(runtime, observed["pcs"], catalog, market)
+            collateral = (
+                write,
+                collateral_mir.plan(tables, catalog, market),
+                collateral_tail.plan(runtime, catalog, write, helper_pc),
+                collateral_mir_tail.plan(tables, catalog),
+            )
+        market_snapshot = None
+        if concrete:
+            reached = replay(state, decoder.pc, executable, timeout)
+            stack, memory = decoder.replay_state(state["calldata"])
+            require(
+                reached["pc"] == decoder.pc
+                and reached["pcs"]
+                == routed["pcs"] + [step.inst.pc for step in decoder.instructions]
+                and reached["stack"] == stack
+                and reached["memory"] == memory
+                and reached["gas"] == routed["gas"] - decoder.gas
+                and not (
+                    reached["samples"] or reached["budgets"] or reached["returndata"]
+                ),
+                f"{site.name} ABI decoder disagrees with raw bytecode replay",
+            )
+            (directory / f"{site.name}-decoder.json").write_text(json.dumps(reached))
+            if market is not None:
+                before_read = replay(state, market.load_pc, executable, timeout)
+                read = replay(state, market.pc, executable, timeout)
+                require(
+                    read["pcs"]
+                    == reached["pcs"] + [step.inst.pc for step in market.instructions],
+                    f"{site.name} first market read disagrees with raw bytecode replay",
+                )
+                market_snapshot = before_read, read
+                (directory / f"{site.name}-market.json").write_text(json.dumps(read))
         source = replay_source(
             state, runtime, helper_pc, site, tables, solar, executable, timeout
         )
@@ -335,8 +568,44 @@ def check(
             live=live_values(site, snapshots),
         )
         proof = entry_proof.certify(
-            kernel, site, fixture, observed, helper_pc, route, len(runtime), timeout
+            kernel,
+            site,
+            fixture,
+            observed,
+            helper_pc,
+            route,
+            decoder,
+            concrete,
+            market,
+            market_snapshot,
+            collateral,
+            len(runtime),
+            timeout,
         )
+        if market is not None:
+            read = proof["market_read"]
+            read["guard"]["failure"] = market_rejection.certify(
+                kernel,
+                read["proof"],
+                runtime,
+                decoded,
+                catalog,
+                market,
+                decoder,
+                route,
+                timeout,
+            )
+        elif site.name == "flashLoan":
+            proof["zero_assets"] = flashloan_rejection.certify(
+                kernel,
+                proof["decoder"]["proof"],
+                runtime,
+                decoded,
+                catalog,
+                decoder,
+                route,
+                timeout,
+            )
         terminal = replay(state, None, executable, timeout)
         exit_proof = entry_proof.certify_exit(
             kernel, proof["proof"], helper_pc, terminal, timeout
@@ -350,4 +619,15 @@ def check(
             "gas": observed["gas"],
             "steps": len(observed["pcs"]),
         }
-    return evidence, entry_proof.certify_suite(kernel, evidence, timeout)
+    reports = caller_gas.evaluate(
+        kernel, [state for _, state, _ in meter_inputs], timeout
+    )
+    for (name, state, observed), report in zip(meter_inputs, reports, strict=True):
+        caller_gas.check_reached(report, state, observed)
+        (directory / f"{name}-abi-gas.json").write_text(json.dumps(report))
+    return (
+        evidence,
+        entry_proof.certify_suite(kernel, evidence, timeout),
+        context,
+        boundaries,
+    )

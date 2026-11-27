@@ -159,7 +159,7 @@ pub struct StateExecution {
     pub return_data: Vec<u8>,
     /// How the selected body ended; raw RETURN and STOP end the whole call frame.
     pub outcome: StateOutcome,
-    /// Active memory on success. Failure memory is not observable.
+    /// Active memory on success or at an explicitly requested replay cut.
     pub memory: Vec<u8>,
     /// Final persistent writes, discarded on failure.
     pub storage: Vec<(U256, U256)>,
@@ -181,6 +181,8 @@ pub enum StateOutcome {
     Invalid,
     /// An explicitly priced message exhausted its caller budget.
     OutOfGas,
+    /// A host-selected storage read completed and replay stopped with its active memory.
+    StorageReadCut,
     /// The interpreter cannot establish the result, including work/memory limits.
     Unsupported(String),
 }
@@ -223,6 +225,7 @@ pub fn run_state(
                 RunOutcome::Revert(data) => StateOutcome::Revert(data),
                 RunOutcome::Invalid | RunOutcome::ReturndataOutOfBounds => StateOutcome::Invalid,
                 RunOutcome::OutOfGas => StateOutcome::OutOfGas,
+                RunOutcome::StorageReadCut => StateOutcome::StorageReadCut,
                 RunOutcome::Unsupported(what) => StateOutcome::Unsupported(what.into()),
                 RunOutcome::Limit(what) => {
                     StateOutcome::Unsupported(format!("state replay limit: {what:?}"))

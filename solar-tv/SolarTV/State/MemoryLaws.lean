@@ -11,6 +11,30 @@ open EvmRules
 @[simp] theorem readBytes_zero (bytes : List Byte) (offset : Nat) :
     readBytes bytes offset 0 = [] := by rfl
 
+theorem readBytes_entire (bytes : List Byte) : readBytes bytes 0 bytes.length = bytes := by
+  apply List.ext_getElem
+  · simp [readBytes]
+  · intro i hi hj
+    simp [readBytes, List.getElem?_eq_getElem hj]
+
+theorem readBytes_append_prefix (memory suffix : List Byte) (offset count : Nat)
+    (within : offset + count ≤ memory.length) :
+    readBytes (memory ++ suffix) offset count = readBytes memory offset count := by
+  unfold readBytes
+  apply List.map_congr_left
+  intro i hi
+  have active : offset + i < memory.length := by have := List.mem_range.mp hi; omega
+  simp [List.getElem?_append_left active]
+
+theorem readBytes_take (memory : List Byte) (offset count keep : Nat) (within : keep ≤ count) :
+    (readBytes memory offset count).take keep = readBytes memory offset keep := by
+  simp [readBytes, ← List.map_take, Nat.min_eq_left within]
+
+theorem readBytes_split (memory : List Byte) (offset first rest : Nat) :
+    readBytes memory offset (first+rest) =
+      readBytes memory offset first ++ readBytes memory (offset+first) rest := by
+  simp [readBytes, List.range_add, List.map_append, List.map_map, Function.comp_def, Nat.add_assoc]
+
 theorem writeBytes_eq_spec (memory bytes : List Byte) (offset : Nat) :
   writeBytes memory offset bytes = writeBytesSpec memory offset bytes := by
   apply List.ext_getElem?
@@ -67,6 +91,35 @@ theorem readBytes_writeBytes_same (memory bytes : List Byte) (offset : Nat)
     simp [readBytes, writeBytes_eq_spec, writeBytesSpec, List.getElem?_mapIdx, List.getElem?_eq_getElem hm,
       Nat.add_sub_cancel_left, List.getElem?_eq_getElem hj] <;> omega
 
+theorem readBytes_writeBytes_window (memory bytes : List Byte) (destination source count : Nat)
+    (start : destination ≤ source) (finish : source+count ≤ destination+bytes.length)
+    (covered : source+count ≤ memory.length) :
+    readBytes (writeBytes memory destination bytes) source count =
+      readBytes bytes (source-destination) count := by
+  unfold readBytes
+  apply List.map_congr_left
+  intro i hi
+  have localIndex := List.mem_range.mp hi
+  have active : source+i < memory.length := by omega
+  have inside : destination ≤ source+i ∧ source+i < destination+bytes.length := by omega
+  have shifted : source+i-destination = source-destination+i := by omega
+  simp [writeBytes_eq_spec, writeBytesSpec, active, inside, shifted]
+
+theorem writeBytes_existing (memory bytes : List Byte) (offset : Nat)
+    (same : readBytes memory offset bytes.length = bytes) :
+    writeBytes memory offset bytes = memory := by
+  rw [writeBytes_eq_spec]
+  apply List.ext_getElem
+  · simp [writeBytesSpec]
+  · intro i written active
+    by_cases inside : offset ≤ i ∧ i < offset + bytes.length
+    · have relative : i - offset < bytes.length := by omega
+      have old := congrArg (fun row : List Byte => row[i-offset]?) same
+      simp only [readBytes, List.getElem?_map, List.getElem?_range relative,
+        Option.map_some, Nat.add_sub_of_le inside.1] at old
+      simp [writeBytesSpec, inside, ← old, List.getElem?_eq_getElem active]
+    · simp [writeBytesSpec, inside]
+
 theorem flatten_wordBytes (word : Word) : (BitVec.flattenList (wordBytes word)).setWidth 256 = word := by
   have hl : (wordBytes word).length = 32 := by simp [wordBytes]
   apply BitVec.eq_of_getLsbD_eq
@@ -98,11 +151,6 @@ theorem flatten_wordBytes (word : Word) : (BitVec.flattenList (wordBytes word)).
 @[simp↓] theorem readWord_append_prefix (memory bytes : List Byte) (offset : Nat)
     (h : offset + 32 ≤ memory.length) : readWord (memory ++ bytes) offset = readWord memory offset := by
   unfold readWord
-  congr 2
-  unfold readBytes
-  apply List.map_congr_left
-  intro i hi
-  have hm : offset + i < memory.length := by have := List.mem_range.mp hi; omega
-  simp [List.getElem?_append_left hm]
+  rw [readBytes_append_prefix memory bytes offset 32 h]
 
 end SolarTV.Execution

@@ -12,13 +12,13 @@ example : memoryCost 22 = 66 := by decide
 example : memoryCost 23 = 70 := by decide
 example : pureCost (.push 0) = 2 ∧ pureCost (.push 1) = 3 := by decide
 
-example : execute ⟨0, 0, 0, []⟩ [.gas] (.control (.jump 1)) [] (SolarTV.Memory.initial [] 0) 13 =
+example : execute ⟨0, 0, 0, [], 0⟩ [.gas] (.control (.jump 1)) [] (SolarTV.Memory.initial [] 0) 13 =
     ⟨.execution (.edge 1 [11] (SolarTV.Memory.initial [] 0)), 0⟩ := by decide
 
-example : execute ⟨0, 0, 0, []⟩ [.gas] (.control .stop) [] (SolarTV.Memory.initial [] 0) 1 =
+example : execute ⟨0, 0, 0, [], 0⟩ [.gas] (.control .stop) [] (SolarTV.Memory.initial [] 0) 1 =
     exhausted := by decide
 
-example : execute ⟨0, 0, 0, []⟩ [.gas] (.control .stop) [] (SolarTV.Memory.initial [] 0) 2 =
+example : execute ⟨0, 0, 0, [], 0⟩ [.gas] (.control .stop) [] (SolarTV.Memory.initial [] 0) 2 =
     ⟨.execution (.success []), 0⟩ := by decide
 
 example : finish (.control .invalid) [] (SolarTV.Memory.initial [] 0) 100 =
@@ -33,7 +33,7 @@ example : expansionCost (SolarTV.Memory.initial [] 22)
 example : refines exhausted ⟨.execution (.success []), 10⟩ := by decide
 example : ¬ refines ⟨.execution (.reverted []), 0⟩ ⟨.execution (.success []), 10⟩ := by decide
 
-example : execute ⟨0, 0, 0, []⟩
+example : execute ⟨0, 0, 0, [], 0⟩
     [.instruction (.stack (.push 0)), .instruction .load, .instruction (.stack .pop),
      .instruction (.stack (.push 0)), .instruction .load, .instruction (.stack .pop)]
     (.control .stop) [] (SolarTV.Memory.initial [] 0) 17 =

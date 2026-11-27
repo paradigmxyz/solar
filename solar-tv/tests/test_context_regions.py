@@ -72,6 +72,34 @@ class ContextRegionTests(unittest.TestCase):
             " ".join(record["assumptions"]),
         )
 
+    def test_callvalue_layout_keeps_the_full_value(self):
+        example = ROOT / "examples/evmir/caller-tail"
+        before, after, broken = [
+            self.folder / f"{side}.evmir" for side in ("before", "after", "broken")
+        ]
+        before.write_text(
+            (example / "before.evmir")
+            .read_text()
+            .replace("  caller\n", "  callvalue\n")
+        )
+        after.write_text(
+            subprocess.check_output(
+                [SOLAR, before, "-j1", "-Ogas", "-Zevm-ir-pipeline=block-layout"],
+                text=True,
+                timeout=30,
+            )
+        )
+        self.assertNotEqual(before.read_text(), after.read_text().split("\n", 1)[1])
+        _, record = self.check(before, after, "--region", "bb1", "--stack-height", "2")
+        self.assertEqual(record["region"]["proof"], "universal-stack-region")
+        self.assertIn("arbitrary 256-bit call value", record["assumptions"])
+
+        broken.write_text(after.read_text().replace("  callvalue\n", "  push 0\n"))
+        _, record = self.check(
+            before, broken, "--region", "bb1", "--stack-height", "2", status=2
+        )
+        self.assertEqual(record["status"], "unsupported")
+
     def test_examples_match_actual_pass_outputs(self):
         for name, pipeline in (
             ("caller-tail", "block-layout"),

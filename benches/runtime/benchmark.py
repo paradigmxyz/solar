@@ -62,6 +62,9 @@ CAST_RPC_TIMEOUT = 10
 CAST_GAS_LIMIT = "80000000"
 CAST_TRACE_TIMEOUT = 120
 GAS_KINDS_TRACER = Path(__file__).with_name("gas_kinds_tracer.js")
+EMPTY_JS_TRACE = (
+    "RPC returned no JavaScript trace data; use an Anvil build with JS tracers"
+)
 RUNTIME_FIXTURES = ROOT / "fixtures/runtime/RuntimeFixtures.sol"
 FAIR_BRUTALIZER = REPOSITORY_ROOT / "testdata/runtime/FairBrutalizer.sol"
 SOLADY_BRUTALIZER_SOURCE = "test/utils/Brutalizer.sol"
@@ -1218,6 +1221,8 @@ def trace_gas_kinds(
     )
     if not isinstance(trace, dict):
         return None, error or "trace result is not an object"
+    if not trace:
+        return None, EMPTY_JS_TRACE
     try:
         kinds = {str(kind): int(gas) for kind, gas in trace["kinds"].items()}
         execution_gas, refund, first_gas, gas_limit, root_spent = (

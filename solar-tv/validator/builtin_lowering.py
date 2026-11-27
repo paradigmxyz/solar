@@ -638,7 +638,19 @@ def prove(code, timeout, module="SolarTV", proof_path=None):
     )
 
 
-def check(paths, solar, executable, version, timeout, function, *, final_call=None):
+def check(
+    paths,
+    solar,
+    executable,
+    version,
+    timeout,
+    function,
+    *,
+    final_call=None,
+    proof_path=None,
+):
+    from . import authorization_lowering
+
     texts, models, declarations = load_pair(paths, solar, executable, version, timeout)
     bodies = list(map(functions, models))
     if any(
@@ -657,11 +669,10 @@ def check(paths, solar, executable, version, timeout, function, *, final_call=No
         declarations[0][function]["text"][0] == declarations[1][function]["text"][0],
         "builtin expansion changed the function interface",
     )
-    if any(
-        inst["operation"]["kind"] == "store_storage_bytes"
-        for block in old["blocks"]
-        for inst in block["instructions"]
-    ):
+    operations = [
+        inst["operation"] for block in old["blocks"] for inst in block["instructions"]
+    ]
+    if any(op["kind"] == "store_storage_bytes" for op in operations):
         from . import storage_lowering
 
         require(not final_call, "final bytecode certificate requires a CALL")
@@ -685,6 +696,38 @@ def check(paths, solar, executable, version, timeout, function, *, final_call=No
         )
         callees = []
         code = STORAGE_PROOF
+    elif any(op["kind"] == "load_storage_bytes" for op in operations):
+        from . import storage_lowering
+
+        require(not final_call, "final bytecode certificate requires a CALL")
+        storage_lowering.check_loader(
+            old,
+            new,
+            [d[function]["targets"] for d in declarations],
+            executable,
+            timeout,
+        )
+        callees, helpers = [], []
+        kind = "contextual-storage-bytes-load"
+        boundary = (
+            "unpriced storage-byte CFG with equal returned pointer, live frame, "
+            "slot warming and revert payload; 64 KiB memory and 2048-word work domain"
+        )
+        code = STORAGE_LOAD_PROOF
+    elif any(authorization_lowering.is_recovery(op) for op in operations):
+        require(
+            not final_call and version != "amsterdam",
+            "unsupported signing expansion target",
+        )
+        callees = unchanged_callees(function, bodies, declarations)
+        helpers = []
+        kind = "contextual-signing-expansion"
+        boundary = (
+            "identical typed context and immutable binding; exact packed object and "
+            "scratch-word effects; GAS paid and its sample covers the incoming "
+            "message budget; unpriced caller instructions"
+        )
+        code = authorization_lowering.source(old, new)
     else:
         require(version != "amsterdam", "Amsterdam MIR message gas is not modeled")
         callees = unchanged_callees(function, bodies, declarations)
@@ -750,7 +793,9 @@ def check(paths, solar, executable, version, timeout, function, *, final_call=No
                 for inst in block["instructions"]:
                     op = inst["operation"]
                     require(
-                        op["kind"] != "layout",
+                        op["kind"] != "layout"
+                        or kind == "contextual-signing-expansion"
+                        and op["query"] == "immutable_read",
                         "builtin expansion excludes placement observations",
                     )
                     if op["kind"] == "opcode":
@@ -762,13 +807,13 @@ def check(paths, solar, executable, version, timeout, function, *, final_call=No
                             ),
                             "builtin expansion needs available opcodes independent of the code image",
                         )
-    prove(code, timeout, module, final_call["proof"] if final_call else None)
+    prove(code, timeout, module, final_call["proof"] if final_call else proof_path)
     if final_call and final_call.get("caller_entry"):
         from . import caller_entry
 
         runtime, directory, worlds = final_call["caller_entry"]
         artifact = final_call["artifact"]
-        paths, suite = caller_entry.check(
+        entry_paths, suite, context, boundaries = caller_entry.check(
             runtime,
             artifact["entry_pc"],
             final_call["callers"],
@@ -779,15 +824,46 @@ def check(paths, solar, executable, version, timeout, function, *, final_call=No
             timeout,
             worlds,
         )
+        transfer = directory / "MIRSafeTransfer.lean"
+        check(
+            paths,
+            solar,
+            executable,
+            version,
+            timeout,
+            "safeTransfer",
+            proof_path=transfer,
+        )
+        authorization = directory / "MIRAuthorizationWithSig.lean"
+        check(
+            paths,
+            solar,
+            executable,
+            version,
+            timeout,
+            "setAuthorizationWithSig",
+            proof_path=authorization,
+        )
         artifact["abi_entry"] = {
             "scope": "concrete Cancun worlds from ABI dispatch to exit via the helper",
             "reachability": "lean-kernel",
             "dispatcher": "symbolic-lean-kernel",
+            "decoder": "symbolic-lean-kernel",
             "end_to_end": "lean-kernel",
             "independent_replay": "lean-and-rust-replay",
             "snapshot_live_ins": "lean-kernel",
-            "paths": paths,
+            "paths": entry_paths,
             "proof": suite,
+            "shared_mir_context": context,
+            **boundaries,
+            "safe_transfer_call": {
+                "proof": transfer.name,
+                "scope": "local CALL and returndata expansion with a shared incoming budget",
+            },
+            "authorization_with_sig": {
+                "proof": authorization.name,
+                "scope": "local packed envelope and static recovery call with a paid GAS sample",
+            },
         }
 
     pair = tuple(
@@ -867,6 +943,23 @@ def returnAddress : Caller → Word
 {return_addresses}
 theorem suffixShape (caller : Caller) : callerSuffix caller = reference caller := by
   cases caller <;> decide
+
+theorem separateArenas (frame : Frame) (physical : List Byte) (sender receiver amount : Word)
+    (mirAligned : frame.memory.length % 32 = 0) (mirBound : frame.memory.length ≤ 65536)
+    (mirLive : 96 ≤ frame.memory.length) (mirHeap : 128 ≤ (readWord frame.memory 64).toNat)
+    (mirFits : (readWord frame.memory 64).toNat + 160 ≤ 65536)
+    (evmAligned : physical.length % 32 = 0) (evmBound : physical.length ≤ 65536)
+    (evmLive : 96 ≤ physical.length) (evmHeap : 128 ≤ (readWord physical 64).toNat)
+    (evmFits : (readWord physical 64).toNat + 160 ≤ 65536) :
+    ∃ mirAfter evmAfter,
+      abiEncode frame 1 false true [false,false,false] [selector,sender,receiver,amount] =
+        .ok (.scalar (Scalar.ofWord 256 (readWord frame.memory 64)),{frame with memory := mirAfter}) ∧
+      runMemory sender receiver amount finalWrites physical 0 = .ok evmAfter ∧
+      readBytes mirAfter ((readWord frame.memory 64).toNat+32) 100 =
+        readBytes evmAfter ((readWord physical 64).toNat+32) 100 := by
+  rw [finalWritesShape]
+  exact independentMemoryInput frame physical sender receiver amount mirAligned mirBound
+    mirLive mirHeap mirFits evmAligned evmBound evmLive evmHeap evmFits
 
 theorem contextual (cfg : Config) (fuel : Nat)
     (evm : EVM.State.Frame) (world : Journal) (args : Inputs)
@@ -990,5 +1083,16 @@ open SolarTV.MIR.LowerStorageBytes
 theorem contextual (cfg : Config) (frame : Frame) (slot object : Word) :
     lowered cfg frame slot object = storeStorageBytes cfg frame slot object none :=
   store cfg frame slot object
+#print axioms contextual
+"""
+
+
+STORAGE_LOAD_PROOF = """
+open SolarTV.MIR.State EvmRules
+open SolarTV.MIR.LowerStorageLoad
+theorem contextual (cfg : Config) (frame : Frame) (slot : Word)
+    (bounded : frame.memory.length ≤ 65536) :
+    lowered cfg frame slot = loadStorageBytes cfg frame slot :=
+  load cfg frame slot bounded
 #print axioms contextual
 """

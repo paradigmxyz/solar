@@ -1,12 +1,13 @@
 """Internal calls and allocation checked directly, without backend layout or protocols."""
 
+import json
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
 import test_mir_state as state
-from test_cli import ROOT, SOLAR
+from test_cli import CLI, ROOT, SOLAR
 
 
 def program(body, helpers="", signature="fn @f() -> i256"):
@@ -102,6 +103,76 @@ class MirCallsTests(unittest.TestCase):
         self.pair(
             program("v0 = add 7, 1\nv1 = icall @swap, v0, 3\nret v1", helper),
             program("ret 5"),
+        )
+
+    def test_dead_argument_prunes_direct_and_tail_operands(self):
+        before = program(
+            "v0 = icall @step, 19, 4\nv1 = icall @tail\nv2 = add v0, v1\nret v2",
+            "fn @tail() -> i256 {\nbb0:\ntail_call @step, 31, 6\n}\n"
+            "fn @step(arg0: i256, arg1: i256) -> i256 {\nbb0:\n"
+            "v0 = add arg1, 3\nsstore 7, v0\nret v0\n}\n",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            original, optimized = (
+                folder / f"{name}.mir" for name in ("before", "after")
+            )
+            original.write_text(before)
+            after = subprocess.check_output(
+                [
+                    SOLAR,
+                    original,
+                    "-j1",
+                    "-Ogas",
+                    "-Zmir-pipeline=dead-arg-elim",
+                    "-Zvalidate-ir=true",
+                ],
+                text=True,
+                timeout=30,
+            )
+            optimized.write_text(after)
+            changed = after.replace("icall @step, 4", "icall @step, 5")
+            self.assertNotEqual(after, changed)
+            report = folder / "report.json"
+            command = [
+                CLI,
+                "mir",
+                original,
+                optimized,
+                "--solar",
+                SOLAR,
+                "--function=f",
+                "--report",
+                report,
+            ]
+            for text, status in ((after, 0), (changed, 1)):
+                optimized.write_text(text)
+                result = subprocess.run(
+                    command, check=False, capture_output=True, text=True, timeout=90
+                )
+                record = json.loads(report.read_text())
+                if status == 0:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(
+                        record["region"]["proof"],
+                        "kernel-checked-mir-argument-projection",
+                    )
+                    self.assertEqual(
+                        record["gas_policy"], "unpriced-shared-interactions"
+                    )
+                    self.assertEqual(
+                        record["import_correspondence"][0]["argument_projection"],
+                        {"step": {"before_arity": 2, "kept": [1]}},
+                    )
+                else:
+                    self.assertNotEqual(
+                        record["status"], "verified", result.stdout + result.stderr
+                    )
+        self.pair(before, after)
+        _, report = self.pair(before, changed, status=1)
+        self.assertEqual(report["evidence"], "kernel-and-rust-replay")
+        self.assertEqual(
+            report["witness"]["observations"], report["witness"]["native_observations"]
         )
 
     def test_narrow_and_pointer_call_results(self):

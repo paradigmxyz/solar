@@ -36,11 +36,14 @@ class StackLayoutTests(unittest.TestCase):
             report,
             *flags,
         ]
-        command += (
-            ["--world", self.folder / "world.json", "--gas=exact"]
-            if world
-            else ["--region=bb0"]
-        )
+        if world:
+            command += ["--world", self.folder / "world.json", "--gas=exact"]
+        elif (
+            "--entry-trace" not in flags
+            and "--world" not in flags
+            and not any(flag.startswith("--region=") for flag in flags)
+        ):
+            command += ["--region=bb0"]
         result = subprocess.run(
             command, capture_output=True, text=True, check=False, timeout=120
         )
@@ -76,9 +79,11 @@ class StackLayoutTests(unittest.TestCase):
 
     def test_changed_store_has_a_kernel_and_native_counterexample(self):
         broken = self.folder / "broken.evmir"
-        result, record = self.cli([self.paths[0], broken])
-        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
-        self.assertEqual(record["status"], "unsupported")
+        for flags in ((), ("--entry-trace",)):
+            with self.subTest(flags=flags):
+                result, record = self.cli([self.paths[0], broken], flags=flags)
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertEqual(record["status"], "unsupported")
         # Compare the same layout: the witness must expose the changed value,
         # rather than merely a legitimate difference in physical jump charges.
         result, record = self.cli([self.paths[1], broken], world=True)
@@ -87,6 +92,265 @@ class StackLayoutTests(unittest.TestCase):
         self.assertEqual(
             record["witness"]["observations"], record["witness"]["native_observations"]
         )
+
+    def test_entry_trace_checks_the_real_layout_with_an_empty_stack(self):
+        result, record = self.cli(flags=("--entry-trace",))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(record["region"]["kind"], "entry")
+        self.assertEqual(record["region"]["proof"], "kernel-checked-entry-layout")
+        self.assertEqual(record["gas_policy"], "unpriced-structural")
+        for side in record["import_correspondence"]:
+            self.assertEqual(side["block_labels"], [0, 2, 4])
+            self.assertEqual(side["entry_height_bound"], 0)
+            self.assertEqual(len(side["changed_growth_checks"]), 2)
+            self.assertLess(max(side["stack_height_bounds"]), 1024)
+
+    def test_literal_indexed_jump_checks_the_selected_edge_and_peak(self):
+        before, after, broken = (
+            self.tmp / f"{name}.evmir" for name in ("before", "after", "broken")
+        )
+        header, body = self.paths[0].read_text().split("\n", 1)
+        dispatch = "  push 0\n  indexed_jump bb1, bb99"
+        source = (
+            f"{header}\nbb0 [stack=0]:\n{dispatch}\n"
+            + body.replace("bb0 [stack=0]:", "bb1:")
+            + """bb99 [cold]:
+  push 66
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+"""
+        )
+        before.write_text(source)
+        text = subprocess.check_output(
+            [
+                SOLAR,
+                before,
+                "-j1",
+                "-Ogas",
+                "--evm-version=cancun",
+                "-Zevm-ir-pipeline=block-layout",
+            ],
+            text=True,
+            timeout=20,
+        )
+        self.assertNotEqual(list(regions.blocks(source)), list(regions.blocks(text)))
+        after.write_text(text)
+        result, record = self.cli([before, after], flags=("--entry-trace",))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(record["region"]["proof"], "kernel-checked-entry-layout")
+        for side in record["import_correspondence"]:
+            self.assertEqual(side["resolved_literal_tables"], 1)
+            self.assertEqual(side["literal_table_entry_bounds"], [0])
+
+        folder = self.tmp / "indexed-audit"
+        command = [
+            SOLAR,
+            before,
+            "-j1",
+            "-Ogas",
+            "--evm-version=cancun",
+            "-Zevm-ir-pipeline=block-layout",
+            "--emit=bin",
+        ]
+        env = {**os.environ, "SOLAR_TV": CLI, "SOLAR": SOLAR}
+        env.pop("SOLAR_TV_GAS", None)
+        plain = subprocess.check_output(command, env=env, text=True, timeout=20)
+        audited = subprocess.check_output(
+            [*command, f"-Zsolar-tv={folder}"], env=env, text=True, timeout=90
+        )
+        self.assertEqual(audited, plain)
+        (receipt,) = (folder / "audits").glob("*.json")
+        self.assertEqual(json.loads(receipt.read_text())["region"]["kind"], "entry")
+
+        wrong = text.replace("indexed_jump bb1, bb99", "indexed_jump bb99, bb1")
+        self.assertNotEqual(wrong, text)
+        broken.write_text(wrong)
+        result, record = self.cli([after, broken], flags=("--entry-trace",))
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(record["status"], "unsupported")
+        result, record = self.cli([after, broken], world=True)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+        self.assertEqual(
+            record["witness"]["observations"],
+            record["witness"]["native_observations"],
+        )
+
+        broken.write_text(
+            source.replace(dispatch, dispatch.replace("push 0", "push 2"))
+        )
+        result, record = self.cli([before, broken], flags=("--entry-trace",))
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("literal indexed jump is outside its table", result.stderr)
+
+        # The literal alone and the table's peak fit individually, but their
+        # combined peak does not fit on an incoming 1,021-word stack.
+        overfull = source.replace(dispatch, "  push 1\n" * 1021 + dispatch)
+        broken.write_text(overfull)
+        result, record = self.cli([broken, broken], flags=("--entry-trace",))
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("literal indexed jump may exceed the stack limit", result.stderr)
+
+    def test_entry_trace_resolves_both_edges_of_stack_carried_jumpi(self):
+        before, after, broken = (
+            self.tmp / f"{name}.evmir" for name in ("before", "after", "broken")
+        )
+        entry = """@module DynamicBranch
+bb0 [stack=0]:
+  push bb3
+  push 0
+  calldataload
+  swap 1
+  jump bb1
+"""
+        branch = """bb1:
+  jumpi
+  push 11
+  jump bb4
+"""
+        invalid = """bb2:
+  invalid
+"""
+        body = """bb3:
+  push 29
+  jump bb4
+bb4:
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+"""
+        before.write_text(entry + invalid + branch + body)
+        after.write_text(entry + branch + invalid + body)
+        broken.write_text(after.read_text().replace("push bb3", "push bb2"))
+        result, record = self.cli([before, after], flags=("--entry-trace",))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(record["region"]["proof"], "kernel-checked-entry-layout")
+        self.assertEqual(
+            [side["resolved_branches"] for side in record["import_correspondence"]],
+            [1, 1],
+        )
+        result, record = self.cli([before, broken], flags=("--entry-trace",))
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(record["status"], "unsupported")
+
+        fixture = self.tmp / "destination-world.json"
+        fixture.write_text('{"version":1,"calldata":"0x01"}')
+        result, record = self.cli([after, broken], flags=("--world", fixture))
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+        self.assertEqual(
+            record["witness"]["observations"], record["witness"]["native_observations"]
+        )
+
+    def test_region_layout_uses_proved_caller_return_slot(self):
+        before, after = (self.tmp / f"{name}.evmir" for name in ("before", "after"))
+        entry = """@module Caller
+bb0 [stack=0]:
+  push bb9
+  jump bb1
+bb1:
+  push 0
+  sload
+  pop
+  jump bb2
+"""
+        invalid = """bb3:
+  invalid
+"""
+        helper_exit = """bb2:
+  jump
+"""
+        epilogue = """bb9:
+  stop
+"""
+        before.write_text(entry + invalid + helper_exit + epilogue)
+        after.write_text(entry + helper_exit + invalid + epilogue)
+        flags = ("--region=bb1", "--entry-stack")
+        result, record = self.cli([before, after], flags=flags)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(record["region"]["name"], "bb1")
+        self.assertEqual(record["region"]["proof"], "kernel-checked-entry-bound-layout")
+        for evidence in record["import_correspondence"]:
+            self.assertEqual(evidence["caller_return_slots"], [0])
+            self.assertEqual(evidence["entry_height_bound"], 2)
+            self.assertEqual(len(evidence["changed_growth_checks"]), 1)
+        after.write_text(after.read_text().replace("bb2:\n  jump", "bb2:\n  stop"))
+        result, record = self.cli([before, after], flags=flags)
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(record["status"], "unsupported")
+
+    def test_real_layout_checks_comparison_and_swapped_successors(self):
+        before = ROOT.parent / "tests/ui/codegen/evm-ir/jumpi-fallthrough/equal.evmir"
+        after = self.tmp / "after.evmir"
+        output = subprocess.check_output(
+            [
+                SOLAR,
+                before,
+                "-j1",
+                "-Ogas",
+                "--evm-version=cancun",
+                "-Zevm-ir-pipeline=jumpi-fallthrough",
+            ],
+            text=True,
+            timeout=20,
+        )
+        after.write_text(output)
+        result, record = self.cli([before, after], flags=("--entry-trace",))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(record["region"]["proof"], "kernel-checked-entry-layout")
+        self.assertEqual(
+            [side["checked_branch_tests"] for side in record["import_correspondence"]],
+            [1, 1],
+        )
+        broken = self.tmp / "broken.evmir"
+        broken.write_text(output.replace("\n  sub\n", "\n  eq\n", 1))
+        result, record = self.cli([before, broken], flags=("--entry-trace",))
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(record["status"], "unsupported")
+
+        fixture = self.tmp / "comparison-world.json"
+        calldata = bytes(4) + (7).to_bytes(32, "big") + (8).to_bytes(32, "big")
+        fixture.write_text(
+            json.dumps({"version": 1, "calldata": "0x" + calldata.hex()})
+        )
+        result, record = self.cli([after, broken], flags=("--world", fixture))
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+        self.assertEqual(
+            record["witness"]["observations"], record["witness"]["native_observations"]
+        )
+
+    def test_large_entry_layout_checks_every_row_in_batches(self):
+        before, after = (self.tmp / f"{name}.evmir" for name in ("before", "after"))
+        body = "".join(f"  push {word}\n  pop\n" for word in range(1, 1025))
+        before.write_text(
+            self.paths[0].read_text().replace("  sload\n", f"  sload\n{body}", 1)
+        )
+        after.write_text(
+            subprocess.check_output(
+                [
+                    SOLAR,
+                    before,
+                    "-j1",
+                    "-Ogas",
+                    "--evm-version=cancun",
+                    "-Zevm-ir-pipeline=block-layout",
+                ],
+                text=True,
+                timeout=20,
+            )
+        )
+        result, record = self.cli([before, after], flags=("--entry-trace",))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(record["region"]["proof"], "kernel-checked-entry-layout")
+        for evidence in record["import_correspondence"]:
+            self.assertGreater(evidence["logical_actions"], 2048)
+            self.assertEqual(len(evidence["changed_growth_checks"]), 2)
 
     def test_unproved_growth_is_not_hidden_by_an_entry_hint(self):
         paths = [self.tmp / f"{side}.evmir" for side in ("before", "after")]
@@ -156,38 +420,48 @@ class StackLayoutTests(unittest.TestCase):
                 )
 
     def test_live_audit_keeps_bytecode(self):
-        folder = self.tmp / "audit"
-        command = [
-            SOLAR,
-            self.paths[0],
-            "-j1",
-            "-Ogas",
-            "-Zevm-ir-pipeline=block-layout",
-            "--emit=bin",
-        ]
-        outputs = [
-            subprocess.run(
-                [*command, *flags],
-                env={**os.environ, "SOLAR_TV": CLI, "SOLAR": SOLAR},
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=120,
-            )
-            for flags in ([], [f"-Zsolar-tv={folder}"])
-        ]
-        self.assertEqual(outputs[0].stdout, outputs[1].stdout)
-        records = [
-            json.loads(path.read_text()) for path in (folder / "audits").glob("*.json")
-        ]
-        self.assertTrue(
-            any(
-                r["status"] == "verified"
-                and r.get("region", {}).get("proof")
-                == "kernel-checked-schema-stack-layout"
-                for r in records
-            )
+        fallback = self.tmp / "code-observer.evmir"
+        header, body = self.paths[0].read_text().split("\n", 1)
+        fallback.write_text(
+            f"{header}\nbb99 [stack=0]:\n  codesize\n  pop\n  jump bb0\n{body}"
         )
+        env = {**os.environ, "SOLAR_TV": CLI, "SOLAR": SOLAR}
+        env.pop("SOLAR_TV_GAS", None)
+        for source, proof in (
+            (self.paths[0], "kernel-checked-entry-layout"),
+            (fallback, "kernel-checked-schema-stack-layout"),
+        ):
+            with self.subTest(source=source):
+                folder = self.tmp / source.stem
+                command = [
+                    SOLAR,
+                    source,
+                    "-j1",
+                    "-Ogas",
+                    "-Zevm-ir-pipeline=block-layout",
+                    "--emit=bin",
+                ]
+                outputs = [
+                    subprocess.run(
+                        [*command, *flags],
+                        env=env,
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                        timeout=120,
+                    )
+                    for flags in ([], [f"-Zsolar-tv={folder}"])
+                ]
+                self.assertEqual(outputs[0].stdout, outputs[1].stdout)
+                records = [
+                    json.loads(path.read_text())
+                    for path in (folder / "audits").glob("*.json")
+                ]
+                verified = [r["region"] for r in records if r["status"] == "verified"]
+                self.assertIn(proof, [r.get("proof") for r in verified])
+                if source == self.paths[0]:
+                    self.assertEqual(len(records), 1)
+                    self.assertEqual(verified[0]["kind"], "entry")
 
     def test_kernel_rejects_forged_bounds_and_exhibits_overflow(self):
         path = self.tmp / "Bounds.lean"

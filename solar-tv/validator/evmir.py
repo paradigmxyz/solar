@@ -12,6 +12,8 @@ from . import memory as mem
 from . import operations as vocabulary
 from .common import Program, Unsupported, lines, literal
 
+CONTEXT_READS = {"caller", "callvalue", "calldataload"}
+
 
 def translate(
     text: str,
@@ -156,7 +158,7 @@ def translate(
         if memory
         else "EVM.Execution",
         function
-        + " ⟨calldatasize, returndatasize, 0, []⟩ ["
+        + " ⟨calldatasize, returndatasize, 0, [], 0⟩ ["
         + ", ".join(ops)
         + "] "
         + terminal
@@ -196,7 +198,7 @@ def instructions(body, constants, *, memory, gas=None, context=False):
             if constants is not None:
                 constants.insert(0, None)
             continue
-        if context and line in {"caller", "calldataload"}:
+        if context and line in CONTEXT_READS:
             operation = f".{line}"
             if constants is not None:
                 if line == "calldataload":

@@ -12,6 +12,7 @@ from test_cli import CLI, ROOT, SOLAR
 
 sys.path.insert(0, str(ROOT))
 from validator import evm_effects, native
+from validator.check import load
 from validator.common import Unsupported
 
 
@@ -44,6 +45,47 @@ class EffectPrefixTests(unittest.TestCase):
         )
         self.assertTrue(report.exists(), result.stderr)
         return result, json.loads(report.read_text())
+
+    def test_gas_message_window_requires_the_funded_policy(self):
+        before, after = [
+            self.directory / f"{name}.evmir" for name in ("before", "after")
+        ]
+        header = "@module FundedMessage\nbb0 [stack=0]:\n  push 0xabcdef\n"
+        mask = "  push 0\n  not\n  push 96\n  shr\n  and\n"
+        shifts = "  push 96\n  shl\n  push 96\n  shr\n"
+        arguments = "  push 0\n  mstore\n  push 32\n  push 64\n  push 32\n  push 0\n"
+        for kind in ("call", "staticcall"):
+            with self.subTest(kind=kind):
+                value = "  push 0\n" if kind == "call" else ""
+                tail = (
+                    arguments
+                    + value
+                    + f"  push 17476\n  gas\n  {kind}\n  pop\n  stop\n"
+                )
+                before.write_text(header + mask + tail)
+                after.write_text(header + shifts + tail)
+                paths = [before, after]
+                rejected, record = self.cli(paths, "--prefix", "bb0")
+                self.assertEqual(rejected.returncode, 2, rejected.stderr)
+                self.assertEqual(record["status"], "unsupported")
+
+                verified, record = self.cli(paths, "--funded-call", "bb0")
+                self.assertEqual(verified.returncode, 0, verified.stderr)
+                self.assertEqual(
+                    record["region"]["proof"], "kernel-checked-funded-call-return"
+                )
+                self.assertFalse(record["whole_pass"])
+                self.assertEqual(
+                    record["import_correspondence"][0]["message_prefix"], ["gas", kind]
+                )
+
+                changed = tail.replace("  gas\n", "  gas\n  swap 1\n")
+                before.write_text(header + mask + changed)
+                after.write_text(header + shifts + changed)
+                result, record = self.cli(paths, "--funded-call", "bb0")
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertEqual(record["status"], "unsupported")
+                self.assertIn("immediately before", record["diagnostic"])
 
     def test_real_peephole_and_universal_resource_proof(self):
         before, after = [self.example / f"{name}.evmir" for name in ("before", "after")]
@@ -90,6 +132,147 @@ class EffectPrefixTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertEqual(record["status"], "unsupported")
         self.assertIn("no reachable counterexample established", result.stderr)
+
+    def test_live_stack_reschedule_keeps_shared_abort_paths(self):
+        source = (
+            ROOT.parent / "tests/ui/codegen/evm-ir/stack-reschedule/abort_targets.evmir"
+        )
+        command = [SOLAR, source, "-j1", "-Ogas", "-Zevm-ir-pipeline=stack-reschedule"]
+        compiled = subprocess.check_output(command, text=True, timeout=30)
+        after = self.directory / "after.evmir"
+        after.write_text(compiled)
+        flags = ["--emit=abi,bin,bin-runtime"]
+        baseline = subprocess.check_output([*command, *flags], text=True, timeout=30)
+        audits = self.directory / "audits"
+        live = subprocess.check_output(
+            [*command, *flags, f"-Zsolar-tv={audits}"],
+            env={**os.environ, "SOLAR": SOLAR, "SOLAR_TV": CLI},
+            text=True,
+            timeout=90,
+        )
+        self.assertEqual(live, baseline)
+        records = [
+            json.loads(path.read_text()) for path in (audits / "audits").glob("*.json")
+        ]
+        self.assertEqual({row["region"]["name"] for row in records}, {"bb0", "bb7"})
+        for record in records:
+            self.assertEqual(record["status"], "verified")
+            self.assertEqual(record["region"]["proof"], "kernel-checked-stack-schedule")
+        relocated = next(row for row in records if row["region"]["name"] == "bb7")
+        self.assertEqual(relocated["import_correspondence"][1]["abort_targets"], [8])
+
+        after.write_text(compiled.replace("push bb3", "push bb9", 1))
+        result, record = self.cli(
+            [source, after], "--stack-schedule", "bb0", "--stack-height", "2"
+        )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(record["status"], "unsupported")
+
+    def test_entry_bound_covers_a_reordered_storage_read(self):
+        before = self.directory / "before.evmir"
+        after = self.directory / "after.evmir"
+        setup = "  push 32\n  push 0\n  keccak256\n  sload\n"
+        mask = "  push 0\n  not\n  push 96\n  shr\n"
+        tail = "  and\n  push 0\n  mstore\n  push 32\n  push 0\n  return\n"
+        header = "@module StorageSchedule\nbb0:\n"
+        before.write_text(header + setup + mask + "  swap 1\n" + tail)
+        after.write_text(header + mask + setup + tail)
+        result, record = self.cli(
+            [before, after], "--stack-schedule", "bb0", "--entry-stack"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(record["region"]["proof"], "kernel-checked-stack-schedule")
+        self.assertEqual(
+            record["import_correspondence"][0]["source_stack_bound"]["max_height"], 3
+        )
+
+    def test_schedule_preserves_a_stack_carried_return_label(self):
+        before, after = [
+            self.directory / f"{side}.evmir" for side in ("before", "after")
+        ]
+        header = "@module ReturnSchedule\nbb0 [stack=0]:\n"
+        tail = "\n  jump bb2\nbb1 [stack=0]:\n  stop\nbb2 [stack=2]:\n  pop\n  jump\n"
+        before.write_text(header + "  push 42\n  push bb1\n  swap 1" + tail)
+        after.write_text(header + "  push bb1\n  push 42" + tail)
+        result, record = self.cli([before, after], "--stack-schedule", "bb0")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(record["region"]["proof"], "kernel-checked-stack-schedule")
+
+        after.write_text(after.read_text().replace("push bb1", "push bb0"))
+        result, record = self.cli([before, after], "--stack-schedule", "bb0")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(record["status"], "unsupported")
+
+    def test_schedule_can_resume_at_funded_cancun_recovery(self):
+        before, after = [
+            self.directory / f"{side}.evmir" for side in ("before", "after")
+        ]
+        header = "@module RecoverySchedule\nbb0 [stack=0]:\n"
+        recovery = "  push 0\n  push 0\n  push 1\n  gas\n  staticcall\n  pop\n  stop\n"
+        before.write_text(header + "  push 32\n  push 0\n  swap 1\n" + recovery)
+        after.write_text(header + "  push 0\n  push 32\n" + recovery)
+        result, record = self.cli([before, after], "--stack-schedule", "bb0")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            record["import_correspondence"][0]["funded_recovery"],
+            {"destination": 1, "child_debit": 3000},
+        )
+        for path in (before, after):
+            path.write_text(path.read_text().replace("push 1\n", "push 2\n"))
+        result, record = self.cli([before, after], "--stack-schedule", "bb0")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(record["status"], "unsupported")
+
+    def test_cse_reuses_the_last_word_store(self):
+        before, after = [
+            self.directory / f"{side}.evmir" for side in ("before", "after")
+        ]
+        setup = (
+            "@module RepeatStore\nbb0 [stack=0]:\n"
+            "  caller\n  calldatasize\n  dup 1\n  push 0\n  mstore\n"
+            "  push 7\n  push 32\n  mstore\n"
+            "  timestamp\n  pop\n"
+        )
+        store = "  dup 1\n  push 0\n  mstore\n"
+        tail = "  push 32\n  push 0\n  return\n"
+        before.write_text(setup + store + tail)
+        after.write_text(setup + tail)
+        result, record = self.cli([before, after], "--stack-schedule", "bb0")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(record["import_correspondence"][0]["repeated_store"])
+
+        before.write_text(setup + store.replace("dup 1", "dup 2") + tail)
+        result, record = self.cli([before, after], "--stack-schedule", "bb0")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(record["status"], "unsupported")
+
+        overlap = setup.replace("push 32\n", "push 1\n")
+        before.write_text(overlap + store + tail)
+        after.write_text(overlap + tail)
+        result, record = self.cli([before, after], "--stack-schedule", "bb0")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(record["status"], "unsupported")
+
+    def test_cse_can_copy_a_proven_constant_across_an_interaction(self):
+        before, after = [
+            self.directory / f"{side}.evmir" for side in ("before", "after")
+        ]
+        setup = "@module CopyConstant\nbb0 [stack=0]:\n  push 64\n  push 128\n"
+        tail = "  push 0\n  push 0\n  push 1\n  gas\n  staticcall\n  pop\n  stop\n"
+        before.write_text(setup + "  push 128\n" + tail)
+        after.write_text(setup + "  dup 1\n" + tail)
+        result, record = self.cli(
+            [before, after], "--region", "bb0", "--interaction-trace"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(record["import_correspondence"][0]["constant_duplicates"], 1)
+
+        after.write_text(setup + "  dup 2\n" + tail)
+        result, record = self.cli(
+            [before, after], "--region", "bb0", "--interaction-trace"
+        )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(record["status"], "unsupported")
 
     def entry(self, path, *, broken=False):
         text = path.read_text().replace("[stack=6]", "[stack=0]")
@@ -176,6 +359,85 @@ class EffectPrefixTests(unittest.TestCase):
         for instruction in ("jump", "jumpi", "gas", "sstore", "staticcall", "codesize"):
             with self.subTest(instruction=instruction), self.assertRaises(Unsupported):
                 evm_effects.instructions([instruction], catalog, "cancun")
+
+    def test_low_mask_refines_at_the_storage_sentry(self):
+        before, after, wrong, world = (
+            self.directory / name
+            for name in ("before.evmir", "after.evmir", "wrong.evmir", "world.json")
+        )
+        before.write_text("""@module StoreMask
+bb0:
+  push 0
+  calldataload
+  push 0
+  not
+  push 96
+  shr
+  and
+  push 7
+  sstore
+  stop
+""")
+        after.write_text(
+            subprocess.check_output(
+                [
+                    SOLAR,
+                    before,
+                    "-Ogas",
+                    "-Zevm-ir-pipeline=late-word",
+                    "--evm-version=cancun",
+                ],
+                text=True,
+                timeout=20,
+            )
+        )
+        verified, record = self.cli([before, after], "--prefix", "bb0")
+        self.assertEqual(verified.returncode, 0, verified.stdout + verified.stderr)
+        self.assertEqual(
+            record["region"]["proof"], "kernel-checked-contextual-low-mask"
+        )
+        self.assertEqual(record["import_correspondence"][0]["storage_admissions"], 1)
+
+        low = 1 << 159
+        data = ((1 << 200) | low).to_bytes(32, "big")
+        fixture = {
+            "version": 1,
+            "gas": 2322,
+            "calldata": "0x" + data.hex(),
+            "accounts": [{"address": 65536, "storage": {"7": str(low)}}],
+        }
+        world.write_text(json.dumps(fixture))
+        replay = native.default(SOLAR)
+        pair = [
+            load(
+                "evmir",
+                path,
+                SOLAR,
+                30,
+                gas_mode="refine",
+                world_path=world,
+                replay_executable=replay,
+            )
+            for path in (before, after)
+        ]
+        observed = native.replay(*pair, [], executable=replay, timeout=30)
+        self.assertEqual(
+            [json.loads(x)[0] for x in observed["observations"]],
+            ["out-of-gas", "success"],
+        )
+        checked, _ = self.cli([before, after], "--world", world, "--gas", "refine")
+        self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
+
+        wrong.write_text(after.read_text().replace("push 96", "push 97"))
+        world.write_text(json.dumps({**fixture, "gas": 100000}))
+        rejected, record = self.cli(
+            [before, wrong], "--world", world, "--gas", "refine"
+        )
+        self.assertEqual(rejected.returncode, 1, rejected.stdout + rejected.stderr)
+        self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+        self.assertEqual(
+            record["witness"]["observations"], record["witness"]["native_observations"]
+        )
 
 
 if __name__ == "__main__":

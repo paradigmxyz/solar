@@ -1,5 +1,7 @@
 import SolarTV.MIR.Transforms.DCE
 import SolarTV.MIR.Transforms.DeadSSA
+import SolarTV.MIR.Transforms.Schedule
+import SolarTV.MIR.Transforms.MergeAborts
 import SolarTV.MIR.Transforms.DeadSlice
 import SolarTV.MIR.Transforms.FunctionDCE
 import SolarTV.MIR.Transforms.CoalesceAlloc
@@ -11,12 +13,24 @@ import SolarTV.MIR.Transforms.CheckElim
 import SolarTV.MIR.Transforms.AbiValidation
 import SolarTV.MIR.Transforms.TrimSwitchDefaults
 import SolarTV.MIR.Transforms.RenamePhiPredecessors
+import SolarTV.MIR.Transforms.PhiEdges
 import SolarTV.MIR.Transforms.LowerAlloc
 import SolarTV.MIR.Transforms.LowerAllocPrefix
 import SolarTV.EVMIR.Transforms.EqIszeroJumpi
+import SolarTV.EVMIR.Transforms.BranchLayout
 import SolarTV.EVMIR.Transforms.StackPeephole
+import SolarTV.EVMIR.Transforms.ContextualPeephole
+import SolarTV.EVMIR.Transforms.LateWord
+import SolarTV.EVMIR.Transforms.RelocatedReturn
+import SolarTV.EVMIR.Transforms.EncodedTable
+import SolarTV.EVMIR.Transforms.IndexedGuard
+import SolarTV.EVMIR.Transforms.IndexedEntry
+import SolarTV.EVMIR.Transforms.StopTail
+import SolarTV.EVMIR.Transforms.ERC20Layout
 import SolarTV.EVMIR.StackSafety
 import SolarTV.EVMIR.Memory
+import SolarTV.EVMIR.MemoryProjection
+import SolarTV.EVMIR.MemoryWrites
 import SolarTV.MIR.Transforms.DeadStore
 import SolarTV.MemorySafety
 import SolarTV.EVMIR.GasSafety
@@ -31,27 +45,94 @@ import SolarTV.EVMIR.State.Normalize
 import SolarTV.EVMIR.Region
 import SolarTV.EVMIR.Prefix
 import SolarTV.EVMIR.MemoryPrefix
+import SolarTV.EVMIR.StackReachability
+import SolarTV.EVMIR.CodeRelocations
 import SolarTV.EVMIR.Suffix
+import SolarTV.EVMIR.Transforms.StackSchedule
+import SolarTV.EVMIR.Transforms.RepeatedStore
 import SolarTV.EVMIR.Transforms.TailMerge
 import SolarTV.EVMIR.ContextSafety
 import SolarTV.EVMIR.State.Observe
 import SolarTV.EVMIR.State.Safety
+import SolarTV.EVMIR.Precompiles.CurveChunks
 import SolarTV.EVMIR.Precompiles.Observe
 import SolarTV.EVMIR.Precompiles.Safety
 import SolarTV.MIR.State.Observe
 import SolarTV.MIR.State.Safety
 import SolarTV.MIR.State.Normalize
+import SolarTV.MIR.State.Prefix
 import SolarTV.MIR.Effects
 import SolarTV.EVMIR.Effects
 import SolarTV.EVMIR.SourceGraph
 import SolarTV.EVMIR.StackGraph
+import SolarTV.EVMIR.ControlFlow
+import SolarTV.EVMIR.ContinuationFlow
+import SolarTV.EVMIR.InteractionTrace
+import SolarTV.EVMIR.State.CallRefinement
+import SolarTV.EVMIR.State.FundedTrace
+import SolarTV.EVMIR.Transforms.SampledCall
+import SolarTV.EVMIR.Transforms.FundedCallWindow
+import SolarTV.EVMIR.Transforms.HeapEntry
+import SolarTV.EVMIR.Transforms.ReturnBuffer
+import SolarTV.EVMIR.Transforms.CompactPushes
+import SolarTV.EVMIR.Transforms.SwapPairs
+import SolarTV.MIR.Transforms.CfgFlow
+import SolarTV.MIR.Transforms.PhiThread
+import SolarTV.MIR.Transforms.CallOperands
+import SolarTV.MIR.Transforms.RecursiveCalls
+import SolarTV.MIR.Transforms.DeadArguments
+import SolarTV.MIR.Transforms.ScalarChecks
+import SolarTV.MIR.Transforms.GuardedWidths
+import SolarTV.MIR.Transforms.WidthTestFacts
+import SolarTV.MIR.Transforms.ScalarReuse
+import SolarTV.MIR.Transforms.DceEffects
+import SolarTV.MIR.Transforms.StateReadReuse
+import SolarTV.MIR.Transforms.HeapCursor
+import SolarTV.MIR.Transforms.PrivateCursor
+import SolarTV.MIR.Transforms.ProductInit
+import SolarTV.EVMIR.State.Transactions.SetCode
+import SolarTV.EVMIR.State.Transactions.Reservoir
+import SolarTV.EVMIR.State.Transactions.NestedReservoir
+import SolarTV.EVMIR.State.Transactions.Storage
+import SolarTV.EVMIR.State.Transactions.AmsterdamMessage
+import SolarTV.EVMIR.State.Transactions.BlockGas
+import SolarTV.EVMIR.State.Transactions.AmsterdamBlock
 import SolarTV.MIR.Transforms.FreshHeap
 import SolarTV.MIR.Transforms.TypeDCE
+import SolarTV.MIR.Transforms.LowerDispatch
+import SolarTV.MIR.Transforms.RoutedDispatch
+import SolarTV.MIR.Transforms.DispatchGuardHoist
+import SolarTV.MIR.Transforms.LibraryDispatch
+import SolarTV.MIR.Transforms.DispatchDiagnostics
 import SolarTV.MIR.Transforms.LowerAddressCall
 import SolarTV.MIR.Transforms.LowerReturndata
 import SolarTV.MIR.Transforms.LowerStorageHeader
 import SolarTV.MIR.Transforms.LowerStorageBytes
+import SolarTV.MIR.Transforms.LowerStorageLoad
 import SolarTV.MIR.Transforms.StorageWordLoop
+import SolarTV.MIR.Transforms.LowerPacked
+import SolarTV.MIR.Transforms.LowerStaticWord
+import SolarTV.MIR.Transforms.CalldataInduction
+import SolarTV.MIR.Transforms.ContinuedCounter
+import SolarTV.MIR.Transforms.PhaseShaping
+import SolarTV.MIR.Transforms.CarrierCopies
+import SolarTV.MIR.Transforms.AbortTail
+import SolarTV.MIR.Transforms.StorageInduction
+import SolarTV.MIR.Transforms.BoundedFill
+import SolarTV.MIR.State.LoopStep
+import SolarTV.MIR.Transforms.LowerAbiEncode
+import SolarTV.MIR.Transforms.LowerAbiEncode.ZeroCopy
+import SolarTV.MIR.Transforms.LowerIntegers
+import SolarTV.MIR.Transforms.LowerMappingSlots
+import SolarTV.MIR.Transforms.LowerUnsignedArithmetic
+import SolarTV.MIR.Transforms.LowerSlices
+import SolarTV.MIR.Transforms.LowerChecks
+import SolarTV.MIR.Transforms.LowerMemoryZero
+import SolarTV.MIR.Transforms.LowerAllocStage
+import SolarTV.MIR.Transforms.LowerAllocHelper
+import SolarTV.MIR.Transforms.CallHandoff
+import SolarTV.MIR.Transforms.FlashCallback
+import SolarTV.EVMIR.Transforms.SpilledReturn
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
 -- proof introduces sorryAx and fails the build even if it lives in an import.
@@ -262,6 +343,58 @@ import SolarTV.MIR.Transforms.StorageWordLoop
 /-- info: 'SolarTV.EVM.ContextSafety.calldata_memory' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.EVM.ContextSafety.calldata_memory
+
+/-- info: 'SolarTV.Memory.Projection.read_project' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Memory.Projection.read_project
+
+/-- info: 'SolarTV.Memory.Projection.load_project' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Memory.Projection.load_project
+
+/-- info: 'SolarTV.Memory.Projection.expand_project' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Memory.Projection.expand_project
+
+/-- info: 'SolarTV.Memory.Projection.expanded_eq_of_project_eq' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Memory.Projection.expanded_eq_of_project_eq
+
+/-- info: 'SolarTV.Memory.Projection.expansion_charge' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Memory.Projection.expansion_charge
+
+/-- info: 'SolarTV.Memory.Projection.load_frame' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Memory.Projection.load_frame
+
+/-- info: 'SolarTV.Memory.Projection.hash_instruction' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Memory.Projection.hash_instruction
+
+/-- info: 'SolarTV.Memory.Projection.output_instruction' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Memory.Projection.output_instruction
+
+/-- info: 'SolarTV.Memory.Projection.full_eq_of_project_and_tail' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Memory.Projection.full_eq_of_project_and_tail
+
+/-- info: 'SolarTV.Memory.Projection.store_frame' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Memory.Projection.store_frame
+
+/-- info: 'SolarTV.Memory.Projection.store_charge' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Memory.Projection.store_charge
+
+/-- info: 'SolarTV.Memory.Projection.copy_frame' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Memory.Projection.copy_frame
+
+/-- info: 'SolarTV.Memory.Projection.copy_charge' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Memory.Projection.copy_charge
 
 /-- info: 'SolarTV.EVM.MemoryPrefix.charged_append' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in

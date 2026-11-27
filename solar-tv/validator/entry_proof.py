@@ -3,9 +3,18 @@
 import json
 import os
 from functools import partial
+from itertools import batched, chain
 from textwrap import indent
 
-from . import dispatch_proof
+from . import (
+    collateral_mir,
+    collateral_mir_tail,
+    collateral_proof,
+    collateral_tail,
+    decoder_proof,
+    dispatch_proof,
+    market_proof,
+)
 from .callers import require
 from .check import ROOT, run
 
@@ -56,6 +65,10 @@ def success(result, name):
 
 
 def image_source(image):
+    return f"import {MODULE}\n{HEADER}\n" + image_definitions(image)
+
+
+def image_definitions(image):
     leaves = []
     start = stop = 0
     while start < len(image):
@@ -77,7 +90,7 @@ def image_source(image):
         left = count // 2
         return f"(.append {tree(first, left)} {tree(first + left, count - left)})"
 
-    source = f"import {MODULE}\n{HEADER}\n"
+    source = ""
     for index, (data, used, jumps) in enumerate(leaves):
         source += f"""def imageBlock{index} : EVM.State.CodeChunks :=
   .leaf ⟨{data}, {len(data)}, by decide, {used}, {jumps}, by decide +kernel⟩
@@ -343,7 +356,99 @@ def certify_dispatch(prove, base, route, helper_pc, selector, runtime_size, time
     return name
 
 
-def certify(directory, site, fixture, observed, pc, route, runtime_size, timeout):
+def certify_decoder(prove, dispatch, decoder, route, pc, concrete, market, timeout):
+    name = dispatch.removesuffix("Dispatch") + "Decoder"
+    source = (
+        import_modules([dispatch])
+        + HEADER
+        + "set_option linter.unusedVariables false\nset_option linter.unusedSimpArgs false\n"
+        + decoder_proof.source(decoder, route, pc, concrete)
+    )
+    if market is None:
+        fuel = 2048 - len(route.instructions)
+        if concrete:
+            fuel -= len(decoder.instructions)
+        source += decoder_proof.entry_alias(
+            pc, fuel, "decoderStart", "decoder_concrete"
+        )
+    output = success(prove(name, source, timeout, module=True), name)
+    check_axioms(output.splitlines(), 3)
+    return name
+
+
+def certify_market(prove, decoded, market, decoder, route, pc, snapshot, timeout):
+    name = decoded.removesuffix("Decoder") + "Market"
+    source = (
+        import_modules([decoded, "SolarTV.MIR.Transforms.TransferFromMarket"])
+        + HEADER
+        + "set_option linter.unusedVariables false\nset_option linter.unusedSimpArgs false\n"
+        + market_proof.source(market, decoder, route, pc, snapshot)
+        + market_proof.mir_source(decoder, market.mir)
+    )
+    output = success(prove(name, source, timeout, module=True), name)
+    check_axioms(output.splitlines(), 9)
+    return name
+
+
+def certify_collateral(prove, prefix, market, decoder, route, helper, plan, timeout):
+    path, mir, tail, mir_tail = plan
+    batches = chain(
+        batched(collateral_proof.fragments(path, market, decoder, route, helper), 9),
+        ((fragment,) for fragment in collateral_mir.fragments(decoder, mir)),
+        batched(collateral_tail.fragments(tail, path, market, decoder, route), 9),
+        (
+            (fragment,)
+            for fragment in collateral_mir_tail.fragments(decoder, tail, mir_tail)
+        ),
+    )
+    imports = (
+        prefix,
+        "SolarTV.MIR.Transforms.TransferFromCollateral",
+        "SolarTV.MIR.Transforms.ReentrantOwner",
+    )
+    for index, fragment in enumerate(batches):
+        name = f"{prefix}Collateral{index}"
+        body = "".join(fragment)
+        source = (
+            import_modules(imports)
+            + HEADER
+            + "open MIR.TransferFromABI MIR.TransferFromMarket MIR.TransferFromCollateral MIR.State\n"
+            + "set_option linter.unusedVariables false\nset_option linter.unusedSimpArgs false\n"
+            + body
+        )
+        output = success(prove(name, source, timeout, module=True), name)
+        check_axioms(output.splitlines(), body.count("#print axioms"))
+        imports = (name,)
+    return {
+        "proof": f"kernel/{name}.lean",
+        "load_pc": path.load_pc,
+        "store_pc": path.store_pc,
+        "pc": path.pc,
+        "steps": len(path.steps),
+        "fixed_gas": path.gas,
+        "empty_callback_gas": tail.gas,
+        "empty_callback_mir": [
+            "before_abi_collateral_helper",
+            "after_abi_collateral_helper",
+        ],
+    }
+
+
+def certify(
+    directory,
+    site,
+    fixture,
+    observed,
+    pc,
+    route,
+    decoder,
+    concrete,
+    market,
+    market_snapshot,
+    collateral,
+    runtime_size,
+    timeout,
+):
     name = site.name
     base = f"Entry{name[0].upper() + name[1:]}"
     prove = partial(lean, directory, namespace=base)
@@ -351,12 +456,32 @@ def certify(directory, site, fixture, observed, pc, route, runtime_size, timeout
     dispatch = certify_dispatch(
         prove, base, route, pc, site.selector, runtime_size, timeout
     )
+    decoded = certify_decoder(
+        prove, dispatch, decoder, route, pc, concrete, market, timeout
+    )
+    prefix_steps = len(route.instructions) + (
+        len(decoder.instructions) if concrete else 0
+    )
+    prefix = decoded
+    if market is not None:
+        prefix = certify_market(
+            prove, decoded, market, decoder, route, pc, market_snapshot, timeout
+        )
+        if market_snapshot is not None:
+            prefix_steps += len(market.instructions)
+    written = (
+        certify_collateral(
+            prove, prefix, market, decoder, route, pc, collateral, timeout
+        )
+        if collateral is not None
+        else None
+    )
     layers = (
-        ("physical", "ByteCut", "ByteCut", 2048 - len(route.instructions)),
+        ("physical", "ByteCut", "ByteCut", 2048 - prefix_steps),
         ("before", "Except String MirCursor", "MirCut", 1024),
         ("after", "Except String MirCursor", "MirCut", 1024),
     )
-    memo, imports, count = phase(prove, dispatch, layers, timeout)
+    memo, imports, count = phase(prove, prefix, layers, timeout)
 
     source = (
         import_modules(imports)
@@ -364,7 +489,7 @@ def certify(directory, site, fixture, observed, pc, route, runtime_size, timeout
         + f"""
 open MIR.TransferFromCallers
 theorem bytecode_reaches : runBytes {pc} 2048 tvWorldConfig initial = .ok physicalCut := by
-  rw [dispatch_concrete, ←{memo}.hashChecked_eq]
+  rw [entry_concrete, ←{memo}.hashChecked_eq]
   exact physicalReached
 
 theorem cut_pc : physicalCut.frame.pc = {pc} := by decide +kernel
@@ -401,7 +526,7 @@ theorem after_live :
     name = base + "Proof"
     output = success(prove(name, source, timeout, module=True), name)
     check_axioms(output.splitlines(), 7)
-    return {
+    evidence = {
         "segments": count,
         "proof": f"kernel/{name}.lean",
         "dispatch": {
@@ -410,7 +535,32 @@ theorem after_live :
             "steps": len(route.instructions),
             "gas": route.gas,
         },
+        "decoder": {
+            "proof": f"kernel/{decoded}.lean",
+            "pc": decoder.pc,
+            "steps": len(decoder.instructions),
+            "gas": decoder.gas,
+            "applied": concrete,
+        },
     }
+    if market is not None:
+        evidence["market_read"] = {
+            "proof": f"kernel/{prefix}.lean",
+            "load_pc": market.load_pc,
+            "pc": market.pc,
+            "steps": len(market.instructions),
+            "gas_before_load": market.gas_before_load,
+            "applied": market_snapshot is not None,
+            "guard": {
+                "pc": market.guard.instructions[-1].pc,
+                "present": market.guard.present,
+                "missing": market.guard.missing,
+                "gas": market.guard.gas,
+            },
+        }
+    if written is not None:
+        evidence["collateral_write"] = written
+    return evidence
 
 
 def certify_exit(directory, prefix, pc, observed, timeout):
@@ -432,9 +582,10 @@ def byteTailWith (hash : List Execution.Byte → Word) := chunkedByteExitStep tv
     for label in ("before", "after"):
         source += f"""
 def {label}Body : CallerBody := ⟨{label}Functions,{label}Entry,{label}Helper,{label}Returned⟩
-def {label}TailStart := mirExitStart mirCfg {label}Functions physicalCut {label}Cut byteTailCut
+def {label}TailStart := mirExitStart mirCfg {label}Functions physicalCut {label}Cut
 def {label}TailWith (hash : List Execution.Byte → Word) :=
-  mirExitStep mirCfg {label}Functions (physicalCut.budgets ++ byteTailCut.budgets) hash
+  mirExitStep mirCfg {label}Functions caller (mirExitBudgets mirCfg {label}Functions physicalCut {label}Cut)
+    (helperCallPrice mirCfg {label}Functions physicalCut {label}Cut) hash
 """
     success(prove(mir, source, timeout, module=True), mir)
     mir_memo, mir_imports, mir_count = phase(
@@ -476,7 +627,7 @@ theorem bytecode_exit : runByteExit tvWorldConfig 1024 physicalCut = .ok byteTai
   exact byteTailReached
 
 def physicalResult := finishByte checkpoint byteTailCut.result
-def result := EVM.State.observe tvWorldConfig .effects physicalResult
+def result := abiObservation tvWorldConfig physicalResult
 theorem bytecode_gas : physicalResult.gas = {observed[2]} := by decide +kernel
 theorem bytecode_refund : physicalResult.world.refund = ({observed[3]}) := by decide +kernel
 #print axioms bytecode_gas
@@ -520,13 +671,13 @@ theorem {label}_fmp :
             + HEADER
             + f"""
 theorem {label}_exit :
-    runMirExit mirCfg {label}Functions 1024 physicalCut byteTailCut {label}Cut = .ok {label}TailCut := by
+    runMirExit mirCfg {label}Functions caller 1024 physicalCut {label}Cut = .ok {label}TailCut := by
   unfold runMirExit
   rw [←{mir_memo}.hashChecked_eq]
   exact {label}TailReached
 
-theorem {label}_effects :
-    EVM.State.observe tvWorldConfig .effects (finishByte checkpoint {label}TailCut) = result :=
+theorem {label}_observation :
+    abiObservation tvWorldConfig (finishByte checkpoint {label}TailCut) = result :=
   by decide +kernel
 
 theorem {label}_pre_sample :
@@ -534,11 +685,25 @@ theorem {label}_pre_sample :
       byteTailCut.result.stop = .outOfGas ∧ byteTailCut.samples = [] ∧ byteTailCut.budgets = [] :=
   by decide +kernel
 
+theorem {label}_samples :
+    helperSamples mirCfg {label}Functions physicalCut {label}Cut = byteTailCut.samples :=
+  by decide +kernel
+
+theorem {label}_unpaid_call :
+    unpaidHelperBudget (helperCallPrice mirCfg {label}Functions physicalCut {label}Cut) =
+      byteTailCut.unpaidCall.map Prod.snd :=
+  by decide +kernel
+
+theorem {label}_paid_call :
+    (paidHelperBudget (helperCallPrice mirCfg {label}Functions physicalCut {label}Cut)).toList =
+      byteTailCut.budgets :=
+  by decide +kernel
+
 theorem {label}_from_abi :
     fromAbi tvWorldConfig mirCfg initial {pc} selector caller {label}Body 2048 1024 1024 false = .ok result :=
   (fromAbi_mir tvWorldConfig mirCfg initial {pc} selector caller {label}Body 2048 1024 1024
-    physicalCut byteTailCut {label}Cut {label}TailCut bytecode_reaches bytecode_exit
-    {label}_reaches {label}_exit).trans (congrArg Except.ok {label}_effects)
+    physicalCut {label}Cut {label}TailCut bytecode_reaches
+    {label}_reaches {label}_exit).trans (congrArg Except.ok {label}_observation)
 """
         )
         success(prove(link, source, timeout, module=True), link)

@@ -20,6 +20,7 @@ use strum::IntoEnumIterator;
 mod evm_model;
 mod mir_model;
 mod precompile;
+mod transaction;
 mod world;
 
 #[derive(Deserialize)]
@@ -76,6 +77,14 @@ fn main() {
     }
     if std::env::args().nth(1).as_deref() == Some("--catalog") {
         println!("{}", catalog());
+        return;
+    }
+    if std::env::args().nth(1).as_deref() == Some("--transaction") {
+        let output = match transaction::replay() {
+            Ok(observation) => json!({"version":1,"status":"ok","observation":observation}),
+            Err(reason) => json!({"version":1,"status":"unsupported","reason":reason}),
+        };
+        println!("{output}");
         return;
     }
     let output = match read().and_then(|request| replay(&request)) {

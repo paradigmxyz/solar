@@ -24,19 +24,27 @@ def stable(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"))
 
 
-def reads(value):
+def reads(value, *, reject_undefined=True):
     if isinstance(value, list):
-        return [index for item in value for index in reads(item)]
+        return [
+            index
+            for item in value
+            for index in reads(item, reject_undefined=reject_undefined)
+        ]
     if not isinstance(value, dict):
         return []
-    if value.get("kind") == "undefined":
+    if reject_undefined and value.get("kind") == "undefined":
         raise Unsupported("dead SSA excludes undefined operands")
     if value.get("kind") == "local":
         index = value["index"]
         if type(index) is not int or not 0 <= index < 2**32:
             raise Unsupported("invalid dead SSA local index")
         return [index]
-    return [index for item in value.values() for index in reads(item)]
+    return [
+        index
+        for item in value.values()
+        for index in reads(item, reject_undefined=reject_undefined)
+    ]
 
 
 def signature(value):
@@ -50,6 +58,47 @@ def signature(value):
         for key, item in value.items()
         if key != "result" and not (key == "index" and value.get("kind") == "local")
     }
+
+
+def rename_locals(value, mapping):
+    if isinstance(value, list):
+        return [rename_locals(item, mapping) for item in value]
+    if not isinstance(value, dict):
+        return value
+    result = {key: rename_locals(item, mapping) for key, item in value.items()}
+    if result.get("kind") == "local":
+        if result["index"] not in mapping:
+            raise Unsupported("dead SSA has an unmapped local use")
+        result["index"] = mapping[result["index"]]
+    if result.get("result") is not None:
+        if result["result"] not in mapping:
+            raise Unsupported("dead SSA has an unmapped definition")
+        result["result"] = mapping[result["result"]]
+    return result
+
+
+def same_definitions(before, after):
+    """Check whether identical typed actions differ only in local numbering."""
+
+    def results(body):
+        return [
+            node["result"]
+            for block in body["blocks"]
+            for node in block["phis"] + block["instructions"]
+            if node["result"] is not None
+        ]
+
+    left, right = results(before), results(after)
+    if (
+        len(left) != len(right)
+        or len(set(left)) != len(left)
+        or len(set(right)) != len(right)
+    ):
+        return False
+    try:
+        return rename_locals(after, dict(zip(right, left, strict=True))) == before
+    except Unsupported:
+        return False
 
 
 def align(before, after):
@@ -94,23 +143,7 @@ def align(before, after):
     if len(dead) != len(set(dead)) or set(dead) & set(mapping.values()):
         raise Unsupported("dead SSA result correspondence overlaps erased definitions")
 
-    def rename(value):
-        if isinstance(value, list):
-            return [rename(item) for item in value]
-        if not isinstance(value, dict):
-            return value
-        result = {key: rename(item) for key, item in value.items()}
-        if result.get("kind") == "local":
-            if result["index"] not in mapping:
-                raise Unsupported("dead SSA has an unmapped local use")
-            result["index"] = mapping[result["index"]]
-        if result.get("result") is not None:
-            if result["result"] not in mapping:
-                raise Unsupported("dead SSA has an unmapped definition")
-            result["result"] = mapping[result["result"]]
-        return result
-
-    aligned = rename(after)
+    aligned = rename_locals(after, mapping)
     expected = copy.deepcopy(before)
     for block in expected["blocks"]:
         block["instructions"] = [
@@ -165,24 +198,26 @@ def erasable(inst, definitions):
         return False
 
 
-def render(body, definitions):
+def action_key(value):
+    return json.dumps(stable(value))
+
+
+def render(body, definitions, *, total=erasable, key=action_key):
     result = []
     for block in body["blocks"]:
         actions = []
         if block["phis"]:
             phi = block["phis"]
             actions.append(
-                f"⟨{json.dumps(stable(phi))},{reads(phi)},{[p['result'] for p in phi]},false⟩"
+                f"⟨{key(phi)},{reads(phi)},{[p['result'] for p in phi]},false⟩"
             )
         for inst in block["instructions"]:
             writes = [] if inst["result"] is None else [inst["result"]]
             actions.append(
-                f"⟨{json.dumps(stable(inst))},{reads(inst)},{writes},{str(erasable(inst, definitions)).lower()}⟩"
+                f"⟨{key(inst)},{reads(inst)},{writes},{str(total(inst, definitions)).lower()}⟩"
             )
         term = block["terminator"]
-        result.append(
-            f"⟨[{','.join(actions)}],{json.dumps(stable(term))},{reads(term)}⟩"
-        )
+        result.append(f"⟨[{','.join(actions)}],{key(term)},{reads(term)}⟩")
     code = "[" + ",".join(result) + "]"
     if len(code.encode()) > 262144:
         raise Unsupported("dead SSA action program exceeds 256 KiB")

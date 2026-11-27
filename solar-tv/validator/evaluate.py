@@ -18,8 +18,9 @@ from collections import defaultdict
 from itertools import zip_longest
 from pathlib import Path
 
-from . import audit
+from . import abi_group, audit
 from .check import run
+from .common import Unsupported
 
 ROOT = Path(__file__).resolve().parents[2]
 TV = ROOT / "solar-tv"
@@ -104,6 +105,36 @@ def select(rows, limit, seed):
     return ordered[:limit]
 
 
+def pass_coverage(rows, checks):
+    passes = {}
+    for row in rows:
+        key = (row["layer"], row["pass"], row["target"])
+        record = passes.setdefault(
+            key,
+            {
+                "layer": key[0],
+                "pass": key[1],
+                "target": key[2],
+                "captured": 0,
+                "unselected": 0,
+                "statuses": dict.fromkeys(audit.STATUSES, 0),
+            },
+        )
+        record["captured"] += 1
+        record["unselected"] += 1
+    for check in checks:
+        record = passes[check["layer"], check["pass"], check["target"]]
+        record["unselected"] -= 1
+        record["statuses"][check["status"]] += 1
+    return [
+        {
+            **record,
+            "unverified": record["captured"] - record["statuses"]["verified"],
+        }
+        for _, record in sorted(passes.items())
+    ]
+
+
 def compile_input(solar, source, directory, *, capture=False, timeout=120):
     args = [solar, "--standard-json", "-j1"]
     if capture:
@@ -150,7 +181,99 @@ def final_call_case(case, row):
     )
 
 
-def evaluate_case(case, solar, folder, limit, seed, timeout):
+def audit_command(solar, row, target, timeout):
+    replay = Path(solar).with_name(
+        "solar-tv-replay" + (".exe" if os.name == "nt" else "")
+    )
+    return [
+        str(TV / "solar-tv"),
+        row["layer"],
+        *row["paths"],
+        "--solar",
+        solar,
+        "--replay",
+        str(replay),
+        "--timeout",
+        str(timeout),
+        "--evm-version",
+        row["target"],
+        "--report",
+        target,
+    ]
+
+
+def checked_status(process, record):
+    status = record.get("status")
+    if status not in audit.STATUSES:
+        raise ValueError("checker returned an unknown status")
+    expected = 0 if status == "verified" else 1 if status == "counterexample" else 2
+    if record.get("version") != 1 or process.returncode != expected:
+        raise ValueError("checker failed outside its status protocol")
+    return status
+
+
+def check_entry(solar, row, target, timeout, mode="--entry-trace", *arguments):
+    log = target.with_suffix(".log")
+    try:
+        process = run(
+            [*audit_command(solar, row, target, timeout), mode, *arguments],
+            ROOT,
+            timeout * 16,
+        )
+    except subprocess.TimeoutExpired as error:
+        log.write_text(str(error))
+        record = {
+            "version": 1,
+            "status": "timeout",
+            "diagnostic": (
+                "module checker wall-time budget"
+                if mode == "--prune"
+                else "entry checker wall-time budget"
+            ),
+        }
+        audit.write(target, record)
+        return record
+    log.write_text(process.stdout + process.stderr)
+    record = json.loads(target.read_text())
+    checked_status(process, record)
+    return record
+
+
+def cached_entry(reports, solar, row, target, timeout):
+    key = (*row["paths"], row["target"])
+    if key not in reports:
+        reports[key] = (target, check_entry(solar, row, target, timeout))
+    return reports[key]
+
+
+def covers_region(record, region):
+    if record["status"] == "counterexample":
+        return True
+    if (
+        record["status"] != "verified"
+        or record.get("region", {}).get("kind") != "entry"
+    ):
+        return False
+    label = int(region["name"].removeprefix("bb"))
+    sides = record.get("import_correspondence", [])
+    return len(sides) == 2 and all(
+        side.get("physical_entry") and label in side.get("block_labels", ())
+        for side in sides
+    )
+
+
+def evaluate_case(
+    case,
+    solar,
+    folder,
+    limit,
+    seed,
+    timeout,
+    *,
+    passes=(),
+    valid_heap=False,
+    funded_calls=False,
+):
     folder.mkdir()
     source = inputs(case)
     (folder / "input.json").write_text(json.dumps(source))
@@ -161,8 +284,20 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
     rows = captures(folder)
     if not rows:
         raise ValueError("no changed pass pairs captured")
-    chosen = select(rows, limit, seed)
+    eligible = [row for row in rows if not passes or row["pass"] in passes]
+    chosen = select(eligible, limit, seed)
     results = []
+    dispatch_reports = {}
+    entry_reports = {}
+    inline_reports = {}
+    removed = "function was removed or its identity changed"
+    inline_pairs = {
+        (*row["paths"], row["target"])
+        for row in eligible
+        if row["layer"] == "mir"
+        and row["pass"] == "inline"
+        and row["rejection"] == removed
+    }
     for index, row in enumerate(chosen):
         target = folder / f"check-{index:03}.json"
         start = time.monotonic()
@@ -179,11 +314,52 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
             and region["kind"] == "region"
             and row["rejection"] == "incoming EVM stack height is unknown"
         )
-        prune = row["layer"] == "mir" and row["rejection"] in {
-            "function was removed or its identity changed",
-            "shared MIR declarations or phase changed; no function-local claim",
-        }
-        if row["rejection"] and not (prefix or universal_region or prune):
+        dispatch = row["layer"] == "mir" and row["pass"] == "lower-dispatch"
+        debug_reverts = dispatch and row.get("debug_reverts", False)
+        dispatch_key = (*row["paths"], row["target"], debug_reverts)
+        prune = row["layer"] == "mir" and (
+            dispatch
+            or row["pass"] in {"lower-checks", "lower-alloc", "lower-builtins"}
+            and row["rejection"]
+            == "functions were added; interprocedural edits are not modeled"
+            or row["rejection"]
+            in {
+                "function was removed or its identity changed",
+                "shared MIR declarations or phase changed; no function-local claim",
+            }
+        )
+        entry = None
+        if row["layer"] == "mir" and row["pass"] == "inline":
+            inline_key = (*row["paths"], row["target"])
+            if inline_key in inline_pairs:
+                if inline_key not in inline_reports:
+                    module_path = folder / f"inline-{index:03}.json"
+                    inline_reports[inline_key] = (
+                        module_path,
+                        check_entry(solar, row, module_path, timeout, "--prune"),
+                    )
+                candidate = inline_reports[inline_key]
+                if (
+                    candidate[1]["status"] in {"verified", "counterexample"}
+                    or row["rejection"] == removed
+                ):
+                    entry = candidate
+        if (
+            row["layer"] == "evmir"
+            and row["pass"]
+            in {"block-layout", "loop-layout", "compact-pushes", "cfg-simplify-early"}
+            and region
+        ):
+            candidate = cached_entry(
+                entry_reports, solar, row, folder / f"entry-{index:03}.json", timeout
+            )
+            if covers_region(candidate[1], region):
+                entry = candidate
+        if entry is not None:
+            target, record = entry
+        elif dispatch and dispatch_key in dispatch_reports:
+            target, record = dispatch_reports[dispatch_key]
+        elif row["rejection"] and not (prefix or universal_region or prune):
             record = {
                 "version": 1,
                 "status": "unsupported",
@@ -191,32 +367,22 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
             }
             audit.write(target, record)
         else:
-            command = [
-                str(TV / "solar-tv"),
-                row["layer"],
-                *row["paths"],
-                "--solar",
-                solar,
-                "--replay",
-                str(
-                    Path(solar).with_name(
-                        "solar-tv-replay" + (".exe" if os.name == "nt" else "")
-                    )
-                ),
-                "--timeout",
-                str(timeout),
-                "--evm-version",
-                row["target"],
-                "--report",
-                target,
-            ]
+            command = audit_command(solar, row, target, timeout)
             if prune:
                 command.append("--prune")
+                if debug_reverts:
+                    command.append("--debug-reverts")
             elif region := row["region"]:
                 command += [
                     "--prefix" if prefix else f"--{region['kind']}",
                     region["name"],
                 ]
+                if (
+                    valid_heap
+                    and row["layer"] == "mir"
+                    and region["kind"] == "function"
+                ):
+                    command.append("--valid-heap")
                 if region["stack_height"] is not None:
                     command += ["--stack-height", str(region["stack_height"])]
             exact_call = final_call_case(case, row)
@@ -255,17 +421,7 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
                         }
                     audit.write(target, record)
                 record = json.loads(target.read_text())
-                if record.get("status") not in audit.STATUSES:
-                    raise ValueError("checker returned an unknown status")
-                expected = (
-                    0
-                    if record["status"] == "verified"
-                    else 1
-                    if record["status"] == "counterexample"
-                    else 2
-                )
-                if process.returncode != expected:
-                    raise ValueError("checker failed outside its status protocol")
+                checked_status(process, record)
             except subprocess.TimeoutExpired as error:
                 (folder / f"check-{index:03}.log").write_text(str(error))
                 record = {
@@ -274,18 +430,101 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
                     "diagnostic": "checker wall-time budget",
                 }
                 audit.write(target, record)
+        if (
+            row["layer"] == "evmir"
+            and row["pass"] in {"terminal-dedup", "inline-returns"}
+            and region
+            and record["status"] in {"unsupported", "timeout", "inconclusive"}
+        ):
+            candidate = cached_entry(
+                entry_reports, solar, row, folder / f"entry-{index:03}.json", timeout
+            )
+            if covers_region(candidate[1], region):
+                target, record = candidate
+        if (
+            row["layer"] == "evmir"
+            and row["pass"] in {"reorder-pushes", "stack-reschedule"}
+            and region
+            and record["status"] in {"unsupported", "timeout", "inconclusive"}
+        ):
+            target = folder / f"schedule-{index:03}.json"
+            flags = (
+                ()
+                if region["stack_height"] is None
+                else ("--stack-height", str(region["stack_height"]))
+            )
+            record = check_entry(
+                solar,
+                row,
+                target,
+                timeout,
+                f"--stack-schedule={region['name']}",
+                *flags,
+            )
+        if dispatch:
+            dispatch_reports[dispatch_key] = (target, record)
+        default_status = record["status"]
+        if (
+            funded_calls
+            and row["layer"] == "evmir"
+            and region
+            and region["kind"] in {"window", "region"}
+            and default_status == "unsupported"
+        ):
+            scoped = folder / f"funded-call-{index:03}.json"
+            candidate = check_entry(
+                solar, row, scoped, timeout, "--funded-call", region["name"]
+            )
+            if candidate["status"] == "verified":
+                target, record = scoped, candidate
         results.append(
             {
                 "id": row["id"],
                 "layer": row["layer"],
                 "pass": row["pass"],
+                "target": row["target"],
                 "status": record["status"],
+                **({"default_status": default_status} if funded_calls else {}),
                 "capture_rejection": row["rejection"],
                 "proof_mode": record.get("region", {}).get("proof", "original"),
                 "seconds": time.monotonic() - start,
                 "report": str(target.relative_to(folder.parent)),
             }
         )
+    for row, result in zip(chosen, results, strict=True):
+        if (
+            row["pass"] != "lower-abi"
+            or row["region"] is not None
+            or row["rejection"]
+            != "functions were added; interprocedural edits are not modeled"
+        ):
+            continue
+        entries = [
+            folder.parent / check["report"]
+            for candidate, check in zip(chosen, results, strict=True)
+            if candidate["paths"] == row["paths"]
+            and candidate["target"] == row["target"]
+            and candidate["region"]
+            and check["status"] == "verified"
+        ]
+        replay = Path(solar).with_name(
+            "solar-tv-replay" + (".exe" if os.name == "nt" else "")
+        )
+        start = time.monotonic()
+        try:
+            record = abi_group.compose(
+                row["paths"], entries, replay, row["target"], timeout
+            )
+        except Unsupported:
+            continue
+        audit.write(folder.parent / result["report"], record)
+        result.update(
+            status=record["status"],
+            proof_mode=record["region"]["proof"],
+            seconds=result["seconds"] + time.monotonic() - start,
+        )
+        if funded_calls:
+            result["default_status"] = record["status"]
     return {
         "case": case["name"],
         "archive_sha256": case["sha256"],
@@ -295,9 +534,11 @@ def evaluate_case(case, solar, folder, limit, seed, timeout):
         "baseline_seconds": baseline_seconds,
         "capture_seconds": capture_seconds,
         "captured": len(rows),
+        "eligible": len(eligible),
         "selected": len(chosen),
         "unselected": len(rows) - len(chosen),
         "checks": results,
+        "pass_coverage": pass_coverage(rows, results),
     }
 
 
@@ -306,22 +547,56 @@ def main():
     parser.add_argument("--solar", type=Path, default=ROOT / "target/debug/solar")
     parser.add_argument("--manifest", type=Path, default=TV / "evaluation.json")
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument(
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument(
         "--limit",
         type=int,
         default=24,
         help="checks per contract, including unsupported regions",
+    )
+    selection.add_argument(
+        "--all",
+        dest="limit",
+        action="store_const",
+        const=None,
+        help="check every captured region for each selected contract",
+    )
+    parser.add_argument(
+        "--require-verified",
+        action="store_true",
+        help="with --all, fail if any eligible region remains unverified",
     )
     parser.add_argument("--seed", default="0")
     parser.add_argument(
         "--timeout", type=int, default=15, help="seconds per prover invocation"
     )
     parser.add_argument("--case", action="append", default=[])
+    parser.add_argument(
+        "--valid-heap",
+        action="store_true",
+        help="also admit initialized-heap MIR function certificates",
+    )
+    parser.add_argument(
+        "--funded-calls",
+        action="store_true",
+        help="retry unsupported EVM blocks with the explicit funded-call policy",
+    )
+    parser.add_argument(
+        "--pass",
+        dest="passes",
+        action="append",
+        default=[],
+        help="select a pass (repeatable)",
+    )
     args = parser.parse_args()
     if os.environ.get("SOLAR_TV_GAS"):
         parser.error("unset SOLAR_TV_GAS for the pinned sufficient-gas evaluation")
-    if not 1 <= args.limit <= 128 or not 1 <= args.timeout <= 120:
+    if (
+        args.limit is not None and not 1 <= args.limit <= 128
+    ) or not 1 <= args.timeout <= 120:
         parser.error("limit must be 1..128 and timeout 1..120")
+    if args.require_verified and args.limit is not None:
+        parser.error("--require-verified needs --all")
     if args.output.exists():
         parser.error("output must be a fresh directory")
     args.output = args.output.resolve()
@@ -356,9 +631,16 @@ def main():
         "seed": args.seed,
         "limit": args.limit,
         "timeout": args.timeout,
+        "valid_heap": args.valid_heap,
+        "funded_calls": args.funded_calls,
+        "selected_passes": sorted(set(args.passes)),
         "cases": [],
         "expected_cases": len(cases),
-        "sampling": "round-robin across layers and passes, stable hash order within groups; includes rejected and unsupported regions",
+        "sampling": (
+            "all eligible captured regions, including rejected and unsupported regions"
+            if args.limit is None
+            else "round-robin across layers and passes, stable hash order within groups; includes rejected and unsupported regions"
+        ),
         "errors": [],
     }
     for case in cases:
@@ -371,16 +653,31 @@ def main():
                     args.limit,
                     args.seed,
                     args.timeout,
+                    passes=args.passes,
+                    valid_heap=args.valid_heap,
+                    funded_calls=args.funded_calls,
                 )
             )
         except (OSError, ValueError, subprocess.TimeoutExpired) as error:
             report["errors"].append({"case": case["name"], "error": str(error)})
         audit.write(args.output / "results.json", report)
+    missing = set(args.passes) - {
+        row["pass"] for case in report["cases"] for row in case["pass_coverage"]
+    }
+    if missing:
+        report["errors"].append(
+            {"error": "no captures for passes: " + ", ".join(sorted(missing))}
+        )
     counts = {status: 0 for status in audit.STATUSES}
+    default_counts = dict(counts)
     for case in report["cases"]:
         for check in case["checks"]:
             counts[check["status"]] += 1
+            if args.funded_calls:
+                default_counts[check["default_status"]] += 1
     report["totals"] = counts
+    if args.funded_calls:
+        report["default_totals"] = default_counts
     report["semantics_unchanged"] = report["semantics"] == audit.semantics()
     audit.write(args.output / "results.json", report)
     print(
@@ -388,6 +685,7 @@ def main():
             {
                 "cases": len(report["cases"]),
                 "totals": counts,
+                **({"default_totals": default_counts} if args.funded_calls else {}),
                 "errors": report["errors"],
             },
             indent=2,
@@ -399,5 +697,13 @@ def main():
             or counts["counterexample"]
             or counts["error"]
             or not report["semantics_unchanged"]
+            or (
+                args.require_verified
+                and any(
+                    case["eligible"]
+                    != sum(c["status"] == "verified" for c in case["checks"])
+                    for case in report["cases"]
+                )
+            )
         )
     )

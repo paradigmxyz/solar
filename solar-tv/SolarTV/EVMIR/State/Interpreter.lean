@@ -81,7 +81,7 @@ def instructionWithImage (cfg : Config) (world : Journal) (frame : Frame)
     let op := if opcode < 0x90 then EVM.Op.dup ⟨opcode - 0x80, by omega⟩
       else EVM.Op.swap ⟨opcode - 0x90, by omega⟩
     if frame.gas < info.base then stepExhausted world else
-      match EVM.step ⟨0, 0, 0, []⟩ op frame.stack with
+      match EVM.step ⟨0, 0, 0, [], 0⟩ op frame.stack with
       | none => stepFailed world
       | some stack => next world {frame with gas := frame.gas - info.base} stack
   else
@@ -239,7 +239,8 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
     (pushValue frame.code frame.pc) (validJump frame.code)
 
 /-- Resolve a step using the same child evaluator at every message boundary. -/
-def advance (cfg : Config) (execute : ChildExecutor) (signal : Step) :
+def advance (cfg : Config) (execute : ChildExecutor) (signal : Step)
+    (computer : Precompiles.Computer := Precompiles.compute) :
     Except String (Result ⊕ (Nat × Journal × Frame)) := do
   match signal with
   | .done result => return .inl result
@@ -258,7 +259,7 @@ def advance (cfg : Config) (execute : ChildExecutor) (signal : Step) :
       match Calls.forwardGas cfg.fork frame.gas requested (Calls.hasValue message) with
       | none => return .inl ⟨.outOfGas,[],checkpoint,0,0⟩
       | some budget =>
-        let child ← executeCall execute cfg checkpoint frame.environment message code budget.supplied
+        let child ← executeCall execute cfg checkpoint frame.environment message code budget.supplied computer
         return .inr (child.work,child.world,{frame with
           stack := child.value :: frame.stack
           memory := writeBytes frame.memory outOffset (child.data.take outSize)

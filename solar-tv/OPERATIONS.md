@@ -33,7 +33,10 @@ simultaneous phi group and transfer stays exact, with
 arbitrary shared state and failing handlers. The theorem covers every logical
 block-transfer bound. Physical gas, termination, the parser and the action
 renderer are outside the claim. Six real DCE captures verify under this
-certificate. The frozen sample stays at 22/24.
+certificate. The latest full audit verifies 1,398 of 2,228 captures at
+three seconds per prover invocation. It records 510 unsupported checks,
+320 timeouts and 0 failed checks. Per-pass counts and fingerprints are
+recorded in [CORRECTNESS.md](CORRECTNESS.md#full-corpus-after-the-morpho-irm-proofs).
 
 ## Implemented fragment
 
@@ -49,6 +52,13 @@ Keccak-256, expansion and terminal byte payloads within a 256-byte projection.
 Explicit-world entries use ordinary byte memory with a 64 KiB model limit;
 they are not restricted to that local projection. MIR copies are logical
 memmoves, including before Cancun; EVM MCOPY remains fork-gated.
+The projected read, active-size and expansion-charge lemmas bind MLOAD,
+KECCAK256, RETURN and REVERT to fetched frame instructions for a chosen prefix
+length, including the full 64 KiB domain. Their footprint, configuration and
+frame alignment premises stay explicit. The corresponding MSTORE, MSTORE8 and
+MCOPY frame equations prove preservation beyond the write footprint and the
+exact expansion charge, including overlapping and zero-length copies.
+Whole-CFG correspondence remains open.
 Keccak has an executable permutation and original Keccak padding; it has no
 uninterpreted hash oracle or collision axiom. Kernel-checked vectors include
 empty input, `abc`, and both sides of the 136-byte absorption boundary.
@@ -97,9 +107,15 @@ difficulty/randomness, block history, fees, blob hashes, chain ID and SLOTNUM.
 EXTCODECOPY reads account bytes with padding and memory/access gas. From Prague,
 EIP-7702 designators resolve once for execution; their target access costs/warmth
 and call contexts are replayed independently. Authorization processing precedes
-the entry model. Amsterdam admits environment/scalar/memory execution only;
-state/account/call gas remains unsupported. A zero `Missing` count does not make
-every EVM operation valid in arbitrary windows, forks or worlds.
+the explicit-world entry model. A separate transaction checker handles decoded
+set-code envelopes, signed authorizations and fee settlement through Osaka.
+Amsterdam admits environment/scalar/memory execution and reservoir certificates for
+debits, refills, rollback and child ledger merging. An explicit bytecode entry
+also checks `SLOAD` and `SSTORE` with independent execution and reservoir
+balances. Decoded EIP-1559 call fixtures cover Amsterdam admission, fees and
+gas settlement, and sequences of those calls check the split block limits,
+header gas and cumulative receipts. Account access, nested message and creation
+opcodes still need Amsterdam metering.
 
 [MIR/State/](SolarTV/MIR/State/) executes typed SSA directly, with scalar memory
 pointers, persistent/transient cells, context, logs, terminal outcomes and cyclic
@@ -131,6 +147,10 @@ byte-key copies, memory expansion and wrapping arithmetic. Storage byte helpers
 validate short/long headers before allocation or mutation, retain full-word reads,
 mask dirty padding and clear truncated long tails. Clearing and copying beyond
 the documented memory or 2048-word storage limits are unsupported, never truncated.
+Kernel proofs check the emitted load, store and clear loops and compose their
+logical effects with the retained caller table of the pinned ERC20Mock capture.
+The load proof covers slot warmth, the allocation cursor, live byte memory and
+exact panic payloads. The typed expansion matcher and renderer remain trusted.
 Storage-array loads reserve a word-strided memory array, unpack signed integers
 and left-aligned fixed bytes, check enum bounds, and allocate nested bytes objects
 in order. Packing ignores dirty unused bits and reads only the declared elements;
@@ -174,8 +194,17 @@ typed reads keep their low carrier bits, and raw reads retain the full word.
 Fixed-byte padding is retained. Invalid context representations are unsupported.
 These are declared boundary inputs, not a proof that the backend chose them. A
 missing binding, conflicting relocation or changed declaration table is unsupported.
-GAS admits only a single-opcode sampling window with an explicit pre-op budget and
-its own fork-specific charge; general MIR caller gas remains unsupported.
+Standalone GAS windows take an explicit pre-op budget and pay the opcode's
+fork-specific charge. Priced ABI traces take ordered GAS samples and CALL
+budgets from the checked emitted path. Independent direct MIR replay consumes
+each sample in order at the supplied function name and zero-based block and
+instruction indices. Direct MIR validation without a priced trace retains the
+isolated window requirement. The surrounding MIR transitions use an interpreter
+work bound.
+The emitted Cancun WETH and Morpho call boundaries have proofs for every
+paid frame budget in the word domain. They use staged memory and concrete
+child policies for recovery, the return-true token and the STOP callback. The full ABI path
+across all caller inputs and budgets still needs a parent invariant.
 Recursive ABI tuples, dynamic/fixed arrays, bytes and function words preserve
 allocation, header and selector store order in object, slice and scratch modes.
 Decoders preserve signed length checks, canonicality, enum rejection and
@@ -228,10 +257,22 @@ stateful instruction rewrites remain unsupported. Reordered graphs also admit
 a kernel-checked mapping with opcode-schema height bounds: changed transfer
 growth checks must be proved safe for every incoming stack. Payloads and
 execution bounds remain arbitrary; physical transfer pricing and the concrete
-opcode-handler embedding remain outside this certificate. Raw dynamic jumps
-may serve only as observed full-payload exits under a shared logical
-continuation, without resolving their targets or proving physical return
-addresses. Escaping labels and code-image observers remain unsupported.
+opcode-handler embedding remain outside this certificate. The continuation
+certificate can resolve a dynamic jump when its top stack word is a tracked
+block label. It follows the actual label through ordinary stack shuffles and
+checks that no value-consuming operation observes it. Unresolved jumps still
+need an explicit output boundary. Physical return PCs, escaping labels,
+external messages and code-image observers remain outside this proof.
+The separate emitted indexed-table entry proof follows known return PCs
+through stack permutations and untouched suffixes. PC, ADD and SUB can
+provide a target when their inputs are known. It checks each motion
+against the bytecode interpreter, including a resumed parent's stack, and
+retains the top 32 facts. A shared Solidity helper before a dense switch and
+a changed return address have kernel coverage checks and independent raw-byte
+replay. The metered spill certificate checks a saved continuation at a
+supplied slot, including the following load and jump and their gas debits.
+Inferring spill locations and lifetimes from the backend and resolving
+arbitrary computed targets remain open.
 Identical independently exported stateful graphs have a separate structural
 certificate for every execution bound; opcode and physical-layout bindings
 remain trusted. See
@@ -246,8 +287,8 @@ the [type-pruning example](README.md#removing-unused-mir-type-declarations).
 1. Generalize fixed-world proofs to arbitrary symbolic accounts and aliases.
    Derive general MIR message budgets from priced execution rather than supplied
    boundary inputs; model root reentry through MIR entry semantics.
-2. Add transaction admission and EIP-7702 authorization processing, beyond
-   execution of already-delegated account state.
+2. Extend transaction admission and settlement beyond decoded set-code and
+   Amsterdam dynamic-fee calls. Prove consensus block validation and roots.
 3. Generalize calldata/returndata/program-data access and physical code layout
    from complete-entry execution to arbitrary local windows.
 4. Extend the per-import correspondence certificates beyond acyclic EVM regions
@@ -257,8 +298,8 @@ the [type-pruning example](README.md#removing-unused-mir-type-declarations).
    explicit initialization and non-vacuity. Establishing that condition at
    every caller remains open. Direct MIR semantics and independent replay do
    not by themselves prove backend decisions correct.
-5. Extend dynamic gas and state execution beyond Istanbul–Osaka, including
-   Amsterdam's two-resource state gas. Expand differential boundary coverage.
+5. Extend Amsterdam's execution and state gas accounting to account access,
+   nested messages and creation. Expand differential boundary coverage.
 
 Unsupported semantics remain explicit. A local proof does not establish
 whole-contract equivalence or an all-input correspondence theorem for the Rust

@@ -1,0 +1,207 @@
+import SolarTV.EVMIR.StackGraph
+
+/-! Contract finite unconditional jump paths in unpriced EVM IR. A jump can
+require a temporary stack slot, so the projection keeps the strongest
+growth guard on the path. Ordinary operations and transfers must retain
+their operands and all successors. Paths that remain in jump-only cycles
+have no projection. -/
+
+namespace SolarTV.EVM.ControlFlow
+open SourceGraph (Program Node)
+open StackGraph
+
+structure Path where
+  destination : Nat
+  jumps : Nat
+  growth : Nat
+
+def follow (nodes : ProofTable.View Node) : Nat → Nat → Option Path
+  | 0, _ => none
+  | fuel+1, pc => do
+    match ← nodes.get? pc with
+    | .jump _ growth next =>
+      if growth > 1024 then none else
+      let path ← follow nodes fuel next
+      return ⟨path.destination,path.jumps+1,max growth path.growth⟩
+    | _ => return ⟨pc,0,0⟩
+
+/-- A finite chain performs no effects. It can fail only at a stack limit. -/
+theorem follow_execute (program : Program) (signatures : Signatures)
+    (handlers : Handlers World Observation) (fuel pc : Nat) (path : Path)
+    (found : follow (ProofTable.ofArray program.nodes) fuel pc = some path) (work : Nat) (state : State World)
+    (fits : state.height ≤ 1024) :
+    execute program signatures handlers (work+path.jumps) pc state =
+      if state.height + path.growth > 1024 then some .overflow
+      else execute program signatures handlers work path.destination state := by
+  induction fuel generalizing pc path with
+  | zero => simp [follow] at found
+  | succ fuel ih =>
+    have notFull : ¬state.height > 1024 := by omega
+    cases node : program.nodes[pc]? with
+    | none => simp [follow,ProofTable.ofArray,node,Bind.bind,Option.bind] at found
+    | some instruction =>
+      cases instruction with
+      | jump label growth next =>
+        have lookup : (ProofTable.ofArray program.nodes).get? pc = some (.jump label growth next) := node
+        simp only [follow,lookup,Bind.bind,Option.bind] at found
+        split at found
+        · contradiction
+        · cases tail : follow (ProofTable.ofArray program.nodes) fuel next with
+          | none => simp [tail] at found
+          | some subpath =>
+            simp only [tail,Option.pure_def,Option.some.injEq] at found
+            subst path
+            change execute program signatures handlers (work+subpath.jumps+1) pc state = _
+            simp only [execute,notFull,ite_false,node,Bind.bind,Option.bind]
+            by_cases full : state.height + growth > 1024
+            · have limit : state.height + max growth subpath.growth > 1024 := by omega
+              simp [full,limit]
+            · rw [ite_eq_right full, ih next subpath tail]
+              have same : (state.height + max growth subpath.growth > 1024) ↔
+                  (state.height + subpath.growth > 1024) := by omega
+              simp only [same]
+      | operation _ _ _ | branch _ _ _ | terminal _ _ =>
+        simp [follow,ProofTable.ofArray,node,Bind.bind,Option.bind,Option.pure_def] at found
+        subst path
+        simp [notFull]
+
+/-- Each logical successor selects a source point on both sides of the
+comparison. A source point can occur more than once when tails are shared. -/
+inductive Edges where
+  | next (target : Nat)
+  | branch (yes no : Nat)
+  | terminal
+
+def resolve (points : ProofTable.View Nat) (source logical : Nat) : Option Nat := do
+  if (← points.get? logical) == source then some (logical * 2) else none
+
+theorem resolve_edge (points : Array Nat) (source logical : Nat)
+    (found : resolve (ProofTable.ofArray points) source logical = some (logical * 2)) :
+    points[logical]? = some source := by
+  cases point : points[logical]? <;>
+    simp_all [resolve, ProofTable.ofArray, Bind.bind, Option.bind]
+
+def projectRow (nodes : ProofTable.View Node) (points : ProofTable.View Nat)
+    (edges : ProofTable.View Edges)
+    (jumpLimit index : Nat) : Option (List Node) := do
+  let pc ← points.get? index
+  let path ← follow nodes jumpLimit pc
+  let action ← match ← nodes.get? path.destination, ← edges.get? index with
+  | .operation _ name next, .next target => pure (.operation 0 name (← resolve points next target))
+  | .branch _ yes no, .branch yesTarget noTarget =>
+    pure (.branch 0 (← resolve points yes yesTarget) (← resolve points no noTarget))
+  | .terminal _ name, .terminal => pure (.terminal 0 name)
+  | _, _ => none
+  return [.jump 0 path.growth (2*index+1),action]
+
+/-- Check every proposed edge against the actual successor, even if two
+different logical edges use the same physical point. -/
+def projectView (source : Nat) (nodes : ProofTable.View Node) (points : ProofTable.View Nat)
+    (edges : ProofTable.View Edges)
+    (jumpLimit : Nat) : Option (Nat × List Node) := do
+  let entry ← resolve points source 0
+  if edges.size != points.size then none else
+  let rows ← (List.range points.size).mapM (projectRow nodes points edges jumpLimit)
+  return (entry, rows.flatten)
+
+def project (program : Program) (points : Array Nat) (edges : Array Edges)
+    (jumpLimit : Nat) : Option Program :=
+  (projectView program.entry (ProofTable.ofArray program.nodes) (ProofTable.ofArray points)
+    (ProofTable.ofArray edges) jumpLimit).map (fun (entry, nodes) => ⟨entry, nodes.toArray⟩)
+
+theorem project_checked (program : Program) (points : Array Nat) (edges : Array Edges)
+    (nodesView : ProofTable.View Node) (pointsView : ProofTable.View Nat)
+    (edgesView : ProofTable.View Edges) (limit : Nat) (result : Program)
+    (nodesEq : nodesView = ProofTable.ofArray program.nodes)
+    (pointsEq : pointsView = ProofTable.ofArray points)
+    (edgesEq : edgesView = ProofTable.ofArray edges)
+    (checked : projectView program.entry nodesView pointsView edgesView limit =
+      some (result.entry,result.nodes.toList)) :
+    project program points edges limit = some result := by
+  rw [nodesEq, pointsEq, edgesEq] at checked
+  rw [project, checked]
+  cases result
+  rfl
+
+def checkRow (nodes : ProofTable.View Node) (points : ProofTable.View Nat)
+    (edges : ProofTable.View Edges) (result : ProofTable.View Node) (limit i : Nat) : Bool :=
+  decide (projectRow nodes points edges limit i = ProofTable.readPair result.get? i)
+
+/-- Each logical action contributes its transfer guard and the action itself.
+The paired row checks bind both nodes without a monolithic list comparison. -/
+theorem project_rows (program : Program) (points : Array Nat) (edges : Array Edges) (limit : Nat)
+    (nodesView : ProofTable.View Node) (pointsView : ProofTable.View Nat)
+    (edgesView : ProofTable.View Edges) (result : Program)
+    (resultView : ProofTable.View Node)
+    (nodesEq : nodesView = ProofTable.ofArray program.nodes)
+    (pointsEq : pointsView = ProofTable.ofArray points)
+    (edgesEq : edgesView = ProofTable.ofArray edges)
+    (resultEq : resultView = ProofTable.ofArray result.nodes)
+    (entry : resolve pointsView program.entry 0 = some result.entry)
+    (edgeCount : edgesView.size = pointsView.size) (rowCount : resultView.size = 2*pointsView.size)
+    (checked : ∀ pc < pointsView.size, checkRow nodesView pointsView edgesView resultView limit pc = true) :
+    project program points edges limit = some result := by
+  apply project_checked program points edges nodesView pointsView edgesView limit result nodesEq pointsEq edgesEq
+  have length : result.nodes.toList.length = 2*pointsView.size := by
+    rw [resultEq] at rowCount
+    simpa [ProofTable.ofArray] using rowCount
+  have agrees (i : Nat) (inside : i < pointsView.size) :
+      projectRow nodesView pointsView edgesView limit i =
+        ProofTable.readPair (fun k => result.nodes.toList[k]?) i := by
+    have found := of_decide_eq_true (checked i inside)
+    simpa [resultEq, ProofTable.ofArray] using found
+  have flattened := ProofTable.gatherPairs _ _ _ length agrees
+  cases computed : (List.range pointsView.size).mapM (projectRow nodesView pointsView edgesView limit) with
+  | none => simp [computed] at flattened
+  | some rows =>
+    simp only [computed, Option.map_some, Option.some.injEq] at flattened
+    simp [projectView, entry, edgeCount, computed, flattened, Bind.bind, Option.bind]
+
+/-- Equality after checking the projection from both independent source
+graphs. A logical step covers a finite transfer chain and its first
+non-jump operation. Position-independent handlers carry the concrete
+ordinary effects across the preserved action sequence. -/
+theorem contextual (before after old new : Program) (sourcePoints targetPoints : Array Nat)
+    (edges : Array Edges) (jumpLimit : Nat) (signatures : Signatures) (bounds : Nat → Nat)
+    (oldProjection : project before sourcePoints edges jumpLimit = some old)
+    (newProjection : project after targetPoints edges jumpLimit = some new)
+    (valid : Valid old new id bounds signatures)
+    (handlers : Handlers World Observation) (work : Nat) (state : State World) :
+    (project before sourcePoints edges jumpLimit).map
+        (fun p => execute p signatures handlers work p.entry state) =
+      (project after targetPoints edges jumpLimit).map
+        (fun p => execute p signatures handlers work p.entry state) := by
+  rw [oldProjection,newProjection]
+  exact congrArg some (StackGraph.contextual old new id bounds signatures valid handlers work state)
+
+/-- A bound from physical entry can justify changes to transfer admission
+that would fail on arbitrary live-in stacks. -/
+theorem contextual_bounded (before after old new : Program)
+    (sourcePoints targetPoints : Array Nat) (edges : Array Edges) (jumpLimit : Nat)
+    (signatures : Signatures) (bounds : Nat → Nat)
+    (oldProjection : project before sourcePoints edges jumpLimit = some old)
+    (newProjection : project after targetPoints edges jumpLimit = some new)
+    {entryBound : Nat} (valid : Valid old new id bounds signatures entryBound)
+    (handlers : Handlers World Observation) (work : Nat) (state : State World)
+    (fits : state.height ≤ entryBound) :
+    (project before sourcePoints edges jumpLimit).map
+        (fun p => execute p signatures handlers work p.entry state) =
+      (project after targetPoints edges jumpLimit).map
+        (fun p => execute p signatures handlers work p.entry state) := by
+  rw [oldProjection, newProjection]
+  apply congrArg some
+  change execute old signatures handlers work old.entry state =
+    execute new signatures handlers work new.entry state
+  rw [← valid.2.1]
+  exact StackGraph.bounded_simulation old new id bounds signatures
+    valid handlers work old.entry state valid.1 (Nat.le_trans fits valid.2.2.1)
+
+/-- Compose the two projection checks without re-evaluating either source graph. -/
+theorem compose {before after : Option Program} {old new : Program} {Projected Observation : Type}
+    (left : before = some old) (right : after = some new)
+    (projectLeft projectRight : Program → Option Projected) (observe : Projected → Observation)
+    (same : (projectLeft old).map observe = (projectRight new).map observe) :
+    (before.bind projectLeft).map observe = (after.bind projectRight).map observe := by
+  simpa [left, right] using same
+
+end SolarTV.EVM.ControlFlow

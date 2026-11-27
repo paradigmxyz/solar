@@ -64,19 +64,16 @@ class RegionTests(unittest.TestCase):
         after = self.compile("functions.sol", flags, audit=True)
         self.assertEqual(json.loads(before.stdout), json.loads(after.stdout))
         records = self.records()
-        proved = [
-            record
+        proved_functions = [
+            record["region"]["name"]
             for record in records
-            if record["status"] == "verified" and record["layer"] == "mir"
+            if record["status"] == "verified"
+            and record["layer"] == "mir"
+            and record.get("region", {}).get("kind") == "function"
         ]
-        self.assertTrue(
-            any(record.get("region", {}).get("name") == "helper" for record in proved)
-        )
+        self.assertIn("helper", proved_functions)
         self.assertTrue(any(record["status"] == "unsupported" for record in records))
         self.assertTrue(all(record["whole_pass"] is False for record in records))
-        self.assertTrue(
-            all(record["region"]["kind"] == "function" for record in proved)
-        )
 
     def test_solidity_evm_windows_keep_bytecode(self):
         flags = [

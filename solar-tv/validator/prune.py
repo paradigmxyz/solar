@@ -1,4 +1,4 @@
-"""Rooted function-table correspondence for deletion-only MIR changes.
+"""Rooted function-table correspondence and resolved module identity proofs.
 
 The compiler reparses both complete modules. Keep every retained declaration,
 including attributes and instruction text, and extract all named references
@@ -39,7 +39,7 @@ def unquoted(line, *, strip_strings=False):
     return "".join(result).strip()
 
 
-def declarations(text):
+def declarations(text, *, allow_empty=False):
     if "backend-memory" in text or "backend-stack" in text:
         raise Unsupported("function pruning does not certify backend memory records")
     header, functions = [], {}
@@ -64,7 +64,7 @@ def declarations(text):
             functions[current]["text"].append(line)
             if line == "}":
                 current = None
-    if current is not None or not 1 <= len(functions) <= 128:
+    if current is not None or len(functions) > 128 or not (allow_empty or functions):
         raise Unsupported("function pruning requires 1..128 complete declarations")
     for function in functions.values():
         if "function_pointer_dispatcher" in function["text"][0]:
@@ -82,7 +82,7 @@ def declarations(text):
     return header, functions
 
 
-def check(paths, solar, version, timeout, *, executable=None):
+def check(paths, solar, version, timeout, *, executable=None, debug_reverts=False):
     from .check import PRELUDE, ROOT, build_model, run
 
     texts, tables = [], []
@@ -103,31 +103,86 @@ def check(paths, solar, version, timeout, *, executable=None):
         if result.returncode:
             raise Unsupported(result.stderr)
         texts.append(result.stdout)
-        tables.append(declarations(result.stdout))
+        tables.append(declarations(result.stdout, allow_empty=True))
     (old_header, before), (new_header, after) = tables
+    if (
+        old_header == new_header
+        and "@phase lowered" not in old_header
+        and len(after) > len(before)
+    ):
+        from . import (
+            lower_alloc,
+            lower_checks,
+            lower_dispatch,
+            mir_cfg,
+            native,
+            storage_lowering,
+        )
+
+        replay = executable or native.default(solar)
+        if not debug_reverts and lower_checks.helper_addition(before, after):
+            return mir_cfg.check(
+                paths, solar, replay, version, timeout, None, lowering="lower-checks"
+            )
+        if not debug_reverts and lower_alloc.helper_addition(before, after):
+            return mir_cfg.check(
+                paths, solar, replay, version, timeout, None, lowering="lower-alloc"
+            )
+        if not debug_reverts and storage_lowering.helper_addition(before, after):
+            return storage_lowering.check_module(
+                texts, (before, after), replay, version, timeout
+            )
+
+        return lower_dispatch.check(
+            texts,
+            before,
+            after,
+            version,
+            timeout,
+            replay,
+            debug_reverts=debug_reverts,
+        )
+    if debug_reverts:
+        raise Unsupported("--debug-reverts requires a dispatch materialization pair")
     if old_header != new_header:
+        from . import native, phase_advance, type_prune
+
+        replay = executable or native.default(solar)
+        if "@phase lowered" in new_header and "@phase lowered" not in old_header:
+            return phase_advance.check(texts, tables, version, timeout, replay)
         if "@types" not in old_header:
             raise Unsupported("function pruning changed shared declarations or phase")
-        from . import native, type_prune
 
         # A different module declaration table needs a separate proof. Never
         # drop an arbitrary header, phase change or changed executable body.
-        return type_prune.check(
-            texts, version, timeout, executable or native.default(solar)
-        )
+        return type_prune.check(texts, version, timeout, replay)
     removed = sorted(before.keys() - after.keys())
     if not removed or after.keys() - before.keys():
         raise Unsupported("function pruning requires deletion-only table changes")
     if not any(body["root"] for body in before.values()):
         raise Unsupported("function pruning requires explicit module entry points")
-    if any(before[name] != body for name, body in after.items()):
-        raise Unsupported("function pruning changed a retained body or interface")
     if any(body["root"] for name, body in before.items() if name in removed):
         raise Unsupported("function pruning removed an external entry point")
     if any(set(body["targets"]) - after.keys() for body in after.values()):
         raise Unsupported("function pruning removed a retained call target")
     if any(set(re.findall(rf"@({NAME})", line)) & set(removed) for line in old_header):
         raise Unsupported("function pruning removed a shared declaration reference")
+    if any(before[name] != body for name, body in after.items()):
+        if not any(
+            set(before[name]["targets"]).intersection(removed) for name in after
+        ):
+            raise Unsupported("function pruning changed a retained body or interface")
+        if "@phase lowered" in old_header:
+            raise Unsupported("inline proof requires logical return conventions")
+        from . import inline, native
+
+        return inline.check(
+            texts,
+            (before, after),
+            executable or native.default(solar),
+            version,
+            timeout,
+        )
 
     def table(name, bodies):
         entries = []
