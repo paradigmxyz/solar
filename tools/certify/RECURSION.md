@@ -17,13 +17,29 @@ SolidCore's internal-call semantics; `total_runs` is the caller's `BodyRuns`, so
 dispatcher theorem `runtime_run_clean` gives the source's run of every call; `source_to_bytecode`
 joins it to `total_returns_bytecode` (the same output from some gas on, on the bytes
 `runtime_is_fresh` binds to this run's compile). `rec_source.py` binds its AST module to the
-source file. solar-verify proves the recursion by its measure too (a recursive call must give
+source file. `Verify/Phase3/RecSource/Gas.lean` makes the gas concrete: the final EVM IR runs the
+function in exactly `2 * v + 2` blocks at measure `v` (by induction), so `total(n)` ends within
+`2 * n + 4` blocks and the bytecode returns at every gas from `618800 * (2 * n + 4) + 9` on
+(`source_to_bytecode_gas`). The assembly certificate's frame set is not closed under the program's
+edges: the function's overflow branch leaves the frames for the `Panic(0x11)` block, which `checkF`
+checks as an ordinary block that ends the run. solar-verify proves the recursion by its measure too (a recursive call must give
 `@custom:decreases` a value at least 0 and below the entry's, then uses the contract at the lower
 measure), and infers a contract for a recursive function written without one from its callers'
-specs, kept only where that proof holds. Still refused: the published shapes (they need the
-assembly checker's backward simulation and an explicit gas bound, which AssembleRec does not give
-yet), the generic driver's final theorem (shape_gen
-finds no plain EVM IR stage chain), and, in the assembly stage, a recursive function whose blocks
+specs, kept only where that proof holds. The published statement (slice 5): solidity-lean's
+`AssembleRecWithin.within_of_checkF` is the assembly checker's backward simulation at every gas (a
+bytecode result is the final EVM IR's, or a failure that changes nothing, which is what a run below
+the gas bound can give), and `Verify/Phase3/RecSource/Certified.lean` composes it with the forward
+run at `618800 * (2 * a + 4) + 9` gas into `Shapes.Certified` of the checked source and the exact
+bytecode (`shape_ok`; the statement's inputs, with non-vacuity, in `CertSpec.lean`). `rec_final.py`
+is the driver's recursion route (generic.main's `rec_route`, after the envelope): rec_source.py's
+binding in place of the erasure Lowering, the pinned export (this run's must equal it) and checkF in
+place of shape_gen and checkL, then final.py's statement, check_final with this run's bytes and the
+closure's kernel replay; the run stays BLOCKED with the checked final as its reason, as the loop
+route does. Its recursion proofs are RecSum's own (`rec_final.PROGRAMS`): any other recursive body is
+refused at step "program". The postcondition is a Lean predicate written for the ensures, not
+solar-verify's export, so the statement is never the strongest status. The envelope's recursion check
+now walks every function the contract can reach, free functions included. Still refused: a generator
+of the measure-induction proofs for other bodies, and, in the assembly stage, a recursive function whose blocks
 touch memory or the environment, call another function, or are entered other than by a call, a
 return or a jump within the same frame; see [README.md](README.md#the-generic-drivers-supported-subset).
 

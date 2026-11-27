@@ -869,6 +869,10 @@ def envelope(
             n
             for n in walk(cdef)
             if n.get("nodeType") == "FunctionDefinition" and n.get("name") == names[0]
+        ] or [
+            n
+            for n in walk(ast)
+            if n.get("nodeType") == "FunctionDefinition" and n.get("name") == names[0]
         ]
         doc = ((fns[0].get("documentation") or {}).get("text", "")) if len(fns) == 1 else ""
         if len(names) == 1 and re.search(r"@custom:decreases\s+\S", doc):
@@ -4884,6 +4888,54 @@ def loop_final(record, reasons, src, ast, a, work, name):
     ]
 
 
+def rec_route(record, src, ast, a, work, name, contract):
+    """The recursion route (tools/certify/rec_final.py) for a contract with a self-recursive function
+    the envelope admitted (its measure written): nothing when the source has no recursion; else the
+    run is BLOCKED, with the recursion final theorem checked in the run's clone of the base (record
+    rec_final) or the route's refusal as its reason."""
+    import rec_final as rf
+
+    try:
+        r = rf.route(ast, contract)
+    except rf.Refused as e:
+        raise Blocked([rf.reason(e)]) from None
+    if r is None:
+        return
+    solar = build_solar()
+    plain, err = solar_runtime(solar, src, contract)
+    if plain is None:
+        raise Blocked([rf.reason(rf.Refused("internal", f"solar: {err.strip()[:200]}"))])
+    _, _, clone = clone_base(a, work)
+    out = rf.attach(
+        record,
+        run=run,
+        name=name,
+        contract=contract,
+        ast=ast,
+        solar=solar,
+        src=src,
+        work=work,
+        lean_dir=clone,
+        lake_env=lake_jobs_env(clone, dict(os.environ, LEAN_NUM_THREADS="1")),
+        plain=plain,
+        solc=a.solc,
+        log=log,
+    )
+    if out:
+        raise Blocked(out)
+    raise Blocked(
+        [
+            {
+                "feature": "recursion",
+                "where": r["function"],
+                "detail": f"recursion final checked (Certified.{name}.Final.final, record rec_final): "
+                f"runtime only, the calls of the statement's Valid, a Lean specification of the "
+                f"ensures (not solar-verify's export); the driver stays BLOCKED",
+            }
+        ]
+    )
+
+
 def loop_summaries(specs):
     """--loop-summary FN=MODULE:CONSTANT, each a GenObl.Summary of FN's body. It is untrusted:
     the generator checks its shape against the run's imported function, and the obligation
@@ -5997,6 +6049,11 @@ def main():
                     raise out_of_gas
                 raise Blocked(reasons) from b
             raise
+        # Recursion (Phase 3): a function that calls itself with its measure written passed the
+        # envelope, but the erasure Lowering and the loop assembly checker do not take it: it takes
+        # the recursion route (tools/certify/rec_final.py), and the run ends BLOCKED with the checked
+        # final theorem (or the route's refusal) as its reason, as the loop route does.
+        rec_route(record, src, ast, a, work, name, contract)
         if lifecycle_open:
             record["lifecycle_open"] = lifecycle_open
             record["resources"] = (
