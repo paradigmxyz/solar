@@ -4322,6 +4322,70 @@ MIR `memory-dse` with five.
 | `target/tv-integer-final/remaining.json` | `09794879b1845dba841f3a948ce5e92d122bbe43bd8680c8e864bd0bb461bf7c` |
 | `target/tv-integer-final/rust-replay.json` | `7f8a25f1fa633eefe0a9a5dbdc419db4cd1adc336488d38086197e717d30ff42` |
 
+### Complete pinned MIR memory DSE with a valid heap
+
+The serial `evaluate --all --pass memory-dse --timeout 40 --seed 0
+--valid-heap --require-verified` run verifies **10 of 10** captures.
+Every capture ID and both raw MIR hashes match the frozen census. The
+ABI, creation bytecode and runtime bytecode match between instrumented
+and plain compilation for all three contracts.
+
+| Contract | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: |
+| Solady WETH | 1 | 0 | 0 | 0 |
+| OpenZeppelin ERC20Mock | 1 | 0 | 0 | 0 |
+| Morpho Blue | 8 | 0 | 0 | 0 |
+| Total | 10 | 0 | 0 | 0 |
+
+For `extSloads` and `load_storage_bytes`, the paired memory states
+retain equal size and agree outside bytes 64 through 95. The kernel
+checks erasure of the active cursor store, preservation by paired
+memory expansion, writes and storage reads, and equality of reads at
+the proved disjoint intervals. This relation is preserved through
+arbitrary loop iterations. The returned ABI range starts at the heap
+floor minus 32 and is disjoint for every payload length. For the
+storage-string helper the relation continues into both direct callers,
+`name` and `symbol`, through their byte-return operations. Its standalone
+internal return exposes the changed memory word.
+
+In `liquidate`, the kernel checks that the scratch word remains active
+and equal between the original store and its redundant repeat, including
+across the returning arithmetic helpers. The composed typed graphs
+include both changed transfer helpers. Their post-call cursor reloads
+reuse the recorded cursor under the initialized-heap premise for each
+affected activation. GAS, calls and their replies remain shared logical
+effects. The typed exporter still binds the graph, branch operands and
+read ranges to the original MIR. The logical heap layout requires aligned
+memory within 64 KiB with the cursor word active, a valid cursor for
+transfer reuse, and a shared heap-floor binding of at least 128 for the
+private-store proofs. Physical ABI establishment and gas refinement
+remain open at the corpus level.
+
+Pinned Rust replay matches short and multiword ERC20 string returns,
+empty and nonempty storage arrays, both transfer helpers with empty,
+true and false token responses, and successful emitted `liquidate` with
+and without a callback. Both liquidation images return the same two
+words and publish the same state and log. The after image uses six more
+gas in each fixture. The standalone string helper and both transfer
+helpers at a zero cursor produce the expected memory differences
+outside the proved scope. A regression returns the erased slot itself
+and confirms that the changed bytes lose the proof and replay in Rust.
+
+The saved default audit stays at **2,207 of 2,228**. The five additional
+scoped certificates bring the combined count to **2,212 of 2,228**, with
+16 captures still awaiting a certificate.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Pinned compiler | `f996616dcf2ebacf05fc5cc439f4814dc38fe953fad90b698754281c59ef139c` |
+| Compiler launcher | `c935a2bf85933ee1790810177538c159d5a974d89f383b5efb73e88236f5d165` |
+| Pinned Rust replay | `1c08fa6d66c19b52b661c4db7c93fc1d257948cb592d9856d09a237c174bca0c` |
+| Checker on Lean 4.34.1 | `63d64883ffd62bbff0acba45810f5c21b46b4fa097ca758c9f490c9137f94714` |
+| Input manifest | `b08af7eb00ac67a5ef1200d50273beedc48d5517838ed67504bd1a76ba96b7b7` |
+| `target/tv-memory-dse-final/fresh/results.json` | `b5545d086c8fd379cab244796e74a288d14cd36e6242d96445f440faf248988e` |
+| `target/tv-memory-dse-final/conditional-coverage.json` | `439abd466c677f2b6200a0f4163ccb939b94a8b63c62efc9732ed8a25f4276d2` |
+| `target/tv-memory-dse-final/rust-replay.json` | `ab6e6b1d94950af758d1ca00ee94a3f7c8455c7a156fd9c84102390323257978` |
+
 ### MIR CFG checks after an import timeout
 
 The earlier three-second census timed out on 23 Morpho MIR `cfg-simplify`
