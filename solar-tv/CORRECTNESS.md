@@ -5333,6 +5333,73 @@ those results into the same projection checked for small graphs. Each
 large proof stage compiles in its own Lean process and imports the
 previously checked declarations.
 
+## First lowered MIR to emitted bytecode
+
+`SolarTV.AbiBytecode.abi_to_bytecode` starts at the argument-free
+`Entry` dispatcher immediately after `lower-evm-shaped` and compares its
+direct MIR execution with the 53-byte Cancun runtime emitted at `-Ogas`.
+The proof quantifies over calldata, call value, the initial journal, and
+every frame gas budget. Execution starts at PC zero with empty stack,
+private memory, and returndata. The theorem compares the terminal status,
+returned or reverted bytes, final journal, and exact remaining gas.
+Interpreter work fuel is separate from frame gas.
+
+The MIR dispatcher and its tail-called `echo(bool,uint256)` body determine
+the funded outcome. The bytecode proof checks the decoded instructions,
+stack updates, jump destinations, memory expansion, and charge at each
+step. It applies the resulting path debit to the unpriced MIR outcome.
+Below that debit the bytecode exhausts gas, produces no data, and restores
+the initial journal. A funded revert also restores the journal and keeps
+any unspent gas. Success returns the entire second ABI word and finalizes
+the journal.
+
+| Condition in dispatch order | Minimum frame gas | Funded outcome |
+| --- | ---: | --- |
+| Nonzero call value | 20 | Empty revert |
+| Selector mismatch | 53 | Empty revert |
+| Short calldata or noncanonical boolean | 89 | Empty revert |
+| Canonical false | 111 | Empty revert |
+| Canonical true | 125 | Return the second ABI word |
+
+The driver compiles the fixture with and without capture and checks that
+the ABI and creation and runtime bytecode agree. It independently parses
+the first lowered MIR and generates a Lean theorem binding the captured
+function table, dispatcher ID, and emitted bytes by kernel equality. It
+also binds the 18 opcode rows used by the proof to the Cancun opcode
+catalog. The generated theorem uses `propext`, `Classical.choice`, and
+`Quot.sound`. The compiler capture and the Rust MIR parser, typed exporter,
+and opcode catalog supply the inputs to that theorem.
+
+The independent Rust MIR interpreter confirms six zero-value inputs.
+The separately implemented Rust EVM confirms the same funded outcomes
+and journal observations at the minimum and seven gas above it. It
+also confirms out-of-gas one unit below each minimum, for 18 bytecode
+replays total. The nonzero-value guard is checked in Lean. Creation
+bytecode is compared for capture neutrality.
+
+```sh
+pin=target/tv-pinned-corpus.wa91PI
+PYTHONPATH=solar-tv LEAN_NUM_THREADS=1 uv run --project solar-tv python \
+  solar-tv/tools/check_abi_bytecode.py \
+  --solar "$pin/solar" --replay "$pin/solar-tv-replay" \
+  --output target/tv-abi-entry-proof
+```
+
+The driver saves the generated Lean theorem, replay observations, and
+compiler, replayer, source, MIR, creation, and runtime fingerprints in the
+output directory. The pinned compiler identifies itself as
+`0.8.36+commit.f1707e10.solar.0.3.0-dev`. The lowered MIR SHA-256 is
+`21188e3dccf3145f1d80251fad8da1ea0fa5dea2874907df0a22373dd35afb65`.
+The emitted runtime SHA-256 is
+`b9aaaf38441c3c4a82a8c9e32a0b0fdac4ba95c9808e9d052470afacf2ef7aa9`.
+
+This supplies one concrete backend theorem for the interface proposed in
+[`solar#2666`](https://github.com/paradigmxyz/solar/pull/2666).
+Using it there requires relating the Solar TV MIR and bytecode semantics
+to the corresponding `solidity-lean` and EthLib definitions. General
+backend coverage, source-specification proofs, and transaction-level gas
+and settlement are separate proof obligations.
+
 ## Remaining obligations
 
 The empty-runtime branch of `lower-dispatch` now has a kernel-checked proof.
