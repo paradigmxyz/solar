@@ -4210,6 +4210,7 @@ Lean checks the constant's provenance at every incoming edge to each
 edit, the checked stack step and the unchanged fork charge. The matched
 region includes the immutable read, `GAS` and `STATICCALL`. Its logical
 interaction proof uses a shared immutable binding and shared replies.
+The constant-copy proof does not model Amsterdam's two-resource gas.
 
 The `bb103` scratch-store proof retains the earlier write at offset zero
 through a disjoint write at offset 32 and memory-preserving effects.
@@ -4252,8 +4253,8 @@ The latter replay uses a common driver that constructs the input slice.
 | Pinned compiler | `f996616dcf2ebacf05fc5cc439f4814dc38fe953fad90b698754281c59ef139c` |
 | Independent pinned Rust replay | `1c08fa6d66c19b52b661c4db7c93fc1d257948cb592d9856d09a237c174bca0c` |
 | Updated window exporter | `c74c90a2fbdcd3f55b37bac2f9fe5244b949201c81339839da8319a7d92ecf00` |
-| Checker on Lean 4.34.1 | `e48c15948377d8b2d7fe39536928707d5ea32f811a0a64f44d74c08a0b0a9f41` |
-| `target/tv-five/remaining.json` | `2b15eca7076e6406ad1fea63a94b22cd2900fdb5528c68f0a694f0a37353cffc` |
+| Checker on Lean 4.34.1 | `89b02021d56b605c05e8adb1c85ce45345329b8d844515d31a680d8b808521f4` |
+| `target/tv-five/remaining.json` | `9febd4e4687ca7a88eae8ebbc7ff4cb2d114863c182a976b5f6c4d932d108d3d` |
 | `target/tv-five/rust-replay.json` | `e0514328a1bd2d45bc729e435fc823a1b72ffa6e3f1274802448db802559a20b` |
 
 The join retains the three original corpus fingerprints and records the

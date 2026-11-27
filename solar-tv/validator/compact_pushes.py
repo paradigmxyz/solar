@@ -176,6 +176,8 @@ def pair(
         old_peak = 1
         duplicate = re.fullmatch(r"dup (\d+)", right.get("operation", ""))
         if duplicate and positions[1] not in protected[1]:
+            if version == "amsterdam":
+                raise Unsupported("constant copies do not model two-resource gas")
             index_ = int(duplicate[1])
             if not 1 <= index_ <= 16:
                 raise Unsupported("constant copy requires a legacy DUP")
