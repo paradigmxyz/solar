@@ -81,6 +81,7 @@ import SolarTV.MIR.Transforms.CallOperands
 import SolarTV.MIR.Transforms.RecursiveCalls
 import SolarTV.MIR.Transforms.DeadArguments
 import SolarTV.MIR.Transforms.ScalarChecks
+import SolarTV.MIR.Transforms.GuardedWidths
 import SolarTV.MIR.Transforms.WidthTestFacts
 import SolarTV.MIR.Transforms.ScalarReuse
 import SolarTV.MIR.Transforms.DceEffects

@@ -528,6 +528,13 @@ def record(
                 ]
             )
             if any(
+                check.get("guarded_widths")
+                for check in program.import_evidence["correspondence"].values()
+            ):
+                assumptions.append(
+                    "kernel-checked word identities and unsigned bounds on every path from entry or a repeated SSA definition; parsed producer operands and accepted branch arms remain trusted bindings"
+                )
+            if any(
                 check.get("threaded_phi_guards")
                 for check in program.import_evidence["correspondence"].values()
             ):

@@ -1649,6 +1649,70 @@ fn @choose() -> i256 {
             after.write_text(target.replace("    icall panic_if<0x41>, v3\n", ""))
             self.check_loop(root, 2)
 
+    def test_integer_cleanup_preserves_guarded_words_through_effects(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{side}.mir" for side in ("before", "after"))
+            source = """@module GuardedWidths
+fn @choose() -> i256 {
+  bb0:
+    v0 = sload 1
+    v1 = gt v0, 255
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = sload 2
+    v3 = and v2, 255
+    v4 = sload 3
+    v5 = sub v3, v4
+    v6 = lt v3, v4
+    jumpi v6, bb4, bb2
+  bb2:
+    v7 = and v0, 255
+    v8 = and v5, 255
+    v9 = shl v3, 248
+    sstore 4, v7
+    sstore 5, v8
+    sstore 6, v9
+    jump bb3
+  bb3:
+    v10 = phi [bb2: false], [bb3: true]
+    sstore 7, v7
+    jumpi v10, bb5, bb3
+  bb4:
+    ret 1
+  bb5:
+    ret v7
+}
+"""
+            target = (
+                source.replace("    v7 = and v0, 255\n", "")
+                .replace("    v8 = and v5, 255\n", "")
+                .replace("v9 = shl v3, 248", "v9 = shl v2, 248")
+                .replace("v7", "v0")
+                .replace("v8", "v5")
+            )
+            before.write_text(source)
+            after.write_text(target)
+            record = self.check_loop(root, 0)
+            self.assertEqual(
+                record["import_correspondence"][0]["correspondence"]["choose"][
+                    "guarded_widths"
+                ],
+                [{"low_masks": 2, "shifted_masks": 1}, {}],
+            )
+
+            before.write_text(source.replace("gt v0, 255", "gt v0, 256"))
+            after.write_text(target.replace("gt v0, 255", "gt v0, 256"))
+            self.check_loop(root, 2)
+            fixture = root / "world.json"
+            fixture.write_text(
+                '{"version":1,"accounts":[{"address":65536,"storage":{"1":"256"}}]}'
+            )
+            record = self.check_loop(root, 1, fixture=fixture)
+            witness = record["witness"]
+            self.assertEqual(record["evidence"], "kernel-and-rust-replay")
+            self.assertEqual(witness["observations"], witness["native_observations"])
+
     def test_egraph_composes_slice_reuse_and_checked_guards(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

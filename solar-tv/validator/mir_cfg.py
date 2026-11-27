@@ -11,6 +11,7 @@ from . import (
     audit,
     dead_ssa,
     entry_proof,
+    guarded_widths,
     heap_cursor,
     mir_state,
     native,
@@ -1459,6 +1460,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
             )
         else:
             scalar_stats, state_stats, heap_stats, width_stats = [], [], [], []
+            guarded_stats = []
             threaded_guards = []
             try:
                 try:
@@ -1509,13 +1511,21 @@ theorem identical{i} : before{i} = after{i} := by rfl
                     setup += scalar_reuse.AXIOMS
                 normalized = []
                 for side, body in enumerate((first, second)):
+                    projected, guarded, width_code = guarded_widths.normalize(
+                        body, f"guarded{i}_{side}"
+                    )
+                    guarded_stats.append(guarded)
+                    body_code += width_code
                     reduced, stats, sites = scalar_reuse.normalize(
-                        body, scalar_definitions, version, empty_targets=empty_targets
+                        projected,
+                        scalar_definitions,
+                        version,
+                        empty_targets=empty_targets,
                     )
                     normalized.append(reduced)
                     scalar_stats.append(stats)
                     body_code += scalar_reuse.certificate(
-                        f"scalar{i}_{side}", body, sites
+                        f"scalar{i}_{side}", projected, sites
                     )
                 old, new = map(import_graph, normalized)
                 try:
@@ -1613,6 +1623,7 @@ theorem identical{i} : before{i} = after{i} := by rfl
                 **({"state_read_reuse": state_stats} if any(state_stats) else {}),
                 **({"heap_cursor": heap_stats} if any(heap_stats) else {}),
                 **({"width_guards": width_stats} if width_stats else {}),
+                **({"guarded_widths": guarded_stats} if any(guarded_stats) else {}),
             }
         checked[name]["product_initialization"] = product_initialization
         checked[name].update(expansions)
