@@ -162,6 +162,77 @@ class EffectPrefixTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertEqual(record["status"], "unsupported")
 
+    def test_schedule_can_resume_at_funded_cancun_recovery(self):
+        before, after = [
+            self.directory / f"{side}.evmir" for side in ("before", "after")
+        ]
+        header = "@module RecoverySchedule\nbb0 [stack=0]:\n"
+        recovery = "  push 0\n  push 0\n  push 1\n  gas\n  staticcall\n  pop\n  stop\n"
+        before.write_text(header + "  push 32\n  push 0\n  swap 1\n" + recovery)
+        after.write_text(header + "  push 0\n  push 32\n" + recovery)
+        result, record = self.cli([before, after], "--stack-schedule", "bb0")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            record["import_correspondence"][0]["funded_recovery"],
+            {"destination": 1, "child_debit": 3000},
+        )
+        for path in (before, after):
+            path.write_text(path.read_text().replace("push 1\n", "push 2\n"))
+        result, record = self.cli([before, after], "--stack-schedule", "bb0")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(record["status"], "unsupported")
+
+    def test_cse_reuses_the_last_word_store(self):
+        before, after = [
+            self.directory / f"{side}.evmir" for side in ("before", "after")
+        ]
+        setup = (
+            "@module RepeatStore\nbb0 [stack=0]:\n"
+            "  caller\n  calldatasize\n  dup 1\n  push 0\n  mstore\n"
+            "  push 7\n  push 32\n  mstore\n"
+            "  timestamp\n  pop\n"
+        )
+        store = "  dup 1\n  push 0\n  mstore\n"
+        tail = "  push 32\n  push 0\n  return\n"
+        before.write_text(setup + store + tail)
+        after.write_text(setup + tail)
+        result, record = self.cli([before, after], "--stack-schedule", "bb0")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(record["import_correspondence"][0]["repeated_store"])
+
+        before.write_text(setup + store.replace("dup 1", "dup 2") + tail)
+        result, record = self.cli([before, after], "--stack-schedule", "bb0")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(record["status"], "unsupported")
+
+        overlap = setup.replace("push 32\n", "push 1\n")
+        before.write_text(overlap + store + tail)
+        after.write_text(overlap + tail)
+        result, record = self.cli([before, after], "--stack-schedule", "bb0")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(record["status"], "unsupported")
+
+    def test_cse_can_copy_a_proven_constant_across_an_interaction(self):
+        before, after = [
+            self.directory / f"{side}.evmir" for side in ("before", "after")
+        ]
+        setup = "@module CopyConstant\nbb0 [stack=0]:\n  push 64\n  push 128\n"
+        tail = "  push 0\n  push 0\n  push 1\n  gas\n  staticcall\n  pop\n  stop\n"
+        before.write_text(setup + "  push 128\n" + tail)
+        after.write_text(setup + "  dup 1\n" + tail)
+        result, record = self.cli(
+            [before, after], "--region", "bb0", "--interaction-trace"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(record["import_correspondence"][0]["constant_duplicates"], 1)
+
+        after.write_text(setup + "  dup 2\n" + tail)
+        result, record = self.cli(
+            [before, after], "--region", "bb0", "--interaction-trace"
+        )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(record["status"], "unsupported")
+
     def entry(self, path, *, broken=False):
         text = path.read_text().replace("[stack=6]", "[stack=0]")
         # Concrete safe memory pointers propose a witness, never a proof precondition.

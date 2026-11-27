@@ -126,3 +126,16 @@ theorem foldAt{index} (ctx : EVM.Context) (stack : EVM.Stack) (gas : Nat)
   addressFold{index}.funded ctx .{version} stack gas
     (beforeWordFacts.constantAt reach ({depth},{base}#256) (by decide +kernel)) room paid
 """
+
+
+def duplicate_proof(index, pc, depth, word):
+    return f"""
+def constantCopy{index} : Duplicate := ⟨{depth},{word}#256⟩
+theorem duplicateAt{index} (ctx : EVM.Context) (stack : EVM.Stack)
+    (reach : EVM.StackWords.Reaches afterGraphNodes.view afterWordFacts.signatures
+      afterWordFacts.specials afterProtected afterGraph.entry {pc} stack) :
+    EVM.stepChecked ctx constantCopy{index}.op stack =
+      EVM.stepChecked ctx (.push constantCopy{index}.word) stack :=
+  constantCopy{index}.run ctx stack
+    (afterWordFacts.constantAt reach ({depth},{word}#256) (by decide +kernel))
+"""

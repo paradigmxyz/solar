@@ -202,6 +202,10 @@ def check(
         for text in texts
     ]
     common, middles, tail = partition(models)
+    from . import evm_schedule
+
+    if evm_schedule.repeated_partition(common, middles):
+        return evm_schedule.check(paths, solar, replay, version, timeout, entry)
     if len(common) + max(map(len, middles)) + len(tail) > 256:
         raise Unsupported("peephole context exceeds 256 instructions")
     catalog = {row["name"]: row for row in native.catalog(replay, timeout)["evmir"]}

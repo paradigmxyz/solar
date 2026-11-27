@@ -17,6 +17,7 @@ from . import (
     prefix,
     regions,
     source_identity,
+    stack_layout,
 )
 from .common import Program, Unsupported
 
@@ -72,7 +73,11 @@ def abort_path(texts, catalog, version, replay, timeout, entry):
 
 def height_after_prefix(height, lines, catalog, version):
     for line in lines:
-        if GUARD.fullmatch(line) or code_relocations.operation(line):
+        if (
+            GUARD.fullmatch(line)
+            or code_relocations.operation(line)
+            or stack_layout.immutable_push(line)
+        ):
             height += 1
             continue
         scalar = prefix.operation(line, catalog, version)
@@ -87,7 +92,57 @@ def height_after_prefix(height, lines, catalog, version):
     return height
 
 
-def certificate(models, common, tail, imported, aborts, version, height, entry_limit):
+def recovery_suffix(tail, catalog, version):
+    """Only forward a GAS sample directly into the funded recovery policy."""
+    observers = [
+        index
+        for index, line in enumerate(tail)
+        if line != "sstore" and peephole.observes_resources(line, catalog)
+    ]
+    if not observers:
+        return False
+    if (
+        version != "cancun"
+        or len(observers) != 2
+        or observers[0] == 0
+        or observers[1] != observers[0] + 1
+        or tail[observers[0] - 1 : observers[1] + 1] != ["push 1", "gas", "staticcall"]
+    ):
+        raise Unsupported("scheduled continuation observes resources or code layout")
+    return True
+
+
+def repeated_partition(common, middles):
+    """Keep the earlier write and the complete path to a deleted word store."""
+    old, new = middles
+    if (
+        len(old) != 3
+        or new
+        or re.fullmatch(r"dup \d+", old[0]) is None
+        or re.fullmatch(r"push \d+", old[1]) is None
+        or old[2] != "mstore"
+    ):
+        return None
+    for start in reversed(range(len(common) - 2)):
+        if common[start + 1 : start + 3] == old[1:] and re.fullmatch(
+            r"dup \d+", common[start]
+        ):
+            return common[:start], [common[start:] + middle for middle in middles]
+    return None
+
+
+def certificate(
+    models,
+    common,
+    tail,
+    imported,
+    aborts,
+    version,
+    height,
+    entry_limit,
+    *,
+    repeated=False,
+):
     code = (
         "set_option maxHeartbeats 3500000\ndef prices (_ : Nat) : Nat × Nat := (0,0)\n"
     )
@@ -146,19 +201,28 @@ def {name}Tail : EVM.Suffix.Tail := ⟨{json.dumps(items[len(items) - len(tail) 
     have shape := binding ctx stack gas world resumes
     omega"""
             witness = "supported"
+    interpreter = "RepeatedStore" if repeated else "StackSchedule"
+    policy = "(policy : EVM.RepeatedStore.Policy handler)" if repeated else ""
+    use_policy = "policy " if repeated else ""
     code += f"""
 private theorem sharedPrefix : afterCommon = beforeCommon := by decide
 private theorem sharedTail : afterTail = beforeTail := by decide
 private theorem matched (labelAddress : Nat → Word) (ctx : EVM.Context) (stack : EVM.Stack){condition} :
-    EVM.StackSchedule.Refines (EVM.StackSchedule.trace ctx .{version} aborts (after labelAddress) stack)
-      (EVM.StackSchedule.trace ctx .{version} aborts (before labelAddress) stack) := by
+    EVM.StackSchedule.Refines (EVM.{interpreter}.trace ctx .{version} aborts (after labelAddress) stack)
+      (EVM.{interpreter}.trace ctx .{version} aborts (before labelAddress) stack) := by
 """
     for i in range(16):
         code += f"  have index{i} : (({i} : Fin 256) : Nat) = {i} := by decide\n"
     simplifier = evm_effects.stack_proof(
         need,
         peak,
-        SIMP,
+        SIMP
+        + (
+            ", EVM.RepeatedStore.trace, EVM.RepeatedStore.erase, "
+            "EVM.RepeatedStore.update, EVM.RepeatedStore.redundant, EVM.RepeatedStore.written"
+            if repeated
+            else ""
+        ),
         discharger="first | decide | omega",
         height=height if entry_limit is None else None,
         bounded=entry_limit is not None,
@@ -171,14 +235,14 @@ private theorem matched (labelAddress : Nat → Word) (ctx : EVM.Context) (stack
 
 theorem contextual {{World Halt : Type}} (labelAddress : Nat → Word)
     (enter : List String → EVM.Suffix.PrefixResult World Halt)
-    (handler : EVM.StackSchedule.Handler World) (exit : EVM.StackSchedule.Exit) (final : World)
+    (handler : EVM.StackSchedule.Handler World) {policy} (exit : EVM.StackSchedule.Exit) (final : World)
     {binding}
     (ran : EVM.StackSchedule.observe enter handler .{version} beforeCommon aborts (before labelAddress) =
       .done exit final) :
     EVM.StackSchedule.observe enter handler .{version} afterCommon aborts (after labelAddress) = .done exit final ∧
       afterTail = beforeTail := by
   rw [sharedPrefix]{bridge}
-  exact ⟨EVM.StackSchedule.contextual enter handler .{version} beforeCommon aborts (before labelAddress) (after labelAddress)
+  exact ⟨EVM.{interpreter}.contextual enter handler {use_policy}.{version} beforeCommon aborts (before labelAddress) (after labelAddress)
     ({supported}) {witness} {matched}
     exit final ran, sharedTail⟩
 #print axioms contextual
@@ -196,17 +260,28 @@ def check(
     if labels != list(regions.blocks(texts[1])):
         raise Unsupported("stack schedule changed block identities or order")
     models = [
-        prefix.export(text, entry, version, replay, timeout, code_tail=True)
+        prefix.export(
+            text,
+            entry,
+            version,
+            replay,
+            timeout,
+            code_tail=True,
+            immutables=any(
+                line.strip().startswith("push_immutable ") for line in text.splitlines()
+            ),
+        )
         for text in texts
     ]
     common, middles, tail = peephole.partition(models, retain_code_prefix=True)
-    if len(common) + max(map(len, middles)) + len(tail) > 256:
-        raise Unsupported("stack schedule window exceeds 256 instructions")
+    redundant_store = repeated_partition(common, middles)
+    if redundant_store is not None:
+        common, middles = redundant_store
     catalog = {op["name"]: op for op in native.catalog(replay, timeout)["evmir"]}
-    if any(
-        line != "sstore" and peephole.observes_resources(line, catalog) for line in tail
-    ):
-        raise Unsupported("scheduled continuation observes resources or code layout")
+    recovery = recovery_suffix(tail, catalog, version)
+    limit = 512 if recovery else 256
+    if len(common) + max(map(len, middles)) + len(tail) > limit:
+        raise Unsupported(f"stack schedule window exceeds {limit} instructions")
     layout = code_relocations.bind(models, texts, solar, version, timeout, catalog)
     if tail and catalog.get(tail[0], {}).get("pure"):
         # A common consumer may accept operands presented in a different order.
@@ -242,8 +317,20 @@ def check(
         if path is not None:
             aborts[label], abort_evidence[label] = path
     definitions = certificate(
-        models, common, tail, imported, aborts, version, cut_height, entry_limit
+        models,
+        common,
+        tail,
+        imported,
+        aborts,
+        version,
+        cut_height,
+        entry_limit,
+        repeated=redundant_store is not None,
     )
+    if recovery:
+        # The shared continuation can sample different words at this one site.
+        # For two funded calls the ordinary transition charges a stable debit.
+        definitions += "#print axioms EVM.State.CallRefinement.paired_recovery\n"
     build = build_model(timeout)
     if build.returncode:
         raise Unsupported(build.stdout + build.stderr)
@@ -265,10 +352,20 @@ def check(
                 timeout,
             )
     axioms = re.search(r"'contextual' depends on axioms: \[(.*?)\]", result.stdout)
+    recovery_axioms = re.search(
+        r"'SolarTV.EVM.State.CallRefinement.paired_recovery' depends on axioms: \[(.*?)\]",
+        result.stdout,
+    )
     if (
         result.returncode
         or not axioms
         or set(axioms[1].split(", ")) - {"propext", "Quot.sound", "Classical.choice"}
+        or recovery
+        and (
+            not recovery_axioms
+            or set(recovery_axioms[1].split(", "))
+            - {"propext", "Quot.sound", "Classical.choice"}
+        )
     ):
         raise ScheduleMismatch(
             "stack schedule proof did not close\n" + result.stdout + result.stderr
@@ -293,6 +390,21 @@ def check(
                 "prefix_operations": len(common),
                 "schedule_operations": len(code),
                 "continuation_operations": len(tail),
+                **({"repeated_store": True} if redundant_store is not None else {}),
+                **(
+                    {"funded_recovery": {"destination": 1, "child_debit": 3000}}
+                    if recovery
+                    else {}
+                ),
+                **(
+                    {
+                        "shared_immutables": sorted(
+                            set(filter(stack_layout.immutable_push, common + tail))
+                        )
+                    }
+                    if any(stack_layout.immutable_push(line) for line in common + tail)
+                    else {}
+                ),
                 "entry_height": height,
                 "schedule_height": cut_height,
                 **(

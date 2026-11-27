@@ -74,6 +74,31 @@ theorem advance_recovery (cfg : Config) (execute : ChildExecutor) (world : Journ
     .ok (.success, Precompiles.Signatures.recover input, gas-3000) from ecrecover_paid input gas enough]
   rfl
 
+/-- The sampled gas may differ across a shared, funded recovery continuation.
+Both transitions resume with the same returndata, journal and stack; only
+the remaining balance depends on the incoming gas. -/
+theorem paired_recovery (cfg : Config) (execute : ChildExecutor) (world : Journal)
+    (parent : Frame) (input : List Byte) (offset size gas₀ gas₁ request₀ request₁ : Nat)
+    (fork : cfg.fork = .cancun) (known : cfg.unknownCode = none)
+    (depth : parent.environment.depth < 1024)
+    (paid₀ : 3000 ≤ min request₀ (gas₀-gas₀/64))
+    (paid₁ : 3000 ≤ min request₁ (gas₁-gas₁/64)) :
+    let data := Precompiles.Signatures.recover input
+    let message : Calls.Message := ⟨.staticcall,1,0,input⟩
+    let result (gas : Nat) := Except.ok (.inr (0,warmAddress world 1,{parent with
+      stack := 1 :: parent.stack
+      memory := writeBytes parent.memory offset (data.take size)
+      returnData := data
+      gas := gas-3000}))
+    advance cfg execute (.call message offset size request₀ ⟨1,[],false⟩ world
+      {parent with gas := gas₀}) = result gas₀ ∧
+    advance cfg execute (.call message offset size request₁ ⟨1,[],false⟩ world
+      {parent with gas := gas₁}) = result gas₁ := by
+  exact ⟨advance_recovery cfg execute world {parent with gas := gas₀}
+      input offset size request₀ fork known depth paid₀,
+    advance_recovery cfg execute world {parent with gas := gas₁}
+      input offset size request₁ fork known depth paid₁⟩
+
 /-- Code of the return-true token in the explicit FlashLoan policy. -/
 private def returnTrueCode : List Byte := [0x60,1,0x5f,0x52,0x60,32,0x5f,0xf3]
 

@@ -119,8 +119,8 @@ def pair(
     nodes, pushes, meters = [[], []], [[], []], [[], []]
     recipe_rows = {}
     local_edges = [[], []]
-    carried = None
-    folds = []
+    carried = [None, None]
+    folds, duplicates = [], []
 
     limit = 16384 if from_entry else 4096
 
@@ -158,7 +158,7 @@ def pair(
             for side, node in enumerate((left, right)):
                 nodes[side].append(node)
                 witnesses[side].append(
-                    f"⟨{positions[side]},[],{edge},none,{len(pushes[side])}⟩"
+                    f"⟨{positions[side]},[],{edge},none,{len(pushes[side])},none⟩"
                 )
             continue
         if (
@@ -172,34 +172,51 @@ def pair(
         before = left["next"]
         old_recipe, outputs = [term], [name]
         address = "none"
+        copy = "none"
         old_peak = 1
-        try:
-            recipe, peak, gas, after = replacement(
-                models[1], positions[1], value, catalog, version, protected[1]
-            )
-        except Unsupported:
-            folded = address_fold(models[0], positions[0], protected[0])
-            if (
-                folded is None
-                or positions[1] in protected[1]
-                or right["kind"] != "operation"
-                or not right["operation"].startswith("push ")
-            ):
-                raise
-            depth, before = folded
-            new_term, gas, result = instruction(right["operation"], catalog, version)
-            base = (result - value) & WORD_MASK
-            if carried is None:
-                carried = stack_words.Facts(models[0], catalog, protected[0])
-            carried.demand(positions[0], depth, base)
-            folds.append((positions[0], value, depth, base))
-            address = f"some ⟨{value}#256,{depth},{base}#256⟩"
-            old_recipe, old_peak = [], 2
-            old_gas += catalog[f"dup{depth + 2}"]["forks"][version]["base_gas"]
-            old_gas += catalog["add"]["forks"][version]["base_gas"]
-            recipe, peak, after = [new_term], 1, right["next"]
-            outputs = [right["operation"]]
-            value = result
+        duplicate = re.fullmatch(r"dup (\d+)", right.get("operation", ""))
+        if duplicate and positions[1] not in protected[1]:
+            index_ = int(duplicate[1])
+            if not 1 <= index_ <= 16:
+                raise Unsupported("constant copy requires a legacy DUP")
+            depth = index_ - 1
+            if carried[1] is None:
+                carried[1] = stack_words.Facts(models[1], catalog, protected[1])
+            carried[1].demand(positions[1], depth, value)
+            duplicates.append((positions[1], depth, value))
+            copy = f"some ⟨{depth},{value}#256⟩"
+            recipe, peak, after = [], 1, right["next"]
+            gas = catalog[f"dup{index_}"]["forks"][version]["base_gas"]
+        else:
+            try:
+                recipe, peak, gas, after = replacement(
+                    models[1], positions[1], value, catalog, version, protected[1]
+                )
+            except Unsupported:
+                folded = address_fold(models[0], positions[0], protected[0])
+                if (
+                    folded is None
+                    or positions[1] in protected[1]
+                    or right["kind"] != "operation"
+                    or not right["operation"].startswith("push ")
+                ):
+                    raise
+                depth, before = folded
+                new_term, gas, result = instruction(
+                    right["operation"], catalog, version
+                )
+                base = (result - value) & WORD_MASK
+                if carried[0] is None:
+                    carried[0] = stack_words.Facts(models[0], catalog, protected[0])
+                carried[0].demand(positions[0], depth, base)
+                folds.append((positions[0], value, depth, base))
+                address = f"some ⟨{value}#256,{depth},{base}#256⟩"
+                old_recipe, old_peak = [], 2
+                old_gas += catalog[f"dup{depth + 2}"]["forks"][version]["base_gas"]
+                old_gas += catalog["add"]["forks"][version]["base_gas"]
+                recipe, peak, after = [new_term], 1, right["next"]
+                outputs = [right["operation"]]
+                value = result
         # Include common literal pushes if they can reach the same stack peak.
         # There is no observation between these pushes and the recipe.
         while len(outputs) < peak and len(recipe) < RECIPE_LIMIT:
@@ -242,13 +259,14 @@ def pair(
                     local_edges[side].append(push)
             witnesses[side].append(
                 f"⟨{positions[side]},[{','.join(steps)}],.next {successor},"
-                f"{address if side == 0 else 'none'},{guard['next']}⟩"
+                f"{address if side == 0 else 'none'},{guard['next']},"
+                f"{copy if side == 1 else 'none'}⟩"
             )
             meters[side].append(
                 {
                     "word": str(value),
                     "shared_pushes": len(outputs) - 1,
-                    "operations": 3 if not steps else len(steps),
+                    "operations": len(steps) or (3 if side == 0 else 1),
                     "peak": growth,
                     "gas": charge,
                 }
@@ -268,7 +286,7 @@ def pair(
         }
         for rows, literals in zip(nodes, pushes, strict=True)
     ]
-    return projected, witnesses, meters, carried, folds, recipe_rows
+    return projected, witnesses, meters, carried, folds, duplicates, recipe_rows
 
 
 def check(
@@ -346,7 +364,7 @@ def check(
     relocated_code = code_relocations.bind(
         sources, texts, solar, version, timeout, catalog
     )
-    projected, points, meters, carried, folds, recipe_rows = pair(
+    projected, points, meters, carried, folds, duplicates, recipe_rows = pair(
         graphs, catalog, version, protected, from_entry=from_entry or bound_from_entry
     )
     chunked = from_entry and len(points[0]) > 2048
@@ -389,7 +407,7 @@ set_option maxHeartbeats 3500000
             "SolarTV.EVM.CodeRelocations.argument_read",
             "SolarTV.EVM.CodeRelocations.argument_length",
         ]
-    if folds:
+    if folds or duplicates:
         proof_names += [
             "SolarTV.EVM.StackWords.effect_relates",
             "SolarTV.EVM.StackWords.literal_relates",
@@ -435,13 +453,18 @@ set_option maxHeartbeats 3500000
 def {name}Protected : Nat → Bool := {guard}
 """
         facts = "(fun _ => [])"
-        if side == 0 and carried:
-            code += carried.declarations(name, catalog, chunked=chunked)
-            facts = "beforeWordFacts.facts"
-            proof_names.append("beforeWordFacts.constantAt")
+        if carried[side]:
+            code += carried[side].declarations(name, catalog, chunked=chunked)
+            facts = f"{name}WordFacts.facts"
+            proof_names.append(f"{name}WordFacts.constantAt")
+        if side == 0:
             for i, (pc, offset, depth, base) in enumerate(folds):
                 code += stack_words.fold_proof(i, pc, offset, depth, base, version)
                 proof_names.append(f"foldAt{i}")
+        else:
+            for i, (pc, depth, word) in enumerate(duplicates):
+                code += stack_words.duplicate_proof(i, pc, depth, word)
+                proof_names.append(f"duplicateAt{i}")
         code += f"""
 def {name}RecipeProjection (source : Program) : Option (Program × List Nat) :=
   project source .{version} {name}Recipes.rows.toArray {name}Protected {str(interactions).lower()} {facts}
@@ -676,6 +699,7 @@ theorem matchedFromEntryBound {World Observation : Type}
                 ),
                 **({"code_layout": relocated_code[side]} if relocated_code else {}),
                 **({"address_folds": len(folds)} if folds else {}),
+                **({"constant_duplicates": len(duplicates)} if duplicates else {}),
                 **(
                     {"caller_return_slots": [i for i, tag in enumerate(mask) if tag]}
                     if mask

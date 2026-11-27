@@ -221,12 +221,31 @@ def readAddressFold (nodes : ProofTable.View Node) (relocated : Nat → Bool)
       dup != s!"dup {fold.depth.val + 2}" || add != "add" then none else
   return next
 
+structure Duplicate where
+  depth : Fin 16
+  word : Word
+
+def Duplicate.op (copy : Duplicate) : Op :=
+  .dup ⟨copy.depth.val, by have := copy.depth.isLt; omega⟩
+
+theorem Duplicate.run (copy : Duplicate) (ctx : Context) (stack : Stack)
+    (known : stack[copy.depth.val]? = some copy.word) :
+    stepChecked ctx copy.op stack = stepChecked ctx (.push copy.word) stack := by
+  simp [Duplicate.op, stepChecked, step, known]
+
+def readDuplicate (nodes : ProofTable.View Node) (relocated : Nat → Bool)
+    (facts : Nat → StackWords.Facts) (pc : Nat) (copy : Duplicate) : Option Nat := do
+  let .operation _ name next ← nodes.get? pc | none
+  if relocated pc || !(facts pc).contains (copy.depth.val,copy.word) ||
+      name != s!"dup {copy.depth.val + 1}" then none else return next
+
 structure Point where
   pc : Nat
   recipe : List Instruction
   edges : Edges
   address : Option AddressFold
   pushOffset : Nat
+  duplicate : Option Duplicate
 
 def resolve (points : ProofTable.View Point) (pc destination : Nat) : Option Nat := do
   if (← points.get? destination).pc == pc then some destination else none
@@ -256,6 +275,11 @@ private def projectAction (nodes : ProofTable.View Node) (fork : Fork)
     if !point.recipe.isEmpty then none else
     let next ← find (← readAddressFold nodes relocated facts point.pc fold) successor
     return recipeRow start [fold.base + fold.offset] 2 (Prefix.cost fork fold.ops) next
+  else if let some copy := point.duplicate then
+    let .next successor := point.edges | none
+    if !point.recipe.isEmpty then none else
+    let next ← find (← readDuplicate nodes relocated facts point.pc copy) successor
+    return recipeRow start [copy.word] 1 (Gas.pureCost copy.op fork) next
   else
     match point.recipe with
     | [] =>

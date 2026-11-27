@@ -387,6 +387,10 @@ def record(
             )
         elif program and program.scope == "compact-pushes":
             bound = program.import_evidence["entry_height_bound"]
+            if program.import_evidence.get("constant_duplicates"):
+                assumptions.append(
+                    "kernel-checked constant provenance over every incoming edge and equal checked stack steps for the replaced PUSH and matching DUP"
+                )
             if program.import_evidence.get("code_layout"):
                 assumptions.append(
                     "constructor reads use the checked sole data suffix and identical appended arguments"
@@ -764,15 +768,35 @@ def record(
                 ]
             )
         elif program and program.scope == "stack-schedule":
+            repeated = program.import_evidence.get("repeated_store")
+            recovery = program.import_evidence.get("funded_recovery")
             assumptions.extend(
                 [
                     "identical shared prefix executor, terminal, successor and continuation under the logical entry correspondence",
-                    "the kernel checks ordered effect arguments and arbitrary shared replies, full live stacks or the actual memory range at a paired revert",
+                    "the kernel checks ordered retained effects, live stacks and paired revert ranges after erasing known repeated writes"
+                    if repeated
+                    else "the kernel checks ordered effect arguments and arbitrary shared replies, full live stacks or the actual memory range at a paired revert",
                     "original stack faults are unconstrained",
-                    "sufficient funding and shared context including any surrounding GAS reads, message outcomes, code-image observations and logical label bindings",
+                    "sufficient funding and shared surrounding effects, code-image observations and logical label bindings",
                     "shared prefix execution, parser/schema binding, physical addresses, forwarded gas and bytecode placement remain environment obligations",
                 ]
             )
+            if repeated:
+                assumptions.append(
+                    "the shared unpriced memory handler preserves active words across disjoint stores, retains words on memory-preserving effects and treats an already-written word as an identity store"
+                )
+            if recovery:
+                assumptions.append(
+                    "the shared Cancun GAS sample is consumed by ECRECOVER; kernel-checked paired call transitions have the same result and 3000-gas child debit when both forwarded budgets pay the call, even if the gas samples differ"
+                )
+            else:
+                assumptions.append(
+                    "shared GAS samples and message outcomes outside the window"
+                )
+            if program.import_evidence.get("shared_immutables"):
+                assumptions.append(
+                    "unchanged immutable reads use shared deployment-slot values"
+                )
             height = program.import_evidence.get("entry_height")
             if height is not None:
                 assumptions.append(

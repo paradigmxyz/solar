@@ -42,6 +42,8 @@ struct Input {
     #[serde(default)]
     window_code_tail: bool,
     #[serde(default)]
+    window_immutables: bool,
+    #[serde(default)]
     labels: bool,
     #[serde(default)]
     indexed_tables: bool,
@@ -78,7 +80,7 @@ pub(super) fn export() -> Result<Value, String> {
             .find(|(_, b)| input.entry.is_none_or(|label| b.label == label))
             .ok_or("missing EVM model entry")?;
         if input.window {
-            window(&module, entry, input.window_code_tail)
+            window(&module, entry, input.window_code_tail, input.window_immutables)
         } else {
             graph(&module, entry, input.labels, input.entry.is_none())
         }
@@ -291,7 +293,12 @@ fn instruction(inst: &Instruction) -> Result<String, String> {
 
 /// Export every operation in a block, including its final transfer. Consumers
 /// may prove a prefix only if the entire remaining continuation is identical.
-fn window(module: &Module, entry: BlockId, code_tail: bool) -> Result<Value, String> {
+fn window(
+    module: &Module,
+    entry: BlockId,
+    code_tail: bool,
+    immutables: bool,
+) -> Result<Value, String> {
     let block = &module.blocks[entry];
     let suffix = code_tail.then(|| relocations::suffix(module)).flatten();
     let mut body = block.instructions.as_slice();
@@ -306,6 +313,11 @@ fn window(module: &Module, entry: BlockId, code_tail: bool) -> Result<Value, Str
         }
         let rendered = if let Some(target) = inst.pushed_block() {
             format!("push bb{}", module.blocks[target].label)
+        } else if immutables
+            && let Some(immutable) = inst.immutable_push()
+            && let Some(size) = inst.immutable_type_size()
+        {
+            format!("push_immutable {}, {}", immutable.index(), size.bytes())
         } else {
             instruction(inst)?
         };

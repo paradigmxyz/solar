@@ -101,9 +101,10 @@ def render_nodes(
                     and catalog["push0"]["forks"][version]["available"]
                     else "push1"
                 )
-            elif from_entry and (
-                stack_layout.immutable_push(operation)
-                or code_relocations.operation(operation)
+            elif (
+                (interactions or from_entry)
+                and stack_layout.immutable_push(operation)
+                or (from_entry and code_relocations.operation(operation))
             ):
                 name = "push1"
             elif match := re.fullmatch(r"(dup|swap) (\d+)", operation):

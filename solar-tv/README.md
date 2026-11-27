@@ -1599,6 +1599,14 @@ revert chain executes that chain before comparing the revert operands.
 The report records the shared prefix and continuation and any code reads
 resolved against the assembled constructor images.
 
+The same checker can erase a repeated word store if its earlier write is
+still active at the cut. It checks the word and offset, and the memory
+handler must preserve the known bytes across disjoint writes and other
+memory-preserving effects. A shared suffix can forward a GAS sample
+directly into Cancun `ECRECOVER` under a funded policy. Both forwarded
+budgets must cover recovery, which charges a fixed child debit and
+returns the same result for the same input.
+
 The unpriced live `stack-reschedule` hook and corpus evaluator use this
 certificate. A compiler-supplied `--stack-height` can bind a fixed entry.
 For unknown-height blocks, the checker tries a universal stack proof and

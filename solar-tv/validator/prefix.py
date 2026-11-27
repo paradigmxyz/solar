@@ -24,7 +24,9 @@ UNFOLD = (
 )
 
 
-def export(text, entry, version, executable, timeout, *, code_tail=False):
+def export(
+    text, entry, version, executable, timeout, *, code_tail=False, immutables=False
+):
     response = subprocess.run(
         [executable, "--evm-model"],
         input=json.dumps(
@@ -35,6 +37,7 @@ def export(text, entry, version, executable, timeout, *, code_tail=False):
                 "evm_version": version,
                 "window": True,
                 **({"window_code_tail": True} if code_tail else {}),
+                **({"window_immutables": True} if immutables else {}),
             }
         ),
         text=True,

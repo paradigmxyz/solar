@@ -38,8 +38,10 @@ def instruction_role(
     if operation.startswith("push "):
         literal(operation[5:])
         return ".ordinary 0 1", (0, 1)
-    if from_entry and (
-        stack_layout.immutable_push(operation) or code_relocations.operation(operation)
+    if (
+        (interactions or from_entry)
+        and stack_layout.immutable_push(operation)
+        or (from_entry and code_relocations.operation(operation))
     ):
         return ".ordinary 0 1", (0, 1)
     if operation == "pop":
