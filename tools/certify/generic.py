@@ -293,6 +293,102 @@ def param_of(p, enums):
     return None
 
 
+ABI_ARRAY = re.compile(r"^(.*)\[(\d*)\]$")
+ABI_BYTES_N = re.compile(r"^bytes(\d+)$")
+
+
+def abi_dynamic(t):
+    """Whether the ABI type string T is dynamic: `bytes`, `string`, `T[]`, or an aggregate of a
+    dynamic type (a tuple's own string is `tuple`, so its components decide, by the caller)."""
+    return t in ("bytes", "string") or t.endswith("[]") or (
+        bool(ABI_ARRAY.match(t)) and abi_dynamic(ABI_ARRAY.match(t).group(1))
+    )
+
+
+def static_words(p, enums):
+    """The head words of a static ABI parameter P, each as the SolidCore Abi.Param of its word, in
+    calldata order: (words, None); or (None, (feature, why)) outside the envelope. The model is
+    SolidCore/Refinement/AbiStatic.lean's Static and Static.params?: a word type is one word; a
+    `bytes32` is one word whose clean words are every word below 2 ^ 256, exactly `.uint 256`'s
+    (Abi.Word.clean_bytes32); a fixed-size array `T[k]` of a static `T` is `k` copies of
+    `T`'s words; a struct (`tuple`) of static components is their words in order. A dynamic type
+    (`bytes`, `string`, `T[]`) and any aggregate holding one stay refused, each with its own
+    reason, and so do `bytesN` below 32 bytes (a left-aligned word: AbiStatic models it, but
+    Abi.Param has no such word) and every other type."""
+    t, it = p["type"], p.get("internalType", "")
+    m = ABI_ARRAY.match(t)
+    if m:
+        if m.group(2) == "":
+            if abi_dynamic(m.group(1)) or (m.group(1).startswith("tuple") and _has_dynamic(p)):
+                return None, ("ABI types: nested dynamic type", f"`{it or t}`: an array of a dynamic type")
+            return None, ("ABI types: dynamic parameter", f"`{it or t}`: a dynamic array (calldata of any length)")
+        inner = dict(p, type=m.group(1), internalType=ABI_ARRAY.sub(r"\1", it) if it else "")
+        ws, why = static_words(inner, enums)
+        if ws is None:
+            if why[0] in ("ABI types: dynamic parameter", "ABI types: nested dynamic type"):
+                return None, ("ABI types: nested dynamic type", f"`{it or t}`: a fixed-size array of a dynamic type")
+            return None, why
+        return ws * int(m.group(2)), None
+    if t == "tuple":
+        out = []
+        for c in p.get("components", []):
+            ws, why = static_words(c, enums)
+            if ws is None:
+                if why[0] in ("ABI types: dynamic parameter", "ABI types: nested dynamic type"):
+                    return None, ("ABI types: nested dynamic type", f"`{it or t}`: a struct with a dynamic member `{c.get('name', '')}`")
+                return None, why
+            out += ws
+        if not out:
+            return None, ("ABI types", f"`{it or t}`: an empty struct")
+        return out, None
+    if t in ("bytes", "string"):
+        return None, ("ABI types: dynamic parameter", f"`{t}`: a dynamic type (calldata of any length)")
+    b = ABI_BYTES_N.match(t)
+    if b:
+        n = int(b.group(1))
+        if n == 32:
+            return [".uint 256"], None
+        return None, ("ABI types: bytesN below 32 bytes", f"`{t}`: a left-aligned word, which Abi.Param does not model")
+    w = param_of(p, enums)
+    if w is None:
+        return None, ("ABI types", f"`{it or t}`: outside the ABI model")
+    return [w], None
+
+
+def abi_canon(p):
+    """The canonical type of the ABI parameter P in a signature: its type, with a struct (`tuple`,
+    `tuple[k]`, `tuple[]`) written as its components' canonical types in parentheses, as the
+    selector and the event topic hash it."""
+    t = p["type"]
+    if t.startswith("tuple"):
+        return "(" + ",".join(abi_canon(c) for c in p.get("components", [])) + ")" + t[len("tuple") :]
+    return t
+
+
+def _has_dynamic(p):
+    """Whether the ABI parameter P (a tuple or an array of tuples) holds a dynamic type."""
+    for c in p.get("components", []):
+        t = c["type"]
+        if abi_dynamic(t) or (t.startswith("tuple") and _has_dynamic(c)):
+            return True
+    return False
+
+
+def return_ok(p, enums):
+    """None when the ABI result P is in the envelope, else (feature, why): a static type, as
+    static_words reads it, or `bytes` or `string` (one dynamic value, whose encoding is the offset
+    word, the length word and the bytes padded to a word: AbiStatic.encode_bytes); every other
+    dynamic result stays refused."""
+    if p["type"] in ("bytes", "string"):
+        return None
+    ws, why = static_words(p, enums)
+    if ws is not None:
+        return None
+    if why[0] == "ABI types: dynamic parameter":
+        return ("ABI types: dynamic return", why[1].replace("calldata of any length", "returndata of any length"))
+    return why
+
+
 def linearization(ast, cdef):
     """CDEF's bases in solc's C3 order, most derived first (CDEF itself first), as
     (contract definitions, None), or (None, why) when the driver cannot certify the order: a base
@@ -922,15 +1018,20 @@ def envelope(
     for e in abi:
         if e["type"] != "function":
             continue
-        sig = f"{e['name']}({','.join(p['type'] for p in e['inputs'])})"
-        params = [param_of(p, enums) for p in e["inputs"]]
-        outs = [param_of(p, enums) for p in e.get("outputs", [])]
-        if None in params or None in outs:
-            block(
-                "ABI types",
-                None,
-                f"{sig}: only uintN, intN, bool, address and enum parameters and results",
-            )
+        sig = f"{e['name']}({','.join(abi_canon(p) for p in e['inputs'])})"
+        # The head words of the parameters (static types only, flattened in calldata order; see
+        # static_words), and the results: static, or bytes or string.
+        params = []
+        for p in e["inputs"]:
+            ws, why = static_words(p, enums)
+            if ws is None:
+                block(why[0], None, f"{sig}: parameter {why[1]}")
+            else:
+                params += ws
+        for p in e.get("outputs", []):
+            why = return_ok(p, enums)
+            if why is not None:
+                block(why[0], None, f"{sig}: result {why[1]}")
         # The definition the selector dispatches to: the most derived one in the C3 order.
         fsel = keccak.keccak256(sig.encode())[:4].hex()
         fdef = next(
@@ -960,7 +1061,7 @@ def envelope(
     events = []
     for e in abi:
         if e["type"] == "event":
-            sig = f"{e['name']}({','.join(p['type'] for p in e['inputs'])})"
+            sig = f"{e['name']}({','.join(abi_canon(p) for p in e['inputs'])})"
             events.append(
                 {
                     "sig": sig,
@@ -1843,7 +1944,9 @@ def probe_lean(name, contract, fns):
         f'    | none => "no source function"\n'
         f"    | some fn => match Generic.eraseFn (Generic.envOf core) fuel fn, "
         f"Generic.symTree {X}.stage0 {f['sel']} {len(f['params'])} mirFuel .all with\n"
-        f'      | none, _ => "source tree undefined (erasure)"\n'
+        f'      | none, _ => "source tree undefined (erasure)" ++ (match Generic.widthsOf fn.params fn.paramAbiCleanups with\n'
+        f'        | none => ": a parameter is not a word"\n'
+        f'        | some _ => if fn.returns.all Generic.wordBinding then "" else ": a result is not a word")\n'
         f'      | _, none => "MIR symbolic run undefined"\n'
         f'      | some a, some b => if Generic.Tree.agree a b then "agree" else ("trees differ: source " ++ (reprStr a.canon).replace "\\n" " " ++ " MIR " ++ (reprStr b.canon).replace "\\n" " ")))'
         for f in fns
@@ -1855,7 +1958,9 @@ def probe_lean(name, contract, fns):
         f'    | none => "no source function"\n'
         f"    | some fn => match Generic.eraseFnSym (Generic.envOf core) fuel fn, "
         f"Generic.symTree {X}.stage0 {f['sel']} {len(f['params'])} mirFuel .allSym with\n"
-        f'      | none, _ => "source tree undefined (erasure)"\n'
+        f'      | none, _ => "source tree undefined (erasure)" ++ (match Generic.widthsOf fn.params fn.paramAbiCleanups with\n'
+        f'        | none => ": a parameter is not a word"\n'
+        f'        | some _ => if fn.returns.all Generic.wordBinding then "" else ": a result is not a word")\n'
         f'      | _, none => "MIR symbolic run undefined"\n'
         f'      | some a, some b => if Generic.Tree.agree a b then "agree" else ("trees differ: source " ++ (reprStr a.canon).replace "\\n" " " ++ " MIR " ++ (reprStr b.canon).replace "\\n" " ")))'
         for f in fns

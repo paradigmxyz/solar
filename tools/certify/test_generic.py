@@ -3300,6 +3300,15 @@ class NoConstructorRoute(unittest.TestCase):
         old.out[0] = old.out[0].replace(
             "SolarTV.Export.C.", "SolarTV.Export.x_0000abcd.C."
         )
+        # And the probe says why the erasure is undefined when a parameter or a result is not one
+        # of its words: the static ABI envelope (static_words) admits those, and the erasure decides.
+        why = (
+            '"source tree undefined (erasure)" ++ (match Generic.widthsOf fn.params fn.paramAbiCleanups with\n'
+            '        | none => ": a parameter is not a word"\n'
+            '        | some _ => if fn.returns.all Generic.wordBinding then "" else ": a result is not a word")\n'
+        )
+        self.assertEqual(old.out[0].count('"source tree undefined (erasure)"\n'), 2 * len(fns))
+        old.out[0] = old.out[0].replace('"source tree undefined (erasure)"\n', why)
         # The other: the succeeds-witness search's runs of every function on the zero call
         # (synth_witness), printed after the checks and nothing else changed.
         new = generic.out[0]
