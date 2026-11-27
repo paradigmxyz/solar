@@ -71,7 +71,9 @@ pub extern "C" fn solidity_reset() {
 /// must be distinct: writing the same allocation to both transfers its ownership twice.
 ///
 /// The callback may run on compiler threads other than the caller's, but never concurrently within
-/// one `solidity_compile` call: calls are serialized.
+/// one `solidity_compile` call: calls are serialized. The callback must not call
+/// `solidity_compile`, as the nested compile can re-enter the callback on the same thread and
+/// deadlock.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn solidity_compile(
     input: *const c_char,
