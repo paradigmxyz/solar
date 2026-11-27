@@ -88,7 +88,7 @@ uv run --project tools/compiler-diff compiler-diff runtime -- \
 
 This case requires local Anvil. Setup impersonates the public native factory address to initialize
 the proxy, registers an encryption key with a proof signed by public test key 1, and installs mock
-TIP-20 and TIP-403 contracts. `fixtures/runtime/Zones.json` pins both helpers' creation bytecode from
+TIP-20 and TIP-403 contracts. `fixtures/runtime/Zones.json` pins the helpers' creation bytecode from
 solc 0.8.37, including source hash and compiler settings, so gas uses identical mocks even without
 a live reference compiler. Rebuild it with Standard JSON using `RuntimeFixtures.sol`, the saved
 `settings`, and solc 0.8.37; the bytecode objects must match `creation_bytecode`.
@@ -100,6 +100,83 @@ validation and queueing; it does not test decryption or live Tempo precompile ga
 deployment are outside call gas; `deploy_gas` measures the implementation, and `proxy_deploy_gas`
 records the proxy separately. Compiler settings preserve the pinned Osaka target and, like every
 other case, omit CBOR metadata.
+
+## Tempo channel reserve gas
+
+`tempo-channel-reserve` deploys the Solidity reference of the TIP-1034 channel reserve,
+`tips/verify/src/TIP20ChannelReserve.sol` in `tempoxyz/tempo`, and runs a channel through its life.
+Tempo's default end-to-end mix (`contrib/bench/txgen/presets/public-mix.yml`, which includes
+`mpp.yml`) gives `open` a weight of 15 out of 100, so Tempo's bench-e2e, multi-region, and nightly
+runs all exercise this path.
+
+```sh
+uv run --project tools/compiler-diff compiler-diff runtime -- \
+  --solar /absolute/path/to/solar --solc /absolute/path/to/solc \
+  --mode runtime --tests tempo-channel-reserve --gas --start-anvil
+```
+
+This case requires local Anvil. Setup installs the pinned `RuntimeZoneToken` at the TIP-20 address
+`ZONES_TOKEN` and a `RuntimeSignatureVerifier` at the signature verifier precompile address; the
+latter recovers a 65-byte signature like `MockSignatureVerifier` in
+`tips/verify/test/TIP20ChannelReserve.t.sol`. Both come from `fixtures/runtime/Zones.json`. The
+configurable-account precompile stays empty, which the contract treats as no commitment. Before each
+compiler's run, setup gives the sender 100 million token units and the payee, an address no other
+case uses, zero, and the sender approves the new reserve. The sender is payer and operator, so one
+key calls `settle` and `close`.
+
+Each call is a separate transaction with cold access state:
+
+| Call | Source |
+| --- | --- |
+| `setExpiringNonceHashForTest` (`0x…01`) | the reference contract's test hook, which every `open` needs |
+| `open` of 1,000,000 units, payee set, operator = sender | `test_open_success`; the `mpp_open` template in `mpp.yml`, with an operator so later calls can use it |
+| `topUp` by 500,000 | `test_topUp_updatesDeposit` |
+| `settle` to a cumulative 250,000 | `test_settle_success` |
+| `requestClose` | `test_requestClose_storesTimestampInCloseRequestedAt` |
+| `close` capturing 600,000 and refunding the rest | `test_close_partialCapture_success` |
+| `setExpiringNonceHashForTest` (`0x…02`), `open` of a second channel, `close` of 0 with an empty signature | the open and refund-only close of `mpp_open_close` in `mix.yml` |
+
+Channel IDs and voucher digests use the constant reserve address and `block.chainid`, so on Anvil's
+chain ID 31337 the vouchers signed by the default sender are static; `cases.py` holds them and says
+how to regenerate them. They also bind the case to the default sender key, so it needs Anvil's
+default chain ID. Post-call checks require the payee to hold 600,000 units, the sender
+99.4 million, and the reserve zero, and both channel states to read back as zero. These check the
+end state, so gas and successful transactions are the only evidence for `topUp`, `settle`, and
+`requestClose`.
+
+## Tempo Earn gas
+
+`tempo-earn-vault` measures deposits and redemptions through Tempo Earn's `EarnVault` over a
+`HoldEngine`, the vault behind the vault deposit (6%) and withdrawal (4%) transactions of Tempo's
+default mix. Earn itself builds with our compiler (`solar.lock`).
+
+```sh
+uv run --project tools/compiler-diff compiler-diff runtime -- \
+  --solar /absolute/path/to/solar --solc /absolute/path/to/solc \
+  --mode runtime --tests tempo-earn-vault --gas --start-anvil
+```
+
+[`TempoEarn.sol`](../../testdata/runtime/TempoEarn.sol) repeats the setUp of Earn's
+`test/earn/gas/HoldEngineGas.t.sol` in its constructor, with Earn's own `CoreMockToken`,
+`earnVaultTestNoFees`, and `EarnVaultTestDeployer` (an ERC-1967 proxy over `EarnVault`) from
+`testdata/projects/tempo-earn.json.gz`, and exposes the vault's entry points as ordinary calls with
+the harness as the only user. Like `minimal-proxy`, runtime size covers the harness alone, while
+creation size and deployment gas include Earn's contracts: `EarnVault` alone is over the EIP-170
+limit under solc, so the harness's creation code is over the initcode limit too. `--start-anvil`
+disables the code size limit; a node you start yourself needs `--disable-code-size-limit`.
+
+| Call | Source |
+| --- | --- |
+| `deposit(500e6)`, the first deposit of a new holder | `deposit.new-holder` in Earn's `snapshots/earn-tip20.json` |
+| `deposit(100e6)`, a returning holder | `deposit.returning` in the same snapshot |
+| `redeem(100e6)` | `testGasHoldSteadyRedeem`; `redeem.partial` in the snapshot |
+| `withdrawExact(100e6)` | `testGasHoldSteadyWithdrawExact` |
+
+Each call is a separate transaction. Post-call checks require 400e6 shares and 600e6 assets with the
+harness. Fee-enabled workloads are out: Earn's fee gas tests depend on `vm.warp`, and fee accrual
+over wall-clock block times would make gas vary between runs. The archive holds the 46 sources
+`TempoEarn.sol` imports; [its README](../../testdata/projects/README.md#tempo-earn) says why it is not
+Earn's whole Forge input.
 
 ## Reference compilers
 
@@ -301,6 +378,8 @@ runtime observations.
 | `lilweb3-fractional` | `m1guelpf/lil-web3` plus `transmissions11/solmate` | `7346bd28c2586da3b07102d5290175a276949b15`, `e802bcf2fb24dda2bf7e513bea86d15c48b57486` | 3 |
 | `maple-erc20` | `maple-labs/erc20` | `baf791a9f894b0b319a2d42d5b9f8d30349ebaad` | 2 |
 | `tempo-zones-portal` | `tempoxyz/zones` plus `tempoxyz/tempo-std` | `700069eb8a40fce7e1f7a4bf0fc5703bcc692c43`, `96f882963ce3b0e0abc7ec2b41d03d42457877bb` | 23 |
+| `tempo-channel-reserve` | `tempoxyz/tempo` plus `tempoxyz/tempo-std` | `0c061d9178d982863fe5e57c5863374c4215eecc`, `c6c89f5aaf17ff9fabc3e76d05a8e5ebc1e05318` | 5 |
+| `tempo-earn-vault` | `tempoxyz/earn` plus `OpenZeppelin/openzeppelin-contracts` and `TempoEarn.sol` | `d7d85f560d07d9827858ae4dd528c76debe713a5`, `e4f70216d759d8e6a64144a9e1f7bbeed78e7079` | 47 |
 | `solady-encoding` | `Vectorized/solady` plus `Encoding.sol` | `solady-0.1.26` archive | 3 |
 | `solady-algorithms` | `Vectorized/solady` plus `Algorithms.sol` | `solady-0.1.26` archive | 5 |
 | `prb-math` | `PaulRBerg/prb-math` plus `PRBMath.sol` | `b51e8631ed28d3cc917c491dd47cd6c3ff652edc` (4.1.1 archive) | 34 |

@@ -79,3 +79,27 @@ contract RuntimeZoneRegistry {
         return true;
     }
 }
+
+/// @dev Local copy of the Tempo signature verifier precompile mock in the channel reserve tests.
+contract RuntimeSignatureVerifier {
+    error InvalidSignature();
+
+    function verify(address signer, bytes32 hash, bytes calldata signature) external pure returns (bool) {
+        if (signature.length != 65) revert InvalidSignature();
+
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+        assembly {
+            r := calldataload(signature.offset)
+            s := calldataload(add(signature.offset, 32))
+            v := byte(0, calldataload(add(signature.offset, 64)))
+        }
+        if (v < 27) v += 27;
+        if (v != 27 && v != 28) revert InvalidSignature();
+
+        address recovered = ecrecover(hash, v, r, s);
+        if (recovered == address(0)) revert InvalidSignature();
+        return recovered == signer;
+    }
+}

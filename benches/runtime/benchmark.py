@@ -27,6 +27,9 @@ from typing import Any
 from urllib.parse import quote
 
 from cases import (
+    CHANNEL_IDS,
+    CHANNEL_PAYEE,
+    CHANNEL_RESERVE_VERIFIER,
     DEFAULT_FOURTH,
     DEFAULT_SENDER,
     DEFAULT_SPENDER,
@@ -1406,6 +1409,21 @@ def read_uint(
         return None, f"invalid uint result: {value}"
 
 
+def read_uint_checks(
+    checks: Sequence[tuple[str, str, str, Sequence[str], int]], rpc_url: str
+) -> list[dict[str, Any]]:
+    """Reads each `(label, target, signature, args, expected)` and checks the value."""
+    observations = []
+    for label, target, signature, args, expected in checks:
+        value, error = read_uint(target, signature, args, rpc_url)
+        observations.append(
+            runtime_error(label, error)
+            if value is None
+            else checked_value(label, value, expected)
+        )
+    return observations
+
+
 def read_address(
     address: str,
     signature: str,
@@ -1746,32 +1764,104 @@ def run_cold_path_checks(
         sender, error = private_key_address(private_key)
         if sender is None:
             return [runtime_error("zones-sender", error)]
-        observations = []
-        for label, target, signature, args, expected in (
-            ("zones-deposit-count", address, "depositCount()(uint64)", (), 2),
+        return read_uint_checks(
             (
-                "zones-escrow",
-                ZONES_TOKEN,
-                "balanceOf(address)(uint256)",
-                (address,),
-                20_000_000,
+                ("zones-deposit-count", address, "depositCount()(uint64)", (), 2),
+                (
+                    "zones-escrow",
+                    ZONES_TOKEN,
+                    "balanceOf(address)(uint256)",
+                    (address,),
+                    20_000_000,
+                ),
+                (
+                    "zones-sender-balance",
+                    ZONES_TOKEN,
+                    "balanceOf(address)(uint256)",
+                    (sender,),
+                    80_000_000,
+                ),
             ),
+            rpc_url,
+        )
+    if test_case.test_id == "tempo-earn-vault":
+        return read_uint_checks(
             (
-                "zones-sender-balance",
-                ZONES_TOKEN,
-                "balanceOf(address)(uint256)",
-                (sender,),
-                80_000_000,
+                ("earn-shares", address, "shares()(uint256)", (), 400_000_000),
+                ("earn-assets", address, "assets()(uint256)", (), 600_000_000),
             ),
-        ):
-            value, error = read_uint(target, signature, args, rpc_url)
+            rpc_url,
+        )
+    if test_case.test_id == "tempo-channel-reserve":
+        sender, error = private_key_address(private_key)
+        if sender is None:
+            return [runtime_error("channel-sender", error)]
+        observations = read_uint_checks(
+            (
+                (
+                    "channel-payee-balance",
+                    ZONES_TOKEN,
+                    "balanceOf(address)(uint256)",
+                    (CHANNEL_PAYEE,),
+                    600_000,
+                ),
+                (
+                    "channel-sender-balance",
+                    ZONES_TOKEN,
+                    "balanceOf(address)(uint256)",
+                    (sender,),
+                    100_000_000 - 600_000,
+                ),
+                (
+                    "channel-reserve-balance",
+                    ZONES_TOKEN,
+                    "balanceOf(address)(uint256)",
+                    (address,),
+                    0,
+                ),
+            ),
+            rpc_url,
+        )
+        for index, channel_id in enumerate(CHANNEL_IDS, 1):
+            label = f"channel-state-{index}"
+            value, error = read_contract(
+                address,
+                "getChannelState(bytes32)(uint96,uint96,uint32)",
+                (channel_id,),
+                rpc_url,
+            )
             observations.append(
                 runtime_error(label, error)
                 if value is None
-                else checked_value(label, value, expected)
+                else checked_value(label, value, "0 0 0")
             )
         return observations
     return []
+
+
+def is_local_rpc(rpc_url: str) -> bool:
+    return re.fullmatch(r"http://(?:127\.0\.0\.1|localhost):\d+", rpc_url) is not None
+
+
+def install_zones_fixtures(
+    targets: Sequence[tuple[str, str]], rpc_url: str, private_key: str
+) -> str:
+    """Installs each pinned fixture's runtime code at its fixed address; returns an error."""
+    fixtures = json.loads((RUNTIME_FIXTURES.parent / "Zones.json").read_text())
+    for name, target in targets:
+        bytecode = fixtures["creation_bytecode"][name]
+        fixture, _, error = deploy_creation_code(
+            bytecode, (), None, rpc_url, private_key
+        )
+        if fixture is None:
+            return error or f"cannot deploy {name}"
+        code, error = rpc_request("eth_getCode", (fixture, "latest"), rpc_url)
+        if error or not isinstance(code, str) or code == "0x":
+            return error or f"empty {name} runtime"
+        _, error = rpc_request("anvil_setCode", (target, code), rpc_url)
+        if error:
+            return error
+    return ""
 
 
 def prepare_zones_portal(
@@ -1780,29 +1870,21 @@ def prepare_zones_portal(
     private_key: str,
 ) -> tuple[str | None, int | None, str]:
     """Initialize a fresh proxy with identical token/registry code on local Anvil."""
-    if re.fullmatch(r"http://(?:127\.0\.0\.1|localhost):\d+", rpc_url) is None:
+    if not is_local_rpc(rpc_url):
         return None, None, "Zones fixtures require a local Anvil RPC"
     sender, error = private_key_address(private_key)
     if sender is None:
         return None, None, error
-    fixtures = json.loads((RUNTIME_FIXTURES.parent / "Zones.json").read_text())
-
-    for name, target in (
-        ("RuntimeZoneToken", ZONES_TOKEN),
-        ("RuntimeZoneRegistry", "0x403c000000000000000000000000000000000000"),
-    ):
-        bytecode = fixtures["creation_bytecode"][name]
-        fixture, _, error = deploy_creation_code(
-            bytecode, (), None, rpc_url, private_key
-        )
-        if fixture is None:
-            return None, None, error
-        code, error = rpc_request("eth_getCode", (fixture, "latest"), rpc_url)
-        if error or not isinstance(code, str) or code == "0x":
-            return None, None, error or f"empty {name} runtime"
-        _, error = rpc_request("anvil_setCode", (target, code), rpc_url)
-        if error:
-            return None, None, error
+    error = install_zones_fixtures(
+        (
+            ("RuntimeZoneToken", ZONES_TOKEN),
+            ("RuntimeZoneRegistry", "0x403c000000000000000000000000000000000000"),
+        ),
+        rpc_url,
+        private_key,
+    )
+    if error:
+        return None, None, error
 
     proxy_code = (
         "3d602d80600a3d3981f3363d3d373d3d3d363d73"
@@ -1918,6 +2000,35 @@ def prepare_zones_portal(
         if gas is None:
             return None, None, error
     return proxy, proxy_gas, ""
+
+
+def prepare_channel_reserve(reserve: str, rpc_url: str, private_key: str) -> str:
+    """Gives every compiler the same token, verifier and balances on local Anvil."""
+    if not is_local_rpc(rpc_url):
+        return "Channel reserve fixtures require a local Anvil RPC"
+    sender, error = private_key_address(private_key)
+    if sender is None:
+        return error
+    error = install_zones_fixtures(
+        (
+            ("RuntimeZoneToken", ZONES_TOKEN),
+            ("RuntimeSignatureVerifier", CHANNEL_RESERVE_VERIFIER),
+        ),
+        rpc_url,
+        private_key,
+    )
+    if error:
+        return error
+    # Earlier cases and compilers leave balances behind, so reset the touched slots.
+    for target, signature, args in (
+        (ZONES_TOKEN, "setBalance(address,uint256)", (sender, "100000000")),
+        (ZONES_TOKEN, "setBalance(address,uint256)", (CHANNEL_PAYEE, "0")),
+        (ZONES_TOKEN, "approve(address,uint256)", (reserve, MAX_UINT256)),
+    ):
+        gas, error = call_contract(target, signature, args, rpc_url, private_key)
+        if gas is None:
+            return error
+    return ""
 
 
 def compare_runtime_results(
@@ -2208,6 +2319,8 @@ def run_test_case(
             "nitro-one-step-proof",
             "lilweb3-fractional",
             "tempo-zones-portal",
+            "tempo-channel-reserve",
+            "tempo-earn-vault",
         }
         if compiled["status"] != "ok" or not include_gas:
             continue
@@ -2238,6 +2351,13 @@ def run_test_case(
             )
             compiler_entry["proxy_deploy_gas"] = proxy_gas
             if address is None:
+                compiler_entry["deploy_status"] = "failed"
+                compiler_entry["runtime_status"] = "failed"
+                compiler_entry["deploy_error"] = error
+                continue
+        if test_case.test_id == "tempo-channel-reserve":
+            error = prepare_channel_reserve(address, rpc_url, private_key)
+            if error:
                 compiler_entry["deploy_status"] = "failed"
                 compiler_entry["runtime_status"] = "failed"
                 compiler_entry["deploy_error"] = error
