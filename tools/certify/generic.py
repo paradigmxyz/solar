@@ -370,10 +370,11 @@ def linearization(ast, cdef):
 
 class Dispatch:
     """Internal calls resolved as they run in the most-derived contract of LIN (its contracts, most
-    derived first): a call or modifier invocation naming a virtual function or modifier runs its
-    final override in LIN, and super.f() in contract X runs the first f after X in LIN that is or
-    overrides the f the call names (solc's superFunction). Callables are every function and
-    modifier of LIN's contracts, by id."""
+    derived first), as solc's resolveVirtual does: an unqualified call or modifier invocation runs
+    the first function (same name and parameter types) or modifier (same name) in LIN, super.f() in
+    contract X the first such function after X in LIN (whether or not it overrides the one the call
+    names), and a qualified C.f() or C.m a static call of the one named. Callables are every
+    function and modifier of LIN's contracts, by id."""
 
     def __init__(self, lin):
         self.lin = lin
@@ -404,17 +405,39 @@ class Dispatch:
                     self.bases[k] |= more
                     changed = True
 
+    @staticmethod
+    def params(n):
+        # Parameter types without data locations (solc compares asExternallyCallableFunction's).
+        out = []
+        for q in (n.get("parameters") or {}).get("parameters", []):
+            t = (q.get("typeDescriptions") or {}).get("typeString", "")
+            for loc in (" storage pointer", " storage ref", " memory", " calldata"):
+                t = t.replace(loc, "")
+            out.append(t)
+        return out
+
     def first_after(self, ref, after):
+        want = self.callables[ref]
+        kind = want.get("nodeType")
         for c in self.lin[after:]:
             for n in c.get("nodes", []):
-                k = n.get("id")
-                if k in self.callables and (k == ref or ref in self.bases[k]):
-                    return k
+                if (
+                    n.get("id") in self.callables
+                    and n.get("nodeType") == kind
+                    and n.get("kind", "function") in ("function", None)
+                    and n.get("name") == want.get("name")
+                    and (
+                        kind == "ModifierDefinition"
+                        or self.params(n) == self.params(want)
+                    )
+                ):
+                    return n["id"]
         return None
 
     def target(self, ref, node=None, site=None):
         """The callable a call or invocation naming REF runs, or None when REF is not one. NODE is the
-        call's callee expression (for super), SITE the id of the callable the call is in."""
+        call's callee expression or the invocation's modifier name, SITE the id of the callable
+        the call is in."""
         if ref not in self.callables:
             return None
         e = node or {}
@@ -425,8 +448,10 @@ class Dispatch:
             and site in self.home
         ):
             return self.first_after(ref, self.home[site] + 1)
-        if e.get("nodeType") == "MemberAccess":
-            return ref  # C.f(): a static call of the named function
+        if e.get("nodeType") == "MemberAccess" or (
+            e.get("nodeType") == "IdentifierPath" and "." in (e.get("name") or "")
+        ):
+            return ref  # C.f() or C.m: a static call of the named function or modifier
         return self.first_after(ref, 0) or ref
 
 
@@ -477,7 +502,7 @@ def creation_reach(cdef, lin=None, extra=()):
             t = m.get("nodeType")
             if t == "ModifierInvocation":
                 ref = (m.get("modifierName") or {}).get("referencedDeclaration")
-                k = resolve(ref, None, site)
+                k = resolve(ref, m.get("modifierName"), site)
                 if k is not None:
                     todo.append((defs[k], k))
                 elif ref in bases:
@@ -1254,7 +1279,11 @@ def recursion_cycles(cdef, variables, lin=None, extra=()):
             else:
                 continue
             k = disp.target(
-                ref, None if t == "ModifierInvocation" else n.get("expression"), cid
+                ref,
+                n.get("modifierName")
+                if t == "ModifierInvocation"
+                else n.get("expression"),
+                cid,
             )
             ref = k if k is not None else ref
             if ref in callables:
@@ -3868,16 +3897,20 @@ def frontend(lean_dir, src, src_sha, name, contract, solc):
         ]
     )
     if rc == 0:
-        body += linearization_lean(name, contract, solc, fe / f"{name}.sol")
+        body += linearization_lean(
+            f"Certified.{name}.Src", contract, solc, fe / f"{name}.sol"
+        )
     return rc, body, err
 
 
-def linearization_lean(name, contract, solc, src):
+def linearization_lean(ns, contract, solc, src):
     """For a contract with bases, a kernel-checked theorem that the Lean frontend's C3 order of it
     (ContractDecl.dispatchOrder?, the order CheckedInput.contract flattens it by) is the order solc
     reports for the contract it compiled (linearizedBaseContracts), else "". The envelope refuses a
     contract whose order the driver does not check (linearization), so a contract with bases always
-    gets the theorem."""
+    gets the theorem. NS is the frontend's namespace. source_bind.sh appends the same text to the
+    frontend's fresh output (linearization.py) before it compares, so the bound Source.lean is
+    exactly the frontend's AST plus this theorem."""
     try:
         ast, _ = solc_ast(solc, pathlib.Path(src))
     except Blocked, Failed:
@@ -3897,13 +3930,13 @@ def linearization_lean(name, contract, solc, src):
         return ""
     order = ", ".join(lean_str(c["name"]) for c in lin)
     return (
-        f"\nnamespace Certified.{name}.Src\n\n"
+        f"\nnamespace {ns}\n\n"
         "/-- The frontend flattens the contract over solc's C3 order (linearizedBaseContracts). -/\n"
         "theorem linearization_eq :\n"
         f"    ((Executable.SourceUnit.findContract? importedSourceUnit {lean_str(contract)}).bind\n"
         "      (Executable.ContractDecl.dispatchOrder? (Executable.SourceUnit.contracts importedSourceUnit))).map\n"
         f"      (List.map (fun d : ContractDecl => d.name)) = some [{order}] := by decide\n"
-        f"\nend Certified.{name}.Src\n"
+        f"\nend {ns}\n"
     )
 
 

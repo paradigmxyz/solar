@@ -94,6 +94,31 @@ contract Derived is Base, A {}
 """
 )
 
+SUPER_SKIP = (
+    HEAD
+    + """
+contract A { function f() public virtual returns (uint256) { return 1; } }
+contract B is A { function f() public virtual override returns (uint256) { return super.f() | 2; } }
+contract X is A { function f() public virtual override returns (uint256) { return super.f() | 16; } }
+contract C is B { function f() public virtual override returns (uint256) { return super.f() | 4; } }
+contract D is B, X, C {
+    function f() public override(B, X, C) returns (uint256) { return super.f() | 8; }
+}
+"""
+)
+
+QUALIFIED_MOD = (
+    HEAD
+    + """
+contract M { uint256 public x; modifier m() virtual { x = 1; _; } }
+contract N is M {
+    modifier m() override { x = 2; _; }
+    function g() public M.m { }
+    function h() public m { }
+}
+"""
+)
+
 
 def parsed(text):
     d = pathlib.Path(tempfile.mkdtemp())
@@ -163,6 +188,52 @@ class Linearization(unittest.TestCase):
             got = disp.target(ref, call["expression"], fs[caller]["id"])
             self.assertEqual(got, fs[callee]["id"], (caller, callee))
 
+    def test_super_runs_next_in_order_not_override_chain(self):
+        """In D (D, C, X, B, A), super.f() in C names B.f in the AST, but solc runs X.f, the next f in
+        D's order, though X.f overrides only A.f."""
+        _, ast, _ = parsed(SUPER_SKIP)
+        lin, _ = generic.linearization(ast, contract(ast, "D"))
+        self.assertEqual(names(lin), ["D", "C", "X", "B", "A"])
+        disp = generic.Dispatch(lin)
+        fs = {
+            c["name"]: next(n for n in c["nodes"] if n.get("name") == "f") for c in lin
+        }
+        for caller, callee in (("D", "C"), ("C", "X"), ("X", "B"), ("B", "A")):
+            call = next(
+                n
+                for n in generic.walk(fs[caller])
+                if n.get("nodeType") == "FunctionCall"
+                and n["expression"].get("nodeType") == "MemberAccess"
+            )
+            got = disp.target(
+                call["expression"]["referencedDeclaration"],
+                call["expression"],
+                fs[caller]["id"],
+            )
+            self.assertEqual(got, fs[callee]["id"], (caller, callee))
+
+    def test_qualified_modifier_is_static(self):
+        """M.m runs M's modifier; the unqualified m runs N's override."""
+        _, ast, _ = parsed(QUALIFIED_MOD)
+        lin, _ = generic.linearization(ast, contract(ast, "N"))
+        disp = generic.Dispatch(lin)
+        mods = {
+            c["name"]: next(
+                n for n in c["nodes"] if n.get("nodeType") == "ModifierDefinition"
+            )
+            for c in lin
+        }
+        n = contract(ast, "N")
+        for fname, want in (("g", "M"), ("h", "N")):
+            fn = next(x for x in n["nodes"] if x.get("name") == fname)
+            inv = fn["modifiers"][0]
+            got = disp.target(
+                inv["modifierName"]["referencedDeclaration"],
+                inv["modifierName"],
+                fn["id"],
+            )
+            self.assertEqual(got, mods[want]["id"], fname)
+
     def test_admits_flattened_contract(self):
         _, ast, contracts = parsed(SUPER)
         _, fns, _ = generic.envelope(SUPER, ast, contracts, "D", None, True, False)
@@ -212,10 +283,12 @@ class Linearization(unittest.TestCase):
 
     def test_linearization_theorem(self):
         src, _, _ = parsed(DIAMOND)
-        lean = generic.linearization_lean("n_1", "D", str(SOLC), src)
+        lean = generic.linearization_lean("Certified.n_1.Src", "D", str(SOLC), src)
         self.assertIn('= some ["D", "C", "B", "A"] := by decide', lean)
         self.assertIn('findContract? importedSourceUnit "D"', lean)
-        self.assertEqual(generic.linearization_lean("n_1", "A", str(SOLC), src), "")
+        self.assertEqual(
+            generic.linearization_lean("Certified.n_1.Src", "A", str(SOLC), src), ""
+        )
 
 
 if __name__ == "__main__":
