@@ -309,7 +309,10 @@ def linearization(ast, cdef):
     }
     names = [d.get("name") for d in byid.values()]
     if len(set(names)) != len(names):
-        return None, "two contracts share a name, and the Lean frontend finds bases by name"
+        return (
+            None,
+            "two contracts share a name, and the Lean frontend finds bases by name",
+        )
     memo = {}
 
     def merge(seqs):
@@ -352,7 +355,12 @@ def linearization(ast, cdef):
         return None, str(e)
     solc = cdef.get("linearizedBaseContracts")
     if solc != order:
-        shown = lambda ids: ", ".join(byid[i].get("name", "?") if i in byid else str(i) for i in ids or [])
+
+        def shown(ids):
+            return ", ".join(
+                byid[i].get("name", "?") if i in byid else str(i) for i in ids or []
+            )
+
         return None, (
             f"the C3 order {shown(order)} is not the order solc reports ({shown(solc)}): "
             "refused rather than flattened by either"
@@ -373,17 +381,25 @@ class Dispatch:
         for i, c in enumerate(lin):
             self.pos[c["id"]] = i
             for n in walk(c):
-                if n.get("nodeType") in ("FunctionDefinition", "ModifierDefinition") and "id" in n:
+                if (
+                    n.get("nodeType") in ("FunctionDefinition", "ModifierDefinition")
+                    and "id" in n
+                ):
                     self.callables[n["id"]] = n
                     self.home[n["id"]] = i
         self.bases = {}
         for k, n in self.callables.items():
-            self.bases[k] = set(n.get("baseFunctions") or []) | set(n.get("baseModifiers") or [])
+            self.bases[k] = set(n.get("baseFunctions") or []) | set(
+                n.get("baseModifiers") or []
+            )
         changed = True
         while changed:
             changed = False
             for k in self.bases:
-                more = set().union(*(self.bases.get(b, set()) for b in self.bases[k])) - self.bases[k]
+                more = (
+                    set().union(*(self.bases.get(b, set()) for b in self.bases[k]))
+                    - self.bases[k]
+                )
                 if more:
                     self.bases[k] |= more
                     changed = True
@@ -633,11 +649,16 @@ def envelope(
                     f"{(spec.get('baseName') or {}).get('name')}: base constructor arguments are not handled yet",
                 )
         for n in c.get("nodes", []):
-            if n.get("nodeType") != "FunctionDefinition" or n.get("kind") != "constructor":
+            if (
+                n.get("nodeType") != "FunctionDefinition"
+                or n.get("kind") != "constructor"
+            ):
                 continue
             for m in n.get("modifiers", []):
                 ref = (m.get("modifierName") or {}).get("referencedDeclaration")
-                if m.get("kind") == "baseConstructorSpecifier" or ref in {x["id"] for x in lin}:
+                if m.get("kind") == "baseConstructorSpecifier" or ref in {
+                    x["id"] for x in lin
+                }:
                     if m.get("arguments"):
                         block(
                             "inheritance: base constructor arguments",
@@ -1090,7 +1111,10 @@ def natspec_checks(ast, contract):
     flat, seen_sel = [], set()
     for c in lin:
         for n in c.get("nodes", []):
-            if n.get("nodeType") == "FunctionDefinition" and n.get("kind") == "function":
+            if (
+                n.get("nodeType") == "FunctionDefinition"
+                and n.get("kind") == "function"
+            ):
                 sel = n.get("functionSelector")
                 if sel is None:
                     continue
@@ -1099,8 +1123,11 @@ def natspec_checks(ast, contract):
                 seen_sel.add(sel)
             flat.append(n)
     base_init = any(
-        n.get("nodeType") == "FunctionDefinition" and n.get("kind") == "constructor"
-        or n.get("nodeType") == "VariableDeclaration" and n.get("stateVariable") and n.get("value")
+        n.get("nodeType") == "FunctionDefinition"
+        and n.get("kind") == "constructor"
+        or n.get("nodeType") == "VariableDeclaration"
+        and n.get("stateVariable")
+        and n.get("value")
         for c in lin[1:]
         for n in c.get("nodes", [])
     )
@@ -3853,7 +3880,7 @@ def linearization_lean(name, contract, solc, src):
     gets the theorem."""
     try:
         ast, _ = solc_ast(solc, pathlib.Path(src))
-    except (Blocked, Failed):
+    except Blocked, Failed:
         return ""
     cdef = next(
         (

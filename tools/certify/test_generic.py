@@ -3168,7 +3168,9 @@ class LifecycleEnvelope(unittest.TestCase):
         reach, unresolved = generic.creation_reach(cdef, lin)
         self.assertFalse(unresolved)
         base = next(n for n in ast["nodes"] if n.get("name") == "LoopBase")
-        loop = next(n for n in generic.walk(base) if n.get("nodeType") == "ForStatement")
+        loop = next(
+            n for n in generic.walk(base) if n.get("nodeType") == "ForStatement"
+        )
         self.assertIn(id(loop), reach)
         src = LIFE / "LoopRuntime.sol"
         ast, _ = generic.solc_ast(str(SOLC), src)

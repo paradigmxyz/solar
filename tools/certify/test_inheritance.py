@@ -10,13 +10,15 @@ import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
-import generic  # noqa: E402
+import generic
 
 SOLC = pathlib.Path.home() / ".cache/solc" / f"solc-{generic.SOLC_VERSION}"
 
 HEAD = "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.20;\n"
 
-DIAMOND = HEAD + """
+DIAMOND = (
+    HEAD
+    + """
 contract A { function f() public virtual returns (uint256) { return 1; } }
 contract B { function f() public virtual returns (uint256) { return 2; } }
 contract C is A, B {
@@ -26,8 +28,11 @@ contract D is B, C {
     function f() public override(B, C) returns (uint256) { return super.f(); }
 }
 """
+)
 
-SUPER = HEAD + """
+SUPER = (
+    HEAD
+    + """
 contract A { function f() public virtual returns (uint256 r) { return 1; } }
 contract B is A { function f() public virtual override returns (uint256 r) { return super.f() | 2; } }
 contract C is A { function f() public virtual override returns (uint256 r) { return super.f() | 4; } }
@@ -37,10 +42,13 @@ contract D is B, C {
     function f() public override(B, C) returns (uint256 r) { return super.f() | 8; }
 }
 """
+)
 
 # f calls the virtual g, which the derived contract overrides to call f: a cycle only through the
 # override, which a call graph over declared targets misses.
-VIRTUAL_CYCLE = HEAD + """
+VIRTUAL_CYCLE = (
+    HEAD
+    + """
 contract A {
     function f(uint256 x) public returns (uint256) { return g(x); }
     function g(uint256 x) internal virtual returns (uint256) { return x; }
@@ -49,14 +57,20 @@ contract B is A {
     function g(uint256 x) internal override returns (uint256) { return x == 0 ? 0 : f(x - 1); }
 }
 """
+)
 
-BASE_ARGS = HEAD + """
+BASE_ARGS = (
+    HEAD
+    + """
 contract A { uint256 public x; constructor(uint256 v) { x = v; } }
 contract B is A(5) { function get() public view returns (uint256) { return x; } }
 contract C is A { constructor() A(7) {} function get() public view returns (uint256) { return x; } }
 """
+)
 
-BASE_MOD = HEAD + """
+BASE_MOD = (
+    HEAD
+    + """
 contract A {
     uint256 public x;
     modifier m() { x = 1; _; }
@@ -64,8 +78,11 @@ contract A {
 }
 contract B is A { function get() public view returns (uint256) { return x; } }
 """
+)
 
-SPEC_IN_BASE = HEAD + """
+SPEC_IN_BASE = (
+    HEAD
+    + """
 contract Base {
     uint256 data;
     /// @custom:succeeds-if msg.value == 0
@@ -75,6 +92,7 @@ contract Base {
 contract A is Base { function setViaA(uint256 i) public { setData(i); } }
 contract Derived is Base, A {}
 """
+)
 
 
 def parsed(text):
@@ -94,7 +112,7 @@ def names(lin):
 
 
 def reasons(text, name):
-    src, ast, contracts = parsed(text)
+    _, ast, contracts = parsed(text)
     try:
         generic.envelope(text, ast, contracts, name, None, False, False)
     except generic.Blocked as e:
@@ -106,7 +124,11 @@ def reasons(text, name):
 class Linearization(unittest.TestCase):
     def test_c3_is_solc_order(self):
         _, ast, _ = parsed(DIAMOND)
-        for name, want in (("D", ["D", "C", "B", "A"]), ("C", ["C", "B", "A"]), ("A", ["A"])):
+        for name, want in (
+            ("D", ["D", "C", "B", "A"]),
+            ("C", ["C", "B", "A"]),
+            ("A", ["A"]),
+        ):
             lin, why = generic.linearization(ast, contract(ast, name))
             self.assertIsNone(why)
             self.assertEqual(names(lin), want)
@@ -127,7 +149,9 @@ class Linearization(unittest.TestCase):
         _, ast, _ = parsed(SUPER)
         lin, _ = generic.linearization(ast, contract(ast, "D"))
         disp = generic.Dispatch(lin)
-        fs = {c["name"]: next(n for n in c["nodes"] if n.get("name") == "f") for c in lin}
+        fs = {
+            c["name"]: next(n for n in c["nodes"] if n.get("name") == "f") for c in lin
+        }
         for caller, callee in (("D", "C"), ("C", "B"), ("B", "A")):
             call = next(
                 n
@@ -140,15 +164,17 @@ class Linearization(unittest.TestCase):
             self.assertEqual(got, fs[callee]["id"], (caller, callee))
 
     def test_admits_flattened_contract(self):
-        src, ast, contracts = parsed(SUPER)
-        c, fns, _ = generic.envelope(SUPER, ast, contracts, "D", None, True, False)
+        _, ast, contracts = parsed(SUPER)
+        _, fns, _ = generic.envelope(SUPER, ast, contracts, "D", None, True, False)
         self.assertEqual([f["sig"] for f in fns], ["f()"])
         self.assertTrue(fns[0]["succeeds"] and fns[0]["specified"])
 
     def test_spec_on_inherited_function(self):
         """A selector's NatSpec is read from its most derived definition, here in the base."""
-        src, ast, contracts = parsed(SPEC_IN_BASE)
-        _, fns, _ = generic.envelope(SPEC_IN_BASE, ast, contracts, "Derived", None, True, False)
+        _, ast, contracts = parsed(SPEC_IN_BASE)
+        _, fns, _ = generic.envelope(
+            SPEC_IN_BASE, ast, contracts, "Derived", None, True, False
+        )
         by = {f["name"]: f for f in fns}
         self.assertTrue(by["setData"]["succeeds"] and by["setData"]["specified"])
         self.assertFalse(by["setViaA"]["specified"])
@@ -158,7 +184,9 @@ class Linearization(unittest.TestCase):
         rs = reasons(VIRTUAL_CYCLE, "B")
         self.assertIn("recursion", [r["feature"] for r in rs])
         # A alone has no cycle: g is its own.
-        self.assertNotIn("recursion", [r["feature"] for r in reasons(VIRTUAL_CYCLE, "A")])
+        self.assertNotIn(
+            "recursion", [r["feature"] for r in reasons(VIRTUAL_CYCLE, "A")]
+        )
 
     def test_base_constructor_arguments_refused(self):
         for name in ("B", "C"):
@@ -170,12 +198,16 @@ class Linearization(unittest.TestCase):
         self.assertIn("inheritance: modifier on a base constructor", feats)
 
     def test_creation_reach_through_bases(self):
-        src, ast, _ = parsed(BASE_MOD)
+        _, ast, _ = parsed(BASE_MOD)
         cdef = contract(ast, "B")
         lin, _ = generic.linearization(ast, cdef)
         reach, unresolved = generic.creation_reach(cdef, lin)
         self.assertFalse(unresolved)
-        mod = next(n for n in generic.walk(contract(ast, "A")) if n.get("nodeType") == "ModifierDefinition")
+        mod = next(
+            n
+            for n in generic.walk(contract(ast, "A"))
+            if n.get("nodeType") == "ModifierDefinition"
+        )
         self.assertIn(id(mod["body"]), reach)
 
     def test_linearization_theorem(self):
