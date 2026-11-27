@@ -218,14 +218,16 @@ def check(
         edits[-1].extend(include)
         middles = [middle + include for middle in middles]
     observers = sorted({line for line in tail if observes_resources(line, catalog)})
+    layout = code_relocations.bind(models, texts, solar, version, timeout, catalog)
     if observers and not paired_observers:
         if edits is not None:
             raise UnpairedContinuation(
                 "low-mask continuation requires paired observations for "
                 + ", ".join(observers)
             )
-        return interior.check(texts, models, entry, catalog, version, timeout)
-    layout = code_relocations.bind(models, texts, solar, version, timeout, catalog)
+        return interior.check(
+            texts, models, entry, catalog, version, timeout, layout=layout
+        )
     labels = set(block_labels[0])
     imported = [
         evm_effects.instructions(

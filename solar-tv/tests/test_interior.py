@@ -95,6 +95,24 @@ class InteriorTests(unittest.TestCase):
             record["witness"]["observations"], record["witness"]["native_observations"]
         )
 
+    def test_exact_middle_can_precede_shared_cancun_recovery(self):
+        paths = [self.tmp / f"{side}.evmir" for side in ("before", "after")]
+        for path, op in zip(paths, ("push 32", "dup 1"), strict=True):
+            path.write_text(
+                f"@module Recovery\nbb0 [stack=0]:\n  push 32\n  {op}\n"
+                "  push 0\n  push 0\n  push 1\n  gas\n  staticcall\n  pop\n  stop\n"
+            )
+        result, record = self.cli(paths, flags=("--evm-version=cancun",))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(record["region"]["proof"], "universal-exact-scalar-island")
+        self.assertEqual(record["import_correspondence"][0]["cancun_recovery_calls"], 1)
+
+        for path in paths:
+            path.write_text(path.read_text().replace("push 1\n", "push 2\n"))
+        result, record = self.cli(paths, flags=("--evm-version=cancun",))
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(record["status"], "unsupported")
+
     def test_native_execution_retains_state_gas_and_pre_island_failures(self):
         replay = native.default(SOLAR)
         initial = json.loads((self.folder / "world.json").read_text())

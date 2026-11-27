@@ -1011,9 +1011,17 @@ def record(
                     "independently exported identical complete prefix and suffix, including terminal and physical successor; shared context-executor bindings remain trusted",
                     "arbitrary prefix exits, storage, logs, memory, gas and live context are retained; no successful-prefix or entry-default assumption",
                     "scalar island preserves every incoming stack and exact remaining gas, including underflow, overflow and out-of-gas; gas-sensitive storage sentries in the shared context remain observable",
-                    "code-image observers, external calls and Amsterdam two-resource gas excluded; logical local certificate, not full-state importer correspondence or physical code-placement proof",
+                    "logical local certificate; full-state importer correspondence, physical code placement and Amsterdam two-resource gas are outside this proof",
                 ]
             )
+            if program.import_evidence.get("cancun_recovery_calls"):
+                assumptions.append(
+                    "shared Cancun ECRECOVER execution and charges for the same input, gas and frame; other calls are excluded"
+                )
+            if "constructor_code_tail" in program.import_evidence:
+                assumptions.append(
+                    "paired constructor code reads use independently decoded relocations, the same appended arguments and shared charges"
+                )
         elif program and program.scope == "prefix-window":
             assumptions.extend(
                 [

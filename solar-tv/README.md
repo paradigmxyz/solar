@@ -1578,10 +1578,12 @@ storage sentry, so cheaper rewrites are rejected rather than given a weaker
 gas-insensitivity assumption.
 
 `EVMIR/Suffix.lean` lifts the middle's checked-stack and exact-price proof through
-both shared contexts. Their parser/schema and executor bindings remain trusted;
-this is a local compositional certificate, not full-state importer or physical
-code-placement correspondence. Code-image observers, external calls, broken
-static guards and Amsterdam's two-resource gas remain unsupported. The small
+both shared contexts. Their parser/schema and executor bindings remain trusted,
+including code placement. The shared context can contain a direct Cancun
+`ECRECOVER` call with the same input and available gas, or matched constructor
+code reads bound to independently decoded relocations and shared arguments.
+Other code observers and calls, broken static guards and Amsterdam's
+two-resource gas remain unsupported. The small
 broken-store example has a kernel-confirmed counterexample matched by Rust
 replay. The full storage/log fixture is also replayed independently, including
 static violations and out-of-gas before the island.
@@ -1590,7 +1592,9 @@ static violations and out-of-gas before the island.
 
 `--stack-schedule bbN` checks the reordered window of a compiler-validated
 block. The proof preserves the complete live stack and ordered memory and
-storage requests under shared effect handlers. A guard into a shared direct
+storage requests under shared effect handlers. A pushed label is a word under
+a shared label-address mapping, including when it is carried to a helper as
+a return address. A guard into a shared direct
 revert chain executes that chain before comparing the revert operands.
 The report records the shared prefix and continuation and any code reads
 resolved against the assembled constructor images.

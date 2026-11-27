@@ -3,8 +3,9 @@
 The common prefix may leave the block early or change storage, gas and memory.
 Its complete instruction list is retained, not interpreted with entry defaults.
 The middle must preserve checked stacks and exact gas for every input. The full
-suffix, terminal and physical successor are shared. Code-image observers and
-external calls remain excluded; context-executor binding remains trusted.
+suffix, terminal and physical successor are shared. Constructor reads are
+admitted with checked relocation evidence. The only admitted call is a direct
+Cancun recovery precompile. Context-executor binding remains trusted.
 """
 
 import hashlib
@@ -13,7 +14,7 @@ import re
 import tempfile
 from pathlib import Path
 
-from . import audit, prefix, regions
+from . import audit, code_relocations, prefix, regions
 from .common import Program, Unsupported
 
 
@@ -26,9 +27,10 @@ def common_length(left, right):
     return count
 
 
-def context(lines, labels, catalog, version):
+def context(lines, labels, catalog, version, *, relocated=False):
     """Keep static guards indivisible and reject code/call correspondence gaps."""
     index = 0
+    recovery_calls = 0
     while index < len(lines):
         line = lines[index]
         if match := re.fullmatch(r"push (bb\d+)", line):
@@ -39,6 +41,18 @@ def context(lines, labels, catalog, version):
             ):
                 raise Unsupported("interior context requires an intact static guard")
             index += 2
+            continue
+        if relocated and code_relocations.operation(line):
+            index += 1
+            continue
+        if (
+            version == "cancun"
+            and line == "staticcall"
+            and index >= 2
+            and lines[index - 2 : index] == ["push 1", "gas"]
+        ):
+            recovery_calls += 1
+            index += 1
             continue
         if prefix.operation(line, catalog, version) is None:
             row = catalog.get(line)
@@ -54,9 +68,10 @@ def context(lines, labels, catalog, version):
                     "interior context requires code-image/call correspondence"
                 )
         index += 1
+    return recovery_calls
 
 
-def check(texts, models, entry, catalog, version, timeout):
+def check(texts, models, entry, catalog, version, timeout, *, layout=None):
     from .check import PRELUDE, ROOT, build_model, run
 
     if version == "amsterdam":
@@ -83,8 +98,10 @@ def check(texts, models, entry, catalog, version, timeout):
         code[start : len(code) - end if end else len(code)] for code in (left, right)
     ]
     labels = set(regions.blocks(texts[0]))
-    context(common, labels, catalog, version)
-    context(tails[0], labels, catalog, version)
+    recovery_calls = sum(
+        context(part, labels, catalog, version, relocated=layout is not None)
+        for part in (common, tails[0])
+    )
     imported = []
     for code in middles:
         imported.append(prefix.split({"instructions": code}, catalog, version))
@@ -168,9 +185,13 @@ theorem contextual {{World Halt : Type}}
                 "shared_suffix_operations": end,
                 "continuation": "identical complete suffix, terminal and physical successor",
                 "boundary": "trusted Rust parser/schema export, opcode mapping and shared context-executor bindings; no full-state interpreter or physical code-placement certificate",
+                **({"constructor_code_tail": relocation} if relocation else {}),
+                **({"cancun_recovery_calls": recovery_calls} if recovery_calls else {}),
             },
         )
-        for text, model, middle in zip(texts, models, imported, strict=True)
+        for text, model, middle, relocation in zip(
+            texts, models, imported, layout or (None, None), strict=True
+        )
     )
     return audit.Result(
         "verified", stdout="verified\n", program=programs[0], pair=programs
