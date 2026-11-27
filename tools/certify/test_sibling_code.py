@@ -94,11 +94,10 @@ class SiblingCode(unittest.TestCase):
             [f for f, _ in envelope("CallsSibling.sol", "Calls")], ["external call"]
         )
 
-    def test_target_with_sibling_base_refused(self):
-        """A contract that inherits a sibling stays refused as inheritance: the base is its code."""
-        self.assertEqual(
-            [f for f, _ in envelope("CallsSibling.sol", "Peer")], ["inheritance"]
-        )
+    def test_target_with_sibling_base_admitted(self):
+        """A contract that inherits a sibling takes the inheritance route (linearization, Dispatch):
+        the base is part of its code, walked as its own, rather than a sibling."""
+        self.assertEqual(envelope("CallsSibling.sol", "Peer"), ("Peer", ["ping()"]))
 
     def test_inlined_code_meets_the_envelope(self):
         """What the contract reaches through inlined library code is checked as its own code: a loop
