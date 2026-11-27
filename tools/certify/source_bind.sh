@@ -6,8 +6,7 @@
 # Regenerates, with the solidity-lean checkout's own front end (scripts/solc_ast_to_lean_source.py)
 # and its pinned solc (the version and SHA-256 scripts/refinement/gen.sh names; SOLC, else the
 # checkout's .cache, else ~/.cache/solc), the Lean AST of CONTRACT in SOURCE.sol, and fails unless
-# FILE (a path in LEAN_DIR) is exactly that output (plus, for a contract with bases, the C3 theorem
-# tools/certify/linearization.py prints): the same text after its first comment line
+# FILE (a path in LEAN_DIR) is exactly that output: the same text after its first comment line
 # and with the importedSourceName label (the path it was generated from) set aside, under
 # "import SolidCore.Solidity.Checked" and "open SolidCore.Solidity". The front end stays trusted
 # (the source model's trust boundary); what this removes is a stale or hand-edited AST.
@@ -33,9 +32,6 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 python3 "$lean_dir/scripts/solc_ast_to_lean_source.py" "$sol" --contract "$contract" --solc "$solc" \
     --namespace "$ns" --body-only > "$tmp/body" || die "the front end cannot read $sol"
-# A contract with bases: generic.frontend appends the kernel-checked C3 theorem (linearization_eq).
-python3 "$(dirname "$0")/linearization.py" "$sol" "$contract" "$solc" "$ns" >> "$tmp/body" ||
-    die "cannot write the linearization theorem of $contract"
 head -n 1 "$lean_dir/$file" | grep -q '^-- Generated' || die "$file does not start with its generator's comment"
 tail -n +2 "$lean_dir/$file" | grep -v '^def importedSourceName : String := ' > "$tmp/checked" || true
 { printf '\nimport SolidCore.Solidity.Checked\n\nopen SolidCore.Solidity\n\n'
