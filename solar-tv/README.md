@@ -290,8 +290,9 @@ The contextual peephole check retains an unchanged prefix and continuation
 around the edited operations. Lean checks ordered effect requests, the
 outgoing stack, static branch selection and remaining gas for every
 successful source window. The constructor case binds the ordinary code-tail
-length query to both assembled images. A gas-sensitive continuation requires
-exact gas or an explicit paired observation via `--interaction-trace`.
+length query to both assembled images. A gas-sensitive continuation can use
+exact gas, paired observations via `--interaction-trace`, or the funded-call
+policy below.
 For `--prefix`, the fallback also requires correspondence for shared code
 reads and message targets, using the same admission check as the dedicated
 post-precompile proof.
@@ -303,6 +304,16 @@ and guard operations. The proof checks the storage-write gas sentry and
 accounts for the handler's dynamic debit. Windows that reach `GAS` and a
 child call can be checked up to that boundary with `--interaction-trace`.
 [Late-word audit and bytecode replay](CORRECTNESS.md#pinned-evm-late-word-audit)
+
+`--funded-call bbN` composes a Cancun window through `GAS`, a zero-value
+`CALL` or `STATICCALL`, and the resumed parent. The policy requires a
+funded original call and a child that returns the same result and spends
+the same actual gas at each funded budget. Lean checks both call
+transitions, including memory expansion and EIP-150 forwarding. The
+remaining parent code and the correspondence from block entry to the
+emitted call site have separate proof obligations. In the pinned
+evaluator, `--funded-calls` opts into this retry and records the default
+counts separately. [Funded-call audit and replay](CORRECTNESS.md#complete-pinned-evm-ir-capture-coverage)
 
 ### EVM rewrites after precompiles
 

@@ -4638,6 +4638,88 @@ three captures are all EVM IR, with two in `late-word` and one in
 | `target/tv-mir-final/specialized-caller36.json` | `16101383f5649d4b8b7f985dc519e14ccae06f15623be01f7098db26f052c97e` |
 | `target/tv-mir-final/coverage.json` | `a7560aa0051020062c7e2ffb9a9d8354a478a1a686765921a940a1aa3d4a5eb6` |
 
+### Complete pinned EVM IR capture coverage
+
+The serial rerun uses the pinned Solady WETH, OpenZeppelin ERC20Mock and
+Morpho Blue inputs, seed zero and a 40-second budget. It matches the
+frozen capture IDs, both IR bytes of each pair, and the archive,
+input and compiler output fingerprints. Plain and capture compilation
+emit identical ABI, creation bytecode and runtime bytecode. The
+evaluator records the default result separately from the opt-in
+`--funded-calls` retry.
+
+| EVM IR pass | Default verified | Default unsupported | Funded retry | Combined |
+| --- | ---: | ---: | ---: | ---: |
+| `late-word` | 17 | 2 | 2 | 19/19 |
+| `peephole-early` | 34 | 1 | 1 | 35/35 |
+
+The run has no timeouts or proof errors. The three scoped certificates
+cover Morpho `bb111` for both passes and `bb407` for `late-word`.
+Lean checks the independently exported window's stack and ordered
+effect requests. The proof preserves the world and live stack on
+each reached exit and leaves at least as much parent gas. The
+certificate binds the shared suffix beginning with `GAS; CALL` or
+`GAS; STATICCALL`. Where the source reaches that boundary, Lean
+composes the window with both actual Cancun instruction transitions.
+The kernel checks the GAS price, input and output expansion,
+account-access charges, EIP-150 forwarding and the resumed parent
+stack, returndata, memory and journal. The model requires a
+zero-value message, known code, admitted stack and depth, the shared
+physical context at the cut, and sufficient original gas to pay
+the call and stable child debit. The child policy supplies a common
+success flag, returndata, journal and work, and a fixed actual debit
+at every funded forwarding budget. The trusted block-export and
+handler bindings connect the logical prefix to the cut. The
+certificate ends when the parent resumes.
+
+Pinned Rust replay assembles both complete snapshots and a copy of the
+original with only the selected block replaced. The snapshots bind the
+same immutable words. Lean independently checks the two opcode bytes
+at all nine measured cuts in the assembled images. On the stable
+fixtures, Rust matches the message arguments, input and returned
+bytes, successful parent outcomes, accounts and logs. The isolated
+changes save the measured gas below at the call cut.
+
+| Pass and block | Public route | Isolated gas saved | Gas-reading child before | Gas-reading child after isolated edit |
+| --- | --- | ---: | ---: | ---: |
+| `late-word` `bb111` | `createMarket` | 8 | 363,296 | 363,304 |
+| `peephole-early` `bb111` | `createMarket` | 6 | 363,382 | 363,388 |
+| `late-word` `bb407` | `withdrawCollateral` | 2 | 481,063 | 481,065 |
+
+The gas-observing child fixtures distinguish the complete before and
+after images as well. The two `createMarket` pairs commit different
+values to the IRM's storage. The static oracle in
+`withdrawCollateral` branches at the measured gas threshold, causing
+the original parent to revert and the candidate to succeed. These
+executions fall outside the stable-child policy.
+Lean checks the isolated child executions at the measured budgets
+and reproduces the stored words and oracle stop reasons.
+Full-parent Lean checks of these observer fixtures timed out at 45
+seconds per invocation.
+
+The joined saved corpus now has a certificate for **2,228 of 2,228**
+captures. It contains **2,217 default certificates** and **11 scoped
+certificates**, including the eight heap or caller certificates and
+these three funded-call certificates. There are zero captures awaiting
+a certificate under the recorded scopes. Universal metered
+correspondence from ABI entry through the remaining parent code,
+and arbitrary gas-observing callbacks, remain open.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Pinned compiler | `f996616dcf2ebacf05fc5cc439f4814dc38fe953fad90b698754281c59ef139c` |
+| Compiler launcher | `c935a2bf85933ee1790810177538c159d5a974d89f383b5efb73e88236f5d165` |
+| Pinned Rust replay | `1c08fa6d66c19b52b661c4db7c93fc1d257948cb592d9856d09a237c174bca0c` |
+| Input manifest | `b08af7eb00ac67a5ef1200d50273beedc48d5517838ed67504bd1a76ba96b7b7` |
+| Checker on Lean 4.34.1 | `1f1d54b3e880f7653fcfb61eb6b81c2b256e5f0b086450e3c78bd4c42d3f1b4e` |
+| `target/tv-evmir-final/final/results.json` | `8229f256308c5e90a0882cf8d2a7f052ccb45c8bd439b8b9022f4d7117debe4f` |
+| `target/tv-evmir-final/rust-replay.json` | `bcfe8b1ba3cbfdc524ff8c079b399b7db61b6255f1cd1bc5c98e0ae3649919f3` |
+| `target/tv-evmir-final/physical.lean` | `75cba96ec7430a68b81faf6c06be9b15d77b76099bc1d3d9428bb2a3d23b6a18` |
+| `target/tv-evmir-final/physical.log` | `91c930bb04cab701bc868691bc968b1d6892635233f1be5e3d694b29fd277381` |
+| `target/tv-evmir-final/child.lean` | `80645f19c7caf863876158838667aa34b7636a8e1338a2b9c4e9de7d9e69c30b` |
+| `target/tv-evmir-final/child.log` | `c6889c9e131de8f92d717ddf6d94e8d126188f6089a1f573ffa5cfcb46490831` |
+| `target/tv-evmir-final/coverage.json` | `32743030412c3ab7b1830082e3a81c4ca3d964413f11b7c261618959d1539fce` |
+
 ### MIR CFG checks after an import timeout
 
 The earlier three-second census timed out on 23 Morpho MIR `cfg-simplify`
