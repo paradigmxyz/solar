@@ -812,7 +812,7 @@ def emit(
     bt = (gen_dir / "Bytecode.lean").read_text()
     hx = re.search(r'def bytecodeHex : String :=\n  "([0-9a-f]+)"', bt)
     code = bytes.fromhex(hx.group(1))
-    inferred = asm_cert.infer(text, code)
+    inferred = fixed_fuel.infer(text, code)
     cert, maxs = asm_cert.lean_cert(inferred)
     bmax = max(inferred["costs"]) if inferred["costs"] else 0
     if bmax != ob["bmax"]:
@@ -1089,7 +1089,7 @@ def obligation(gen_dir, plain):
         )
     blocks = asm_cert.parse_program(text)
     f = fixed_fuel.fuel(blocks, 1)
-    inferred = asm_cert.infer(text, bytes.fromhex(plain))
+    inferred = fixed_fuel.infer(text, bytes.fromhex(plain))
     bmax = max(inferred["costs"]) if inferred["costs"] else 0
     words = inferred["top"] // 32
     mem = 3 * words + words * words // 512

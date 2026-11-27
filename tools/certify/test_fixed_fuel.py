@@ -122,5 +122,18 @@ class Contracts(unittest.TestCase):
         self.assertTrue(line.startswith("BLOCKED: loop: a nested loop"))
 
 
+class StackBound(unittest.TestCase):
+    """The loop checker's inference refuses a stack with no bound by SystemExit (asm_cert.Unbounded,
+    for its command line); the stage's own infer turns it into Unsupported, which the driver
+    records, on the checked-in testdata/asm_cert_returns."""
+
+    def test_unbounded_is_unsupported(self):
+        d = HERE / "testdata" / "asm_cert_returns"
+        code = bytes.fromhex(json.loads((d / "manifest.json").read_text())["bytecode"])
+        with self.assertRaises(fixed_fuel.Unsupported) as e:
+            fixed_fuel.infer((d / "Evm5.lean").read_text(), code)
+        self.assertIn("the cycle bb3 -> bb4 -> bb3 gains stack words", str(e.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

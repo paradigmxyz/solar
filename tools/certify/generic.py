@@ -57,6 +57,7 @@ import tempfile
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(HERE))
+import asm_cert
 import export_ns
 import keccak
 import lakefile_inputs
@@ -3800,7 +3801,6 @@ def export_stages(solar, src, contract, tmp):
 
 def gas_need(solar, src, name, contract, tmp):
     """The loop checker's gas bound for this run's export, as shape_gen.py computes it."""
-    import asm_cert
     import shape_gen
 
     gen = tmp / "gen"
@@ -3841,9 +3841,20 @@ def gas_need(solar, src, name, contract, tmp):
     )
     if rc != 0:
         raise Failed(f"certify.py cannot write the stage proofs: {err.strip()[-400:]}")
-    stages = shape_gen.last_stage((tmp / "Proofs" / "Stages.lean").read_text())
+    try:
+        stages = shape_gen.last_stage((tmp / "Proofs" / "Stages.lean").read_text())
+    except SystemExit as e:
+        raise Failed(f"the probe's stage proofs: {e.code}") from None
     last_module = "Evm" + stages["last"][3:]
     last_text = (gen / contract / f"{last_module}.lean").read_text()
+    return loop_checker_gas(last_text, bytes.fromhex(plain), stages["fuel"])
+
+
+def loop_checker_gas(last_text, code, fuel):
+    """The loop checker's gas bound for the final EVM IR on CODE at the last stage's FUEL. asm_cert
+    refuses by SystemExit (it is also a command); here a refusal is a typed result, so the run's
+    record handlers always see it: a stack with no bound (asm_cert.Unbounded) is BLOCKED, and an
+    IR that does not lay over the bytecode is REJECTED."""
     outside = asm_cert.outside(last_text)
     if outside:
         raise Blocked(
@@ -3855,10 +3866,23 @@ def gas_need(solar, src, name, contract, tmp):
                 }
             ]
         )
-    inferred = asm_cert.infer(last_text, bytes.fromhex(plain))
+    try:
+        inferred = asm_cert.infer(last_text, code)
+    except asm_cert.Unbounded as e:
+        raise Blocked(
+            [
+                {
+                    "feature": "stack bound",
+                    "where": "",
+                    "detail": str(e.code).removeprefix("error: "),
+                }
+            ]
+        ) from None
+    except SystemExit as e:
+        raise Failed(f"asm_cert.py: {e.code}") from None
     bmax = max(inferred["costs"]) if inferred["costs"] else 0
     words = inferred["top"] // 32
-    return 22100 * (stages["fuel"] * bmax) + 3 * words + words * words // 512
+    return 22100 * (fuel * bmax) + 3 * words + words * words // 512
 
 
 def loop_resources(record, src, ast, contract):
@@ -5570,6 +5594,26 @@ def main():
             f"REJECTED: strict tier: {name} reached {reached}, below the requested tier {tier} (false: {', '.join(missing)})",
             **res,
         )
+    except asm_cert.Unbounded as e:
+        # A stack-bound refusal no call site converted (loop_checker_gas and the loop resources
+        # do): still BLOCKED with its reason, never an exit without a record.
+        b = Blocked(
+            [
+                {
+                    "feature": "stack bound",
+                    "where": "",
+                    "detail": str(e.code).removeprefix("error: "),
+                }
+            ]
+        )
+        if record.get("natspec_refuted"):
+            finish(
+                "REJECTED",
+                1,
+                f"REJECTED: {record['natspec_refuted']} (decided; then BLOCKED: {b})",
+                blocked=b.reasons,
+            )
+        finish("BLOCKED", 3, f"BLOCKED: {b}", blocked=b.reasons)
     except Blocked as b:
         if record.get("natspec_refuted"):
             finish(

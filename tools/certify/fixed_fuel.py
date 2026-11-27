@@ -441,7 +441,7 @@ def obligation(solar, src, contract, ast, tmp):
         )
     blocks = asm_cert.parse_program(text)
     f = fuel(blocks, M)
-    inferred = asm_cert.infer(text, bytes.fromhex(plain))
+    inferred = infer(text, bytes.fromhex(plain))
     bmax = max(inferred["costs"]) if inferred["costs"] else 0
     words = inferred["top"] // 32
     mem = 3 * words + words * words // 512
@@ -490,6 +490,15 @@ def verdict_line(ob):
         f"REJECTED: resource: out of gas: the fixed bound {ob['G']} is at least 2^64 "
         f"({ob['M']} iterations, {ob['loop']['limit']} limit, of at most {ob['B']} blocks)"
     )
+
+
+def infer(text, code):
+    """asm_cert.infer, with its stack-bound refusal (a SystemExit for the command line) as
+    Unsupported, so the run that asked records it."""
+    try:
+        return asm_cert.infer(text, code)
+    except asm_cert.Unbounded as e:
+        raise Unsupported(str(e.code).removeprefix("error: ")) from None
 
 
 def main():

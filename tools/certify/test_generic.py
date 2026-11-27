@@ -3813,6 +3813,108 @@ sys.exit(1)
             self.assertEqual(one, two)
 
 
+RETURNS = HERE / "testdata" / "asm_cert_returns"
+
+
+def returns_program():
+    """testdata/asm_cert_returns: a final EVM IR whose stack heights have no bound (test_asm_cert)."""
+    m = json.loads((RETURNS / "manifest.json").read_text())
+    return (RETURNS / "Evm5.lean").read_text(), m["bytecode"]
+
+
+class StackBoundRefusal(unittest.TestCase):
+    """asm_cert.infer refuses a stack with no bound by SystemExit (it is also a command). In the
+    driver the refusal is a typed BLOCKED result (loop_checker_gas), and a run that meets it, on
+    the checked-in returns fixture, still seals its record: never an exit past the handlers."""
+
+    def test_the_bound_is_blocked_by_name(self):
+        text, code = returns_program()
+        with self.assertRaises(generic.Blocked) as e:
+            generic.loop_checker_gas(text, bytes.fromhex(code), 1)
+        (r,) = e.exception.reasons
+        self.assertEqual(r["feature"], "stack bound")
+        self.assertIn("the cycle bb3 -> bb4 -> bb3 gains stack words", r["detail"])
+        self.assertFalse(r["detail"].startswith("error: "))
+
+    def test_a_layout_mismatch_is_rejected(self):
+        text, _ = returns_program()
+        with self.assertRaises(generic.Failed) as e:
+            generic.loop_checker_gas(text, bytes.fromhex("00"), 1)
+        self.assertIn("asm_cert.py: error:", str(e.exception))
+
+    def run_main(self, root, gas_need):
+        """generic.main on a loop-free source with the build replaced and gas_need GAS_NEED: the
+        exit code and the sealed record (None when there is none)."""
+        _, code = returns_program()
+        solar = root / "solar"
+        solar.write_text(f"#!{sys.executable}\nprint('solar 0.0.0')\n")
+        solar.chmod(0o755)
+        src = root / "C.sol"
+        src.write_text(
+            HEAD + "contract C { uint256 x; function f() external { x = 1; } }\n"
+        )
+        argv = [
+            "generic.py",
+            str(src),
+            "none",
+            "--solidity-lean",
+            "/nonexistent",
+            "--work",
+            str(root / "w"),
+            "--record-dir",
+            str(root / "r"),
+            "--solc",
+            str(SOLC),
+        ]
+        patches = [
+            unittest.mock.patch.object(sys, "argv", argv),
+            unittest.mock.patch.object(generic, "build_solar", lambda: solar),
+            unittest.mock.patch.object(generic, "solar_problem", lambda *a: None),
+            unittest.mock.patch.object(generic, "artifact_problem", lambda *a: None),
+            unittest.mock.patch.object(generic, "build_provenance", lambda *a: {}),
+            unittest.mock.patch.object(
+                generic, "solar_runtime", lambda *a, **k: (code, "")
+            ),
+            unittest.mock.patch.object(generic, "gas_need", gas_need),
+        ]
+        with contextlib.ExitStack() as stack:
+            for q in patches:
+                stack.enter_context(q)
+            stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+            stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+            with self.assertRaises(SystemExit) as e:
+                generic.main()
+        rec = root / "r" / "record.json"
+        return e.exception.code, json.loads(rec.read_text()) if rec.exists() else None
+
+    def check_blocked(self, gas_need):
+        with tempfile.TemporaryDirectory() as t:
+            code, rec = self.run_main(pathlib.Path(t), gas_need)
+        self.assertEqual(code, 3)
+        self.assertIsNotNone(rec)
+        self.assertEqual(rec["status"], "BLOCKED")
+        (r,) = rec["blocked"]
+        self.assertEqual(r["feature"], "stack bound")
+        self.assertIn("bb3 -> bb4 -> bb3", r["detail"])
+
+    @unittest.skipUnless(SOLC.exists(), "needs the pinned solc")
+    def test_the_run_seals_a_blocked_record(self):
+        text, code = returns_program()
+        self.check_blocked(
+            lambda *a: generic.loop_checker_gas(text, bytes.fromhex(code), 1)
+        )
+
+    @unittest.skipUnless(SOLC.exists(), "needs the pinned solc")
+    def test_an_unconverted_refusal_still_seals_one(self):
+        # A call site that leaves asm_cert.infer's SystemExit alone: main's handler still records it.
+        text, code = returns_program()
+
+        def bare(*a):
+            generic.asm_cert.infer(text, bytes.fromhex(code))
+
+        self.check_blocked(bare)
+
+
 class RegeneratedThreads(unittest.TestCase):
     """regenerated.sh compares a regenerated manifest with the committed one: the options'
     thread count, the host's, never makes two exports of one contract differ, whether the

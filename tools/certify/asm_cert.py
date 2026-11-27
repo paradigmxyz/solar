@@ -353,6 +353,12 @@ def meet(a, b):
     return [x if x == y else None for x, y in zip(a, b)]
 
 
+class Unbounded(SystemExit):
+    """The inference's refusal: the stack heights have no bound the checker accepts (a cycle that
+    gains words). A SystemExit, so the command line exits 1 with the message as before; callers in
+    the same process catch it by its type and record a refusal instead of exiting."""
+
+
 def gaining_cycle(blocks, raised, rising, n):
     """The error for heights that do not settle: a cycle of edges (following `raised` back from a
     block the last round raised, one of RISING) along which the stack gains words, so no highest entry heights (`maxs`)
@@ -457,7 +463,7 @@ def infer(program_text, code, dyn=False, bail=None, heads=None):
         if not changed:
             break
     else:
-        raise SystemExit(gaining_cycle(blocks, raised, rising, n))
+        raise Unbounded(gaining_cycle(blocks, raised, rising, n))
     entry = [e if e is not None else (0, 0, []) for e in entry]
     needs = [e[0] for e in entry]
     types = [(e[2][: e[0]] + [None] * e[0])[: e[0]] for e in entry]
