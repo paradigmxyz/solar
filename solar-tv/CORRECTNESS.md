@@ -4126,6 +4126,73 @@ MIR IDs remain part of this total.
 | `mul-div-up-rust.json` | `30e1d222e92d7dcd39991499a038cf00756e79f513dd699c5fa9c1d8ec10e1d8` |
 | `remaining-after-guards.json` | `2842fb4bdcc22478c846c91cd90ab7a40d815dca233b85a45b4ad12c1f535f1c` |
 
+### Return-label schedules and bounded MIR guards
+
+Six serial retries verify against the original capture pairs. The join
+matches the capture ID, checked function or block, and both raw IR hashes
+for each retry. The saved total is **2,190 of 2,228 (98.3%)**, with 38
+unsupported checks and zero remaining timeouts or failures in the join.
+
+| Layer and pass | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: |
+| MIR `integer-cleanup` | 23 | 12 | 0 | 0 |
+| EVM IR `block-cse` | 8 | 2 | 0 | 0 |
+| MIR `memory-dse` | 5 | 5 | 0 | 0 |
+| MIR `check-elim` | 5 | 2 | 0 | 0 |
+| EVM IR `reorder-pushes` | 4 | 1 | 0 | 0 |
+
+The OpenZeppelin deployment `bb1` schedule carries a return label into
+its helper. Lean checks the full live stack and ordered effects under
+arbitrary shared label bindings and replies. The proof assumes sufficient
+funding and shared execution outside the window. Changing the pushed
+label in the regression loses the certificate.
+
+Three EVM `block-cse` windows now verify. The exact scalar-island proof
+checks WETH `bb78` and the Morpho constructor `bb0` for every incoming
+stack and gas budget at the scalar island. The shared contexts contain
+a direct Cancun `ECRECOVER` call in WETH and paired constructor code-tail
+reads in Morpho. The relocation check decodes both assembled images and
+binds the reads to shared constructor arguments. The parser and shared
+context executor remain trusted. Morpho `bb284` uses the contextual
+peephole proof with a gas-insensitive shared continuation.
+
+For OpenZeppelin `load_storage_bytes`, a direct jump now retains the
+same typed rounded-extent computation as a constant false guard. For
+Morpho `extSloads`, the sole incoming edge to the increment follows
+the false arm of a comparison against a right-shifted word. Lean checks
+the unique edge in the exported graph and the branch equation for all
+defined 256-bit operands. The typed producer-to-edge binding remains
+trusted. Both MIR checks are unpriced. The regression with a second path
+into the increment loses the proof and produces a Rust-replayed mismatch.
+
+Pinned Rust replay agrees on the WETH invalid-signature revert and
+out-of-gas run, and on Morpho constructor success with an owner word and
+revert with missing arguments. Direct MIR replay checks short, long
+and invalid OpenZeppelin storage encodings. With an initialized heap,
+`extSloads` returns the same two storage words or empty array on both
+sides, and rejects truncated and maximal-length calldata.
+
+The remaining `reorder-pushes` capture changes the balance at a later
+`GAS; STATICCALL` in Morpho `bb340`. Its proof still needs a priced
+schedule through the immutable read and recovery policy. The other
+open `block-cse` capture at `bb103` needs a proof that a deleted scratch
+store repeats the same word already in memory. The remaining
+`memory-dse` and GAS-dependent MIR counts retain their prior obligations.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Pinned retry compiler | `f996616dcf2ebacf05fc5cc439f4814dc38fe953fad90b698754281c59ef139c` |
+| Pinned independent Rust replay | `1c08fa6d66c19b52b661c4db7c93fc1d257948cb592d9856d09a237c174bca0c` |
+| Checker on Lean 4.34.1 | `8b921729a59d112c6edd4ef292e20387c366d495cd5a1d813444c273dcab952d` |
+| Solady WETH input | `b751f0da2642fba80d176248ff576b06d45601fda253d9de32f9a78e3b70a4c0` |
+| OpenZeppelin ERC20Mock input | `c85c24c264a2ae9a97b32050f93426376c8cb20e15f6e5ad5dc1414ee46ce2c4` |
+| Morpho Blue input | `01f4aaf9db4940ea9a62aba808ba1655ef399c671b6ed29875f8a91c3efeba53` |
+| `target/tv-pass-gaps/remaining.json` | `e2b9db0a64e35b96805eb9675d51d745c1ee11b4e8ec0da46f44191e50215327` |
+| `target/tv-pass-gaps/rust-replay.json` | `1726d6ffd565fbd2ae4219c70dddd45a05f294633a91ffb54e03a7d8aa948ef0` |
+
+The join records complete per-pass counts and hashes of the six reports
+in `target/tv-pass-gaps/`.
+
 ### MIR CFG checks after an import timeout
 
 The earlier three-second census timed out on 23 Morpho MIR `cfg-simplify`
