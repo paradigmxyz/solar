@@ -1854,7 +1854,7 @@ def install_zones_fixtures(
             bytecode, (), None, rpc_url, private_key
         )
         if fixture is None:
-            return error
+            return error or f"cannot deploy {name}"
         code, error = rpc_request("eth_getCode", (fixture, "latest"), rpc_url)
         if error or not isinstance(code, str) or code == "0x":
             return error or f"empty {name} runtime"
