@@ -28,12 +28,14 @@ class RegionTests(unittest.TestCase):
         self.audits = self.directory / "tv"
 
     def run_command(self, command):
+        # An audited compile of the Solidity examples now runs and proves about 20
+        # region and function checks in sequence, several of them over 20 s.
         return subprocess.run(
             command,
             env={**os.environ, "SOLAR_TV": CLI, "SOLAR": SOLAR},
             text=True,
             capture_output=True,
-            timeout=180,
+            timeout=600,
             check=False,
         )
 
