@@ -12,6 +12,7 @@ use solar_cli::{
 use std::{
     ffi::{CStr, c_char, c_void},
     ptr,
+    sync::{Mutex, PoisonError},
 };
 
 mod alloc;
@@ -66,7 +67,13 @@ pub extern "C" fn solidity_reset() {
 ///
 /// `input` must be null or point to a valid null-terminated UTF-8 string. If `read_callback` is
 /// provided, it must follow the `CStyleReadFileCallback` ABI and write only null pointers or
-/// pointers allocated with `solidity_alloc` to its output parameters.
+/// pointers allocated with `solidity_alloc` to its output parameters. The two output pointers
+/// must be distinct: writing the same allocation to both transfers its ownership twice.
+///
+/// The callback may run on compiler threads other than the caller's, but never concurrently within
+/// one `solidity_compile` call: calls are serialized. The callback must not call
+/// `solidity_compile`, as the nested compile can re-enter the callback on the same thread and
+/// deadlock.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn solidity_compile(
     input: *const c_char,
@@ -76,7 +83,7 @@ pub unsafe extern "C" fn solidity_compile(
     let input =
         if input.is_null() { "" } else { unsafe { CStr::from_ptr(input) }.to_str().unwrap_or("") };
     let read_callback = read_callback.map(|read_callback| {
-        std::sync::Arc::new(CReadCallback { read_callback, read_context })
+        std::sync::Arc::new(CReadCallback { read_callback, read_context, lock: Mutex::new(()) })
             as std::sync::Arc<dyn StandardJsonReadCallback>
     });
     let mut output = Vec::new();
@@ -88,6 +95,8 @@ pub unsafe extern "C" fn solidity_compile(
 struct CReadCallback {
     read_callback: CStyleReadFileCallback,
     read_context: *mut c_void,
+    /// Serializes calls, as the callback may keep non-thread-safe state behind `read_context`.
+    lock: Mutex<()>,
 }
 
 unsafe impl Send for CReadCallback {}
@@ -99,6 +108,7 @@ impl StandardJsonReadCallback for CReadCallback {
         let data = c_string_bytes(data);
         let mut contents = ptr::null_mut();
         let mut error = ptr::null_mut();
+        let _guard = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
         unsafe {
             (self.read_callback)(
                 self.read_context,
