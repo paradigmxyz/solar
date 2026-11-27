@@ -31,6 +31,10 @@ lits = "lits"
 nd = "nd"
 fnd = "fnd"
 hsi = "hsi"
+# Lean hypothesis names, a selector in hex and "mis-tagged" in tools/certify.
+inh = "inh"
+abd = "abd"
+mis = "mis"
 
 [type.py.extend-identifiers]
 som = "som"
