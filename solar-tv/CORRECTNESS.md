@@ -2738,6 +2738,55 @@ PYTHONPATH=solar-tv LEAN_NUM_THREADS=1 uv run --project solar-tv python \
 | `target/tv-gas-refinement/morpho-blue/refinement.json` | `71b328cf1992eaa4e23b06ab8251e140e950e5009939244541e59e13ad55280c` |
 | `target/tv-gas-refinement/child-budgets.json` | `1bbd92a20688ac51df59621639db814aa4433e2ec03a825740ad7d3b9e9f6dc6` |
 
+##### Paid call boundaries in the emitted images
+
+`FundedTrace` composes ordinary EVM transitions over symbolic frame gas.
+It tracks the budget needed to admit a path separately from the gas it
+ultimately debits. The kernel binds the checked opcodes to the frozen
+runtime at each cut. The local proofs accept any gas balance below
+2^256 that meets the admission bound. They assume a reached frame
+with the checked stack shape and staged memory, Cancun pricing,
+a supported depth and the admitted child.
+
+| Boundary | Before and after PCs | Minimum warm gas | Net debit |
+| --- | --- | ---: | ---: |
+| WETH `permit` recovery | 1542, 1473 | 3,149 | 3,102 |
+| Morpho `flashLoan` transfer | 3661, 3598 | 118 | 118 |
+| Morpho `flashLoan` callback | 6652, 6477 | 100 | 100 |
+| Morpho `flashLoan` repayment | 3161, 3110 | 118 | 118 |
+
+The recovery proof uses the actual `ECRECOVER` precompile and accepts
+arbitrary staged signature bytes. The two Morpho token proofs execute
+the exact admitted return-true bytecode. These cuts compose the GAS
+sample, call admission, forwarded cap, child and resumed parent frame. The callback proof starts at CALL with any
+already-sampled gas operand and executes the admitted STOP child. The
+kernel checks that an unpaid callback stops before entering the child.
+Rust replay uses the original runtime bytes and checks one below the warm
+threshold, at the threshold and at 500,000 entry gas. It confirms that
+the callback stops at 99 gas and returns success with zero gas at 100.
+The generated theorems use only
+`propext`, `Classical.choice` and `Quot.sound`.
+
+Rust also checks the whole FlashLoan path with a fixture token that
+stores its child GAS reading before returning true. At 500,000 entry
+gas both runs succeed with the same log. The original commits 464,473
+in token slot zero and the rewrite commits 464,487. Unrestricted
+refinement over arbitrary token code therefore fails. The paid cuts
+leave the parent invariant from ABI entry to terminal under the stated
+policy open, including the callback's earlier GAS sample.
+
+```sh
+PYTHONPATH=solar-tv LEAN_NUM_THREADS=1 uv run --project solar-tv python \
+  solar-tv/tools/check_funded_call_cuts.py \
+  --worlds target/tv-integer-cleanup-bytecode-probe \
+  --compiler target/tv-pinned-corpus.wa91PI/tv-serial-solar \
+  --replay target/tv-pinned-corpus.wa91PI/solar-tv-replay \
+  --output target/tv-gas-outline/callback
+```
+
+The `target/tv-gas-outline/callback/funded-cuts.json` receipt has SHA-256
+`f1c12dd44be548ae8a9a83cde8216dd878f16cf2d9e56aab2195c7493ad3319d`.
+
 #### Authorization gas witnesses
 
 The Morpho authorization fixture independently runs each suffix-emitted
@@ -2798,51 +2847,6 @@ fixture leaves the saved corpus tally at 2,123 of 2,228.
 | Independent Rust replay | `1c08fa6d66c19b52b661c4db7c93fc1d257948cb592d9856d09a237c174bca0c` |
 | `target/tv-integer-cleanup-current/signed-replay.json` | `2224777738a73d2b2a81a462be0716ee3a3b4f29f606c0a05aaa720a5b46c464` |
 | `target/tv-integer-cleanup-current/signed-sha256.txt` | `3a209b335f24d087b1ddc32ecac947c3cc0fefc6e92d41ce8f6c38938b5f8b83` |
-
-##### Paid call boundaries in the emitted images
-
-`FundedTrace` composes ordinary EVM transitions over symbolic frame gas.
-It tracks the budget needed to admit a path separately from the gas it
-ultimately debits. The kernel binds the two adjacent opcodes to the
-frozen runtime for each cut below. The local proofs accept any gas
-balance below 2^256 that meets the admission bound. They assume a
-reached frame with the checked stack shape and staged memory, Cancun
-pricing, a supported depth and the admitted child.
-
-| Boundary | Before and after GAS PCs | Minimum warm gas | Net debit |
-| --- | --- | ---: | ---: |
-| WETH `permit` recovery | 1542, 1473 | 3,149 | 3,102 |
-| Morpho `flashLoan` transfer | 3661, 3598 | 118 | 118 |
-| Morpho `flashLoan` repayment | 3161, 3110 | 118 | 118 |
-
-The recovery proof uses the actual `ECRECOVER` precompile and accepts
-arbitrary staged signature bytes. The two Morpho token proofs execute
-the exact admitted return-true bytecode. Both compose the GAS sample,
-call admission, forwarded cap, child and resumed parent frame. Rust
-replay uses the original runtime bytes and checks the child status
-and residual gas one below the warm threshold, at the threshold and
-at 500,000 entry gas. The generated theorems use only
-`propext`, `Classical.choice` and `Quot.sound`.
-
-Rust also checks the whole FlashLoan path with a fixture token that
-stores its child GAS reading before returning true. At 500,000 entry
-gas both runs succeed with the same log. The original commits 464,473
-in token slot zero and the rewrite commits 464,487. Unrestricted
-refinement over arbitrary token code therefore fails. The paid cuts
-leave the parent invariant from ABI entry to terminal under the stated
-policy open, including the callback's earlier GAS sample.
-
-```sh
-PYTHONPATH=solar-tv LEAN_NUM_THREADS=1 uv run --project solar-tv python \
-  solar-tv/tools/check_funded_call_cuts.py \
-  --worlds target/tv-integer-cleanup-bytecode-probe \
-  --compiler target/tv-pinned-corpus.wa91PI/tv-serial-solar \
-  --replay target/tv-pinned-corpus.wa91PI/solar-tv-replay \
-  --output target/tv-gas-outline
-```
-
-The `target/tv-gas-outline/funded-cuts.json` receipt has SHA-256
-`d311d2e0f907c2d0370c6861c186ee0ae1a39d2da72ca8b340b3f0bf05172199`.
 
 ### Full corpus after guarded MIR effect proofs
 

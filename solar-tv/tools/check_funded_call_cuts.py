@@ -7,6 +7,7 @@ from pathlib import Path
 from check_gas_refinement import AMPLE, FORK, TIMEOUT, digest
 from validator import audit, entry_proof, heap_entry, world
 from validator.check import build_model
+from validator.common import Unsupported
 
 HEADER = """import SolarTV.EVMIR.State.FundedTrace
 open SolarTV EvmRules Execution EVM.State
@@ -70,22 +71,68 @@ theorem funded_cut (frame : Frame) (world : Journal) (offset size : Word) (tail 
 """
 
 
-def cuts(image, pc, fixture, replay, minimum, debit, operands):
+def callback(pc):
+    return f"""
+open MIR.CallHandoff (Request)
+
+theorem funded_cut (frame : Frame) (world : Journal)
+    (requested offset size : Word) (tail : EVM.Stack)
+    (imageEq : frame.code = image) (atCut : frame.pc = {pc})
+    (shape : frame.stack = requested :: 8738 :: 0 :: offset :: size :: 0 :: 0 :: tail)
+    (room : tail.length ≤ 1017) (depth : frame.environment.depth < 1024)
+    (input : expand frame.memory offset.toNat size.toNat = .ok frame.memory)
+    (output : expand frame.memory 0 0 = .ok frame.memory)
+    (code : (account world 8738).code = [0]) :
+    let request : Request := ⟨requested,8738,offset,size⟩
+    let fee := MIR.CallHandoff.charge tvWorldConfig request world
+    let next := {{frame with pc := frame.pc+1, stack := 1 :: tail, returnData := []}}
+    FundedTrace tvWorldConfig world frame (warmAddress world 8738) next 2 fee fee ∧
+    ∀ fuel gas, gas < fee →
+      run (fuel+1) tvWorldConfig world {{frame with gas}} = .ok ⟨.outOfGas,[],world,0,1⟩ :=
+  funded_stop_call tvWorldConfig world frame ⟨requested,8738,offset,size⟩ tail rfl rfl
+    (by decide +kernel) (by decide +kernel) (by rw [imageEq, atCut]; decide +kernel)
+    shape room depth input output code (by
+      change precompile .cancun 8738 = false
+      decide +kernel)
+"""
+
+
+def cuts(image, pc, fixture, replay, minimum, debit, operands, span):
     first = heap_entry.observe(image, fixture, FORK, replay, 30, pc=pc)
     prefix_fee = fixture["gas"] - first["gas"]
     rows = []
     for budget in (prefix_fee + minimum - 1, prefix_fee + minimum, AMPLE):
         state = {**fixture, "gas": budget}
         before = heap_entry.observe(image, state, FORK, replay, 30, pc=pc)
-        after = heap_entry.observe(image, state, FORK, replay, 30, pc=pc + 2)
         paid = before["gas"] >= minimum
+        try:
+            after = heap_entry.observe(image, state, FORK, replay, 30, pc=pc + span)
+        except Unsupported as error:
+            if (
+                span != 1
+                or paid
+                or str(error)
+                != "Rust replay: bytecode probe was not reached (OutOfGas)"
+            ):
+                raise
+            assert heap_entry.observe(image, state, FORK, replay, 30)[0] == "out-of-gas"
+            rows.append(
+                {
+                    "entry_gas": budget,
+                    "gas_at_boundary": before["gas"],
+                    "gas_after_call": None,
+                    "flag": None,
+                    "terminal": "out-of-gas",
+                }
+            )
+            continue
         assert after["stack"] == [str(int(paid)), *before["stack"][operands:]]
         if paid:
             assert before["gas"] - after["gas"] == debit
         rows.append(
             {
                 "entry_gas": budget,
-                "gas_at_sample": before["gas"],
+                "gas_at_boundary": before["gas"],
                 "gas_after_call": after["gas"],
                 "flag": str(int(paid)),
             }
@@ -142,19 +189,26 @@ def check(args, case, name, theorem, minimum, debit, operands, *, repayment=Fals
         images.append(image)
         sha = digest(image)
         assert sha == manifest[side]["runtime_sha256"]
-        sites = [("sample", 0)]
+        sites = [("sample", 0, theorem, 2, minimum, debit, operands)]
         if repayment:
-            sites.append(("repayment", 2))
-        for boundary, index in sites:
-            pc = manifest[side]["calls"][index]["pc"] - 1
-            rows = cuts(image, pc, fixture, args.replay, minimum, debit, operands)
+            sites.extend(
+                (
+                    ("callback", 1, callback, 1, 100, 100, 7),
+                    ("repayment", 2, theorem, 2, minimum, debit, operands),
+                )
+            )
+        for boundary, index, proof, span, admission, charge, arguments in sites:
+            pc = manifest[side]["calls"][index]["pc"] + 1 - span
+            rows = cuts(
+                image, pc, fixture, args.replay, admission, charge, arguments, span
+            )
             source = (
                 HEADER
                 + entry_proof.image_definitions(image)
                 + world.configuration(
                     str(args.compiler), FORK, fixture, 30, args.replay
                 )
-                + theorem(pc)
+                + proof(pc)
                 + "\n#print axioms funded_cut\n"
             )
             result = entry_proof.lean(

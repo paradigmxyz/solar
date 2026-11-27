@@ -323,4 +323,77 @@ theorem funded_return_true (cfg : Config) (world : Journal) (frame : Frame)
   erw [child]
   rfl
 
+/-- A zero-value call with an already-sampled request and a STOP child.
+An unaffordable call stops before entering the child. -/
+theorem funded_stop_call (cfg : Config) (world : Journal) (frame : Frame)
+    (request : Request) (tail : Stack)
+    (fork : cfg.fork = .cancun) (known : cfg.unknownCode = none)
+    (callSchema : available cfg 0xf1 = ⟨true,2600,0,7,1⟩)
+    (stopSchema : available cfg 0 = ⟨true,0,0,0,0⟩)
+    (opcode : frame.code[frame.pc]? = some 0xf1)
+    (shape : frame.stack = request.gas :: (request.args ++ tail))
+    (room : tail.length ≤ 1017) (depth : frame.environment.depth < 1024)
+    (input : expand frame.memory request.offset.toNat request.length.toNat = .ok frame.memory)
+    (output : expand frame.memory 0 0 = .ok frame.memory)
+    (code : (MIR.CallHandoff.destination request world).bytes = [0])
+    (ordinary : precompile cfg.fork (request.destination.setWidth 160) = false) :
+    let fee := MIR.CallHandoff.charge cfg request world
+    let next := {frame with pc := frame.pc+1, stack := 1 :: tail, returnData := []}
+    FundedTrace cfg world frame (MIR.CallHandoff.entered request world) next 2 fee fee ∧
+    ∀ fuel gas, gas < fee →
+      run (fuel+1) cfg world {frame with gas} = .ok ⟨.outOfGas,[],world,0,1⟩ := by
+  dsimp only
+  let fee := MIR.CallHandoff.charge cfg request world
+  let message := request.message frame.memory
+  let destination := MIR.CallHandoff.destination request world
+  let entered := MIR.CallHandoff.entered request world
+  let reply : MessageOutcome := ⟨1,[],entered,0,1⟩
+  let prepared (gas : Nat) := {frame with pc := frame.pc+1, stack := tail, gas := gas-fee}
+  let signal (gas : Nat) := Step.call message 0 0 request.gas.toNat destination entered (prepared gas)
+  have callStep (gas : Nat) : instruction cfg world {frame with gas} =
+      if gas < fee then stepExhausted world else .ok (signal gas) := by
+    obtain ⟨within,_⟩ := List.getElem?_eq_some_iff.mp opcode
+    have step := MIR.CallHandoff.prepare cfg {frame with gas} world request tail frame.code.length
+      (pushValue frame.code frame.pc) (validJump frame.code) fork known callSchema within shape room input output
+    change instructionWithImage cfg world {frame with gas} frame.code.length
+      (frame.code[frame.pc]?.getD 0) (pushValue frame.code frame.pc) (validJump frame.code) = _
+    rw [opcode]
+    exact step
+  refine ⟨FundedTrace.message (childWork := 1) (Nat.le_refl fee) signal ?_ ?_, ?_⟩
+  · intro gas paid
+    have enough : ¬gas < fee := Nat.not_lt_of_ge paid
+    simp only [callStep, enough, ite_false]
+  · intro fuel gas _
+    have notRejected : (decide ((prepared gas).environment.depth ≥ 1024) ||
+        (((request.message frame.memory).kind == .call || (request.message frame.memory).kind == .callcode) &&
+          (account entered (prepared gas).environment.address).balance.ult
+            (request.message frame.memory).value)) = false := by
+      simp [prepared, Request.message, Nat.not_le_of_gt depth, BitVec.ult]
+    have resumed := CallRefinement.stable_zero_value_call cfg (State.run (fuel+1) cfg)
+      message 0 0 request.gas.toNat destination entered (prepared gas) reply 0 fork rfl
+      notRejected (Nat.zero_le _) (by
+        intro supplied _
+        let env := {(Calls.childEnvironment frame.environment message) with codeAddress := destination.address}
+        have child : run (fuel+1) cfg entered
+            ⟨env,(account world (request.destination.setWidth 160)).code,0,[],[],[],supplied⟩ =
+            .ok ⟨.success,[],entered,supplied,1⟩ := by
+          change (account world (request.destination.setWidth 160)).code = _ at code
+          rw [code]
+          exact CallRefinement.stopRun cfg entered env fuel supplied stopSchema
+        simp only [env, message, Request.message, destination, MIR.CallHandoff.destination] at child
+        unfold executeCall
+        simp [message, known, Request.message, BitVec.ult, Nat.not_le_of_gt depth,
+          SolarTV.Execution.transfer, MIR.CallHandoff.destination, ordinary, prepared,
+          destination, entered, Bind.bind, Except.bind, Pure.pure, Except.pure]
+        simp only [entered, MIR.CallHandoff.entered, MIR.CallDebit.warmTwice] at child ⊢
+        erw [child]
+        rfl)
+    have noWrite : writeBytes frame.memory 0 [] = frame.memory := writeBytes_existing _ _ _ (readBytes_zero _ _)
+    simpa only [signal, prepared, reply, List.take_zero, noWrite, Nat.sub_zero] using resumed
+  · intro fuel gas short
+    have unpaid : gas < fee := short
+    have stopped : instruction cfg world {frame with gas} = .ok (.done ⟨.outOfGas,[],world,0,0⟩) := by
+      simp only [callStep, unpaid, ite_true, stepExhausted]
+    exact run_done fuel stopped
+
 end SolarTV.EVM.State
