@@ -235,23 +235,33 @@ bb2 [stack=0]:
                     ]
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn(
-                    "cyclic EVM regions require loop invariants"
-                    if name == "cycle"
-                    else "universal prefix proof did not close",
-                    result.stderr,
-                )
                 records = [
                     json.loads(path.read_text())
                     for path in (self.audits / name / "audits").glob("*.json")
                 ]
                 self.assertTrue(records)
                 self.assertTrue(
-                    all(record["status"] == "unsupported" for record in records)
-                )
-                self.assertTrue(
                     all(record["region"]["stack_height"] is None for record in records)
                 )
+                if name == "cycle":
+                    # The drifting loop has no fixed entry height, so no stack-height
+                    # proof applies. The edit inside it is local, and the contextual
+                    # peephole proof covers every incoming stack without a loop
+                    # invariant.
+                    self.assertIn(": verified", result.stderr)
+                    self.assertTrue(
+                        all(
+                            record["status"] == "verified"
+                            and record["region"]["proof"]
+                            == "kernel-checked-contextual-peephole"
+                            for record in records
+                        )
+                    )
+                else:
+                    self.assertIn("universal prefix proof did not close", result.stderr)
+                    self.assertTrue(
+                        all(record["status"] == "unsupported" for record in records)
+                    )
 
     def test_non_dense_successors_keep_their_identity(self):
         source = """@module Labels
