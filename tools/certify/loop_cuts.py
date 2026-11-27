@@ -295,7 +295,7 @@ def heads_exporter(verify):
     (loop_equiv.py reads only how many loops a function has)."""
     try:
         pin = json.loads((HERE / "solar-verify.pin").read_text())
-        exe = pathlib.Path(pin["binary"])
+        exe = HERE.parent.parent / (os.environ.get("CERTIFY_SPEC_VERIFY_BINARY") or pin["binary"])
         if exe.is_file() and hashlib.sha256(exe.read_bytes()).hexdigest() == pin["sha256"]:
             return exe
     except (OSError, ValueError, KeyError, TypeError):

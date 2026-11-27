@@ -529,7 +529,7 @@ class DriverCall(unittest.TestCase):
     def test_the_hook_runs_only_on_a_loop_block(self):
         src = (HERE / "generic.py").read_text()
         i = src.index('if any(r["feature"] == "loop" for r in b.reasons):')
-        # The branch ends at its BLOCKED (lane 190 holds an out of gas until loop_final ran).
+        # The branch ends at its BLOCKED (the loop route holds an out of gas until loop_final ran).
         block = src[i : src.index("raise Blocked(reasons) from b", i) + 40]
         cuts = block.index("loop_cuts(record, src, ast, a, work, name, src_sha)")
         self.assertLess(

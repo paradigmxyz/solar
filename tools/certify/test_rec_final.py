@@ -1,5 +1,6 @@
 """Tests of rec_final.py and the envelope's recursion over free functions."""
 
+import os
 import pathlib
 import sys
 import tempfile
@@ -12,7 +13,8 @@ import generic  # noqa: E402
 import rec_final  # noqa: E402
 
 SOLC = pathlib.Path.home() / ".cache/solc/solc-0.8.35"
-P2 = pathlib.Path("/home/hand/p2lean")
+# A solidity-lean checkout with the pinned exports, when SOLIDITY_LEAN_DIR names one.
+P2 = pathlib.Path(os.environ.get("SOLIDITY_LEAN_DIR") or HERE / "missing-solidity-lean")
 RECSUM = HERE / "testdata/rec_cuts/RecSum.sol"
 
 FREE = """// SPDX-License-Identifier: MIT

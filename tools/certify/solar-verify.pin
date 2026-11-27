@@ -1,8 +1,8 @@
 {
-  "about": "The solar-verify that exports a loop function's spec (tools/certify/loop_final.py spec_exporter): an immutable copy of O6's binary, checked by SHA-256; the shared checkout's solar-verify lacks O6's spec-scope fixes (review 189). Built with cargo build --locked -p solar-verify --bin solar-verify (debug, local, SHIPPY_REMOTE unset) in the tree at the commit, cargo reporting it fresh, then copied read-only to binary. Debug builds are not reproducible across machines and caches, so nothing rebuilds it at run time. The pinned commit also writes the loop heads of every function past a failing spec (abca4e4c5: --emit-loop-heads exits 0 and records each failing function's status and failures), which tools/certify/loop_cuts.py's heads_exporter runs.",
+  "about": "The solar-verify that exports a loop function's spec (tools/certify/loop_final.py spec_exporter): an immutable copy of O6's binary, checked by SHA-256; the shared checkout's solar-verify lacks O6's spec-scope fixes (review 189). Built with cargo build --locked -p solar-verify --bin solar-verify (debug, local, SHIPPY_REMOTE unset) in the tree at the commit, cargo reporting it fresh, then copied read-only to binary (relative to the repository root, or CERTIFY_SPEC_VERIFY_BINARY; tree likewise, or CERTIFY_SPEC_VERIFY_TREE). Debug builds are not reproducible across machines and caches, so nothing rebuilds it at run time. The pinned commit also writes the loop heads of every function past a failing spec (abca4e4c5: --emit-loop-heads exits 0 and records each failing function's status and failures), which tools/certify/loop_cuts.py's heads_exporter runs.",
   "branch": "o6/spec-loop-bridge",
   "commit": "abca4e4c5b9f3899c94842fd7ea81cb2cf884f22",
-  "tree": "/home/hand/simp/o6/vfix-o6",
-  "binary": "/home/hand/simp/climb/pins/solar-verify-88ddbdcef4231c2bc4beae158ea13bd9d174c98fba4935de7f6090ff2bc2c545",
+  "tree": ".",
+  "binary": "target/certify/solar-verify-88ddbdcef4231c2bc4beae158ea13bd9d174c98fba4935de7f6090ff2bc2c545",
   "sha256": "88ddbdcef4231c2bc4beae158ea13bd9d174c98fba4935de7f6090ff2bc2c545"
 }

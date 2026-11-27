@@ -1,5 +1,6 @@
 """Tests of rec_source.py: the recursion source stage binds only its own source."""
 
+import os
 import pathlib
 import subprocess
 import sys
@@ -7,7 +8,8 @@ import tempfile
 import unittest
 
 HERE = pathlib.Path(__file__).resolve().parent
-P2 = pathlib.Path("/home/hand/p2lean")
+# A solidity-lean checkout with the pinned exports, when SOLIDITY_LEAN_DIR names one.
+P2 = pathlib.Path(os.environ.get("SOLIDITY_LEAN_DIR") or HERE / "missing-solidity-lean")
 SRC = HERE / "testdata/rec_cuts/RecSum.sol"
 SOLC = pathlib.Path.home() / ".cache/solc/solc-0.8.35"
 

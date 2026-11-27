@@ -776,7 +776,8 @@ def spec_exporter(run, pin_file=None):
         commit, want, tree, exe = pin["commit"], pin["sha256"], pin["tree"], pin["binary"]
     except (OSError, ValueError, KeyError, TypeError) as e:
         raise Refused("exporter", f"no usable solar-verify pin: {e}") from None
-    exe = pathlib.Path(exe)
+    root = HERE.parent.parent
+    exe = root / (os.environ.get("CERTIFY_SPEC_VERIFY_BINARY") or exe)
     if not exe.is_file():
         raise Refused("exporter", f"the pinned solar-verify {exe} is missing")
     got = sha(exe)
@@ -784,7 +785,7 @@ def spec_exporter(run, pin_file=None):
         raise Refused(
             "exporter", f"the pinned solar-verify {exe} is {got}, not the pinned {want}"
         )
-    tree = pathlib.Path(os.environ.get("CERTIFY_SPEC_VERIFY_TREE") or tree)
+    tree = root / (os.environ.get("CERTIFY_SPEC_VERIFY_TREE") or tree)
     for c in VERIFY_FIXES:
         rc, _, err = run(["git", "-C", str(tree), "merge-base", "--is-ancestor", c, commit])
         if rc != 0:
