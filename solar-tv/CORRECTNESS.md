@@ -4479,6 +4479,80 @@ captures awaiting a certificate.
 | `target/tv-cse-complete/rust-replay.json` | `37fe7bb7ac7dc3cd1ae23c3f191c0c221bba045082c1c3dafadf11bb9561a346` |
 | `target/tv-cse-complete/conditional-coverage.json` | `f6cca646a7371fc277d32a840f38da0b79abdb20395825674d781187bb24c7b7` |
 
+### Complete pinned MIR induction and word-sequence checks
+
+The pinned Solady WETH, OpenZeppelin ERC20Mock and Morpho Blue rerun checks
+all eight selected captures with the default validator, a 40-second budget
+and seed zero. It matches the frozen capture IDs, both IR fingerprints,
+and each case's archive, input and compiler output fingerprints. The
+compiler emits identical ABI, creation bytecode and runtime bytecode
+with and without capture. WETH has no captures for either selected pass.
+
+| MIR pass | Previously verified | Verified | Unsupported | Timed out | Failed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `indvar-simplify` | 0 | 2 | 0 | 0 | 0 |
+| `word-sequence` | 4 | 6 | 0 | 0 | 0 |
+
+For ERC20Mock's `load_storage_bytes` and Morpho's `extSloads`, Lean
+checks that the counted loop and the two carried addresses agree for
+each logical iteration budget. Both cursors use modular word arithmetic.
+The first cursor is injective up to the exit sentinel. Its stride is
+one for the storage string. For `extSloads`, the kernel checks that
+every path to the preheader since the count was defined crosses the
+accepted length guard. The guard bounds the count times 32 below
+`2^256`, even if adding it to the calldata base wraps. The second
+cursor advances by 32 and does not control the exit. The induction
+preserves the ordered effects, failure reasons and terminal state under
+the same per-iteration handler. The typed exporter and structural
+matching still bind the certificate to the actual loop operands,
+shared effects and unchanged surrounding control flow.
+
+For Morpho's `createMarket`, the kernel checks the masked XOR blend
+against the complementary masked OR for arbitrary defined words. It also
+checks the rounding identity used by the reachable transfer helpers.
+For `liquidate` and its reachable direct callee, Lean checks both
+unsigned shift-to-threshold branch equations and keeps the shifted
+value available on the path that still uses it. The typed CFG proof
+checks the preserved action order with shared GAS samples and message
+replies, without assigning physical gas prices or binding callbacks.
+
+Pinned Rust replay compares the original MIR for short, multiword and
+empty ERC20Mock strings, and for empty, populated and truncated Morpho
+calldata. Changing the Morpho memory cursor's stride from 32 to 64
+loses the certificate. Rust then reads output values `[11,29,11]`
+before the pass and `[11,0,29]` in the changed artifact. The Rust EVM
+also executes the emitted runtime from each of the two word-sequence
+snapshots with funded fixtures. Market creation preserves the packed
+fee, updates the timestamp and records the IRM's child storage write.
+Both liquidation fixtures call the IRM and exercise fee and remaining
+collateral branches. The liquidation snapshots emit identical runtime
+bytes. Paired replay agrees on status, returned bytes,
+refunds, accounts and logs. Market creation uses 12 less gas after
+the pass in its fixture. These runtime observations cover the recorded
+worlds. Metered correspondence from MIR to emitted bytes across
+arbitrary inputs and gas limits remains open.
+
+Joining these four default proofs with the saved pinned audit gives
+**2,211 of 2,228** default certificates. Including the eight scoped
+memory-DSE and CSE certificates gives **2,219 of 2,228**, with nine
+captures still awaiting a certificate. Two are EVM IR `late-word`,
+one is EVM IR `peephole-early`, and one each is MIR `call-cleanup`,
+`licm`, `lower-immutables`, `sccp`, `specialize` and
+`word-sequence-early`.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Pinned compiler | `f996616dcf2ebacf05fc5cc439f4814dc38fe953fad90b698754281c59ef139c` |
+| Compiler launcher | `c935a2bf85933ee1790810177538c159d5a974d89f383b5efb73e88236f5d165` |
+| Pinned Rust replay | `1c08fa6d66c19b52b661c4db7c93fc1d257948cb592d9856d09a237c174bca0c` |
+| Input manifest | `b08af7eb00ac67a5ef1200d50273beedc48d5517838ed67504bd1a76ba96b7b7` |
+| Checker on Lean 4.34.1 | `26caf6a8444089a58a1f50789301282e45a29b344c5c3d66a4cfebbf5eec4a9b` |
+| `target/tv-indvar-word-final/baseline/results.json` | `e3d4c27c3234316c7cd62962457d2c6c239822e91cf2287f4a0310a66c3e9c07` |
+| `target/tv-indvar-word-final/fresh/results.json` | `b0d5cc6fc28fb961bd549ffc24b41a7868b17e0df7b5ff2831b56455d4b0cbcc` |
+| `target/tv-indvar-word-final/rust-replay.json` | `9a9c3a444342c4c57137db93ab8d7809dff536d70fbda8c86bae6a04a81a571b` |
+| `target/tv-indvar-word-final/extSloads-stride64.json` | `5a009a38b86beb2b94448264e89159f88a586852d82620e34fdc4dcdbf3d6872` |
+| `target/tv-indvar-word-final/coverage.json` | `0403462cfabc961648afa9409bc06ec18b3d689c462c7badbf40b34639490e37` |
+
 ### MIR CFG checks after an import timeout
 
 The earlier three-second census timed out on 23 Morpho MIR `cfg-simplify`
