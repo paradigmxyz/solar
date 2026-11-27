@@ -1,8 +1,8 @@
 //! Evaluate internal calls over concrete scalars and explicitly initialized fresh memory.
 //!
 //! A forward scan records constant full-word stores in each block. Alias ModRef
-//! invalidates overlapping writes and unknown memory effects. Only unique,
-//! non-loop allocation bases are tracked; scratch, frames, recycled pointers,
+//! invalidates overlapping writes and unknown memory effects. Only in-bounds stores
+//! to unique, non-loop allocation bases are tracked; scratch, frames, recycled pointers,
 //! and implicit zero initialization never supply facts. Thus every removed load
 //! reads bytes already written on that path and cannot expand memory.
 //!
@@ -178,13 +178,14 @@ fn find_calls(module: &Module, id: FunctionId) -> Vec<(InstId, EvaluatedReturn)>
                 }
                 if let InstKind::Store(address, value, PtrLocation::Memory) = instruction.kind
                     && let Some(word) = operand(func, &env, None, value).and_then(Datum::word)
-                    && let Some(address) = alias.memory_address(func, address)
-                    && matches!(address.base, MemoryBase::Allocation(_))
+                    && let Some(location) =
+                        alias.bare_memory_location(func, address, LocationSize::Const(32))
+                    && matches!(location.address.base, MemoryBase::Allocation(_))
                 {
                     if memory.len() == MAX_WORDS {
                         memory.clear();
                     }
-                    memory.insert(address, word);
+                    memory.insert(location.address, word);
                 }
             }
             if let Some(result) = result

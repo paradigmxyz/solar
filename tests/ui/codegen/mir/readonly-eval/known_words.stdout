@@ -249,3 +249,16 @@
       ret v0
   }
   
+  fn @out_of_bounds() -> i256 {
+    bb0:
+      v0 = alloc 32
+      v1 = alloc 32
+      v2 = ptrtoint ptr<memory> v0 to i256
+      v3 = ptrtoint ptr<memory> v1 to i256
+      v4 = add v2, 32
+      mstore v4, 0x1111
+      mstore v3, 0x2222
+      v5 = icall @read, v4
+      ret v5
+  }
+  
