@@ -15,8 +15,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     ///
     /// Later passes walk types recursively, so the height of the type tree, not only the parser's
     /// recursion depth, is bounded by [`PARSER_RECURSION_LIMIT`]. `type_height` carries the height
-    /// below each node: the types inside a mapping or function type have finished parsing, and
-    /// released their recursion depth, by the time the suffixes that wrap them are parsed.
+    /// below each node: the types inside a mapping or function type, or inside an array size, have
+    /// finished parsing, and released their recursion depth, by the time the suffixes that wrap
+    /// them are parsed.
     fn parse_type_inner(&mut self) -> PResult<'sess, Type<'ast>> {
         let outer_height = std::mem::take(&mut self.type_height);
         let mut ty = self
@@ -24,11 +25,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             .map(|(span, kind)| Type { span, kind })?;
 
         // Parse suffixes. Each one adds a level to the type.
-        let inner_height = self.type_height;
         let mut suffixes = 0;
         while self.eat(TokenKind::OpenDelim(Delimiter::Bracket)) {
             suffixes += 1;
-            if self.recursion_depth + inner_height + suffixes > PARSER_RECURSION_LIMIT {
+            if self.recursion_depth + self.type_height + suffixes > PARSER_RECURSION_LIMIT {
                 return Err(self.recursion_limit_reached("type"));
             }
             let size = if self.check_noexpect(TokenKind::CloseDelim(Delimiter::Bracket)) {
@@ -43,7 +43,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             };
         }
 
-        self.type_height = outer_height.max(inner_height + suffixes + 1);
+        self.type_height = outer_height.max(self.type_height + suffixes + 1);
         Ok(ty)
     }
 
