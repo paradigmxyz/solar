@@ -905,7 +905,16 @@ def guarded_mask_prefix(model, masks, definitions):
 
 
 def equality_code(
-    old, new, trees, definitions, prelude, binders, args, *, walk_interactions=False
+    old,
+    new,
+    trees,
+    definitions,
+    prelude,
+    binders,
+    args,
+    *,
+    walk_interactions=False,
+    path_facts=False,
 ):
     code = prelude + "set_option maxHeartbeats 1000000\n"
     for name, tree in zip(("before", "after"), trees, strict=True):
@@ -915,7 +924,8 @@ def equality_code(
     MIR.LowerAlloc.freePointerRequest, MIR.LowerAlloc.constructorRequest,
     BitVec.ofNatLT_eq_ofNat, BitVec.ult, MIR.Effects.abiReturn"""
     masks = low_masks(old) - low_masks(new)
-    tactic = f"simp [before, after, {rules}]"
+    context = " (config := {contextual := true})" if path_facts else ""
+    tactic = f"simp{context} [before, after, {rules}]"
     lemmas, guard_lemmas = [], []
     for width, bits in sorted(masks):
         right = f"lowMask{width}_{bits}"
@@ -1053,7 +1063,7 @@ def check_interactions(paths, solar, replay, version, timeout, function):
     )
 
 
-def check(a, b, timeout, executable, *, void_abi=False):
+def check(a, b, timeout, executable, *, void_abi=False, path_facts=False):
     from .check import PRELUDE, ROOT, build_model, run
 
     definitions = {
@@ -1073,7 +1083,14 @@ def check(a, b, timeout, executable, *, void_abi=False):
         for arg, bits in zip(a.inputs, a.input_widths, strict=True)
     )
     code = equality_code(
-        old, new, trees, definitions, PRELUDE, binders, " ".join(a.inputs)
+        old,
+        new,
+        trees,
+        definitions,
+        PRELUDE,
+        binders,
+        " ".join(a.inputs),
+        path_facts=path_facts,
     )
     with tempfile.TemporaryDirectory(prefix="solar-tv-mir-effects-") as directory:
         path = Path(directory) / "Pair.lean"

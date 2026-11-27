@@ -256,8 +256,18 @@ def check(a, b, timeout, *, replay_command, replay_executable, verbose):
         return fresh_heap.check(a, b, timeout, replay_executable)
     # The effect tree can use path facts before unfolding any storage or memory
     # effects. It also avoids expanding shared operations in large bodies.
+    old_branches, new_branches = (
+        sum(
+            block["terminator"]["kind"] == "branch"
+            for function in program.symbolic_mir["model"]["functions"]
+            for block in function["blocks"]
+        )
+        for program in (a, b)
+    )
+    removed_branch = old_branches > new_branches
     if (
-        mir_effects.low_masks(a.symbolic_mir["model"])
+        removed_branch
+        or mir_effects.low_masks(a.symbolic_mir["model"])
         - mir_effects.low_masks(b.symbolic_mir["model"])
         or sum(
             len(block["instructions"])
@@ -274,7 +284,9 @@ def check(a, b, timeout, *, replay_command, replay_executable, verbose):
         )
     ):
         try:
-            return mir_effects.check(a, b, timeout, replay_executable)
+            return mir_effects.check(
+                a, b, timeout, replay_executable, path_facts=removed_branch
+            )
         except Unsupported:
             pass
     result = prove_direct(a, b, timeout)

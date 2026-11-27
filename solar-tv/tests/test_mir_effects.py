@@ -167,6 +167,47 @@ bb0:
             ):
                 mir_effects.check(pair[0], self.model(changed), 20, self.replay)
 
+    def test_branch_elimination_uses_dominating_path_fact(self):
+        source = """@module Effects
+fn @f(arg0: i256) -> i256 {
+bb0:
+  v0 = eq arg0, 0
+  jumpi v0, bb2, bb1
+bb1:
+  v1 = ne arg0, 0
+  jumpi v1, bb3, bb4
+bb2:
+  revert 0, 0
+bb3:
+  ret 7
+bb4:
+  mstore 0, 42
+  revert 0, 32
+}
+"""
+        rewritten = source.replace("  jumpi v1, bb3, bb4", "  jump bb3")
+        before, after = map(self.model, (source, rewritten))
+        result = mir_symbolic.check(
+            before,
+            after,
+            20,
+            replay_command="",
+            replay_executable=self.replay,
+            verbose=False,
+        )
+        self.assertEqual(result.status, "verified")
+        self.assertEqual(result.program.scope, "effect-tree")
+        for value in (0, 1):
+            left, right = native.replay(
+                before, after, [value], executable=self.replay, timeout=20
+            )["observations"]
+            self.assertEqual(left, right)
+        changed = self.model(rewritten.replace("eq arg0, 0", "eq arg0, 1"))
+        left, right = native.replay(
+            before, changed, [0], executable=self.replay, timeout=20
+        )["observations"]
+        self.assertNotEqual(left, right)
+
     def test_effect_order_and_terminal_are_observable(self):
         source = """@module Effects
 fn @f() {
