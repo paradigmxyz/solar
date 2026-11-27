@@ -324,7 +324,11 @@ def prove_direct(a, b, timeout, *, preserve_memory_terms=False):
     args = " ".join(a.inputs)
     # Keep the arbitrary journal and byte contents abstract. Only the finite SSA
     # machine and known scalar operations are normalized before comparing effects.
-    unfold = step_definitions()
+    # Evaluate each interpreter step directly. The unevaluated-step equation suits
+    # contextual tactics but makes these whole-body proofs much slower.
+    unfold = step_definitions().replace(
+        "↓MIR.State.reduceRun,", "↓MIR.State.reduceShapedRun,"
+    )
     declarations = (
         PRELUDE
         + "set_option maxRecDepth 16384\nset_option maxHeartbeats 2000000\n"
@@ -351,7 +355,6 @@ def prove_direct(a, b, timeout, *, preserve_memory_terms=False):
             ", MIR.PhaseShaping.read_padded_write, MIR.RoutedDispatch.expand_zero"
             ", ↓MIR.State.reduceOpcode"
         )
-        unfold = unfold.replace("↓MIR.State.reduceRun,", "↓MIR.State.reduceShapedRun,")
         unfold = unfold.replace("MIR.State.Value.flatten,", "↓MIR.State.reduceFlatten,")
         simplify = "simp (disch := omega)"
         observations += (
