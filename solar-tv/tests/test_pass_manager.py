@@ -78,7 +78,13 @@ class PassManagerTests(unittest.TestCase):
     def test_inconclusive_pair_is_retained(self):
         source = Path(self.tmp.name) / "store.mir"
         text = (ROOT / "examples/mir/dce/before.mir").read_text()
-        source.write_text(text.replace("ret v1", "v5 = mload arg0\n    ret v5"))
+        # The checker proves DCE around a symbolic MLOAD, so keep the pair inconclusive
+        # with a deferred allocation, which it leaves unsupported by design.
+        source.write_text(
+            text.replace(
+                "ret v1", "v5 = alloc 32 !metadata(deferred_alloc)\n    ret v1"
+            )
+        )
         result = self.compile(source, "dce")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("unsupported", result.stderr)
