@@ -665,6 +665,10 @@ def record(
                     assumptions.append(
                         "lowered cursor stores publish the tracked word on continuing paths. Their published values carry no checked-allocation upper bound"
                     )
+            if program.import_evidence.get("caller_heaps"):
+                assumptions.append(
+                    "the internal entry heap follows from initialized public MIR wrappers along all exported direct caller paths. The kernel checks cursor edges, normal-return summaries and preservation by direct activation setup"
+                )
             if program.import_evidence["kind"] == "kernel-checked-fixed-storage-slots":
                 assumptions.append(
                     "fixed storage keys preserve scratch bytes and hash input in aligned memory up to 64 KiB at each expanded logical action"

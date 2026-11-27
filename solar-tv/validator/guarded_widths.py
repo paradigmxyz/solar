@@ -7,6 +7,7 @@ from . import dead_ssa, phi_edges, scalar_checks
 
 WORD, FLAG = scalar_checks.WORD, scalar_checks.FLAG
 literal = scalar_checks.literal
+DEFINED_WORDS = {"arg", "local", "calldata_word"}
 
 
 def compare(op):
@@ -34,7 +35,7 @@ def masked(op):
     for reverse in (False, True):
         value, mask = args[::-1] if reverse else args
         if (
-            value["kind"] in {"arg", "local"}
+            value["kind"] in DEFINED_WORDS
             and (amount := word_constant(mask)) is not None
         ):
             return value, amount, reverse
@@ -74,14 +75,14 @@ class Guards:
             lower, upper = args
             rejected = (index, term["else"])
             if (
-                lower["kind"] in {"arg", "local"}
+                lower["kind"] in DEFINED_WORDS
                 and (limit := word_constant(upper)) is not None
             ):
                 self.unsigned[dead_ssa.stable(lower)].append(
                     ((index, term["then"]), limit, True)
                 )
             if (
-                upper["kind"] in {"arg", "local"}
+                upper["kind"] in DEFINED_WORDS
                 and (limit := word_constant(lower)) is not None
             ):
                 self.unsigned[dead_ssa.stable(upper)].append(
@@ -208,7 +209,7 @@ class Guards:
                 a, b = test["args"]
                 value = b if a == literal(0, WORD) else a
                 if (
-                    value["kind"] in {"arg", "local"}
+                    value["kind"] in DEFINED_WORDS
                     and value["type"] == WORD
                     and literal(0, WORD) in (a, b)
                     and (bound := self.bound(value, block, 2))

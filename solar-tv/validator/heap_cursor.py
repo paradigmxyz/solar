@@ -1,7 +1,7 @@
 """Track the reserved FMP word from a valid logical MIR function entry."""
 
 from collections import defaultdict, deque
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from . import phi_edges, scalar_reuse
 from . import state_read_reuse as reuse
@@ -34,6 +34,7 @@ class Flow:
     summary: tuple | None
     raw_loads: list
     raw_stores: list
+    call_points: dict
 
 
 def ordered_blocks(body):
@@ -141,6 +142,7 @@ def analyze(body, definitions, fork, read_only, lookup):
     dependencies, returns, cursors, transfers = set(), [], [0], []
     observations = []
     raw_loads, raw_stores = [], []
+    call_points = {}
 
     def point(cursor):
         cursors.append(cursor)
@@ -154,7 +156,10 @@ def analyze(body, definitions, fork, read_only, lookup):
         start = point(current)
         for node in incoming if index else [0]:
             transfers.append((node, start, 0))
-        for inst in body["blocks"][index]["instructions"]:
+        for position, inst in enumerate(body["blocks"][index]["instructions"]):
+            op = inst["operation"]
+            if op["kind"] == "call":
+                call_points[index, position] = start
             raw = raw_cursor(inst, current, bindings, addresses, definitions, fork)
             if raw is None:
                 bump, result, callee = advance(
@@ -217,6 +222,7 @@ def analyze(body, definitions, fork, read_only, lookup):
         summary,
         raw_loads,
         raw_stores,
+        call_points,
     )
 
 
@@ -249,6 +255,81 @@ def with_callees(body, functions, definitions, fork, read_only):
         closure[index] = flows[index]
         pending.extend(sorted(flows[index].dependencies))
     return closure
+
+
+def callers(target, model, definitions, fork, read_only):
+    """Bind every direct call from a public wrapper to its checked cursor."""
+    functions = {body["id"]: body for body in model["functions"]}
+    selectors = {route["id"]: route["selector"] for route in model["selectors"]}
+    if target in selectors or target in {
+        *model["runtime_entries"],
+        model["constructor"],
+        model["dispatch_entry"],
+    }:
+        return {}
+    proved = {}
+    for identity, body in functions.items():
+        sites = []
+        for index, block in enumerate(body["blocks"]):
+            if block["terminator"].get("function") == target:
+                return {}
+            sites.extend(
+                (index, position)
+                for position, inst in enumerate(block["instructions"])
+                if inst["operation"].get("function") == target
+            )
+        if not sites:
+            continue
+        if identity not in selectors or identity not in model["runtime_entries"]:
+            return {}
+        flows = with_callees(body, functions, definitions, fork, read_only)
+        flow = flows.get(identity)
+        if flow is None or flow.raw_stores:
+            return {}
+        calls = []
+        for site in sites:
+            point = flow.call_points.get(site)
+            if point is None or flow.cursors[point] is None:
+                return {}
+            calls.append((*site, point, flow.cursors[point]))
+        proved[body["return_buffer"]] = (identity, selectors[identity], calls, flows)
+    return proved
+
+
+def caller_certificate(name, flow, target, calls):
+    # Points are numbered in topological order. Retain every edge into the
+    # checked prefix, including all paths into each selected call.
+    end = max(point for _, _, point, _ in calls)
+    prefix = replace(
+        flow,
+        cursors=flow.cursors[: end + 1],
+        transfers=[edge for edge in flow.transfers if edge[1] <= end],
+        observations=[
+            observation for observation in flow.observations if observation[0] <= end
+        ],
+        raw_loads=[load for load in flow.raw_loads if load[0] <= end],
+    )
+    code = certificate(name, prefix)
+    for _, _, point, offset in calls:
+        tag = f"{name}Entry{point}"
+        code += f"""
+theorem {tag} (step : MIR.HeapCursor.Transfer → MIR.State.Frame → MIR.State.Frame → Prop)
+    (functions : MIR.State.Functions) (args : List MIR.State.Value)
+    (floor : Word) (frame child : MIR.State.Frame)
+    (start : ∀ state, MIR.HeapCursor.Runs {name}Edges step 0 state →
+      MIR.HeapCursor.Entry state floor)
+    (keeps : ∀ edge before after head delta, edge ∈ {name}Edges →
+      MIR.HeapCursor.atPoint {name}Offsets edge.source = some head →
+      edge.advance = some delta → step edge before after →
+      MIR.HeapCursor.At before floor head → MIR.HeapCursor.At after floor (head + delta))
+    (run : MIR.HeapCursor.Runs {name}Edges step {point} frame)
+    (entered : MIR.State.start functions {target} args frame = .ok child) :
+    MIR.HeapCursor.Entry child (floor + BitVec.ofNat 256 {offset}) :=
+  MIR.HeapCursor.started_entry functions {target} args frame child floor {offset}
+    ({name}Cursor step floor start keeps run (by decide +kernel)) entered
+#print axioms {tag}
+"""
+    return code
 
 
 def certificate(name, flow):

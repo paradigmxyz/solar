@@ -795,6 +795,129 @@ fn @choose(arg0: i256) -> i256 {
                     observations[0] == observations[1], values[0] == values[1]
                 )
 
+    def test_cse_recovers_the_calldata_bound_after_forwarding_a_load(self):
+        original = """@module GuardedForward
+fn @choose() -> i256 {
+  bb0:
+    v0 = calldataload 4
+    v1 = gt v0, 255
+    jumpi v1, bb2, bb1
+  bb1:
+    mstore 0, v0
+    v2 = mload 0
+    v3 = and v2, 255
+    sstore 1, v3
+    ret v3
+  bb2:
+    ret 0
+}
+"""
+        optimized = original.replace(
+            "    v2 = mload 0\n    v3 = and v2, 255\n", ""
+        ).replace("v3", "v0")
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{side}.mir" for side in ("before", "after"))
+            before.write_text(original)
+            after.write_text(optimized)
+            args = (
+                (before, after),
+                SOLAR,
+                native.default(SOLAR),
+                "cancun",
+                30,
+                "choose",
+            )
+            result = mir_cfg.check(*args)
+            proof = result.program.import_evidence["correspondence"]["choose"]
+            self.assertEqual(proof["state_read_reuse"], [{"memory": 1}, {}])
+            self.assertEqual(proof["guarded_widths"], [{"low_masks": 1}, {}])
+            for path in (before, after):
+                path.write_text(path.read_text().replace("gt v0, 255", "gt v0, 256"))
+            with self.assertRaises(Unsupported):
+                mir_cfg.check(*args)
+
+    def test_cse_binds_the_internal_heap_to_the_public_call_path(self):
+        original = """@module HeapCaller
+fn @entry() [selector=0x08070605, abi_wrapper] {
+  bb0:
+    v0 = alloc checked 160
+    v1 = icall @choose, 7
+    mstore 0, v1
+    v2 = inttoptr i256 0 to ptr<memory>
+    returndata v2, 32
+}
+
+fn @choose(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc checked 128
+    mstore v0, arg0
+    v1 = ptradd v0, 64
+    mstore v1, 0
+    v2 = fmp
+    mstore v2, 17
+    v3 = mload v0
+    ret v3
+}
+"""
+        optimized = original.replace("    v3 = mload v0\n    ret v3", "    ret arg0")
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            before, after = (root / f"{side}.mir" for side in ("before", "after"))
+            before.write_text(original)
+            after.write_text(optimized)
+            result = self.check_loop(root, 0, valid_heap=True)
+            evidence = result["import_correspondence"][0]
+            for side in evidence["caller_heaps"]:
+                self.assertEqual(
+                    side["entry"]["calls"],
+                    [{"block": 0, "instruction": 1, "cursor_offset": 160}],
+                )
+
+            for path in (before, after):
+                path.write_text(
+                    path.read_text().replace(
+                        "    v1 = icall", "    mstore 64, 0\n    v1 = icall"
+                    )
+                )
+            result = self.check_loop(root, 0, valid_heap=True)
+            self.assertNotIn("caller_heaps", result["import_correspondence"][0])
+            fixture = root / "world.json"
+            fixture.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "memory": {
+                            "data": "0x" + (bytes(64) + (128).to_bytes(32, "big")).hex()
+                        },
+                    }
+                )
+            )
+            state = world.read(fixture, SOLAR, None, kind="mir")
+            programs = [
+                Program(
+                    ("world-entry", "mir"),
+                    [],
+                    "",
+                    "",
+                    replay_ir=path.read_text(),
+                    selector="entry",
+                    evm_version="cancun",
+                    world=state,
+                )
+                for path in (before, after)
+            ]
+            observed = native.replay(
+                *programs, [], executable=native.default(SOLAR), timeout=15
+            )
+            self.assertEqual(
+                [
+                    int.from_bytes(bytes(json.loads(row)["data"]))
+                    for row in observed["observations"]
+                ],
+                [17, 7],
+            )
+
     def test_private_cursor_store_cannot_change_returned_bytes(self):
         source = """@module DeadCursor
 fn @choose() {

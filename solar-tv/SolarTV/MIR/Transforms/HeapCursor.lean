@@ -157,6 +157,20 @@ theorem callee_entry (frame : Frame) (floor : Word) (offset : Nat)
     Entry frame (floor + BitVec.ofNat 256 offset) := by
   simpa [Entry, At] using known
 
+/-- A successful direct MIR call installs new arguments and locals and
+preserves the heap established at the caller's current instruction. -/
+theorem started_entry (functions : Functions) (target : Nat) (args : List Value)
+    (frame child : Frame) (floor : Word) (offset : Nat)
+    (known : At frame floor offset) (started : start functions target args frame = .ok child) :
+    Entry child (floor + BitVec.ofNat 256 offset) := by
+  simp only [start, Bind.bind, Except.bind, Pure.pure, Except.pure] at started
+  split at started
+  · contradiction
+  · split at started
+    · contradiction
+    · cases started
+      exact callee_entry frame floor offset known
+
 theorem callee_return (frame : Frame) (floor : Word) (source bump : Nat)
     (returned : At frame (floor + BitVec.ofNat 256 source) bump) :
     At frame floor (source + bump) := by

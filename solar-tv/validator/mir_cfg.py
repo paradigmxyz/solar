@@ -953,14 +953,13 @@ def after{i} : Graph := {render(new, symbols)}
 """
 
 
-def identity_certificate(i, old, new, limit):
-    code = (
-        graph_source(i, old, new)
-        + f"""
+def identity_certificate(i, graph, limit):
+    code = f"""
+def before{i} : Graph := {render(graph, {})}
+def after{i} : Graph := before{i}
 theorem identical{i} : before{i} = after{i} := by rfl
 #print axioms identical{i}
 """
-    )
     matched = (
         f"fun handle work locals state => congrArg "
         f"(fun graph => run graph {limit} handle work 0 locals state) identical{i}"
@@ -1069,7 +1068,7 @@ def project_reads(
     rewrite_stores,
 ):
     projected, state_stats, scalar_stats, heap_stats = [], [], [], []
-    reduced_bodies = []
+    reduced_bodies, guarded_stats = [], []
     code = ""
     for side, body in enumerate(bodies):
         heap = None
@@ -1098,8 +1097,13 @@ def project_reads(
             code += state_read_reuse.stop_store_certificate(
                 f"reads{i}_{side}", stop_stores
             )
+        guarded = {}
         if reuses or stop_stores:
-            untrimmed = reduced
+            # A forwarded load can expose an operand already bounded by an ABI guard.
+            untrimmed, guarded, width_code = guarded_widths.normalize(
+                reduced, f"readWidths{i}_{side}"
+            )
+            code += width_code
             reduced, scalar, sites = scalar_reuse.normalize(
                 untrimmed, definitions, fork, empty_targets=empty_targets
             )
@@ -1113,6 +1117,7 @@ def project_reads(
             stats["terminal_mstore"] = sum(map(len, stop_stores.values()))
         state_stats.append(stats)
         scalar_stats.append(scalar)
+        guarded_stats.append(guarded)
         heap_stats.append(
             {
                 str(identity): {
@@ -1135,9 +1140,9 @@ def project_reads(
         )
     if not any(state_stats) or use_heap and not any(heap_stats):
         raise Unsupported("MIR CFG proof found no applicable state read reuse")
-    if rewrite_stores and dead_ssa.same_definitions(*reduced_bodies):
+    if (rewrite_stores or use_heap) and dead_ssa.same_definitions(*reduced_bodies):
         projected[1] = projected[0]
-    return projected, code, state_stats, scalar_stats, heap_stats
+    return projected, code, state_stats, scalar_stats, heap_stats, guarded_stats
 
 
 def project_width_guards(i, bodies, definitions, fork):
@@ -1279,6 +1284,7 @@ def check(
         PRELUDE
         + """
 open MIR.CfgFlow
+set_option Elab.async false
 set_option maxRecDepth 16384
 set_option maxHeartbeats 2000000
 """
@@ -1490,7 +1496,7 @@ set_option maxHeartbeats 2000000
         ]
         if old == new:
             limit = len(old) + 1
-            certificate_code, matched = identity_certificate(i, old, new, limit)
+            certificate_code, matched = identity_certificate(i, old, limit)
             body_code += certificate_code
             checked[name] = {
                 "proof": "identity",
@@ -1615,6 +1621,7 @@ set_option maxHeartbeats 2000000
                                 state_stats,
                                 more_scalars,
                                 heap_stats,
+                                more_guards,
                             ) = candidate
                             pairs = pairing(*projected)
                         except Unsupported:
@@ -1630,6 +1637,12 @@ set_option maxHeartbeats 2000000
                             scalar_stats, more_scalars, strict=True
                         )
                     ]
+                    guarded_stats = [
+                        dict(Counter(initial) + Counter(extra))
+                        for initial, extra in zip(
+                            guarded_stats, more_guards, strict=True
+                        )
+                    ]
                     if any(heap_stats) and not heap_used:
                         setup += heap_cursor.AXIOMS
                         heap_used = True
@@ -1639,7 +1652,7 @@ set_option maxHeartbeats 2000000
                 for point, targets, locals_ in zip(points, edges, live, strict=True)
             ]
             if old == new:
-                certificate_code, matched = identity_certificate(i, old, new, limit)
+                certificate_code, matched = identity_certificate(i, old, limit)
                 body_code += certificate_code
             else:
                 body_code += certificate(i, old, new, witnesses, limit)
@@ -1709,13 +1722,60 @@ set_option maxHeartbeats 2000000
             else None
         )
         composition = call_proof(procedure_pairs, entry)
-    sources = proof_sources(prefix, setup, bodies, composition)
+    caller_heaps = []
+    caller_proofs = []
+    if checked.get(function, {}).get("heap_cursor"):
+        selected = tables[0][function]["id"]
+        caller_entries = [
+            heap_cursor.callers(
+                selected, model, scalar_definitions, version, read_only[side]
+            )
+            for side, model in enumerate(models)
+        ]
+        if all(caller_entries) and caller_entries[0].keys() == caller_entries[1].keys():
+            for side, entries in enumerate(caller_entries):
+                evidence_side = {}
+                for name, (identity, selector, sites, flows) in entries.items():
+                    tag = f"callerHeap{side}_{identity}"
+                    code = heap_cursor.caller_certificate(
+                        tag, flows[identity], selected, sites
+                    )
+                    for callee, flow in flows.items():
+                        if callee != identity:
+                            code += heap_cursor.certificate(
+                                f"{tag}Callee{callee}", flow
+                            )
+                    caller_proofs.append(
+                        (f"CallerHeap{side}_{identity}", prefix + code)
+                    )
+                    evidence_side[name] = {
+                        "selector": selector,
+                        "calls": [
+                            {
+                                "block": block,
+                                "instruction": instruction,
+                                "cursor_offset": offset,
+                            }
+                            for block, instruction, _, offset in sites
+                        ],
+                        "summarized_callees": sorted(
+                            entry["return_buffer"]
+                            for entry in models[side]["functions"]
+                            if entry["id"] in flows and entry["id"] != identity
+                        ),
+                    }
+                caller_heaps.append(evidence_side)
+    sources = proof_sources(prefix, setup, bodies, composition) + caller_proofs
     entry_proof.success(build_model(timeout), "MIR CFG proof model")
     with tempfile.TemporaryDirectory(prefix="solar-tv-mir-cfg-") as folder:
         for name, code in sources:
             output = entry_proof.success(
                 entry_proof.lean(
-                    Path(folder), name, code, timeout, module=name != "Cfg"
+                    Path(folder),
+                    name,
+                    code,
+                    timeout,
+                    module=name.startswith("CfgProcedures"),
                 ),
                 f"MIR CFG certificate {name}",
             )
@@ -1739,6 +1799,7 @@ set_option maxHeartbeats 2000000
         ),
         "functions": sorted(checked),
         "correspondence": checked,
+        **({"caller_heaps": caller_heaps} if caller_heaps else {}),
         "proof_sha256": hashlib.sha256(
             "".join(code for _, code in sources).encode()
         ).hexdigest(),
