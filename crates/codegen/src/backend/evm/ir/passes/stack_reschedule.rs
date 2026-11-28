@@ -19,7 +19,10 @@
 //! operands in either order, and a comparison may become its mirror, `gt` for `lt` with swapped
 //! operands. Moves are priced by the target cost model under the objective, so when optimizing for
 //! gas a schedule is taken when it saves gas, or the same gas in fewer bytes, and when optimizing
-//! for size when it saves bytes, or the same bytes in less gas.
+//! for size when it saves bytes, or the same bytes in less gas. A zero pushed before the block's
+//! first call, in a block no call precedes, is priced as the `RETURNDATASIZE` that the late
+//! `returndata-zero` pass turns it into before Shanghai, so a schedule does not keep a zero on the
+//! stack to copy it where pushing it again costs a byte less.
 //!
 //! A run continues through a branch to a block that aborts without reading the stack, the
 //! `PUSH target; JUMPI` of an overflow check or a guard: the pair takes only its condition, so it
@@ -105,7 +108,10 @@ use super::{
 use crate::{
     backend::evm::{
         CodegenState,
-        ir::{BlockId, BlockTarget, Instruction, Module, TerminatorKind},
+        ir::{
+            BlockId, BlockTarget, Instruction, Module, ModuleTarget, TerminatorKind,
+            verify::Verifier,
+        },
         op::{self, StackOp},
     },
     target::{Cost, Target},
@@ -206,9 +212,22 @@ impl EvmPass for StackReschedule {
         let mut buffers = Buffers::default();
         let mut placed = DenseBitSet::new_empty(0);
         let shared = &gcx.codegen_state::<CodegenState>().schedules;
+        // Blocks a call or create may precede, where `returndata-zero` leaves zero pushes alone.
+        let returndata_set = module
+            .runtime_target(gcx)
+            .returndata_zero()
+            .map(|_| Verifier::blocks_after_returndata_set(module));
         let mut changed = false;
-        for block in &mut module.blocks {
+        for (id, block) in module.blocks.iter_mut_enumerated() {
             let target = &block.target(gcx, optimization, code_follows);
+            let first_call = match &returndata_set {
+                Some(set) if !set.contains(id) => block
+                    .instructions
+                    .iter()
+                    .position(|inst| inst.as_evm_opcode().is_some_and(op::sets_returndata))
+                    .unwrap_or(block.instructions.len()),
+                _ => 0,
+            };
             let budget = if block.in_hot_loop() {
                 LOOP_BUDGET
             } else if target.optimization().is_size() {
@@ -223,6 +242,8 @@ impl EvmPass for StackReschedule {
                 buffers: &mut buffers,
                 placed: &mut placed,
                 shared,
+                first_call,
+                before_call: false,
             };
             changed |= rescheduler.reschedule_block(&mut block.instructions);
         }
@@ -354,6 +375,11 @@ struct Rescheduler<'a> {
     /// The positions of a run that `emit` has placed, reused across runs.
     placed: &'a mut DenseBitSet<usize>,
     shared: &'a SharedSchedules,
+    /// How many of the block's first instructions run with the frame's empty return data buffer.
+    first_call: usize,
+    /// Whether the run being scheduled lies before `first_call`, where `returndata-zero` will
+    /// read its zeros from `RETURNDATASIZE`.
+    before_call: bool,
 }
 
 impl Rescheduler<'_> {
@@ -409,6 +435,7 @@ impl Rescheduler<'_> {
                     operations(window_start, cut) <= self.budget.operations
                 });
                 let window_end = cuts[later + fitting.saturating_sub(1)];
+                self.before_call = window_end <= self.first_call;
                 if let Some(replacement) =
                     self.best_schedule(&instructions[window_start..window_end])
                 {
@@ -467,7 +494,7 @@ impl Rescheduler<'_> {
             scheduled.push(last.clone());
             return Some(scheduled);
         }
-        let summary = summarize(run, self.target, self.budget, self.halts)?;
+        let summary = summarize(run, self.target, self.before_call, self.budget, self.halts)?;
         let moves = search(&summary, self.target, self.budget, self.buffers, self.shared)?;
         emit(run, &summary, &moves, self.placed)
     }
@@ -519,7 +546,7 @@ impl Rescheduler<'_> {
         let cost = instructions
             .iter()
             .filter(|inst| !is_operation(inst))
-            .map(|inst| instruction_cost(inst, self.target))
+            .map(|inst| instruction_cost(inst, self.target, self.before_call))
             .sum::<Cost>();
         scalar(cost, self.target)
     }
@@ -541,7 +568,7 @@ impl Rescheduler<'_> {
                 if inst.opcode == op::JUMPI {
                     before.push(spent);
                 }
-                spent += u64::from(instruction_cost(inst, self.target).gas);
+                spent += u64::from(instruction_cost(inst, self.target, self.before_call).gas);
             }
             before
         };
@@ -691,23 +718,22 @@ fn constant(inst: &Instruction) -> Option<Constant> {
         .or_else(|| inst.pushed_block().map(Constant::Block))
 }
 
-/// Price of a push as assembly encodes it: the narrowest `PUSH` of its value.
-fn push_cost(inst: &Instruction, target: &Target) -> Cost {
+/// Price of a push as the final code encodes it: the narrowest `PUSH` of its value, or the
+/// `RETURNDATASIZE` that reads a zero before the frame's first call.
+fn push_cost(inst: &Instruction, target: &Target, before_call: bool) -> Cost {
     match inst.concrete_immediate() {
-        Some(value) if value.is_zero() && target.evm_version().has_push0() => {
-            target.opcode(op::PUSH0)
-        }
-        Some(value) => target.opcode(op::push(value.byte_len().max(1) as u8)),
+        Some(value) if before_call => target.encoded_push_before_call(value),
+        Some(value) => target.encoded_push(value),
         None => target.label_push(),
     }
 }
 
 /// Price of an instruction a run holds.
-fn instruction_cost(inst: &Instruction, target: &Target) -> Cost {
+fn instruction_cost(inst: &Instruction, target: &Target, before_call: bool) -> Cost {
     if let Some(stack_op) = inst.as_stack_op() {
         target.opcode(stack_op.single_byte_evm_opcode().expect("runs hold one-byte stack ops"))
     } else if inst.is_encoded_push() {
-        push_cost(inst, target)
+        push_cost(inst, target, before_call)
     } else {
         target.opcode(inst.opcode)
     }
@@ -735,6 +761,7 @@ fn scalar(cost: Cost, target: &Target) -> u64 {
 fn summarize(
     run: &[Instruction],
     target: &Target,
+    before_call: bool,
     budget: Budget,
     halts: &DenseBitSet<BlockId>,
 ) -> Option<Run> {
@@ -763,18 +790,18 @@ fn summarize(
         if let Some(stack_op) = inst.as_stack_op() {
             deepen(&mut stack, &mut entry, stack_op.required_depth())?;
             apply(&mut stack, stack_op);
-            cost += instruction_cost(inst, target);
+            cost += instruction_cost(inst, target, before_call);
         } else if inst.is_encoded_push() && !branch {
             let key = constant(inst)?;
             let index = keys.iter().position(|&existing| existing == key).unwrap_or_else(|| {
                 keys.push(key);
                 pushes.push(SmallVec::new());
-                constant_costs.push(scalar(push_cost(inst, target), target));
+                constant_costs.push(scalar(push_cost(inst, target, before_call), target));
                 keys.len() - 1
             });
             pushes[index].push(position);
             stack.insert(0, Word::Constant(u8::try_from(index).ok()?));
-            cost += push_cost(inst, target);
+            cost += push_cost(inst, target, before_call);
         } else {
             if operations.len() >= budget.operations {
                 return None;

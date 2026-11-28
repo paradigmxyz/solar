@@ -1353,7 +1353,7 @@ impl Target {
     /// Cost of a zero read from `RETURNDATASIZE`, which holds zero until the frame runs a call or
     /// create, or `None` when it does not dominate the literal zero push: Shanghai and later push
     /// zero at the same price, and earlier targets before Byzantium lack the opcode. Pricing that
-    /// ignores the frame's calls, as the selector's and every pass before the late
+    /// ignores the frame's calls, as the selector's and most passes before the late
     /// `returndata-zero` pass do, keeps the literal price, which bounds the final cost from above.
     pub(crate) fn returndata_zero(&self) -> Option<Cost> {
         let cost = self.opcode(op::RETURNDATASIZE);
@@ -1369,6 +1369,16 @@ impl Target {
             self.opcode(op::PUSH0)
         } else {
             self.opcode(op::push(value.byte_len().max(1) as u8))
+        }
+    }
+
+    /// Cost of an encoded push where the frame has not yet run a call or create, so the late
+    /// `returndata-zero` pass will read a zero from `RETURNDATASIZE` when that is cheaper. Before
+    /// Shanghai a zero costs one byte there, not the two of `PUSH1 0`.
+    pub(crate) fn encoded_push_before_call(&self, value: U256) -> Cost {
+        match self.returndata_zero() {
+            Some(zero) if value.is_zero() => zero,
+            _ => self.encoded_push(value),
         }
     }
 
@@ -2766,6 +2776,25 @@ mod tests {
         assert!(price(EvmVersion::Homestead).is_none());
         assert!(price(EvmVersion::Shanghai).is_none());
         assert!(price(EvmVersion::Osaka).is_none());
+    }
+
+    #[test]
+    fn pushes_before_a_call_read_zero_from_returndata() {
+        let paris = Target::with(EvmVersion::Paris, OptimizationMode::Size, 1);
+        let zero = paris.encoded_push_before_call(U256::ZERO);
+        assert_eq!((zero.bytes, zero.gas), (1, 2));
+        // Pushing zero again is no larger than a `DUP` of it and spends less gas, so a schedule
+        // that keeps a zero on the stack to copy it later does not save a byte.
+        assert!(paris.dominates(zero, paris.dup()));
+        assert!(zero.bytes < paris.encoded_push(U256::ZERO).bytes);
+        assert_eq!(paris.encoded_push_before_call(U256::ONE), paris.encoded_push(U256::ONE));
+        for version in [EvmVersion::Homestead, EvmVersion::Shanghai] {
+            let target = Target::with(version, OptimizationMode::Size, 1);
+            assert_eq!(
+                target.encoded_push_before_call(U256::ZERO),
+                target.encoded_push(U256::ZERO)
+            );
+        }
     }
 
     #[test]
