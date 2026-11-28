@@ -1,0 +1,29 @@
+; === ROOT/tests/ui/codegen/run-call/immutables/immutable_assembly_store_at_staging_word.sol:C ===
+@module C
+@immutables
+  x: uint256
+  y: uint256
+
+; constructor() [creation entry]
+fn @constructor() [constructor] {
+  bb0:
+    storeimmutable x, 7
+    storeimmutable y, 9
+    mstore 192, 0x3333
+    codecopy 224, 0, 32
+    ret
+}
+
+; getter for `uint256 public immutable x` [selector 0x0c55699c]
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = loadimmutable x
+    ret v0
+}
+
+; getter for `uint256 public immutable y` [selector 0xa56dfe4a]
+fn @y() -> i256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = loadimmutable y
+    ret v0
+}

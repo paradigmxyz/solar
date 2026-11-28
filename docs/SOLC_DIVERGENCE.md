@@ -1082,6 +1082,17 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   those frames or a function that reads the heap floor, which gives them one
   initial pointer.
 
+  The constructor's immutable staging words keep clear of the constant ranges
+  it names, except what a `revert` reads and ranges that end above 4 MiB, which
+  cost more gas to expand to than a transaction can pay. Storage promotion
+  declines when any function names a constant range over one of its memory
+  temporaries, or, with assembly that does not promise memory safety, when a
+  write between the slot's initial store and its flush goes to an address the
+  compiler cannot place. Neither sees a write at a computed address, a copy of
+  non-constant length, or a constant that only later inlining exposes, and
+  either can overwrite what they protect. Moving the staging words past a named
+  range can bring them into reach of such a write.
+
   A write whose destination the compiler cannot place on the heap, in a frame,
   or below the heap start, such as a copy to a computed destination of any
   length, a store through one, or a call that returns data to one, keeps the
@@ -1128,6 +1139,10 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/run-call/assembly/assembly_low_memory_recursive_routes.sol`,
   `tests/ui/codegen/run-call/assembly/assembly_low_memory_places_nothing.sol`,
   `tests/ui/codegen/run-call/assembly/assembly_low_memory_places_something.sol`,
+  `tests/ui/codegen/run-call/immutables/immutable_assembly_store_at_staging_word.sol`,
+  `tests/ui/codegen/run-call/immutables/immutable_dead_branch_huge_range.sol`,
+  `tests/ui/codegen/mir/lower-immutables/lowered_text_staging_base.mir`,
+  `tests/ui/codegen/run-call/storage/storage_promotion_assembly_store_at_temp_word.sol`,
   `tests/ui/codegen/lowering/evm-ir/spills/constructor_constant_write_spills.sol`,
   `tests/ui/codegen/lowering/evm-ir/spills/folded_guard_spills.sol`,
   `tests/ui/codegen/lowering/evm-ir/spills/folded_hazard_spills.sol`,

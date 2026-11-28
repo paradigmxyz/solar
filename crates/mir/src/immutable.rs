@@ -4,8 +4,12 @@
 //! deployment postlude reads the same words to patch runtime `PUSH<N>`
 //! placeholders. This module keeps both sides on one layout.
 
-use crate::{ImmutableEncoding, ImmutableId, Module, TypeSize, memory::EvmMemoryLayout};
+use crate::{ImmutableEncoding, ImmutableId, InstKind, Module, TypeSize, memory::EvmMemoryLayout};
 use solar_config::OptimizationMode;
+
+/// The highest end of a constant range that moves the immutable staging words: expanding memory
+/// to 4 MiB costs about 34 million gas.
+const MAX_STAGING_RANGE_END: u64 = 1 << 22;
 
 /// Returns the immediate width used to load an immutable at runtime.
 pub fn immutable_push_type_size(
@@ -42,7 +46,7 @@ fn constructor_local_memory_end(module: &Module) -> u64 {
 }
 
 /// Returns the first immutable staging word, above every constructor-owned
-/// fixed memory word.
+/// fixed memory word and clear of every constant range the constructor's code names.
 ///
 /// `lower-immutables` fixes the base on the module, since its stores are themselves absolute
 /// accesses that a later computation would count.
@@ -50,8 +54,35 @@ pub fn immutable_staging_base(module: &Module) -> u64 {
     module.immutable_staging_base().unwrap_or_else(|| {
         let fixed_end = constructor_local_memory_end(module)
             .max(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE);
-        EvmMemoryLayout::align_word(fixed_end)
-            .expect("constructor immutable staging address overflow")
+        let mut base = EvmMemoryLayout::align_word(fixed_end)
+            .expect("constructor immutable staging address overflow");
+        // Once `lower-immutables` has turned the assignments into stores, they are constant
+        // ranges themselves, and a module read back from text has lost the base it fixed.
+        let assigns = module.iter_functions().any(|(_, func)| {
+            func.instructions().any(|id| matches!(func.inst(id).kind, InstKind::StoreImmutable(..)))
+        });
+        if !assigns {
+            return base;
+        }
+        // A range that ends above `MAX_STAGING_RANGE_END` costs more gas to expand than a
+        // transaction can pay, so it runs out of gas when executed and leaves the base where it
+        // is. Raising the base to it would make every deployment pay, even when a branch that
+        // never runs names the range.
+        let mut ranges = module
+            .constructor_reachable_functions()
+            .iter()
+            .flat_map(|func| module.function(func).constant_memory_ranges_outside_reverts())
+            .filter(|&(_, end)| end <= MAX_STAGING_RANGE_END)
+            .collect::<Vec<_>>();
+        // One sweep by start address suffices: a range that starts at or after the staging end
+        // cannot overlap any window that a later, higher-starting range moves it to.
+        ranges.sort_unstable();
+        for (start, end) in ranges {
+            if start < immutable_staging_end(base, module.immutable_count()) && end > base {
+                base = end.next_multiple_of(EvmMemoryLayout::WORD_SIZE);
+            }
+        }
+        base
     })
 }
 

@@ -464,20 +464,63 @@ impl Function {
 
     /// Visits physical memory ranges used by instructions and terminators.
     /// Unknown lengths still expose their base to heap-prefix analysis.
-    pub fn for_each_memory_range(&self, mut visit: impl FnMut(ValueId, Option<u64>)) {
+    pub fn for_each_memory_range(&self, visit: impl FnMut(ValueId, Option<u64>)) {
+        self.for_each_memory_range_with(true, visit);
+    }
+
+    /// Visits the ranges of [`Self::for_each_memory_range`], leaving out what `revert`
+    /// terminators read unless `reverts` is set.
+    fn for_each_memory_range_with(
+        &self,
+        reverts: bool,
+        mut visit: impl FnMut(ValueId, Option<u64>),
+    ) {
         for inst_id in self.instructions() {
             self.inst(inst_id)
                 .kind
                 .visit_raw_memory(|_, offset, size| visit(offset, size.constant(self)));
         }
         for block in &self.blocks {
-            if let Some(
-                Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size },
-            ) = &block.terminator
-            {
-                visit(*offset, self.value_u64(*size));
+            match &block.terminator {
+                Some(Terminator::Revert { offset, size }) if reverts => {
+                    visit(*offset, self.value_u64(*size));
+                }
+                Some(Terminator::ReturnData { offset, size }) => {
+                    visit(*offset, self.value_u64(*size));
+                }
+                _ => {}
             }
         }
+    }
+
+    /// Returns the ranges of the function's memory accesses whose offset and size are both
+    /// compile-time constants, as start and end addresses.
+    ///
+    /// Reads count as well as writes. The compiler's own absolute accesses, such as an external
+    /// function's return buffer, lie below the base their entry places its spill area at.
+    #[must_use]
+    pub fn constant_memory_ranges(&self) -> Vec<(u64, u64)> {
+        self.constant_memory_ranges_with(true)
+    }
+
+    /// Like [`Self::constant_memory_ranges`], without the ranges that `revert` terminators read,
+    /// since a clobbered word there changes only revert data.
+    #[must_use]
+    pub fn constant_memory_ranges_outside_reverts(&self) -> Vec<(u64, u64)> {
+        self.constant_memory_ranges_with(false)
+    }
+
+    fn constant_memory_ranges_with(&self, reverts: bool) -> Vec<(u64, u64)> {
+        let mut ranges = Vec::new();
+        self.for_each_memory_range_with(reverts, |offset, size| {
+            if let Some(start) = self.value_u64(offset)
+                && let Some(size) = size.filter(|&size| size != 0)
+                && let Some(end) = start.checked_add(size)
+            {
+                ranges.push((start, end));
+            }
+        });
+        ranges
     }
 
     /// Returns where the local region ends, `HEAP_START` up to `internal_frame_size`, if the

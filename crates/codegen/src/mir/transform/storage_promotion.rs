@@ -14,11 +14,16 @@
 //!   so the unflushed slot is unobservable there; reads of the promoted slot on those paths are
 //!   rewritten to the memory temp so revert data still sees the current value
 //! - reject opaque storage accesses on rollback exits because the rewrite cannot update them.
+//! - reject any function when some function in the module names a constant memory range over a
+//!   temporary's word, since the assembly's word and the temporary would share it
+//! - with assembly that does not promise memory safety, also reject a memory write between the
+//!   initial store and the flush, or in a rollback exit, whose destination is not derived from a
+//!   compiler-owned pointer
 //! - leave loop-variant mapping/array slots in storage
 
 use crate::mir::{
     BlockId, Callee, EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType,
-    Module, PtrLocation, StorageAlias, Terminator, Value, ValueId,
+    Module, PtrLocation, RawMemoryAccess, StorageAlias, Terminator, Value, ValueId,
     analysis::{AddressSpace, AliasAnalysis, Loop, LoopAnalyzer},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
@@ -45,6 +50,11 @@ impl MirPass for StorageScalarPromotion {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let unsafe_assembly = module.has_unsafe_assembly();
+        // Constant ranges that any function names. The temporaries lie where an entry's frame
+        // ends, which another function that calls or is called can reach.
+        let named =
+            module.iter_functions().flat_map(|(_, func)| named_ranges(func)).collect::<Vec<_>>();
         run_function_pass(module, analyses, |func, analyses| {
             // The pass currently introduces absolute low-memory temporaries, so it
             // only handles externally callable runtime entries.
@@ -56,7 +66,7 @@ impl MirPass for StorageScalarPromotion {
             if func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage) {
                 analyses.note_unreported_edit();
             }
-            promote_loops(func)
+            promote_loops(func, unsafe_assembly, &named)
         })
     }
 }
@@ -74,7 +84,7 @@ struct Candidate {
 }
 
 /// Promotes loops until none qualifies; returns whether any was promoted.
-fn promote_loops(func: &mut Function) -> bool {
+fn promote_loops(func: &mut Function, unsafe_assembly: bool, module_ranges: &[(u64, u64)]) -> bool {
     let mut changed = false;
 
     // Promoting a loop can split its exit blocks and relocate the final
@@ -87,7 +97,8 @@ fn promote_loops(func: &mut Function) -> bool {
         let loop_info = LoopAnalyzer::new().analyze_structure(func);
         let Some((loop_data, preheader, candidates)) =
             loop_info.all_loops().find_map(|loop_data| {
-                let (preheader, candidates) = find_candidates(func, loop_data)?;
+                let (preheader, candidates) =
+                    find_candidates(func, loop_data, unsafe_assembly, module_ranges)?;
                 Some((loop_data, preheader, candidates))
             })
         else {
@@ -98,7 +109,12 @@ fn promote_loops(func: &mut Function) -> bool {
     }
 }
 
-fn find_candidates(func: &Function, loop_data: &Loop) -> Option<(BlockId, Vec<Candidate>)> {
+fn find_candidates(
+    func: &Function,
+    loop_data: &Loop,
+    unsafe_assembly: bool,
+    module_ranges: &[(u64, u64)],
+) -> Option<(BlockId, Vec<Candidate>)> {
     let preheader = loop_data.preheader?;
     if loop_data.exit_blocks.is_empty()
         || !has_isolated_promotable_exits(func, loop_data)
@@ -170,7 +186,79 @@ fn find_candidates(func: &Function, loop_data: &Loop) -> Option<(BlockId, Vec<Ca
     // A lone uninitialized slot has no preheader store, so its tail is unconstrained.
     let tail_is_safe =
         candidates[0].init_store.is_none() || preheader_tail_is_safe(func, preheader, &candidates);
-    tail_is_safe.then_some((preheader, candidates))
+    (tail_is_safe
+        && temp_words_are_unclobbered(
+            func,
+            preheader,
+            &rewrite_blocks,
+            &candidates,
+            unsafe_assembly,
+            module_ranges,
+        ))
+    .then_some((preheader, candidates))
+}
+
+/// Returns the start and end of each memory range the function names at a constant address,
+/// which ends at `u64::MAX` when its length is not constant. A range of unknown length that
+/// starts below the heap, as the compiler's own copy of revert data to scratch space does, does
+/// not count.
+fn named_ranges(func: &Function) -> Vec<(u64, u64)> {
+    let mut ranges = Vec::new();
+    func.for_each_memory_range(|offset, size| {
+        if size != Some(0)
+            && let Some(start) = func.value_u64(offset)
+            && (size.is_some() || start >= EvmMemoryLayout::HEAP_START)
+        {
+            ranges.push((start, size.and_then(|size| start.checked_add(size)).unwrap_or(u64::MAX)));
+        }
+    });
+    ranges
+}
+
+/// Returns whether nothing in the function may share a word with the temporaries that
+/// [`allocate_temp_addr`] places next: one per candidate, and the dirty flag of a lone slot
+/// without a preheader store.
+///
+/// Code anywhere in the module that names a constant range over a temporary's word owns that
+/// word: the entries and the functions they call share the memory where the temporaries lie. In a
+/// module with assembly that does not promise memory safety, a write between the initial stores
+/// and the flushes also counts unless its destination derives from a compiler-owned pointer.
+/// Without such assembly, the compiler places every write it makes at a computed address on the
+/// heap or in a frame, above the temporaries. A write at a computed address or a copy of
+/// non-constant length elsewhere is not seen.
+fn temp_words_are_unclobbered(
+    func: &Function,
+    preheader: BlockId,
+    blocks: &[BlockId],
+    candidates: &[Candidate],
+    unsafe_assembly: bool,
+    module_ranges: &[(u64, u64)],
+) -> bool {
+    let words = candidates.len() + usize::from(candidates[0].init_store.is_none());
+    let start = temp_base(func);
+    let end = start + words as u64 * EvmMemoryLayout::WORD_SIZE;
+    if module_ranges.iter().any(|&(range_start, range_end)| range_start < end && range_end > start)
+    {
+        return false;
+    }
+    if !unsafe_assembly {
+        return true;
+    }
+    // The lone slot without an initial store has no preheader tail to check.
+    let tail = first_init_pos(func, preheader, candidates)
+        .map_or(&[][..], |first_init| &func.blocks[preheader].instructions[first_init + 1..]);
+    let mut unplaced = false;
+    for &inst_id in
+        tail.iter().chain(blocks.iter().flat_map(|&block_id| &func.blocks[block_id].instructions))
+    {
+        func.inst(inst_id).kind.visit_raw_memory(|access, dest, size| {
+            unplaced |= access != RawMemoryAccess::Read
+                && size.constant(func) != Some(0)
+                && func.value_u64(dest).is_none()
+                && AliasAnalysis::pointer_lower_bound(func, dest).is_none();
+        });
+    }
+    !unplaced
 }
 
 fn has_isolated_promotable_exits(func: &Function, loop_data: &Loop) -> bool {
@@ -299,15 +387,19 @@ fn find_preheader_init_store(
     })
 }
 
-fn preheader_tail_is_safe(func: &Function, preheader: BlockId, candidates: &[Candidate]) -> bool {
-    let Some(first_init) = candidates
+/// Returns the position in the preheader of the first initial store.
+fn first_init_pos(func: &Function, preheader: BlockId, candidates: &[Candidate]) -> Option<usize> {
+    candidates
         .iter()
         .filter_map(|candidate| candidate.init_store)
         .filter_map(|inst_id| {
             func.blocks[preheader].instructions.iter().position(|&candidate| candidate == inst_id)
         })
         .min()
-    else {
+}
+
+fn preheader_tail_is_safe(func: &Function, preheader: BlockId, candidates: &[Candidate]) -> bool {
+    let Some(first_init) = first_init_pos(func, preheader, candidates) else {
         return false;
     };
 
@@ -542,10 +634,15 @@ fn insert_conditional_final_store(
 //   a single block, which a promoted loop never is. So the address never moves into a caller whose
 //   frame rebasing, which rewrites only `internal_frame_addr`, would miss it.
 fn allocate_temp_addr(func: &mut Function) -> ValueId {
-    let frame_offset = func.internal_frame_size.max(func.external_static_return_size);
-    let temp_addr = EvmMemoryLayout::HEAP_START + frame_offset;
-    func.internal_frame_size = func.internal_frame_size.max(frame_offset + 32);
+    let temp_addr = temp_base(func);
+    func.internal_frame_size =
+        func.internal_frame_size.max(temp_addr - EvmMemoryLayout::HEAP_START + 32);
     func.alloc_value(Value::Immediate(Immediate::I256(U256::from(temp_addr))))
+}
+
+/// Returns the address of the next temporary word.
+fn temp_base(func: &Function) -> u64 {
+    EvmMemoryLayout::HEAP_START + func.internal_frame_size.max(func.external_static_return_size)
 }
 
 fn value_defined_in_loop(
