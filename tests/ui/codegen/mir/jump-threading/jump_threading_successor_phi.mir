@@ -1,0 +1,26 @@
+//@compile-flags: -Zmir-pipeline=jump-threading
+//@filecheck:
+@module Threading
+
+// A constant phi input decides the zero test, so `bb1` jumps straight to `bb4`.
+// `bb5`'s phi reads the threaded block's phi on the edge from it, which stays.
+// CHECK-LABEL: {{^[ +].*}}fn @successor_phi{{[( ]}}
+// CHECK: + jumpi arg0, bb4, bb2
+// CHECK: v2 = phi [bb3: v0]
+fn @successor_phi(arg0: i1, arg1: i256) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: 1], [bb2: arg1]
+    v2 = ne v0, 0
+    jumpi v2, bb4, bb5
+  bb4:
+    ret 0
+  bb5:
+    v1 = phi [bb3: v0]
+    ret v1
+}

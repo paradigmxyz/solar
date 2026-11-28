@@ -40,6 +40,26 @@
 //! lies below `2^63`, so the bump of an allocation at the floor by a constant size cannot pass the
 //! allocation limit, and the overflow test of an allocation that lowering left dead goes with it.
 //!
+//! The facts on an edge into a join of several predecessors, those at the end of its source and
+//! the edge's own branch fact, also evaluate the join's branch. When they decide it, the edge goes
+//! straight to the successor the branch would take, and each phi of that successor takes the
+//! value the edge would have carried through the join: the source's input to the join's phi when
+//! the successor's phi reads one, else the same value. Sequential tests over exclusive ranges,
+//! `if (x < 9) {..} if (x > 8 && x < 17) {..}`, then skip the tests an earlier arm decided, and
+//! `if (x < 192) {..} if (x >= 192) {..}` becomes one diamond that `if-convert` can turn into a
+//! single select. The scope only knows values that dominate the source, so the condition must not
+//! read a phi of the join. The join's other instructions must be pure, and past the join only the
+//! successor's phis on the join's edge may read its results, or code that the other successor
+//! dominates when the join is its only predecessor, since the join still dominates that code. A
+//! join that dominates one of its predecessors heads a loop and is never skipped: a new edge into
+//! its body would enter the loop a second way. The rewrite copies no instructions, but the target
+//! prices it: the edge no longer runs the join's code and branch, and is priced as needing a jump
+//! of its own, since the backend's layout, stack scheduling and tail copies can add one even for a
+//! taken branch arm; a join that loses every edge gives back its code. Below
+//! `LOOP_COPY_MIN_RUNS` and in size builds a redirect must add no bytes, which in practice admits
+//! only joins that every edge skips; from it on, the gas it saves on each execution, ten times
+//! over inside a loop, must repay the deposit of its jump.
+//!
 //! The same edge facts propagate equalities, as GVN's `propagateEquality` does: where a unique
 //! predecessor proves `x == C` for an immediate `C` (the true edge of `eq x, C`, the false edge of
 //! `ne x, C`, or a passed check of one), instructions the edge dominates read `C` in place of `x`.
@@ -206,6 +226,8 @@ use super::{
     call_cleanup,
     cfg_simplify::simplify_function,
     egraph::{max_bits_with_args, use_counts},
+    utils::{block_results_have_external_users, redirect_edge, value_users},
+    word_sequence::is_pure,
 };
 use crate::{
     backend::evm::{op, select::InstKindOpcode},
@@ -224,7 +246,7 @@ use crate::{
         },
         utils::{IndexLists, eval, fold_terminator_to_jump, invalidate_unreachable_blocks},
     },
-    target::Target,
+    target::{Cost, Target},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -252,6 +274,7 @@ impl MirPass for CheckElim {
         run_function_pass(module, analyses, |func, analyses| {
             let eliminator = CheckEliminator {
                 propagate_equalities: Some(analyses.runtime_target(gcx)),
+                thread_target: Some(analyses.loop_aware_target(gcx)),
                 ..Default::default()
             };
             let cfg = CfgInfo::new(func);
@@ -377,7 +400,11 @@ impl MirPass for LateCheckElim {
             {
                 return false;
             }
-            let changed = CheckEliminator::default().run(func, analyses.cfg(), selected) != 0;
+            let eliminator = CheckEliminator {
+                thread_target: Some(analyses.loop_aware_target(gcx)),
+                ..Default::default()
+            };
+            let changed = eliminator.run(func, analyses.cfg(), selected) != 0;
             if changed {
                 // branch proven_condition, checked, panic => jump checked
                 // Remove unreachable panic blocks and merge the successful continuation.
@@ -422,8 +449,11 @@ impl MirPass for ImmutableCheckElim {
             }
         }
         run_selected_function_pass(module, analyses, &loading, |func, analyses| {
-            let eliminator =
-                CheckEliminator { immutable_ranges: Some(&bounds), ..Default::default() };
+            let eliminator = CheckEliminator {
+                immutable_ranges: Some(&bounds),
+                thread_target: Some(analyses.loop_aware_target(gcx)),
+                ..Default::default()
+            };
             eliminator.run(func, analyses.cfg(), None) != 0
         }) || narrowed
     }
@@ -943,6 +973,9 @@ struct CheckEliminator<'a> {
     /// Records constants that dominating branches prove equal to a value, when the target
     /// prices the constant as cheap to read.
     propagate_equalities: Option<Target>,
+    /// The cost model that prices redirecting an edge past a join whose branch it decides;
+    /// without it, no edge is redirected.
+    thread_target: Option<Target>,
     /// Values proven equal to a constant in the current scope.
     equalities: FxHashMap<ValueId, Equality>,
     equality_undo: Vec<ValueId>,
@@ -954,6 +987,10 @@ struct CheckEliminator<'a> {
     equality_uses: Vec<(InstId, Replacements)>,
     /// Semantic checked operations proven not to fail, with the plain operation each becomes.
     unfailing: Vec<(InstId, InstKind)>,
+    /// Edges into a join whose branch their scope decides, as `(pred, join, successor)`.
+    threads: Vec<(BlockId, BlockId, BlockId)>,
+    /// The branch of each join an edge may skip, as `skippable_join` finds it, built on first use.
+    skippable_joins: FxHashMap<BlockId, Option<(ValueId, BlockId, BlockId)>>,
     ranges: FxHashMap<ValueId, Range>,
     relations: FxHashSet<Relation>,
     /// Possible outgoing facts; each candidate still requires a scoped membership check.
@@ -1093,6 +1130,7 @@ impl<'a> CheckEliminator<'a> {
             && checks.is_empty()
             && reductions.is_empty()
             && unfailing.is_empty()
+            && self.threads.is_empty()
             && self.equality_uses.is_empty()
         {
             return removed;
@@ -1119,7 +1157,16 @@ impl<'a> CheckEliminator<'a> {
                 *condition = reduced;
             }
         }
-        removed + folds.len() + checks.count() + unfailing.len() + reductions.len() + propagated
+        let threaded = self
+            .thread_target
+            .map_or(0, |target| thread_decided_edges(func, cfg, &target, &self.threads));
+        removed
+            + folds.len()
+            + checks.count()
+            + unfailing.len()
+            + reductions.len()
+            + propagated
+            + threaded
     }
 
     /// Walks the dominator tree, recording edge and check facts. Returns branch folds, proven
@@ -1147,6 +1194,7 @@ impl<'a> CheckEliminator<'a> {
         let mut checks = DenseBitSet::new_empty(func.num_insts());
         let mut reductions = Vec::new();
         self.unfailing.clear();
+        self.threads.clear();
         self.equality_uses.clear();
         self.readers = None;
         let mut stack = Vec::new();
@@ -1156,28 +1204,7 @@ impl<'a> CheckEliminator<'a> {
         while let Some(item) = stack.pop() {
             match item {
                 Walk::Exit { range_mark, relation_mark, equality_mark } => {
-                    while self.equality_undo.len() > equality_mark {
-                        let value = self.equality_undo.pop().expect("checked len");
-                        self.equalities.remove(&value);
-                    }
-                    while self.range_undo.len() > range_mark {
-                        let (value, old) = self.range_undo.pop().expect("checked len");
-                        match old {
-                            Some(range) => self.ranges.insert(value, range),
-                            None => self.ranges.remove(&value),
-                        };
-                    }
-                    if self.relation_undo.len() > relation_mark {
-                        self.strict_bounds_valid = false;
-                    }
-                    while self.relation_undo.len() > relation_mark {
-                        let relation = self.relation_undo.pop().expect("checked len");
-                        self.relations.remove(&relation);
-                        if let Some(active) = &mut self.active_relations {
-                            let permanent = self.universal_relations.contains(&relation);
-                            active.undo(func, relation, permanent);
-                        }
-                    }
+                    self.roll_back(func, range_mark, relation_mark, equality_mark);
                 }
                 Walk::Enter(block) => {
                     stack.push(Walk::Exit {
@@ -1311,6 +1338,10 @@ impl<'a> CheckEliminator<'a> {
                             _ => {}
                         }
                     }
+                    if self.thread_target.is_some() && !self.collect_masks && selected.is_none() {
+                        let folded = folds.last().is_some_and(|&(folded, _)| folded == block);
+                        self.collect_threads(func, cfg, block, folded);
+                    }
 
                     for &child in cfg.dominators().children(block) {
                         stack.push(Walk::Enter(child));
@@ -1339,6 +1370,97 @@ impl<'a> CheckEliminator<'a> {
         } else {
             None
         }
+    }
+
+    /// Rolls back the facts recorded since the marks, as on leaving a scope.
+    fn roll_back(
+        &mut self,
+        func: &Function,
+        range_mark: usize,
+        relation_mark: usize,
+        equality_mark: usize,
+    ) {
+        while self.equality_undo.len() > equality_mark {
+            let value = self.equality_undo.pop().expect("checked len");
+            self.equalities.remove(&value);
+        }
+        while self.range_undo.len() > range_mark {
+            let (value, old) = self.range_undo.pop().expect("checked len");
+            match old {
+                Some(range) => self.ranges.insert(value, range),
+                None => self.ranges.remove(&value),
+            };
+        }
+        if self.relation_undo.len() > relation_mark {
+            self.strict_bounds_valid = false;
+        }
+        while self.relation_undo.len() > relation_mark {
+            let relation = self.relation_undo.pop().expect("checked len");
+            self.relations.remove(&relation);
+            if let Some(active) = &mut self.active_relations {
+                let permanent = self.universal_relations.contains(&relation);
+                active.undo(func, relation, permanent);
+            }
+        }
+    }
+
+    /// Records the edges out of `block` that enter a join whose branch the current scope, with
+    /// the edge's own fact, decides, as `(block, join, successor)`.
+    fn collect_threads(&mut self, func: &Function, cfg: &CfgInfo, block: BlockId, folded: bool) {
+        match func.blocks[block].terminator.as_ref() {
+            Some(&Terminator::Jump(join)) => {
+                if let Some(branch) = self.skippable_join(func, cfg, join)
+                    && let Some(successor) = self.decided_successor(func, block, join, branch)
+                {
+                    self.threads.push((block, join, successor));
+                }
+            }
+            Some(&Terminator::Branch { condition, then_block, else_block })
+                if then_block != else_block && !folded =>
+            {
+                for (join, other, truth) in
+                    [(then_block, else_block, true), (else_block, then_block, false)]
+                {
+                    let Some(branch) = self.skippable_join(func, cfg, join) else { continue };
+                    let marks =
+                        (self.range_undo.len(), self.relation_undo.len(), self.equality_undo.len());
+                    self.assume(func, condition, truth, MAX_DEPTH);
+                    let successor = self.decided_successor(func, block, join, branch);
+                    self.roll_back(func, marks.0, marks.1, marks.2);
+                    // Both arms entering one block would need two inputs for each of its phis.
+                    if let Some(successor) = successor
+                        && successor != other
+                    {
+                        self.threads.push((block, join, successor));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// [`skippable_join`], found once for each join of the function.
+    fn skippable_join(
+        &mut self,
+        func: &Function,
+        cfg: &CfgInfo,
+        join: BlockId,
+    ) -> Option<(ValueId, BlockId, BlockId)> {
+        *self.skippable_joins.entry(join).or_insert_with(|| skippable_join(func, cfg, join))
+    }
+
+    /// The successor that `branch`, ending `join`, takes on every entry from `pred` when the
+    /// current scope decides its condition.
+    fn decided_successor(
+        &mut self,
+        func: &Function,
+        pred: BlockId,
+        join: BlockId,
+        (condition, then_block, else_block): (ValueId, BlockId, BlockId),
+    ) -> Option<BlockId> {
+        let successor =
+            if self.eval_truth(func, condition, MAX_DEPTH)? { then_block } else { else_block };
+        (successor != join && successor != pred).then_some(successor)
     }
 
     /// The plain operation a semantic unsigned checked operation becomes when the current scope
@@ -3710,6 +3832,213 @@ fn difference_operands(func: &Function, value: ValueId) -> Option<(ValueId, Valu
         } => Some((lhs, rhs, true)),
         _ => None,
     }
+}
+
+/// The condition and arms of the branch ending `join` when an edge into it may skip it.
+///
+/// The scope of a predecessor holds facts only about values that dominate it, so the condition
+/// must not read a phi of `join`. Skipping must not skip effects, so the other instructions are
+/// pure. A `join` that dominates one of its predecessors heads a loop: its facts there are stale,
+/// and a new edge into its body would enter the loop a second way.
+fn skippable_join(
+    func: &Function,
+    cfg: &CfgInfo,
+    join: BlockId,
+) -> Option<(ValueId, BlockId, BlockId)> {
+    let data = &func.blocks[join];
+    let Some(&Terminator::Branch { condition, then_block, else_block }) = data.terminator.as_ref()
+    else {
+        return None;
+    };
+    (then_block != else_block
+        && data.predecessors.len() > 1
+        && !data.predecessors.iter().any(|&pred| cfg.dominators().dominates(join, pred))
+        && data.instructions.iter().all(|&id| {
+            let inst = func.inst(id);
+            matches!(inst.kind, InstKind::Phi(_)) || is_pure(inst) && !inst.kind.has_side_effects()
+        })
+        && !condition_reads_phi(func, join, condition))
+    .then_some((condition, then_block, else_block))
+}
+
+/// Whether `condition` reads a phi of `block`, directly or through other instructions of `block`.
+fn condition_reads_phi(func: &Function, block: BlockId, condition: ValueId) -> bool {
+    let mut unvisited = func.blocks[block].instructions.iter().copied().collect::<FxHashSet<_>>();
+    let mut pending = SmallVec::<[ValueId; 8]>::new();
+    pending.push(condition);
+    while let Some(value) = pending.pop() {
+        let Value::Inst(id) = *func.value(value) else { continue };
+        if !unvisited.remove(&id) {
+            continue;
+        }
+        let kind = &func.inst(id).kind;
+        if matches!(kind, InstKind::Phi(_)) {
+            return true;
+        }
+        kind.visit_operands(|operand| pending.push(operand));
+    }
+    false
+}
+
+/// Redirects each `(pred, join, successor)` edge to the successor its scope proved the join's
+/// branch takes. Past `join`, only the successor's phis on the edge from `join` may read its
+/// results, and those only its phis, which the new edge replaces by its own inputs. Code the other
+/// successor dominates may read them too, when `join` is that successor's only predecessor:
+/// `join` still dominates it afterwards. Returns the number of redirected edges.
+fn thread_decided_edges(
+    func: &mut Function,
+    cfg: &CfgInfo,
+    target: &Target,
+    threads: &[(BlockId, BlockId, BlockId)],
+) -> usize {
+    if threads.is_empty() {
+        return 0;
+    }
+    let successor_phis = |func: &Function, block: BlockId| {
+        func.blocks[block]
+            .instructions
+            .iter()
+            .copied()
+            .filter(|&id| matches!(func.inst(id).kind, InstKind::Phi(_)))
+            .collect::<SmallVec<[InstId; 4]>>()
+    };
+    // Every edge is checked before any rewrite: an input a rewrite adds is read on an edge from
+    // its predecessor, so it is never a result of a join that passes. A rewrite only adds an edge
+    // into the other successor's subtree from inside it, unless it enters that successor itself.
+    let pairs =
+        threads.iter().map(|&(_, join, successor)| (join, successor)).collect::<FxHashSet<_>>();
+    let users = value_users(func);
+    let homes = func.inst_block_table();
+    let mut threadable = FxHashMap::default();
+    let threads = threads
+        .iter()
+        .copied()
+        .filter(|&(_, join, successor)| {
+            *threadable.entry((join, successor)).or_insert_with(|| {
+                // A fold of `join` can have removed the edge. A join this pass folded to a jump is
+                // left to CFG cleanup, which forwards it for free; threading would credit its dead
+                // condition.
+                let other = match func.blocks[join].terminator.as_ref() {
+                    Some(&Terminator::Branch { then_block, else_block, .. })
+                        if successor == then_block || successor == else_block =>
+                    {
+                        Some(if successor == then_block { else_block } else { then_block })
+                    }
+                    _ => return false,
+                };
+                let other = other.filter(|&other| {
+                    func.blocks[other].predecessors.as_slice() == [join]
+                        && !pairs.contains(&(join, other))
+                });
+                let kept =
+                    |block| other.is_some_and(|other| cfg.dominators().dominates(other, block));
+                !block_results_have_external_users(func, &users, &homes, join, |block, _| {
+                    kept(block)
+                }) && successor_phis(func, successor).iter().all(|&phi| {
+                    let InstKind::Phi(incoming) = &func.inst(phi).kind else { unreachable!() };
+                    incoming.iter().all(|&(from, value)| {
+                        from != join
+                            || !matches!(func.value(value), Value::Inst(id) if homes[*id] == Some(join))
+                            || matches!(func.value_inst_kind(value), Some(InstKind::Phi(_)))
+                    })
+                })
+            })
+        })
+        .collect::<SmallVec<[_; 4]>>();
+    // Both arms of a branch entering one block would need two inputs for each of its phis.
+    let mut entered = FxHashSet::default();
+    let threads = priced_threads(
+        func,
+        cfg,
+        target,
+        threads.into_iter().filter(|&(pred, _, successor)| entered.insert((pred, successor))),
+    );
+    // Every input is read before any rewrite: a thread out of a join can redirect the edge another
+    // thread reads its successor's inputs on.
+    let mut inputs = Vec::new();
+    for &(pred, join, successor) in &threads {
+        for phi in successor_phis(func, successor) {
+            let InstKind::Phi(incoming) = &func.inst(phi).kind else { unreachable!() };
+            let (_, value) =
+                *incoming.iter().find(|&&(from, _)| from == join).expect("edge from the join");
+            let input = match func.value(value) {
+                Value::Inst(id) if func.blocks[join].instructions.contains(id) => {
+                    let InstKind::Phi(inputs) = &func.inst(*id).kind else { unreachable!() };
+                    inputs.iter().find(|&&(from, _)| from == pred).expect("edge from pred").1
+                }
+                _ => value,
+            };
+            inputs.push((phi, pred, input));
+        }
+    }
+    // successor: phi [join: x] -> phi [join: x], [pred: x]
+    // successor: phi [join: p] -> phi [join: p], [pred: y] where join: p = phi [pred: y]
+    for (phi, pred, input) in inputs {
+        let InstKind::Phi(incoming) = &mut func.inst_mut(phi).kind else { unreachable!() };
+        incoming.push((pred, input));
+    }
+    // pred: jump join | jumpi c, join, other -> jump successor | jumpi c, successor, other
+    for &(pred, join, successor) in &threads {
+        redirect_edge(func, pred, join, successor);
+    }
+    // A join that lost every edge, and any block only it entered, would keep phis without inputs.
+    if !threads.is_empty() {
+        let _ = invalidate_unreachable_blocks(func, CfgInfo::new(func).reachable());
+    }
+    threads.len()
+}
+
+/// The threads that `target` prices as paying. A redirected edge no longer runs its join's code
+/// and branch, and is priced as adding a jump, the label push and `JUMP` of an edge that loses its
+/// fall-through. The backend's layout, stack scheduling and tail copies decide whether it does, and
+/// a taken branch arm that keeps its label grew the code as well when measured, so every edge
+/// pays the jump. A join that loses every edge gives back its code, priced over all its edges,
+/// unless another thread enters it and keeps it.
+fn priced_threads(
+    func: &Function,
+    cfg: &CfgInfo,
+    target: &Target,
+    threads: impl Iterator<Item = (BlockId, BlockId, BlockId)>,
+) -> SmallVec<[(BlockId, BlockId, BlockId); 4]> {
+    let mut by_join = FxIndexMap::<BlockId, SmallVec<[(BlockId, BlockId); 2]>>::default();
+    for (pred, join, successor) in threads {
+        by_join.entry(join).or_default().push((pred, successor));
+    }
+    let entered =
+        by_join.values().flatten().map(|&(_, successor)| successor).collect::<FxHashSet<_>>();
+    let jump = target.label_push() + target.opcode(op::JUMP);
+    let cyclic = cfg.cyclic_blocks();
+    let mut priced = SmallVec::new();
+    for (join, edges) in by_join {
+        let skipped = target.block_instructions_estimate(func, join) + target.branch();
+        let in_loop = |pred| cyclic.contains(pred) && cyclic.contains(join);
+        let cold = |pred: BlockId| func.blocks[pred].hotness.is_cold();
+        if edges.len() == func.blocks[join].predecessors.len() && !entered.contains(&join) {
+            let freed = Cost { bytes: target.block_code_estimate(func, join).bytes, ..skipped };
+            let added = Cost { bytes: jump.bytes.saturating_mul(edges.len() as u32), ..jump };
+            if target
+                .priced_for_cold(edges.iter().all(|&(pred, _)| cold(pred)))
+                .threads_decided_edge(freed, added, edges.iter().all(|&(pred, _)| in_loop(pred)))
+            {
+                priced.extend(edges.iter().map(|&(pred, successor)| (pred, join, successor)));
+                continue;
+            }
+        }
+        let skipped = Cost { bytes: 0, ..skipped };
+        priced.extend(
+            edges
+                .into_iter()
+                .filter(|&(pred, _)| {
+                    target.priced_for_cold(cold(pred)).threads_decided_edge(
+                        skipped,
+                        jump,
+                        in_loop(pred),
+                    )
+                })
+                .map(|(pred, successor)| (pred, join, successor)),
+        );
+    }
+    priced
 }
 
 #[cfg(test)]

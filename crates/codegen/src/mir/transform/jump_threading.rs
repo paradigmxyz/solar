@@ -24,7 +24,10 @@
 //! the block's own phis, as a loop header's loop-carried values do. Phis that only feed other
 //! dead phis of the block do not count and go with the threaded edge.
 
-use super::{cfg_simplify::empty_forwarder_target, utils::redirect_edge};
+use super::{
+    cfg_simplify::empty_forwarder_target,
+    utils::{block_results_have_external_uses, redirect_edge},
+};
 use crate::mir::{
     BlockId, Function, InstId, InstKind, Module, Terminator, Value, ValueId,
     pass::{MirPass, run_function_pass},
@@ -219,38 +222,6 @@ fn dead_phis(func: &Function, block_id: BlockId) -> Vec<InstId> {
     phis
 }
 
-/// Whether a result of `block_id` is used outside it. `results` is scratch space.
-///
-/// A phi input is used at the end of its incoming edge, not in the phi's block. A result that
-/// feeds one of the block's own phis, as a loop-carried value does, is therefore used by a block
-/// that can be entered without passing through `block_id`, unless that phi is one of `dead_phis`.
-fn block_results_have_external_uses(
-    func: &Function,
-    block_id: BlockId,
-    dead_phis: &[InstId],
-    results: &mut DenseBitSet<ValueId>,
-) -> bool {
-    results.clear();
-    for &inst in &func.blocks[block_id].instructions {
-        if let Some(result) = func.inst_result_value(inst) {
-            results.insert(result);
-        }
-    }
-    if results.is_empty() {
-        return false;
-    }
-
-    let external = |operand| results.contains(operand);
-    func.blocks.iter_enumerated().any(|(other_block, block)| {
-        let own = other_block == block_id;
-        block.instructions.iter().any(|&inst_id| {
-            let kind = &func.inst(inst_id).kind;
-            (!own || matches!(kind, InstKind::Phi(_)) && !dead_phis.contains(&inst_id))
-                && kind.any_operand(external)
-        }) || (!own && block.terminator.as_ref().is_some_and(|term| term.any_operand(external)))
-    })
-}
-
 fn thread_phi_constant_edges(func: &mut Function) -> bool {
     let mut rewrites = Vec::new();
     let mut dead_phis_by_block = Vec::new();
@@ -298,7 +269,12 @@ fn thread_phi_constant_edges(func: &mut Function) -> bool {
             continue;
         }
         let dead = dead_phis(func, block_id);
-        if block_results_have_external_uses(func, block_id, &dead, &mut results) {
+        if block_results_have_external_uses(
+            func,
+            block_id,
+            |_, inst| inst.is_some_and(|inst| dead.contains(&inst)),
+            &mut results,
+        ) {
             rewrites.truncate(start);
         } else if !dead.is_empty() {
             dead_phis_by_block.push((block_id, dead));
@@ -352,7 +328,7 @@ fn fold_single_predecessor_phi_branches(func: &mut Function) -> bool {
         }
         if replacements.len() != func.blocks[block].instructions.len()
             || replacements.values().any(|value| replacements.contains_key(value))
-            || block_results_have_external_uses(func, block, &[], &mut results)
+            || block_results_have_external_uses(func, block, |_, _| false, &mut results)
         {
             continue;
         }

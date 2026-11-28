@@ -6,7 +6,7 @@ use crate::mir::{
     memory::EvmMemoryLayout,
     utils::{IndexLists, replace_terminator},
 };
-use solar_data_structures::bit_set::DenseBitSet;
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_evmir::debug::DebugLocKind;
 use solar_sema::hir::StateMutability;
 
@@ -153,6 +153,79 @@ pub(super) fn redirect_edge(
     });
     replace_terminator(func, pred, terminator);
     true
+}
+
+/// Whether a result of `block_id` is read outside it by a reader `ignored` does not accept: an
+/// instruction of a block, or with `None` the block's terminator. `results` is scratch space and
+/// ends holding the block's results.
+///
+/// A phi input is used at the end of its incoming edge, not in the phi's block: a successor's phi
+/// reads the input on the edge from `block_id` inside it, while one of the block's own phis, as a
+/// loop-carried value does, reads in a block that can be entered without passing through
+/// `block_id`, unless that phi is ignored.
+pub(super) fn block_results_have_external_uses(
+    func: &Function,
+    block_id: BlockId,
+    ignored: impl Fn(BlockId, Option<InstId>) -> bool,
+    results: &mut DenseBitSet<ValueId>,
+) -> bool {
+    results.clear();
+    for &inst in &func.blocks[block_id].instructions {
+        if let Some(result) = func.inst_result_value(inst) {
+            results.insert(result);
+        }
+    }
+    if results.is_empty() {
+        return false;
+    }
+
+    let external = |operand| results.contains(operand);
+    func.blocks.iter_enumerated().any(|(other_block, block)| {
+        let own = other_block == block_id;
+        block.instructions.iter().any(|&inst_id| {
+            let kind = &func.inst(inst_id).kind;
+            let reads = match kind {
+                InstKind::Phi(incoming) if !own => {
+                    incoming.iter().any(|&(pred, value)| pred != block_id && external(value))
+                }
+                InstKind::Phi(_) => kind.any_operand(external),
+                _ => !own && kind.any_operand(external),
+            };
+            reads && !ignored(other_block, Some(inst_id))
+        }) || (!own
+            && !ignored(other_block, None)
+            && block.terminator.as_ref().is_some_and(|term| term.any_operand(external)))
+    })
+}
+
+/// [`block_results_have_external_uses`] from the readers of each result, as [`value_users`] lists
+/// them, and the block of each instruction, as `Function::inst_block_table` maps them, instead of
+/// a scan of the function.
+pub(super) fn block_results_have_external_users(
+    func: &Function,
+    users: &IndexLists<ValueId, User>,
+    homes: &IndexVec<InstId, Option<BlockId>>,
+    block_id: BlockId,
+    ignored: impl Fn(BlockId, Option<InstId>) -> bool,
+) -> bool {
+    func.blocks[block_id].instructions.iter().filter_map(|&inst| func.inst_result_value(inst)).any(
+        |result| {
+            users.get(result).iter().any(|&user| match user {
+                User::Inst(inst) => {
+                    let block = homes[inst].expect("a user is in a block");
+                    let reads = match &func.inst(inst).kind {
+                        InstKind::Phi(incoming) if block != block_id => incoming
+                            .iter()
+                            .any(|&(pred, value)| pred != block_id && value == result),
+                        InstKind::Phi(_) => true,
+                        _ => block != block_id,
+                    };
+                    reads && !ignored(block, Some(inst))
+                }
+                User::Terminator(block) => block != block_id && !ignored(block, None),
+            })
+        },
+    )
 }
 
 /// Returns whether `func` has a private MIR signature that direct callers may rewrite, given the

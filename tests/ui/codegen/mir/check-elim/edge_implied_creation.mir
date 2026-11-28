@@ -1,0 +1,49 @@
+//@ compile-flags: -Zmir-pipeline=check-elim --optimize-runs 10000
+//@ filecheck:
+@module EdgeImpliedCreation
+
+// A constructor runs once: the jump each redirect may add costs more to deposit than the
+// skipped tests save, so its edges stay. A build for 10,000 runs redirects the same edges in
+// runtime code.
+// CHECK-LABEL: {{^[ +].*}}fn @constructor{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+// CHECK-LABEL: {{^[ +].*}}fn @runtime{{[( ]}}
+// CHECK: + jump bb4
+fn @constructor(arg0: i256, arg1: i256) [constructor] {
+  bb0:
+    v0 = lt arg0, 9
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = and arg1, 255
+    jump bb2
+  bb2:
+    v2 = phi [bb1: v1], [bb0: 0]
+    v3 = gt arg0, 16
+    jumpi v3, bb3, bb4
+  bb3:
+    v4 = add v2, 7
+    jump bb4
+  bb4:
+    v5 = phi [bb3: v4], [bb2: v2]
+    sstore 0, v5
+    stop
+}
+
+fn @runtime(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, 9
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = and arg1, 255
+    jump bb2
+  bb2:
+    v2 = phi [bb1: v1], [bb0: 0]
+    v3 = gt arg0, 16
+    jumpi v3, bb3, bb4
+  bb3:
+    v4 = add v2, 7
+    jump bb4
+  bb4:
+    v5 = phi [bb3: v4], [bb2: v2]
+    ret v5
+}
