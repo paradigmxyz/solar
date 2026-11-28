@@ -13,6 +13,8 @@
 //@ run-call: Modifiers::literalString => "abc"
 //@ run-call: Modifiers::literalBytes => 0x11223344
 //@ run-call: Modifiers::calldataBytes 0x7061796c6f6164 => 0x7061796c6f6164
+//@ run-call: ModBase::guardedV => 1
+//@ run-call: ModDerived::guardedV => 100
 //@ run-call: CtorMod::v => 50
 
 // Function modifiers inline around the body, solc-style: arguments evaluate
@@ -154,6 +156,27 @@ contract Modifiers {
     function repeated() public returns (uint256) {
         repeatedInner();
         return t;
+    }
+}
+
+contract ModBase {
+    uint256 internal t;
+
+    modifier vguard() virtual {
+        t += 1;
+        _;
+    }
+
+    function guardedV() public vguard returns (uint256) {
+        return t;
+    }
+}
+
+// The inherited function must run the most-derived override of the modifier.
+contract ModDerived is ModBase {
+    modifier vguard() override {
+        t += 100;
+        _;
     }
 }
 

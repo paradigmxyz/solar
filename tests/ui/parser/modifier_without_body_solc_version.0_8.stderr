@@ -1,0 +1,8 @@
+error[8063]: modifiers without implementation must be marked `virtual`
+   ╭▸ ROOT/tests/ui/parser/modifier_without_body_solc_version.sol:LL:CC
+   │
+LL │     modifier m();
+   ╰╴    ━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

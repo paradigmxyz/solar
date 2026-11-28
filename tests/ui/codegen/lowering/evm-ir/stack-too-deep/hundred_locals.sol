@@ -8,7 +8,7 @@
 // beyond DUP16/SWAP16 reach. Locals get memory frame homes and the scheduler
 // spills what the physical stack cannot reach, so compilation cannot fail and
 // the run-call executions pin the semantics end to end.
-pragma solidity ^0.9.0;
+pragma solidity ^0.8.0;
 
 contract StackTooDeepHundredLocals {
     function run(uint256 seed) external pure returns (uint256 acc) {

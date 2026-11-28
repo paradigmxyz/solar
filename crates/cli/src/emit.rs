@@ -331,7 +331,7 @@ fn emit_evm_ir_input_artifacts(gcx: Gcx<'_>, file: &str, module: ir::Module) -> 
         None
     };
     let mut output = CombinedJson {
-        version: solar_config::version::solc_compat_version(),
+        version: solar_config::version::solc_compat_version(gcx.sess.opts.solc_version),
         ..Default::default()
     };
     let contract = output.contracts.entry(name).or_default();
@@ -493,7 +493,7 @@ fn emit_combined_json(
                 .map(|id| gcx.hir.source(id).file.name.display().to_string())
                 .collect()
         }),
-        version: solar_config::version::solc_compat_version(),
+        version: solar_config::version::solc_compat_version(gcx.sess.opts.solc_version),
         ..Default::default()
     };
     if let Some(ast_json) = &ast_json {

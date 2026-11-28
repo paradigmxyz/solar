@@ -31,7 +31,7 @@ use alloy_primitives::hex;
 use serde::ser::{Serialize, SerializeMap, Serializer};
 use solar_ast::{self as ast, DocComments, ElementaryType, LitKind, StrKind};
 use solar_data_structures::map::FxHashSet;
-use solar_interface::{Ident, Span, SpannedOption, kw};
+use solar_interface::{Ident, Span, SpannedOption, config::SolcVersion, kw};
 use std::ops::ControlFlow;
 
 /// What an expression learns from its parent. [`Cx`] holds it for the next expression.
@@ -193,6 +193,10 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
         self.argument_types(m, parent);
         m.entry("isLValue", &is_lvalue);
         m.entry("isPure", &self.gcx.is_pure(self.pure, expr));
+        m.opt(
+            "isConstant",
+            (self.gcx.sess.opts.solc_version < SolcVersion::V0_9_0).then_some(false),
+        );
         m.entry("lValueRequested", &parent.lvalue);
     }
 
@@ -959,6 +963,10 @@ impl<'gcx> Serialize for W<'_, 'gcx, PayableCallee<'gcx>> {
             cx.argument_types(m, Parent { args: Some(*args), ..Parent::default() });
             m.entry("isLValue", &false);
             m.entry("isPure", &true);
+            m.opt(
+                "isConstant",
+                (cx.gcx.sess.opts.solc_version < SolcVersion::V0_9_0).then_some(false),
+            );
             m.entry("lValueRequested", &false);
         })
     }
@@ -1035,6 +1043,10 @@ impl<'gcx> Serialize for W<'_, 'gcx, TypeExpr<'_, '_, 'gcx>> {
             cx.argument_types(m, *parent);
             m.entry("isLValue", &false);
             m.entry("isPure", &true);
+            m.opt(
+                "isConstant",
+                (cx.gcx.sess.opts.solc_version < SolcVersion::V0_9_0).then_some(false),
+            );
             m.entry("lValueRequested", &false);
         };
         let kind = hir.map(|hir| &hir.kind);
@@ -1197,6 +1209,10 @@ impl<'gcx> Serialize for W<'_, 'gcx, PathExpr<'_, 'gcx>> {
             // A member of a module is pure, but a member of a contract is not.
             let of_module = res.len().checked_sub(2).and_then(|i| res[i]);
             m.entry("isPure", &matches!(of_module, Some(Res::Namespace(_))));
+            m.opt(
+                "isConstant",
+                (cx.gcx.sess.opts.solc_version < SolcVersion::V0_9_0).then_some(false),
+            );
             m.entry("lValueRequested", &false);
         })
     }

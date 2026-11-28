@@ -10,7 +10,7 @@
 //@ run-call: testAffineSwitch
 
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.9.0;
+pragma solidity ^0.8.0;
 
 contract SwitchTables {
     uint256 public value;

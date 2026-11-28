@@ -15,7 +15,7 @@
 // every call that can reach the network. The scheduler instead computes every address from the
 // first one loaded, as `base - 32 * k`, at the loads and again at the stores, and the network
 // needs no frame.
-pragma solidity ^0.9.0;
+pragma solidity ^0.8.0;
 
 contract SortingNetworks {
     // CHECK-LABEL: @module SortingNetworks_runtime

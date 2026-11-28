@@ -42,7 +42,7 @@ error[6482]: constructor cannot be defined in interfaces
 LL │     constructor() {}
    ╰╴    ━━━━━━━━━━━━━━━━
 
-error[6408]: modifiers cannot be defined in interfaces
+error[6408]: modifiers cannot be defined or declared in interfaces
    ╭▸ ROOT/tests/ui/typeck/interfaces/interface_function_visibility.sol:LL:CC
    │
 LL │     modifier m() { _; }

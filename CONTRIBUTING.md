@@ -267,9 +267,12 @@ Before changing code, read the release notes
 (`git -C testdata/solidity diff vOLD..vNEW --stat`, plus targeted diffs for
 parser, lexer, analysis, `liblangutil/EVMVersion.*`, and changed tests).
 
-Update `testdata/solidity` to the new tag, bump every local Solc version pin,
-such as `SOLC_VERSION` in workflows and the fallback in `crates/config/build.rs`,
-and add new EVM versions to `crates/config/src/lib.rs`. Leave the
+Update `testdata/solidity` to the new tag, add the release to `SolcVersion` in
+`crates/config/src/lib.rs` with its language changes gated on it, pass it to the
+solc suites in `tools/tester/src/lib.rs`, and add new EVM versions to
+`crates/config/src/lib.rs`. Move the default `SolcVersion`, `SOLC_VERSION` in
+`crates/config/build.rs`, and `SOLC_VERSION` in workflows together, once the
+ecosystem accepts the new release. Leave the
 `blob/vX.Y.Z` permalinks in code comments alone, since tags are immutable. If
 upstream changes the default EVM version, change ours and bless the affected CLI
 snapshots.

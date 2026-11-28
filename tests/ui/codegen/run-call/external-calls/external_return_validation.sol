@@ -39,7 +39,7 @@
 // ported-from: test/libsolidity/semanticTests/reverts/invalid_enum_as_external_ret.sol
 // ported-from: test/libsolidity/semanticTests/reverts/invalid_enum_stored.sol
 // ported-from: test/libsolidity/semanticTests/reverts/invalid_enum_as_external_arg.sol
-// ported-from: test/libsolidity/semanticTests/abicoder/return_dynamic_types_cross_call_out_of_range.sol
+// ported-from: test/libsolidity/semanticTests/abicoder/return_dynamic_types_cross_call_out_of_range_post_homestead.sol
 
 interface DynamicReturns {
     struct Value {

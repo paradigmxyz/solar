@@ -1,0 +1,26 @@
+error[2785]: modifiers cannot be marked `virtual` or `override`
+   ╭▸ ROOT/tests/ui/parser/virtual_modifier_solc_version.sol:LL:CC
+   │
+LL │     modifier m() virtual { _; }
+   │                  ━━━━━━━
+   │
+   ╰ note: virtual modifiers have been removed
+
+error[2785]: modifiers cannot be marked `virtual` or `override`
+   ╭▸ ROOT/tests/ui/parser/virtual_modifier_solc_version.sol:LL:CC
+   │
+LL │     modifier m() override { _; }
+   │                  ━━━━━━━━
+   │
+   ╰ note: virtual modifiers have been removed
+
+error[5827]: modifier `m` is already defined in a base contract
+   ╭▸ ROOT/tests/ui/parser/virtual_modifier_solc_version.sol:LL:CC
+   │
+LL │     modifier m() override { _; }
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ note: modifiers cannot be overridden
+
+error: aborting due to 3 previous errors
+

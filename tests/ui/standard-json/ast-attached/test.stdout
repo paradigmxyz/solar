@@ -179,6 +179,7 @@
                           },
                           "isLValue": false,
                           "isPure": true,
+                          "isConstant": false,
                           "lValueRequested": false
                         },
                         "typeDescriptions": {
@@ -187,6 +188,7 @@
                         },
                         "isLValue": false,
                         "isPure": false,
+                        "isConstant": false,
                         "lValueRequested": false
                       },
                       "functionReturnParameters": 12
@@ -363,6 +365,7 @@
                         },
                         "isLValue": false,
                         "isPure": false,
+                        "isConstant": false,
                         "lValueRequested": false
                       }
                     },
@@ -394,6 +397,7 @@
                         },
                         "isLValue": false,
                         "isPure": false,
+                        "isConstant": false,
                         "lValueRequested": false
                       }
                     }
@@ -521,6 +525,7 @@
                           "argumentTypes": [],
                           "isLValue": false,
                           "isPure": false,
+                          "isConstant": false,
                           "lValueRequested": false
                         },
                         "names": [],
@@ -534,6 +539,7 @@
                         },
                         "isLValue": false,
                         "isPure": false,
+                        "isConstant": false,
                         "lValueRequested": false
                       },
                       "functionReturnParameters": 36

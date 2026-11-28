@@ -46,7 +46,7 @@ fn presents_all_supported_declarations_and_callable_edges() {
         abstract contract $4Base {
             function $5value() external view virtual returns (uint256);
             function $6run(uint256 value) public virtual returns (uint256) { return value; }
-            modifier $7guard() { _; }
+            modifier $7guard() virtual { _; }
             $21fallback() external virtual {}
             $22receive() external payable virtual {}
         }
@@ -63,7 +63,7 @@ fn presents_all_supported_declarations_and_callable_edges() {
                 return value_;
             }
 
-            modifier $14other() { _; }
+            modifier $14guard() override { _; }
 
             function protected() public $17guard {}
             function $18hidden() private {}
@@ -107,7 +107,7 @@ fn presents_all_supported_declarations_and_callable_edges() {
         ("$11", "Derived.fallback()", SymbolKind::FUNCTION),
         ("$12", "Derived.receive()", SymbolKind::FUNCTION),
         ("$13", "Derived.run(uint256)", SymbolKind::METHOD),
-        ("$14", "Derived.other", SymbolKind::FUNCTION),
+        ("$14", "Derived.guard", SymbolKind::FUNCTION),
         ("$18", "Derived.hidden()", SymbolKind::METHOD),
     ] {
         assert_item(&prepared(&fixture, marker), name, kind);
@@ -130,12 +130,13 @@ fn presents_all_supported_declarations_and_callable_edges() {
     }
     assert_eq!(prepared(&fixture, "$15"), prepared(&fixture, "$9"));
     assert_eq!(prepared(&fixture, "$16"), prepared(&fixture, "$1"));
-    assert_eq!(prepared(&fixture, "$17"), prepared(&fixture, "$7"));
+    assert_eq!(prepared(&fixture, "$17"), prepared(&fixture, "$14"));
 
     for (derived, base, derived_name, base_name) in [
         ("$9", "$5", "Derived.value", "Base.value()"),
         ("$20", "$19", "Derived.total", "Iface.total()"),
         ("$13", "$6", "Derived.run(uint256)", "Base.run(uint256)"),
+        ("$14", "$7", "Derived.guard", "Base.guard"),
         ("$11", "$21", "Derived.fallback()", "Base.fallback()"),
         ("$12", "$22", "Derived.receive()", "Base.receive()"),
     ] {

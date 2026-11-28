@@ -15,6 +15,7 @@ use solar_data_structures::{
 };
 use solar_interface::{
     Span,
+    config::SolcVersion,
     diagnostics::{DeferredDiagnostics, ErrorGuaranteed},
     error_code, sym,
 };
@@ -526,14 +527,27 @@ fn same_external_params<'gcx>(gcx: Gcx<'gcx>, a: Ty<'gcx>, b: Ty<'gcx>) -> bool 
 /// References:
 /// - functions: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L448-L460>
 /// - `virtual`: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L306-L318>
+/// - modifiers: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L300-L301>
 fn check_unimplemented_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     let contract = gcx.hir.contract(contract_id);
 
     for f_id in contract.functions() {
         let f = gcx.hir.function(f_id);
 
-        // The parser reports modifiers without implementation.
+        // Modifiers are not functions in solc, so they get their own error instead of the
+        // function ones below, and they are never implicitly `virtual` in an interface. In 0.9,
+        // the parser rejects modifiers without implementation instead.
         if f.kind.is_modifier() {
+            if f.body.is_none()
+                && !f.marked_virtual
+                && gcx.sess.opts.solc_version < SolcVersion::V0_9_0
+            {
+                gcx.dcx().emit_err_code(
+                    f.span,
+                    error_code!(8063),
+                    "modifiers without implementation must be marked `virtual`",
+                );
+            }
             continue;
         }
 
@@ -636,6 +650,7 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
 /// - `virtual`: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L306-L318>
 /// - constructor: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L444-L446>
 /// - `fallback`: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L2016-L2017>
+/// - modifiers: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L282-L291>
 fn check_library_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     let contract = gcx.hir.contract(contract_id);
     if !contract.kind.is_library() {
@@ -644,6 +659,19 @@ fn check_library_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
 
     for f_id in contract.functions() {
         let f = gcx.hir.function(f_id);
+
+        // Modifiers are not functions in solc, so they get their own error instead of the
+        // function ones below.
+        if f.kind.is_modifier() {
+            if f.marked_virtual {
+                gcx.dcx().emit_err_code(
+                    f.span,
+                    error_code!(3275),
+                    "modifiers in a library cannot be `virtual`",
+                );
+            }
+            continue;
+        }
 
         // A `private virtual` function is reported by `check_unimplemented_functions` instead.
         if f.marked_virtual && f.visibility != Visibility::Private {
@@ -703,7 +731,7 @@ fn check_interface_members(gcx: Gcx<'_>, contract_id: hir::ContractId) {
             gcx.dcx().emit_err_code(
                 f.span,
                 error_code!(6408),
-                "modifiers cannot be defined in interfaces",
+                "modifiers cannot be defined or declared in interfaces",
             );
             continue;
         }

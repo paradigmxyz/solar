@@ -5,7 +5,7 @@
 //@ run-call-fail: sum [0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1] => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call: pick [5, 6, 7], 2 => 7
 //@ run-call-fail: pick [5, 6, 7], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-pragma solidity ^0.9.0;
+pragma solidity ^0.8.0;
 
 // A loop counter's element offset `i * 32` into a calldata array cannot wrap,
 // so the loop reads each element without testing the offset.

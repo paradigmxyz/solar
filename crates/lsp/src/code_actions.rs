@@ -605,6 +605,7 @@ fn missing_override_fix(diagnostic: &Diagnostic, context: &CodeActionSource<'_>)
     #[derive(Clone, Copy)]
     enum Target {
         Function,
+        Modifier,
         PublicVariable,
     }
 
@@ -612,6 +613,8 @@ fn missing_override_fix(diagnostic: &Diagnostic, context: &CodeActionSource<'_>)
     let target = match message {
         "overriding function is missing `override` specifier"
         | "Overriding function is missing \"override\" specifier" => Target::Function,
+        "overriding modifier is missing `override` specifier"
+        | "Overriding modifier is missing \"override\" specifier" => Target::Modifier,
         "overriding public state variable is missing `override` specifier"
         | "Overriding public state variable is missing \"override\" specifier" => {
             Target::PublicVariable
@@ -627,6 +630,12 @@ fn missing_override_fix(diagnostic: &Diagnostic, context: &CodeActionSource<'_>)
                         | ast::FunctionKind::Fallback
                         | ast::FunctionKind::Receive
                 ) && function.header.override_.is_none() =>
+            {
+                qualifier_insertion_position(function, file, source)?
+            }
+            (ast::ItemKind::Function(function), Target::Modifier)
+                if function.kind == ast::FunctionKind::Modifier
+                    && function.header.override_.is_none() =>
             {
                 qualifier_insertion_position(function, file, source)?
             }

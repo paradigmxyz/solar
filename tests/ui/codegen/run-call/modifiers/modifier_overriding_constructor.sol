@@ -1,17 +1,17 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: C::getData => 7
+//@ run-call: C::getData => 6
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_for_constructor.sol
 
 contract A {
     uint256 data;
 
-    constructor() m {
+    constructor() mod1 {
         data |= 2;
     }
 
-    modifier m {
+    modifier mod1 virtual {
         data |= 1;
         _;
     }
@@ -23,7 +23,8 @@ contract A {
 }
 
 contract C is A {
-    constructor() {
+    modifier mod1 override {
         data |= 4;
+        _;
     }
 }

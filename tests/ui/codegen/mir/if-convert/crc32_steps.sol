@@ -2,7 +2,7 @@
 //@ run-call: crc32 0x => 0
 //@ run-call: crc32 0x313233343536373839 => 0xcbf43926
 //@ run-call: crc32 0xff => 0xff000000
-pragma solidity ^0.9.0;
+pragma solidity ^0.8.0;
 
 // The bitwise CRC-32 of gzip: each step xors the polynomial in only when the dropped bit was
 // set, which needs no branch.

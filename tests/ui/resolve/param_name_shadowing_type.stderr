@@ -61,13 +61,13 @@ LL │     function returnShadowsParameter(EnumType e) external returns (uint256
 error: name has to refer to a valid user-defined type
    ╭▸ ROOT/tests/ui/resolve/param_name_shadowing_type.sol:LL:CC
    │
-LL │     modifier m(EnumType StructType, StructType memory EnumType) { _; }
+LL │     modifier m(EnumType StructType, StructType memory EnumType) virtual;
    ╰╴               ━━━━━━━━
 
 error: name has to refer to a valid user-defined type
    ╭▸ ROOT/tests/ui/resolve/param_name_shadowing_type.sol:LL:CC
    │
-LL │     modifier m(EnumType StructType, StructType memory EnumType) { _; }
+LL │     modifier m(EnumType StructType, StructType memory EnumType) virtual;
    ╰╴                                    ━━━━━━━━━━
 
 error: name has to refer to a valid user-defined type

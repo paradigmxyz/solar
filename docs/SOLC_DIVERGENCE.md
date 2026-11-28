@@ -1,8 +1,9 @@
 # solc Divergence
 
 This file tracks intentional, user-visible differences from `solc`. The baseline is
-the `solc` version checked into `testdata/solidity`, unless an entry names a
-different upstream version. Where `solc`'s legacy and via-IR pipelines behave
+`solc` 0.8.39, the default of `--solc-version`, unless an entry names a different
+upstream version. `--solc-version 0.9.0` follows the language rules of the
+`solc` 0.9.0 pre-release checked into `testdata/solidity`. Where `solc`'s legacy and via-IR pipelines behave
 differently, we follow via-IR, and such cases are not listed.
 
 The goal is not to list every missing feature. A divergence belongs here when
@@ -54,7 +55,7 @@ Status: intentional.
 
 Difference: `solar` always emits full ethdebug output for the
 `evm.bytecode.ethdebug`, `evm.deployedBytecode.ethdebug` and `ethdebug.*`
-selections. `solc` 0.9.0 emits no semantic debug info for the program outputs
+selections. `solc` 0.8.39 emits no semantic debug info for the program outputs
 unless `settings.debug.debugInfo` contains `ethdebug`, and rejects ethdebug
 outputs and `ethdebug` in `debugInfo` unless `settings.experimental` is set.
 `solar` has no `settings.experimental` and ignores it. It rejects `ethdebug`
@@ -75,7 +76,7 @@ Coverage: `tests/ui/standard-json/debug/ethdebug-output-without-debug-info`,
 Status: intentional.
 
 Difference: contract metadata names the compiler as
-`"compiler": {"name": "solar", "version": "0.9.0+commit.d9f23fbe.solar.0.3.0"}`,
+`"compiler": {"name": "solar", "version": "0.8.39+commit.d9f23fbe.solar.0.3.0"}`,
 where solc writes only `"version": "0.8.28+commit.7893614a"`. The version is
 the solc-compatible form that `SOLC_WRAPPER=1 solar --version` prints: the
 emulated solc version, then the Solar commit and version as build metadata.
@@ -122,17 +123,19 @@ Coverage: `tests/ui/standard-json/cbor-auxdata/test.jsonc`,
 `tests/ui/standard-json/cbor-auxdata-shared.jsonc` and
 `tests/ui/standard-json/cbor-auxdata-literal.jsonc`.
 
-### JSON-005: `settings.solar` takes unstable flags
+### JSON-005: `settings.solar` takes unstable flags and the solc version
 
 Status: intentional.
 
 Difference: `solar` reads `settings.solar.unstable`, a list of unstable flags
 that change output, written like `-Z` flags without the prefix, such as
 `["tune=interpreter"]`, and records it in each contract's metadata. It ignores
-other flags in the list. `solc` rejects the unknown `settings.solar` key. Like
-`solc`, `solar` ignores the command line's `--evm-version` in Standard JSON
-mode, and it also ignores `--stop-after`, `--revert-strings` and the `-Z`
-flags that change output.
+other flags in the list. It also reads `settings.solar.solcVersion`, the
+`--solc-version` to follow, which the metadata's compiler version reports.
+`solc` rejects the unknown `settings.solar` key. Like `solc`, `solar` ignores
+the command line's `--evm-version` in Standard JSON mode, and it also ignores
+`--solc-version`, `--stop-after`, `--revert-strings` and the `-Z` flags that
+change output.
 
 Rationale: the Standard JSON input and the compiler version alone must
 determine the output, so that verifiers such as Sourcify can rebuild a
@@ -140,6 +143,7 @@ contract from its metadata. Flags that only change diagnostics or debugging
 output still come from the command line.
 
 Coverage: `tests/ui/standard-json/codegen-error.jsonc`,
+`tests/ui/standard-json/solc-version.jsonc`,
 `tests/ui/standard-json/debug/cli-flag-ignored/test.jsonc` and
 `tests/ui/standard-json/metadata/options/test.jsonc`.
 
@@ -151,10 +155,11 @@ Status: intentional.
 
 Difference: `solc` 0.9.0 dropped the `homestead`, `tangerineWhistle`,
 `spuriousDragon` and `byzantium` EVM versions and rejects them in
-`--evm-version` and Standard JSON. `solar` still accepts them and generates
-code for them. It keeps the checks that `solc` removed with them, such as the
-Yul errors for builtins those versions lack, `staticcall` and `salt` errors, and
-the errors for typed `catch` clauses before Byzantium.
+`--evm-version` and Standard JSON. With `--solc-version 0.9.0`, `solar` still
+accepts them and generates code for them. It keeps the checks that `solc`
+removed with them, such as the Yul errors for builtins those versions lack,
+`staticcall` and `salt` errors, and the errors for typed `catch` clauses before
+Byzantium.
 
 Rationale: dropping the versions would only remove features. Their lowerings
 already exist and are tested, and no 0.9.0 language change depends on their
@@ -522,9 +527,8 @@ form. Every program `solc` accepts here has the same meaning in `solar`.
 Coverage: `tests/ui/typeck/inheritance/base_arguments.sol`,
 `tests/ui/typeck/inheritance/modifier_arguments.sol`,
 `tests/ui/codegen/run-call/constructors/base_constructor_args.sol`,
-`tests/ui/codegen/run-call/calls/named_arguments_extended.sol`,
-`tests/ui/codegen/run-call/modifiers/modifier_named_arguments.sol`, and
-`tests/ui/codegen/run-call/dirty-values/raw-parity/modifier_named_argument.sol`.
+`tests/ui/codegen/run-call/calls/named_arguments_extended.sol`, and
+`tests/ui/codegen/run-call/modifiers/modifier_named_arguments_override.sol`.
 
 ### TYPECK-005: Parenthesized `try` targets
 
@@ -550,10 +554,10 @@ Status: intentional.
 Difference: Solar rejects copying or ABI-encoding fixed arrays with more than
 `2^64 - 1` elements during type checking, including arrays nested in structs.
 It still accepts their storage declarations, indexed accesses, and storage
-reference bindings. Solc 0.9.0 compiles the storage-to-storage array, tuple,
+reference bindings. Solc 0.8.39 compiles the storage-to-storage array, tuple,
 and struct copies covered by the fixture, but those copies panic with code
 `0x41` at runtime. ABI-encoding the same array causes an internal compiler
-error in solc 0.9.0. These results hold with optimization enabled or
+error in solc 0.8.39. These results hold with optimization enabled or
 disabled.
 
 Rationale: report unsupported copies at their source during type checking,
@@ -724,7 +728,7 @@ struct's head counts all its members together. The check covers calldata
 variables; parameters of constructors, events, errors and external function
 types; parameters and returns of public and external functions; arguments of
 `abi.encode` and its variants other than `abi.encodePacked`; and `abi.decode`
-types. `solc` 0.9.0 checks only constructor and public callable parameters
+types. `solc` 0.8.39 checks only constructor and public callable parameters
 against calldata, and sizes structs one member at a time, so it accepts, for
 example, an external function that takes a calldata struct with two
 `uint256[134217727]` members.
@@ -1163,6 +1167,22 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `PreAndPostFulfillmentCheckTest::testBasicStateful(uint8,uint8)` at 38
   additional recipients or fewer; 39 already fail.
 
+### CODEGEN-011: ABI coder v1 is not supported
+
+- ID: CODEGEN-011
+- Status: intentional
+- Difference: `solc` applies ABI coder v1's restrictions to a source unit that
+  selects it, so that unit cannot use structs or nested dynamic arrays at ABI
+  boundaries. `solar` warns that ABI coder v1 is not supported, generates ABI
+  coder v2 code, and does not apply v1's restrictions. The warning reuses
+  `solc`'s 9511 code, so `--allow 9511` also hides this change. With
+  `--solc-version 0.9.0`, `solar` rejects the pragma with error 2745, as `solc`
+  0.9.0 does.
+- Rationale: ABI coder v1 is deprecated, and both coders encode the types v1
+  accepts the same way. A second coder would only change which types compile.
+- Coverage: `tests/ui/codegen/run-call/abi-decode/abicoder_v1_uses_v2.sol` and
+  `tests/ui/parser/pragma/pragma_valid.sol`.
+
 ### CODEGEN-012: External function pointer suffixes keep only their field bits
 
 - ID: CODEGEN-012
@@ -1431,7 +1451,7 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Status: intentional
 - Difference: a storage-to-storage copy of a struct or array reads the whole
   source into memory, then writes the target. Two things differ from `solc`
-  0.9.0, which copies directly when the operands are disjoint and takes a
+  0.8.39, which copies directly when the operands are disjoint and takes a
   memory snapshot only when it finds the source inside the target.
   - A copy whose source contains its target, such as
     `root.children[0].children[0] = root` or `root.children.push(root)`,
@@ -1452,6 +1472,45 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `copy_recursive_struct_*source_contains_target*` tests and
   `copy_recursive_struct_overlap_push_self_parent`, and
   `copy_recursive_struct_disjoint_copy_memory_growth` expects no growth.
+
+### CODEGEN-032: Packed results store their length before copying the sources
+
+- ID: CODEGEN-032
+- Status: intentional
+- Difference: `abi.encodePacked`, `bytes.concat` and `string.concat` allocate
+  the result and store its length word before they copy the dynamic sources.
+  `solc` copies first and stores the length last. When inline assembly gives a
+  memory `bytes` a length that reaches 32 or more bytes past the free memory
+  pointer, the result's length word lies inside the source's declared bytes and
+  `solar` copies it into the result. With a source of length 77 and a zeroed
+  32-byte allocation that ends at the free memory pointer, byte 63 of the
+  result is `0x4d` in `solar` and `0x00` in `solc`. `abi.encode` of the same
+  source matches `solc`.
+- Rationale: the source claims memory past the free memory pointer, which the
+  Solidity documentation does not reserve for it, so any allocation may
+  overwrite it. In `solc` too, a `new bytes(1)` between the assembly and the use
+  writes into byte 63 of the source. Storing the length last would not make
+  such a source safe, because every other fresh allocation assumes that it
+  overlaps no live object.
+- Coverage: `tests/ui/codegen/run-call/assembly/packed_forged_length_source.sol`.
+
+### CODEGEN-033: `abi.encodeWithSelector` stores a clean selector
+
+- ID: CODEGEN-033
+- Status: intentional
+- Difference: `abi.encodeWithSelector` cleans a `bytes4` to its type before it
+  stores the selector word, and `solc` with `--via-ir` stores the raw word.
+  After `bytes4 sel; assembly { sel := not(0) }`, `abi.encodeWithSelector(sel)`
+  has length 4 and starts with `0xffffffff` in both compilers. The word that
+  `mload(add(r, 0x20))` reads is `0xffffffff` followed by 28 zero bytes in
+  `solar` and all `0xff` in `solc` with `--via-ir`.
+- Rationale: only assembly that forges the selector sees it, by reading past
+  the length of the result, or by pointing an argument at the result's own
+  memory so that the encoder copies the dirty bytes. Calldata validation,
+  storage reads and conversions all clean a `bytes4`, so ordinary Solidity
+  cannot produce a dirty one, and an argument elsewhere overwrites the bytes
+  after the selector.
+- Coverage: `tests/ui/codegen/run-call/assembly/abi_encode_selector_forged_bits.sol`.
 
 ### TYPECK-026: `@inheritdoc` references
 

@@ -43,12 +43,12 @@ contract E3 is D3, B3 {
 
 // Modifiers and public state variables.
 contract A4 is B4 { //~ ERROR: definition of base has to precede definition of derived contract
-    modifier m() {
+    modifier m() virtual {
         _;
     }
 }
 contract B4 is A4 {
-    modifier m() {
+    modifier m() override {
         _;
     }
 }

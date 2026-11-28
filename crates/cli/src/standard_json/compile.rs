@@ -285,9 +285,10 @@ fn compile(
     opts.import_remappings = parsed_remappings;
     // Like solc, Standard JSON takes the settings that change its output only from its input, so
     // that the input and the compiler version determine the output: the command line's
-    // `--evm-version`, `--stop-after`, `--revert-strings` and `-Z` flags that change output do not
-    // apply, and `settings.solar.unstable` replaces the latter.
+    // `--evm-version`, `--solc-version`, `--stop-after`, `--revert-strings` and `-Z` flags that
+    // change output do not apply, and `settings.solar` replaces `--solc-version` and `-Z`.
     opts.evm_version = EvmVersion::default();
+    opts.solc_version = solar.solc_version;
     opts.stop_after = None;
     opts.revert_strings = RevertStrings::Default;
     match UnstableOpts::try_parse_flags(&solar.unstable) {

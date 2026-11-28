@@ -68,9 +68,9 @@ contract FunctionComparison {
 
     function internalComparisons() public pure returns (bool) {
         function () internal ptr = internalTarget;
-        return internalTarget == internalTarget && //~ ERROR: comparison of internal function pointers is not allowed
-            ptr == internalOther && //~ ERROR: comparison of internal function pointers is not allowed
-            ptr != internalTarget; //~ ERROR: comparison of internal function pointers is not allowed
+        return internalTarget == internalTarget &&
+            ptr == internalOther &&
+            ptr != internalTarget;
     }
 
     function invalidInternalExternal(function () external externalPtr) external returns (bool) {

@@ -5,7 +5,7 @@ contract A {
 	}
 	function g() mod internal returns (uint[] storage) { //~ ERROR: this variable is of storage pointer type and can be returned
 	}
-	modifier mod() {
+	modifier mod() virtual {
 		_;
 	}
 }

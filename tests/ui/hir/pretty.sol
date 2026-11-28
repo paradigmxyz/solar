@@ -1,5 +1,5 @@
 //@ compile-flags: -Zdump=hir -Zhir-stats
-pragma solidity ^0.9.0;
+pragma solidity ^0.8.30;
 
 using {bump} for uint256;
 

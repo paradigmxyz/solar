@@ -67,8 +67,9 @@ abstract contract E {
         uint x;
     }
 
-    // A modifier's parameters are visible, since solc's rule only covers functions.
-    modifier m(EnumType StructType, StructType memory EnumType) { _; }
+    // A modifier's parameters are visible even when it has no body, since solc's rule only
+    // covers functions.
+    modifier m(EnumType StructType, StructType memory EnumType) virtual;
     //~^ ERROR: name has to refer to a valid user-defined type
     //~| ERROR: name has to refer to a valid user-defined type
 

@@ -1,0 +1,6 @@
+warning[5333]: source file requires different compiler version (current compiler is 0.9.0)
+   ╭▸ ROOT/tests/ui/parser/pragma/pragma_version_solc_version.sol:LL:CC
+   │
+LL │ pragma solidity ^0.8.0;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━
+

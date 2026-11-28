@@ -30,7 +30,7 @@ interface L {
     constructor() {}
     //~^ ERROR: functions in interfaces cannot have an implementation
     //~| ERROR: constructor cannot be defined in interfaces
-    modifier m() { _; } //~ ERROR: modifiers cannot be defined in interfaces
+    modifier m() { _; } //~ ERROR: modifiers cannot be defined or declared in interfaces
     uint256 public x; //~ ERROR: variables cannot be declared in interfaces
 }
 

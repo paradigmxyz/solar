@@ -25,7 +25,7 @@
 //@ run-call: stopAt [4, 5, 6], 5 => 1
 //@ run-call: stopAt [4, 5, 6], 9 => 3
 //@ run-call: stopAt [], 9 => 0
-pragma solidity ^0.9.0;
+pragma solidity ^0.8.0;
 
 // A calldata pointer may wrap, so it leaves a loop by reaching its value at the bound
 // rather than passing it. The decoded length is checked against the calldata size, which

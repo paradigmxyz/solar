@@ -25,7 +25,7 @@
 //@ run-call: mulAdd 0, 5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1 => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 //@ run-call-fail: mulAdd 0x8000000000000000000000000000000000000000000000000000000000000000, 2, 0, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call-fail: mulAdd 1, 1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
-pragma solidity ^0.9.0;
+pragma solidity ^0.8.0;
 
 // The checked product's factor never changes inside the loop, so the check
 // compares `x` with `MAX / y - (y == 0)`: a zero factor never overflows, and

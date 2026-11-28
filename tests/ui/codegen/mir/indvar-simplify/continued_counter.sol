@@ -4,7 +4,7 @@
 //@ run-call: remove 0, 0x0000000000000000000000000000000000000003 => 12450
 //@ run-call: remove 0, 0x0000000000000000000000000000000000000005 => 12340
 //@ run-call: remove 0, 0x0000000000000000000000000000000000000009 => 12345
-pragma solidity ^0.9.0;
+pragma solidity ^0.8.0;
 
 // Each loop's counter starts where the previous loop's stopped. Once a loop's
 // pointer takes over its exit test, the counter is rebuilt from the pointer on

@@ -187,7 +187,7 @@ note: the tag is here
    │
 LL │ /// @custom:solar-safe
    │      ━━━━━━━━━━━━━━━━━
-   ├ note: it runs this through `SafeModifier.f` → `SafeModifier.m`
+   ├ note: it runs this through `ModifiedBase.f` → `SafeModifier.m`
    ╰ help: write it without assembly, or review it and tag its function `@custom:solar-trusted`
 
 error: `SafeInit` is tagged `@custom:solar-safe` but runs an `unchecked` block

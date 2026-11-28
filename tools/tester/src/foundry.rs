@@ -27,10 +27,6 @@ pub use external::run_external_suite;
 // Configuration
 // ============================================================================
 
-/// The solc version that forge sees on the compiler leg of a project that pins none. forge picks a
-/// compiler by the sources' version pragmas, and the projects target solc 0.8.
-const DEFAULT_SOLC_WRAPPER_VERSION: &str = "0.8.39";
-
 /// How a project's results are judged.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AssertionPolicy {
@@ -80,8 +76,7 @@ struct TestConfig {
     /// Fixed fuzz seed so both legs run identical fuzz and invariant inputs.
     fuzz_seed: Option<u64>,
     /// Solc version to emulate on the compiler leg (`SOLC_WRAPPER_VERSION`), for
-    /// projects whose sources pin an exact solc version. Defaults to
-    /// [`DEFAULT_SOLC_WRAPPER_VERSION`].
+    /// projects whose sources pin an exact solc version.
     solc_wrapper_version: Option<String>,
     /// Foundry profile to use for both compiler legs.
     foundry_profile: Option<String>,
@@ -763,9 +758,9 @@ fn set_forge_compiler(
     if let Some(foundry_solc) = foundry_solc {
         // Foundry expects solc-compatible `--version` output when probing `FOUNDRY_SOLC`.
         cmd.env("SOLC_WRAPPER", "1").env("FOUNDRY_SOLC", foundry_solc.path());
-        let version =
-            config.solc_wrapper_version.as_deref().unwrap_or(DEFAULT_SOLC_WRAPPER_VERSION);
-        cmd.env("SOLC_WRAPPER_VERSION", version);
+        if let Some(version) = &config.solc_wrapper_version {
+            cmd.env("SOLC_WRAPPER_VERSION", version);
+        }
         if let Some(level) = level {
             let (enabled, runs) = level.foundry_settings();
             cmd.env("FOUNDRY_OPTIMIZER", enabled.to_string())

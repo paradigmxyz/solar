@@ -8,7 +8,7 @@
 //@ run-call-fail: decode 0x0102030405 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call: sum4 [1, 2, 3, 4] => 10
 //@ run-call-fail: sum4 [0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1, 0, 0] => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
-pragma solidity ^0.9.0;
+pragma solidity ^0.8.0;
 
 // Loops that run a literal number of times become that many copies of their body, with no
 // test or jump left between them, and each copy keeps its own bounds and overflow checks.

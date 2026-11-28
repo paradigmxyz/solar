@@ -201,6 +201,28 @@ impl EvmVersion {
 }
 
 str_enum! {
+    /// The solc version whose language rules the compiler follows and reports.
+    #[derive(Default)]
+    #[non_exhaustive]
+    pub enum SolcVersion {
+        /// Solidity 0.8.39.
+        #[default]
+        #[strum(serialize = "0.8.39")]
+        V0_8_39,
+        /// Solidity 0.9.0, as of the `v0.9.0-pre.1` pre-release.
+        #[strum(serialize = "0.9.0")]
+        V0_9_0,
+    }
+}
+
+impl SolcVersion {
+    /// Returns the version as a [`semver::Version`].
+    pub fn semver(self) -> semver::Version {
+        semver::Version::parse(self.to_str()).unwrap()
+    }
+}
+
+str_enum! {
     /// MIR optimization objective.
     #[derive(Default)]
     #[strum(serialize_all = "kebab-case")]
@@ -671,6 +693,14 @@ mod tests {
                 assert_eq!(serde_json::to_string(&value).unwrap(), json_s);
                 assert_eq!(serde_json::from_str::<EvmVersion>(&json_s).unwrap(), value);
             }
+        }
+    }
+
+    #[test]
+    fn solc_version() {
+        assert_eq!(SolcVersion::default().to_str(), version::SOLC_SEMVER_VERSION);
+        for value in SolcVersion::iter() {
+            value.semver();
         }
     }
 }

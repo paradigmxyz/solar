@@ -3,7 +3,7 @@
 use crate::{
     ColorChoice, CompilerOutput, CompilerStage, Debugify, Dump, ErrorFormat, EvmVersion,
     HumanEmitterKind, ImportRemapping, Language, LibraryAddress, OptimizationMode, RevertStrings,
-    SwitchLowering, Threads, Tune,
+    SolcVersion, SwitchLowering, Threads, Tune,
 };
 use std::{num::NonZeroUsize, path::PathBuf};
 
@@ -99,6 +99,9 @@ pub struct CompileOpts {
     /// EVM version.
     #[cfg_attr(feature = "clap", arg(long, value_enum, default_value_t))]
     pub evm_version: EvmVersion,
+    /// Solidity version whose language rules to follow.
+    #[cfg_attr(feature = "clap", arg(long, value_enum, default_value_t))]
+    pub solc_version: SolcVersion,
     /// Stop execution after the given compiler stage.
     #[cfg_attr(feature = "clap", arg(long, value_enum))]
     pub stop_after: Option<CompilerStage>,

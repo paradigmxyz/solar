@@ -1,0 +1,28 @@
+error[9456]: overriding modifier is missing `override` specifier
+   ╭▸ ROOT/tests/ui/overrides/modifier_redefinition_solc_version.sol:LL:CC
+   │
+LL │     modifier m() { _; }
+   │     ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overridden modifier is here
+   ╭▸ ROOT/tests/ui/overrides/modifier_redefinition_solc_version.sol:LL:CC
+   │
+LL │     modifier m() { _; }
+   │     ━━━━━━━━━━━━━━━━━━━
+   ╰ help: add `override` to the function signature
+
+error[4334]: cannot override non-virtual modifier
+   ╭▸ ROOT/tests/ui/overrides/modifier_redefinition_solc_version.sol:LL:CC
+   │
+LL │     modifier m() { _; }
+   │     ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overriding modifier is here
+   ╭▸ ROOT/tests/ui/overrides/modifier_redefinition_solc_version.sol:LL:CC
+   │
+LL │     modifier m() { _; }
+   │     ━━━━━━━━━━━━━━━━━━━
+   ╰ help: add `virtual` to the base function to allow overriding
+
+error: aborting due to 2 previous errors
+

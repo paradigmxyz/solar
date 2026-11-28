@@ -16,7 +16,7 @@
       "id": 0,
       "ast": {
         "id": 8,
-        "src": "32:341:0",
+        "src": "32:342:0",
         "nodeType": "SourceUnit",
         "absolutePath": "ImmutableIdentity.sol",
         "exportedSymbols": {
@@ -28,21 +28,21 @@
         "nodes": [
           {
             "id": 9,
-            "src": "32:23:0",
+            "src": "32:24:0",
             "nodeType": "PragmaDirective",
             "literals": [
               "solidity",
               "^",
-              "0.9",
-              ".0"
+              "0.8",
+              ".30"
             ]
           },
           {
             "id": 0,
-            "src": "57:315:0",
+            "src": "58:315:0",
             "nodeType": "ContractDefinition",
             "name": "ImmutableIdentity",
-            "nameLocation": "66:17:0",
+            "nameLocation": "67:17:0",
             "contractKind": "contract",
             "abstract": false,
             "baseContracts": [],
@@ -53,13 +53,13 @@
             "nodes": [
               {
                 "id": 3,
-                "src": "90:34:0",
+                "src": "91:34:0",
                 "nodeType": "VariableDeclaration",
                 "name": "ORIGINAL",
-                "nameLocation": "116:8:0",
+                "nameLocation": "117:8:0",
                 "typeName": {
                   "id": 10,
-                  "src": "90:7:0",
+                  "src": "91:7:0",
                   "nodeType": "ElementaryTypeName",
                   "name": "address",
                   "typeDescriptions": {
@@ -81,13 +81,13 @@
               },
               {
                 "id": 4,
-                "src": "130:32:0",
+                "src": "131:32:0",
                 "nodeType": "VariableDeclaration",
                 "name": "LENDER",
-                "nameLocation": "156:6:0",
+                "nameLocation": "157:6:0",
                 "typeName": {
                   "id": 11,
-                  "src": "130:7:0",
+                  "src": "131:7:0",
                   "nodeType": "ElementaryTypeName",
                   "name": "address",
                   "typeDescriptions": {
@@ -109,7 +109,7 @@
               },
               {
                 "id": 1,
-                "src": "169:94:0",
+                "src": "170:94:0",
                 "nodeType": "FunctionDefinition",
                 "name": "",
                 "nameLocation": "-1:-1:-1",
@@ -118,18 +118,18 @@
                 "virtual": false,
                 "parameters": {
                   "id": 13,
-                  "src": "180:16:0",
+                  "src": "181:16:0",
                   "nodeType": "ParameterList",
                   "parameters": [
                     {
                       "id": 5,
-                      "src": "181:14:0",
+                      "src": "182:14:0",
                       "nodeType": "VariableDeclaration",
                       "name": "lender",
-                      "nameLocation": "189:6:0",
+                      "nameLocation": "190:6:0",
                       "typeName": {
                         "id": 14,
-                        "src": "181:7:0",
+                        "src": "182:7:0",
                         "nodeType": "ElementaryTypeName",
                         "name": "address",
                         "typeDescriptions": {
@@ -153,7 +153,7 @@
                 },
                 "returnParameters": {
                   "id": 12,
-                  "src": "197:0:0",
+                  "src": "198:0:0",
                   "nodeType": "ParameterList",
                   "parameters": []
                 },
@@ -163,21 +163,21 @@
                 "visibility": "public",
                 "body": {
                   "id": 15,
-                  "src": "197:66:0",
+                  "src": "198:66:0",
                   "nodeType": "Block",
                   "statements": [
                     {
                       "id": 16,
-                      "src": "207:24:0",
+                      "src": "208:24:0",
                       "nodeType": "ExpressionStatement",
                       "expression": {
                         "id": 17,
-                        "src": "207:24:0",
+                        "src": "208:24:0",
                         "nodeType": "Assignment",
                         "operator": "=",
                         "leftHandSide": {
                           "id": 18,
-                          "src": "207:8:0",
+                          "src": "208:8:0",
                           "nodeType": "Identifier",
                           "name": "ORIGINAL",
                           "referencedDeclaration": 3,
@@ -189,15 +189,15 @@
                         },
                         "rightHandSide": {
                           "id": 19,
-                          "src": "218:13:0",
+                          "src": "219:13:0",
                           "nodeType": "FunctionCall",
                           "expression": {
                             "id": 20,
-                            "src": "218:7:0",
+                            "src": "219:7:0",
                             "nodeType": "ElementaryTypeNameExpression",
                             "typeName": {
                               "id": 21,
-                              "src": "218:7:0",
+                              "src": "219:7:0",
                               "nodeType": "ElementaryTypeName",
                               "name": "address",
                               "typeDescriptions": {}
@@ -214,6 +214,7 @@
                             ],
                             "isLValue": false,
                             "isPure": true,
+                            "isConstant": false,
                             "lValueRequested": false
                           },
                           "names": [],
@@ -221,7 +222,7 @@
                           "arguments": [
                             {
                               "id": 22,
-                              "src": "226:4:0",
+                              "src": "227:4:0",
                               "nodeType": "Identifier",
                               "name": "this",
                               "referencedDeclaration": -28,
@@ -240,6 +241,7 @@
                           },
                           "isLValue": false,
                           "isPure": false,
+                          "isConstant": false,
                           "lValueRequested": false
                         },
                         "typeDescriptions": {
@@ -248,21 +250,22 @@
                         },
                         "isLValue": false,
                         "isPure": false,
+                        "isConstant": false,
                         "lValueRequested": false
                       }
                     },
                     {
                       "id": 23,
-                      "src": "241:15:0",
+                      "src": "242:15:0",
                       "nodeType": "ExpressionStatement",
                       "expression": {
                         "id": 24,
-                        "src": "241:15:0",
+                        "src": "242:15:0",
                         "nodeType": "Assignment",
                         "operator": "=",
                         "leftHandSide": {
                           "id": 25,
-                          "src": "241:6:0",
+                          "src": "242:6:0",
                           "nodeType": "Identifier",
                           "name": "LENDER",
                           "referencedDeclaration": 4,
@@ -274,7 +277,7 @@
                         },
                         "rightHandSide": {
                           "id": 26,
-                          "src": "250:6:0",
+                          "src": "251:6:0",
                           "nodeType": "Identifier",
                           "name": "lender",
                           "referencedDeclaration": 5,
@@ -290,6 +293,7 @@
                         },
                         "isLValue": false,
                         "isPure": false,
+                        "isConstant": false,
                         "lValueRequested": false
                       }
                     }
@@ -298,33 +302,33 @@
               },
               {
                 "id": 2,
-                "src": "269:101:0",
+                "src": "270:101:0",
                 "nodeType": "FunctionDefinition",
                 "name": "values",
-                "nameLocation": "278:6:0",
+                "nameLocation": "279:6:0",
                 "kind": "function",
                 "stateMutability": "view",
                 "virtual": false,
                 "parameters": {
                   "id": 28,
-                  "src": "284:2:0",
+                  "src": "285:2:0",
                   "nodeType": "ParameterList",
                   "parameters": []
                 },
                 "returnParameters": {
                   "id": 27,
-                  "src": "309:18:0",
+                  "src": "310:18:0",
                   "nodeType": "ParameterList",
                   "parameters": [
                     {
                       "id": 6,
-                      "src": "310:7:0",
+                      "src": "311:7:0",
                       "nodeType": "VariableDeclaration",
                       "name": "",
                       "nameLocation": "-1:-1:-1",
                       "typeName": {
                         "id": 29,
-                        "src": "310:7:0",
+                        "src": "311:7:0",
                         "nodeType": "ElementaryTypeName",
                         "name": "address",
                         "typeDescriptions": {
@@ -346,13 +350,13 @@
                     },
                     {
                       "id": 7,
-                      "src": "319:7:0",
+                      "src": "320:7:0",
                       "nodeType": "VariableDeclaration",
                       "name": "",
                       "nameLocation": "-1:-1:-1",
                       "typeName": {
                         "id": 30,
-                        "src": "319:7:0",
+                        "src": "320:7:0",
                         "nodeType": "ElementaryTypeName",
                         "name": "address",
                         "typeDescriptions": {
@@ -380,22 +384,22 @@
                 "visibility": "external",
                 "body": {
                   "id": 31,
-                  "src": "328:42:0",
+                  "src": "329:42:0",
                   "nodeType": "Block",
                   "statements": [
                     {
                       "id": 32,
-                      "src": "338:25:0",
+                      "src": "339:25:0",
                       "nodeType": "Return",
                       "expression": {
                         "id": 33,
-                        "src": "345:18:0",
+                        "src": "346:18:0",
                         "nodeType": "TupleExpression",
                         "isInlineArray": false,
                         "components": [
                           {
                             "id": 34,
-                            "src": "346:8:0",
+                            "src": "347:8:0",
                             "nodeType": "Identifier",
                             "name": "ORIGINAL",
                             "referencedDeclaration": 3,
@@ -407,7 +411,7 @@
                           },
                           {
                             "id": 35,
-                            "src": "356:6:0",
+                            "src": "357:6:0",
                             "nodeType": "Identifier",
                             "name": "LENDER",
                             "referencedDeclaration": 4,
@@ -424,6 +428,7 @@
                         },
                         "isLValue": false,
                         "isPure": false,
+                        "isConstant": false,
                         "lValueRequested": false
                       },
                       "functionReturnParameters": 27

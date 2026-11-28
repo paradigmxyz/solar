@@ -98,10 +98,10 @@ fn resolves_implementations_directionally() {
         }
 
         contract ModBase {
-            modifier $28guard() { _; }
+            modifier $28guard() virtual { _; }
         }
         contract ModChild is ModBase {
-            modifier $29other() { _; }
+            modifier $29guard() override { _; }
             function run() public $30guard {}
         }
 
@@ -154,9 +154,9 @@ $24 /Main.sol:66:13 function target() public {}
 $25 /Main.sol:75:28 uint256 public override value;
 $26 <none>
 $27 /Main.sol:75:28 uint256 public override value;
-$28 /Main.sol:81:13 modifier guard() { _; }
-$29 /Main.sol:84:13 modifier other() { _; }
-$30 /Main.sol:81:13 modifier guard() { _; }
+$28 /Main.sol:84:13 modifier guard() override { _; }
+$29 <none>
+$30 /Main.sol:84:13 modifier guard() override { _; }
 $31 /Main.sol:87:9 contract Container {
 $32 /Main.sol:88:11 struct Data { uint256 value; }
 $33 /Main.sol:89:9 enum Choice { None, Some }

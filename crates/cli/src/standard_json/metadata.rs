@@ -146,7 +146,7 @@ fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> St
     let (optimizer_enabled, optimizer_runs) =
         optimizer_settings(metadata.settings.optimizer.as_ref());
     let mut value = json!({
-        "compiler": { "name": "solar", "version": version::solc_compat_version() },
+        "compiler": { "name": "solar", "version": version::solc_compat_version(opts.solc_version) },
         "language": "Solidity",
         "output": {
             "abi": gcx.contract_abi(contract_id),

@@ -1087,6 +1087,7 @@
                 "nodeType": "ModifierDefinition",
                 "name": "positive",
                 "nameLocation": "783:8:1",
+                "virtual": false,
                 "parameters": {
                   "id": 209,
                   "src": "791:8:1",

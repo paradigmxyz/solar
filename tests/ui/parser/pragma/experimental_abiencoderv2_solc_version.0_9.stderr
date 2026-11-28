@@ -1,0 +1,10 @@
+error[2044]: the experimental ABIEncoderV2 pragma has been removed
+   ╭▸ ROOT/tests/ui/parser/pragma/experimental_abiencoderv2_solc_version.sol:LL:CC
+   │
+LL │ pragma experimental ABIEncoderV2;
+   │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove the pragma; ABI coder v2 is the default
+
+error: aborting due to 1 previous error
+
