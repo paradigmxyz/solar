@@ -123,6 +123,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_shifts::LowerShifts,
     &evm_inst_schedule::EvmInstSchedule,
     &heap_floor::HeapFloor,
+    &coverage_alias::CoverageAlias,
 ];
 
 /// Finds a MIR pass by command-line name.
@@ -467,6 +468,8 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     // Targets without shift opcodes get arithmetic instead, so scheduling orders its operands.
     &lower_shifts::LowerShifts,
     &evm_inst_schedule::EvmInstSchedule,
+    // Last, so the probes are in their final order.
+    &coverage_alias::CoverageAlias,
 ];
 
 /// Runs the configured MIR pipeline, substituting it for the canonical pipeline.

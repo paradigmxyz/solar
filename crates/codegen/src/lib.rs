@@ -11,6 +11,8 @@ extern crate alloc;
 extern crate derive_more as _;
 extern crate tracing as _;
 
+pub mod coverage;
+
 pub mod mir;
 
 pub mod backend;

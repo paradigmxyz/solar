@@ -131,4 +131,5 @@
   (Phi (incoming Unit))
   (Select (cond Value) (true_val Value) (false_val Value))
   (SignExtend (byte Value) (value Value))
+  (Coverage (id u32))
 ))

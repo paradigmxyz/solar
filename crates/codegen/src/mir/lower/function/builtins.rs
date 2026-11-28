@@ -547,8 +547,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             Builtin::Require => {
                 let (required, message) = self.builtin_args_with_optional::<1>(builtin, &args)?;
-                let condition = required.first()?;
-                let condition = self.operand(condition)?.id();
+                let condition_expr = required.first()?;
+                let condition = self.operand(condition_expr)?.id();
+                self.coverage(Site::Leaf(Site::expr(condition_expr)));
+                // A message that may revert while it is evaluated is no failure of the condition,
+                // so the condition counts before it. Otherwise the counter follows the check, which
+                // keeps the code after it in one block.
+                let taken = Site::Arm(Site::expr(condition_expr));
+                let early = coverage_map(self.cx.gcx).is_some()
+                    && message.is_some_and(|message| self.message_may_revert(message));
+                if early {
+                    self.coverage_branch(taken, condition)?;
+                }
                 // The message is evaluated regardless of the condition, like a function call
                 // argument. With `--revert-strings strip`, only its side effects are kept.
                 let message = match message {
@@ -559,10 +569,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Some(message) = message else {
                     let is_false = self.builder.eq_zero(condition);
                     self.builder.revert_if(is_false, RevertReason::Empty);
+                    if !early {
+                        self.coverage(taken);
+                    }
                     return Some(());
                 };
                 // require condition, evaluated_payload
                 self.builder.require(condition, message);
+                if !early {
+                    self.coverage(taken);
+                }
             }
             Builtin::Revert => {
                 let _ = self.builtin_args::<0>(builtin, &args)?;
@@ -982,6 +998,67 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return None;
         }
         Some(exprs.split_at(N))
+    }
+
+    /// Returns whether evaluating the message of a `require` may revert: anything but a constant
+    /// that folds, a variable or a field of one, or a custom error whose arguments are such.
+    fn message_may_revert(&self, message: &'gcx hir::Expr<'gcx>) -> bool {
+        let gcx = self.cx.gcx;
+        let message = message.peel_parens();
+        if self.is_plain_read(message) {
+            return false;
+        }
+        match message.kind {
+            ExprKind::Call(callee, ref args)
+                if matches!(
+                    gcx.resolved_expr(callee),
+                    Some(hir::Res::Item(hir::ItemId::Error(_)))
+                ) =>
+            {
+                args.exprs().any(|arg| self.message_may_revert(arg))
+            }
+            _ => true,
+        }
+    }
+
+    /// Returns whether reading `expr` cannot revert: a constant that folds, or a variable of an
+    /// unchecked type reached through an identifier and fields of memory structs.
+    ///
+    /// Only integers, addresses, booleans, fixed bytes, user-defined value types over them and
+    /// memory `string`/`bytes` are unchecked:
+    /// encoding an enum checks its range, loading storage bytes checks their length encoding,
+    /// calldata reads check offsets against the calldata size, and arrays and structs may hold
+    /// any of these.
+    fn is_plain_read(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
+        let gcx = self.cx.gcx;
+        let expr = expr.peel_parens();
+        if gcx.const_eval().eval_expr(expr).is_ok() {
+            return true;
+        }
+        let Some(id) = gcx.resolved_variable(expr) else { return false };
+        if gcx.hir.variable(id).is_constant() {
+            return gcx.const_eval().eval_var(id).is_ok();
+        }
+        let unchecked = |ty: Ty<'_>| match ty.kind {
+            TyKind::Elementary(ty) => !matches!(ty, ElementaryType::String | ElementaryType::Bytes),
+            TyKind::Udvt(..) => true,
+            TyKind::Ref(inner, DataLocation::Memory) => matches!(
+                inner.kind,
+                TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes)
+            ),
+            _ => false,
+        };
+        if !gcx.type_of_expr(expr.id).is_some_and(unchecked) {
+            return false;
+        }
+        let mut place = expr;
+        while let ExprKind::Member(base, _) = place.kind {
+            place = base.peel_parens();
+            if !gcx.type_of_expr(place.id).is_some_and(|ty| ty.is_ref_at(DataLocation::Memory)) {
+                return false;
+            }
+        }
+        matches!(place.kind, ExprKind::Ident(_))
     }
 
     pub(super) fn builtin_args_with_optional<'hir, const N: usize>(

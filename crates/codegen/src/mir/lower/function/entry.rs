@@ -81,6 +81,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // Like solc's `appendStateVariableInitialization`, map the conversion and the store
             // to the variable declaration.
             let previous = self.builder.replace_source_span(variable.declaration_span());
+            self.coverage(Site::Init(Site::key(variable)));
             let result = self.lower_state_initializer(id, initializer);
             self.builder.replace_source_span(previous);
             result?;
@@ -144,13 +145,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for &base_id in self.cx.gcx.hir.contract(contract_id).linearized_bases.iter().skip(1) {
             if let Some(constructor_id) = self.cx.gcx.hir.contract(base_id).ctor
                 && self.cx.gcx.hir.function(constructor_id).parameters.is_empty()
-                && !self.base_args.iter().any(|&(id, _)| id == base_id)
+                && !self.base_args.iter().any(|&(id, ..)| id == base_id)
             {
-                self.base_args.push((base_id, hir::CallArgs::default()));
+                self.base_args.push((base_id, hir::CallArgs::default(), None));
             }
         }
         for index in 0..self.base_args.len() {
-            let (base_id, args) = self.base_args[index];
+            let (base_id, args, written) = self.base_args[index];
             let Some(constructor_id) = self.cx.gcx.hir.contract(base_id).ctor else {
                 continue;
             };
@@ -163,6 +164,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // Like solc's `appendBaseConstructor`, which sets the location of the base
             // constructor's definition around the arguments, map the argument conversions and
             // parameter bindings to it. Each argument expression keeps its own location.
+            if let Some(written) = written {
+                self.coverage(Site::Init(Site::key(written)));
+            }
             let previous = self.builder.replace_source_span(constructor.span);
             let parameter_names = self.cx.gcx.callable_param_names(CallableParamSource::Function {
                 id: constructor_id,
@@ -265,7 +269,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// Returns the base constructor argument lists of `contract_id`'s
-    /// hierarchy, in evaluation order.
+    /// hierarchy, in evaluation order, each with the inheritance specifier
+    /// that writes it.
     ///
     /// solc evaluates the lists grouped by the contract that wrote them, the
     /// most derived writer first, and inside one writer in that writer's own
@@ -277,7 +282,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn base_constructor_arg_lists(
         &self,
         contract_id: hir::ContractId,
-    ) -> Vec<(hir::ContractId, hir::CallArgs<'gcx>)> {
+    ) -> Vec<(hir::ContractId, hir::CallArgs<'gcx>, Option<&'gcx hir::Modifier<'gcx>>)> {
         let hir = &self.cx.gcx.hir;
         let mut lists = Vec::new();
         for &writer_id in hir.contract(contract_id).linearized_bases {
@@ -287,9 +292,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // same base further up the hierarchy still applies.
                 if let Some(modifier) = writer.linearized_bases_args.get(index).copied().flatten()
                     && !modifier.args.is_empty()
-                    && !lists.iter().any(|&(id, _)| id == base_id)
+                    && !lists.iter().any(|&(id, _, _)| id == base_id)
                 {
-                    lists.push((base_id, modifier.args));
+                    lists.push((base_id, modifier.args, Some(modifier)));
                 }
             }
         }
@@ -300,7 +305,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &self,
         base_id: hir::ContractId,
     ) -> Option<hir::CallArgs<'gcx>> {
-        self.base_args.iter().find(|&&(id, _)| id == base_id).map(|&(_, args)| args)
+        self.base_args.iter().find(|&&(id, ..)| id == base_id).map(|&(_, args, _)| args)
     }
 
     pub(super) fn finish(&mut self, returns: &[VariableId]) -> Option<()> {
@@ -326,6 +331,66 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn is_terminated(&self) -> bool {
         self.builder.func().block(self.builder.current_block()).terminator.is_some()
+    }
+
+    /// Emits the counter of `site` when coverage instrumentation gave it one and the current block
+    /// is reachable.
+    pub(super) fn coverage(&mut self, site: Site) {
+        if let Some(counter) =
+            coverage_map(self.cx.gcx).and_then(|map| map.counter(self.coverage_scope, site))
+            && !self.is_terminated()
+        {
+            // A function's entry counter belongs to its definition, which may not be the
+            // current source context yet.
+            let previous = match site {
+                Site::Function(id) => {
+                    Some(self.builder.replace_source_span(self.cx.gcx.hir.function(id).span))
+                }
+                _ => None,
+            };
+            // coverage counter
+            self.builder.coverage(counter);
+            if let Some(previous) = previous {
+                self.builder.replace_source_span(previous);
+            }
+        }
+    }
+
+    /// Emits the counter of `site` on the path where the boolean `value` holds, when the site has
+    /// one. The value is unchanged: the paths rejoin right away.
+    pub(super) fn coverage_if_true(&mut self, site: Site, value: Word, ty: Ty<'gcx>) -> Option<()> {
+        if self.has_coverage(site) {
+            let holds = value.clean(self, ty);
+            self.coverage_branch(site, holds)?;
+        }
+        Some(())
+    }
+
+    /// Emits the counter of `site` on the path where `holds` is true, when the site has one.
+    pub(super) fn coverage_branch(&mut self, site: Site, holds: ValueId) -> Option<()> {
+        if !self.has_coverage(site) {
+            return Some(());
+        }
+        // The probe changes no source value, so the diamond is built directly: the general branch
+        // lowering would first initialize deferred bindings, such as memory return values, which
+        // would move their allocations to here in coverage builds only.
+        let hit = self.builder.create_block();
+        let join = self.builder.create_block();
+        // branch(holds, hit, join)
+        // hit: coverage counter
+        //      jump join
+        self.builder.branch(holds, hit, join);
+        self.builder.switch_to_block(hit);
+        self.coverage(site);
+        self.builder.jump(join);
+        self.builder.switch_to_block(join);
+        Some(())
+    }
+
+    /// Returns whether coverage instrumentation gave `site` a counter.
+    fn has_coverage(&self, site: Site) -> bool {
+        coverage_map(self.cx.gcx)
+            .is_some_and(|map| map.counter(self.coverage_scope, site).is_some())
     }
 
     pub(super) fn materialize_default_bindings(&mut self) {

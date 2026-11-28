@@ -565,6 +565,7 @@ impl MetadataFlags {
             12 => Some(EffectKind::Log),
             13 => Some(EffectKind::ImmutableRead),
             14 => Some(EffectKind::ImmutableWrite),
+            15 => Some(EffectKind::Coverage),
             _ => unreachable!("invalid packed effect kind"),
         }
     }
@@ -586,6 +587,7 @@ impl MetadataFlags {
             Some(EffectKind::Log) => 12,
             Some(EffectKind::ImmutableRead) => 13,
             Some(EffectKind::ImmutableWrite) => 14,
+            Some(EffectKind::Coverage) => 15,
         } << Self::EFFECT_SHIFT;
         self.0 = (self.0 & !Self::EFFECT_MASK) | bits;
     }
@@ -760,6 +762,9 @@ pub enum EffectKind {
     ImmutableRead,
     /// Constructor assignment to an immutable.
     ImmutableWrite,
+    /// A coverage counter probe, which touches no state but must run exactly as often as its
+    /// site.
+    Coverage,
 }
 
 impl EffectKind {
@@ -781,6 +786,7 @@ impl EffectKind {
             Self::Log => "log",
             Self::ImmutableRead => "immutable_read",
             Self::ImmutableWrite => "immutable_write",
+            Self::Coverage => "coverage",
         }
     }
 

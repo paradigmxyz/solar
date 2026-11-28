@@ -16,6 +16,7 @@
 //! - `allocate(size, semantics)`: a fresh memory region, and `data_copy(data, dest, size)`:
 //!   constant data copied to memory.
 //! - `heap_floor()`: the initial heap floor resolved by backend placement.
+//! - `coverage(id)`: a hit of coverage counter `id`, which changes no state.
 //!
 //! [`InstKind::semantics`] returns one instruction's declaration, and the MIR interpreter
 //! (`solar-mir-interpreter`) runs it instead of classifying operations itself. An operation
@@ -67,6 +68,8 @@ pub enum Semantics<'a> {
     DataCopy(DataRef, ValueId, ValueId),
     /// The initial heap floor of the transaction.
     HeapFloor,
+    /// A hit of this coverage counter, which changes no state.
+    Coverage(u32),
 }
 
 /// Constructors for the `#[semantics(...)]` declarations of the operation schema, which bind an
@@ -136,6 +139,11 @@ pub(super) mod declare {
     /// The initial heap floor of the transaction.
     pub(crate) fn heap_floor() -> Semantics<'static> {
         Semantics::HeapFloor
+    }
+
+    /// A coverage counter hit.
+    pub(crate) fn coverage(id: &u32) -> Semantics<'static> {
+        Semantics::Coverage(*id)
     }
 
     /// `log0` through `log4`, by topic count.

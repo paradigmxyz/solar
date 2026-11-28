@@ -1,0 +1,94 @@
+; === ROOT/tests/ui/codegen/lowering/mir/coverage/mcdc.sol:Mcdc ===
+@module Mcdc
+; function three(bool a, bool b, bool c) external pure returns (uint256 r) [selector 0x4e064b24]
+fn @three(arg0: i1, arg1: i1, arg2: i1) -> i256 [selector=0x4e064b24, pure, abi_params=[bool, bool, bool], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    coverage 1
+    coverage 2147483648
+    coverage 2
+    jumpi arg0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    coverage 2684354562
+    coverage 3
+    coverage 4
+    jumpi arg1, bb4, bb5
+  bb4:                                            ; preds = bb1
+    coverage 2684354562
+    jump bb5
+  bb5:                                            ; preds = bb1, bb4
+    jump bb3
+  bb3:                                            ; preds = bb5, bb2
+    v0 = phi [bb5: arg1], [bb2: false]
+    jumpi v0, bb7, bb6
+  bb6:                                            ; preds = bb3
+    coverage 5
+    coverage 6
+    jumpi arg2, bb9, bb10
+  bb9:                                            ; preds = bb6
+    coverage 2684354561
+    jump bb10
+  bb10:                                           ; preds = bb6, bb9
+    jump bb8
+  bb7:                                            ; preds = bb3
+    jump bb8
+  bb8:                                            ; preds = bb7, bb10
+    v1 = phi [bb10: arg2], [bb7: true]
+    coverage 3221225472
+    jumpi v1, bb11, bb12
+  bb12:                                           ; preds = bb8
+    jump bb13
+  bb11:                                           ; preds = bb8
+    coverage 7
+    jump bb13
+  bb13:                                           ; preds = bb11, bb12
+    v2 = phi [bb11: 1], [bb12: 0]
+    ret v2
+}
+
+; function value(bool a, bool b) external pure returns (bool) [selector 0x7586393b]
+fn @value(arg0: i1, arg1: i1) -> i1 [selector=0x7586393b, pure, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    coverage 8
+    coverage 2147483904
+    coverage 9
+    jumpi arg0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    coverage 2684354817
+    coverage 10
+    coverage 11
+    jumpi arg1, bb4, bb5
+  bb4:                                            ; preds = bb1
+    coverage 2684354817
+    jump bb5
+  bb5:                                            ; preds = bb1, bb4
+    jump bb3
+  bb3:                                            ; preds = bb5, bb2
+    v0 = phi [bb5: arg1], [bb2: false]
+    coverage 3221225728
+    jumpi v0, bb6, bb7
+  bb6:                                            ; preds = bb3
+    coverage 12
+    jump bb7
+  bb7:                                            ; preds = bb3, bb6
+    ret v0
+}
+
+; function single(bool a) external pure returns (uint256 r) [selector 0x6bd47c49]
+fn @single(arg0: i1) -> i256 [selector=0x6bd47c49, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    coverage 13
+    coverage 14
+    jumpi arg0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    coverage 15
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v0 = phi [bb1: 1], [bb2: 0]
+    ret v0
+}

@@ -1,0 +1,31 @@
+//@ filecheck:
+// A constant whose initializer has no value at compile time runs each time the code uses it, so its
+// decisions have counters like those of a state variable initializer. The records are `<init>`
+// records, one for the contract and one for the source for the constants that belong to no contract.
+// A constant that folds has none.
+// CHECK: "name": "A.sol:<init>",
+// CHECK: "name": "A.sol:K.<init>",
+// CHECK: "name": "A.sol:K.f()",
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract Other {}\n\nuint256 constant FREE = uint256(keccak256(type(Other).creationCode)) > 1 ? 1 : 2;\n\ncontract K {\n    uint256 constant C = uint256(keccak256(type(Other).creationCode)) > 1 ? 1 : 2;\n    uint256 constant FOLDED = 1 > 0 ? 1 : 2;\n\n    function f() external pure returns (uint256) {\n        return C + FREE + FOLDED;\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": [
+        "instrument-coverage"
+      ]
+    },
+    "outputSelection": {
+      "*": {
+        "*": []
+      }
+    }
+  }
+}

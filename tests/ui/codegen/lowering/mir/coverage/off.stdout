@@ -1,0 +1,78 @@
+; === ROOT/tests/ui/codegen/lowering/mir/coverage/off.sol:Tags ===
+@module Tags
+; getter for `uint256 public total` [selector 0x2ddbd13a]
+fn @total() -> i256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+; function hidden(uint256 a) external loud(a) [selector 0xb192380c]
+fn @hidden(arg0: i256) [selector=0xb192380c, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = ne arg0, 0
+    v1 = eq v0, false
+    icall revert_if<empty>, v1
+    sstore 0, arg0 !metadata(storage=slot(0))
+    jump bb2
+  bb2:                                            ; preds = bb0
+    jump bb1
+  bb1:                                            ; preds = bb2
+    ret
+}
+
+; function shown(uint256 a) external quiet(a) [selector 0x57dccb11]
+fn @shown(arg0: i256) [selector=0x57dccb11, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    coverage 1
+    v0 = ne arg0, 0
+    v1 = eq v0, false
+    icall revert_if<empty>, v1
+    coverage 2
+    sstore 0, arg0 !metadata(storage=slot(0))
+    jump bb2
+  bb2:                                            ; preds = bb0
+    jump bb1
+  bb1:                                            ; preds = bb2
+    ret
+}
+
+; === ROOT/tests/ui/codegen/lowering/mir/coverage/off.sol:Off ===
+@module Off
+; getter for `uint256 public total` [selector 0x2ddbd13a]
+fn @total() -> i256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+; function inherited(uint256 a) external [selector 0x3d9e4098]
+fn @inherited(arg0: i256) [selector=0x3d9e4098, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = gt arg0, 1
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    sstore 0, arg0 !metadata(storage=slot(0))
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    ret
+}
+
+; function restored(uint256 a) external [selector 0x9fbf66b6]
+fn @restored(arg0: i256) [selector=0x9fbf66b6, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    coverage 3
+    v0 = gt arg0, 1
+    coverage 4
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    coverage 5
+    sstore 0, arg0 !metadata(storage=slot(0))
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    ret
+}

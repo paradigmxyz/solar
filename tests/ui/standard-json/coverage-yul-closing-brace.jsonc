@@ -1,0 +1,41 @@
+//@ filecheck:
+// The closing `}` of a Yul function that stands on a line of its own is a skipped region, kind 2, in
+// the record of the function: its code region, kind 0, then the one-byte skip. The blank line below
+// it is a skipped run of the enclosing function, so the record of the Yul function has no other
+// skip.
+// CHECK: "name": "A.sol:Y.g(uint256)",
+// CHECK: {{^ *0,$}}
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 106,
+// CHECK-NEXT: 57,
+// CHECK-NEXT: {{[0-9]+}}
+// CHECK-NEXT: ],
+// CHECK-NEXT: [
+// CHECK-NEXT: 2,
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 162,
+// CHECK-NEXT: 1
+// CHECK-NEXT: ]
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract Y {\n    function f(uint256 x) external pure returns (uint256 r) {\n        assembly {\n            function g(a) -> b {\n                b := a\n            }\n\n            r := g(x)\n        }\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": [
+        "instrument-coverage"
+      ]
+    },
+    "outputSelection": {
+      "*": {
+        "*": []
+      }
+    }
+  }
+}

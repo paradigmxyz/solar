@@ -5,13 +5,17 @@ use super::{
     storage::{StorageEncoding, StorageLayout, StorageLocation},
     types,
 };
-use crate::mir::{
-    AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
-    AllocationSemantics, ArithmeticKind, BlockId, CallOutput, CallPolicy, CalldataTail, CheckedOp,
-    DataId, DataRef, ExtCallKind, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind,
-    InstructionMetadata, LogTopics, MemoryObjectKind, MemoryObjectLayout, MirModuleTarget, MirType,
-    Module, PackedArraySource, PackedPart, PanicCode, PtrLocation, RevertPayload, RevertReason,
-    Value, ValueId, memory::EvmMemoryLayout,
+use crate::{
+    coverage::{Scope, Site, coverage_map},
+    mir::{
+        AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
+        AllocationSemantics, ArithmeticKind, BlockId, CallOutput, CallPolicy, CalldataTail,
+        CheckedOp, DataId, DataRef, ExtCallKind, Function, FunctionBuilder, FunctionId,
+        ImmutableId, InstKind, InstructionMetadata, LogTopics, MemoryObjectKind,
+        MemoryObjectLayout, MirModuleTarget, MirType, Module, PackedArraySource, PackedPart,
+        PanicCode, PtrLocation, RevertPayload, RevertReason, Value, ValueId,
+        memory::EvmMemoryLayout,
+    },
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, TypeSize, UnOpKind};
@@ -170,6 +174,7 @@ pub(super) fn lower(
     lowerer.builder.set_entry_label_span(declaration_span);
     lowerer.is_getter = hir_function.is_getter();
     lowerer.bind_signature(hir_function);
+    lowerer.coverage(Site::Function(id));
     if hir_function.kind == hir::FunctionKind::Constructor {
         let Some(contract_id) = hir_function.contract else {
             return context.report_unsupported(hir_function.span, "free constructor");
@@ -233,11 +238,13 @@ struct FunctionLowerer<'gcx, 'ctx> {
     storage_refs: FxHashMap<VariableId, StorageAccess>,
     returns: Vec<VariableId>,
     prepared_constructors: FxHashSet<hir::FunctionId>,
+    /// The modifier expansion whose body is being lowered, keyed by its invocation, or `0`.
+    coverage_scope: Scope,
     /// The pure struct constructors being inlined.
     inlined_struct_constructors: FxHashSet<hir::FunctionId>,
     /// The base constructor argument list chosen for each base of the contract
     /// being constructed, in evaluation order.
-    base_args: Vec<(hir::ContractId, hir::CallArgs<'gcx>)>,
+    base_args: Vec<(hir::ContractId, hir::CallArgs<'gcx>, Option<&'gcx hir::Modifier<'gcx>>)>,
     loops: Vec<LoopTargets>,
     modifiers: Vec<ModifierContext<'gcx>>,
     modifier_depth: u32,
@@ -571,6 +578,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             storage_refs: FxHashMap::default(),
             returns: Vec::new(),
             prepared_constructors: FxHashSet::default(),
+            coverage_scope: Scope::default(),
             inlined_struct_constructors: FxHashSet::default(),
             base_args: Vec::new(),
             loops: Vec::new(),
@@ -957,7 +965,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Binary(lhs, op, rhs) => {
                 self.assert_operand_ty_registered(expr);
                 if op.kind.is_logical() {
-                    return self.lower_logical(lhs, op.kind, rhs);
+                    return self.lower_logical(expr, lhs, op.kind, rhs);
                 }
                 if let Some(function_id) = self.cx.gcx.user_operator(expr.id) {
                     let lhs = self.lower_expr(lhs)?;

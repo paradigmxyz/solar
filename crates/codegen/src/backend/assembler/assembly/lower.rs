@@ -7,6 +7,7 @@ use crate::{
             ArtifactKind, Assembler, Label, OptimizedProgram, PreparedAssembly, ScheduledProgram,
         },
         evm::{
+            DebugFunction,
             ir::{self, BlockId},
             op,
         },
@@ -268,19 +269,29 @@ fn lower_evm_ir_once(
             program.mark_last_function_invoke(invoke.filter(|_| own_invoke.is_some()));
         }
 
-        for inst in &block.instructions {
-            program.set_source_origins(&inst.metadata);
-            program.set_modifier_depth(inst.metadata.modifier_depth());
-            let first = program.instructions.len();
-            lower_instruction(assembler, &mut program, inst, module, labels);
-            if first < program.instructions.len() {
-                if let Some(function) = pending_block_invoke.take() {
-                    program.set_function_invoke(first, Some(function));
+        let instructions = &block.instructions;
+        let mut index = 0;
+        while index < instructions.len() {
+            let inst = &instructions[index];
+            // push id; coverage -> coverage; push id
+            // The instrumenting EVM reads the counter from the push and skips it, so a probe costs
+            // no gas or stack, and JUMPDEST analysis still sees a whole push.
+            let order = match instructions.get(index + 1) {
+                Some(next) if next.opcode == op::COVERAGE && inst.keeps_with_next() => {
+                    [Some(next), Some(inst)]
                 }
-                if let Some(function) = inst.metadata.function_invoke() {
-                    program.set_function_invoke(first, Some(function));
-                }
-                program.mark_last_function_exit(inst.metadata.function_exit());
+                _ => [Some(inst), None],
+            };
+            index += order.iter().flatten().count();
+            for inst in order.into_iter().flatten() {
+                lower_block_instruction(
+                    assembler,
+                    &mut program,
+                    &mut pending_block_invoke,
+                    inst,
+                    module,
+                    labels,
+                );
             }
         }
 
@@ -380,6 +391,30 @@ fn allocate_referenced_labels(
 
 fn reset_assembler_labels(labels: &mut [Option<Label>]) {
     labels.fill(None);
+}
+
+/// Lowers a block instruction with its source origins and function events.
+fn lower_block_instruction(
+    assembler: &mut Assembler<'_>,
+    program: &mut Program,
+    pending_block_invoke: &mut Option<DebugFunction>,
+    inst: &ir::Instruction,
+    module: &ir::Module,
+    labels: &mut Vec<Option<Label>>,
+) {
+    program.set_source_origins(&inst.metadata);
+    program.set_modifier_depth(inst.metadata.modifier_depth());
+    let first = program.instructions.len();
+    lower_instruction(assembler, program, inst, module, labels);
+    if first < program.instructions.len() {
+        if let Some(function) = pending_block_invoke.take() {
+            program.set_function_invoke(first, Some(function));
+        }
+        if let Some(function) = inst.metadata.function_invoke() {
+            program.set_function_invoke(first, Some(function));
+        }
+        program.mark_last_function_exit(inst.metadata.function_exit());
+    }
 }
 
 fn lower_instruction(

@@ -1,0 +1,67 @@
+; === ROOT/tests/ui/codegen/lowering/mir/coverage/modifier_overrides.sol:A ===
+@module A
+; getter for `uint256 public total` [selector 0x2ddbd13a]
+fn @total() -> i256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+; function f(uint256 x) public guard(x) [selector 0xb3de648b]
+fn @f(arg0: i256) [selector=0xb3de648b, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    coverage 1
+    coverage 2
+    v0 = gt arg0, 1
+    coverage 3
+    v1 = eq v0, false
+    icall revert_if<empty>, v1
+    coverage 4
+    coverage 5
+    coverage 10
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = checked_add uint256, v2, arg0
+    sstore 0, v3 !metadata(storage=slot(0))
+    jump bb2
+  bb2:                                            ; preds = bb0
+    jump bb1
+  bb1:                                            ; preds = bb2
+    ret
+}
+
+; === ROOT/tests/ui/codegen/lowering/mir/coverage/modifier_overrides.sol:B ===
+@module B
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}
+
+; getter for `uint256 public total` [selector 0x2ddbd13a]
+fn @total() -> i256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+; function f(uint256 x) public guard(x) [selector 0xb3de648b]
+fn @f(arg0: i256) [selector=0xb3de648b, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    coverage 1
+    coverage 6
+    v0 = gt arg0, 2
+    coverage 7
+    v1 = eq v0, false
+    icall revert_if<empty>, v1
+    coverage 8
+    coverage 9
+    coverage 10
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = checked_add uint256, v2, arg0
+    sstore 0, v3 !metadata(storage=slot(0))
+    jump bb2
+  bb2:                                            ; preds = bb0
+    jump bb1
+  bb1:                                            ; preds = bb2
+    ret
+}

@@ -1,0 +1,79 @@
+error: `@custom:solar-coverage` must document a contract, a library, or a function with a body
+   ╭▸ ROOT/tests/ui/natspec/solar_coverage.sol:LL:CC
+   │
+LL │         /// @custom:solar-coverage off
+   │              ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on the code to leave out of coverage: `@custom:solar-coverage off`
+
+error: `@custom:solar-coverage` must document a contract, a library, or a function with a body
+   ╭▸ ROOT/tests/ui/natspec/solar_coverage.sol:LL:CC
+   │
+LL │     /// @custom:solar-coverage off
+   │          ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on the code to leave out of coverage: `@custom:solar-coverage off`
+
+error: `@custom:solar-coverage` must document a contract, a library, or a function with a body
+   ╭▸ ROOT/tests/ui/natspec/solar_coverage.sol:LL:CC
+   │
+LL │     /// @custom:solar-coverage off
+   │          ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on the code to leave out of coverage: `@custom:solar-coverage off`
+
+error: `@custom:solar-coverage` must document a contract, a library, or a function with a body
+   ╭▸ ROOT/tests/ui/natspec/solar_coverage.sol:LL:CC
+   │
+LL │     /// @custom:solar-coverage off
+   │          ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on the code to leave out of coverage: `@custom:solar-coverage off`
+
+error: `@custom:solar-coverage` takes `off` or `on`
+   ╭▸ ROOT/tests/ui/natspec/solar_coverage.sol:LL:CC
+   │
+LL │     /// @custom:solar-coverage
+   │          ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: write `@custom:solar-coverage off` to leave the code out of coverage
+
+error: `@custom:solar-coverage` takes `off` or `on`
+   ╭▸ ROOT/tests/ui/natspec/solar_coverage.sol:LL:CC
+   │
+LL │     /// @custom:solar-coverage maybe
+   │          ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: write `@custom:solar-coverage off` to leave the code out of coverage
+
+error: `@custom:solar-coverage` takes `off` or `on`
+   ╭▸ ROOT/tests/ui/natspec/solar_coverage.sol:LL:CC
+   │
+LL │     /// @custom:solar-coverage off on
+   │          ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: write `@custom:solar-coverage off` to leave the code out of coverage
+
+error: duplicate `@custom:solar-coverage` tag
+   ╭▸ ROOT/tests/ui/natspec/solar_coverage.sol:LL:CC
+   │
+LL │     /// @custom:solar-coverage on
+   │          ━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the first tag is here
+   ╭▸ ROOT/tests/ui/natspec/solar_coverage.sol:LL:CC
+   │
+LL │     /// @custom:solar-coverage off
+   │          ━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep one `@custom:solar-coverage` tag
+
+error: `@custom:solar-coverage` must document a contract, a library, or a function with a body
+   ╭▸ ROOT/tests/ui/natspec/solar_coverage.sol:LL:CC
+   │
+LL │ /// @custom:solar-coverage off
+   │      ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on the code to leave out of coverage: `@custom:solar-coverage off`
+
+error: aborting due to 9 previous errors
+

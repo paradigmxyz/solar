@@ -1,0 +1,51 @@
+//@ filecheck:
+// Decisions in inheritance arguments and state variable initializers run in creation code, so the
+// source gets an `<init>` record for the contract. The constant's folded ternary has no counters.
+// CHECK: "name": "A.sol:A.constructor(uint256)",
+// CHECK: "name": "A.sol:B.<init>",
+// CHECK-NEXT: "hash"
+// CHECK-NEXT: "counters": [
+// CHECK-NEXT: 6,
+// CHECK-NEXT: 11
+// CHECK-NEXT: ],
+// The inheritance specifier has a code region of its own entry counter, 6, encoded `25`, as an
+// initializer does, so an argument list that reverts before its first branch still counts. The
+// leaf of its argument has a branch region.
+// CHECK: "regions": [
+// CHECK-NEXT: [
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 82,
+// CHECK-NEXT: 27,
+// CHECK-NEXT: 25
+// CHECK-NEXT: ],
+// CHECK-NEXT: [
+// CHECK-NEXT: 4,
+// CHECK-NEXT: 0,
+// CHECK-NEXT: 84,
+// CHECK-NEXT: 16,
+// CHECK: "name": "A.sol:C.constructor(bool)",
+// CHECK-NOT: "name": "A.sol:B.
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A {\n    uint256 a;\n    constructor(uint256 x) { a = x; }\n}\ncontract B is A(block.number > 5 ? 1 : 2) {\n    uint256 b = block.timestamp > 9 ? 3 : 4;\n    uint256 immutable c = block.number > 7 || block.timestamp > 2 ? 5 : 6;\n    uint256 constant D = 1 > 0 ? 7 : 8;\n}\ncontract C is A {\n    constructor(bool f) A(f ? 1 : 2) {}\n}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false
+    },
+    "solar": {
+      "unstable": [
+        "instrument-coverage"
+      ]
+    },
+    "outputSelection": {
+      "*": {
+        "*": []
+      }
+    }
+  }
+}
