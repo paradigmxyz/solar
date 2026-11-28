@@ -1,0 +1,15 @@
+; === ROOT/tests/ui/codegen/evm-ir/compact-pushes/optimizer-runs/hot_literals.sol:HotLiterals ===
+@module HotLiterals
+; function tag(uint256 x) external pure returns (uint256) [selector 0xcf6459ff]
+fn @tag(arg0: i256) -> i256 [selector=0xcf6459ff, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = or arg0, 0xc00000000000000000000000
+    ret v0
+}
+
+; function low(uint256 x) external pure returns (uint256) [selector 0x10c888cd]
+fn @low(arg0: i256) -> i256 [selector=0x10c888cd, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffff
+    ret v0
+}
