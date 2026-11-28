@@ -16,6 +16,8 @@
 //! copies it: one `MCOPY` from memory and one `CALLDATACOPY` from calldata. An array of fixed
 //! arrays of words in calldata takes the standard encoder's wrap guard. Words that need cleanup
 //! or validation keep the element loop.
+//! Hash-only array encodings use these same copies and loops at the free-memory pointer without
+//! a length header or a pointer bump. Both forms share array length checks and element handling.
 //! Encodings made entirely of whole words need no allocation-size rounding. As in solc, part
 //! lengths and offsets add without overflow checks; the size rounding still checks. Array loops use
 //! plain element-offset arithmetic: their index is below the length whose total extent was checked.
@@ -86,6 +88,12 @@ struct PackedArray<'a> {
     /// Whether solc loads the full words of a calldata array one at a time, as for `int256`,
     /// where it copies `uint256` and `bytes32` as one block.
     wordwise: bool,
+}
+
+#[derive(Clone, Copy)]
+enum PackedOutput {
+    Object(ValueId),
+    Payload(ValueId),
 }
 
 impl PackedPiece {
@@ -278,7 +286,7 @@ impl PackedEncoder<'_, '_> {
                         source: *source,
                         wordwise: *wordwise,
                     };
-                    offset = self.copy_packed_array(output, offset, array);
+                    offset = self.copy_packed_array(PackedOutput::Object(output), offset, array);
                 }
                 PackedPiece::Static { value, length, fixed_bytes, .. } => {
                     // mstore(output + offset, align(value, length))
@@ -295,7 +303,12 @@ impl PackedEncoder<'_, '_> {
 
     fn hash(&mut self, pieces: Vec<PackedPiece>, total: ValueId) -> Option<ValueId> {
         let has_dynamic = pieces.iter().any(|piece| {
-            matches!(piece, PackedPiece::Dynamic { .. } | PackedPiece::Storage { .. })
+            matches!(
+                piece,
+                PackedPiece::Dynamic { .. }
+                    | PackedPiece::Storage { .. }
+                    | PackedPiece::Array { .. }
+            )
         });
         // base = has_dynamic ? fmp : (scratch_needed ? fmp : 0)
         let base = if has_dynamic {
@@ -365,7 +378,25 @@ impl PackedEncoder<'_, '_> {
                     self.builder.store(dest, value);
                     offset = offset.checked_add(*length)?;
                 }
-                PackedPiece::Array { .. } => return None,
+                PackedPiece::Array { value, length, element, source, wordwise } => {
+                    // dest = cursor + offset
+                    // data = inttoptr dest to ptr<memory>
+                    // written = copy_packed_array(data, 0, array)
+                    // cursor = dest + written
+                    let dest = self.packed_scratch_offset(cursor, offset);
+                    let data = self.builder.cast(dest, MirType::MEMPTR);
+                    let zero = self.builder.imm(0);
+                    let array = PackedArray {
+                        value: *value,
+                        length: *length,
+                        element,
+                        source: *source,
+                        wordwise: *wordwise,
+                    };
+                    let written = self.copy_packed_array(PackedOutput::Payload(data), zero, array);
+                    cursor = Some(self.builder.add(dest, written));
+                    offset = 0;
+                }
             }
             index += 1;
         }
@@ -399,9 +430,10 @@ impl PackedEncoder<'_, '_> {
         }
     }
 
+    /// Copies an array at `offset` bytes from the start of the encoded payload.
     fn copy_packed_array(
         &mut self,
-        output: ValueId,
+        output: PackedOutput,
         offset: ValueId,
         array: PackedArray<'_>,
     ) -> ValueId {
@@ -424,7 +456,7 @@ impl PackedEncoder<'_, '_> {
     /// other calldata arrays copy behind the wrap guard, with the element loop as the fallback.
     fn copy_packed_words(
         &mut self,
-        output: ValueId,
+        output: PackedOutput,
         offset: ValueId,
         byte_length: ValueId,
         array: PackedArray<'_>,
@@ -437,10 +469,14 @@ impl PackedEncoder<'_, '_> {
             PackedArraySource::Memory { .. } => (array.value, PtrLocation::Memory),
             PackedArraySource::Slice(location) => (self.builder.slice_ptr(array.value), location),
         };
-        // dest = ptradd (memory_data output), offset
-        let words = self.builder.memory_data(output);
+        // words = payload_address output
+        // dest = ptradd words, offset
+        let words = match output {
+            PackedOutput::Object(object) => self.builder.memory_data(object),
+            PackedOutput::Payload(data) => data,
+        };
         let dest = self.builder.ptradd(words, offset);
-        let unguarded = matches!(array.element, AbiType::Word(_)) && !array.wordwise;
+        let unguarded = copies_calldata_unguarded(array.element, array.wordwise);
         if location != PtrLocation::Calldata || unguarded {
             // mcopy|calldatacopy dest, data, byte_length
             copy_source_data(self.builder, location, dest, data, byte_length);
@@ -464,7 +500,12 @@ impl PackedEncoder<'_, '_> {
         );
     }
 
-    fn copy_packed_array_each(&mut self, output: ValueId, offset: ValueId, array: PackedArray<'_>) {
+    fn copy_packed_array_each(
+        &mut self,
+        output: PackedOutput,
+        offset: ValueId,
+        array: PackedArray<'_>,
+    ) {
         let PackedArray { value, length, element, source, wordwise } = array;
         let element_bytes = packed_element_bytes(element).expect("packed array shape");
         let element_bytes_value = self.builder.imm(element_bytes);
@@ -530,7 +571,15 @@ impl PackedEncoder<'_, '_> {
                 } else {
                     element_value
                 };
-                self.builder.memory_store_word(output, destination, element_value);
+                match output {
+                    PackedOutput::Object(object) => {
+                        self.builder.memory_store_word(object, destination, element_value);
+                    }
+                    PackedOutput::Payload(data) => {
+                        let address = self.builder.ptradd(data, destination);
+                        self.builder.store(address, element_value);
+                    }
+                }
             }
             AbiType::FixedArray { element: nested, len, .. } => {
                 // copy_packed_array(output, destination, value[i])
@@ -817,6 +866,10 @@ fn static_pieces(parts: &[PackedPart]) -> Option<Vec<PackedPiece>> {
     parts.iter().map(static_piece).collect()
 }
 
+fn copies_calldata_unguarded(element: &AbiType, wordwise: bool) -> bool {
+    matches!(element, AbiType::Word(_)) && !wordwise
+}
+
 /// Whether the elements are full words with no cleanup that lie in one run of memory. Elements
 /// of a memory array are separate objects unless they are words.
 fn copies_as_block(element: &AbiType, source: PackedArraySource) -> bool {
@@ -831,6 +884,17 @@ fn copies_as_block(element: &AbiType, source: PackedArraySource) -> bool {
         PackedArraySource::Memory { .. } => matches!(element, AbiType::Word(None)),
         PackedArraySource::Slice(_) => plain_words(element),
     }
+}
+
+/// Whether packed lowering emits an element loop, including the calldata wrap fallback.
+pub(super) fn array_copy_has_loop(
+    element: &AbiType,
+    source: PackedArraySource,
+    wordwise: bool,
+) -> bool {
+    !copies_as_block(element, source)
+        || (source == PackedArraySource::Slice(PtrLocation::Calldata)
+            && !copies_calldata_unguarded(element, wordwise))
 }
 
 /// The piece of `part` when it is a literal or a scalar.

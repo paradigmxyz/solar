@@ -1150,4 +1150,92 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         Some(object)
     }
+
+    /// Retains a calldata word array for an indexed topic instead of copying it to an object.
+    /// The packed encoder stages it directly. Keep the materializer's extent and word checks
+    /// before the event, including for slices that assembly supplied or changed.
+    pub(super) fn prepare_indexed_calldata_word_array(
+        &mut self,
+        value: ValueId,
+        ty: Ty<'gcx>,
+        abi_type: &AbiType,
+    ) -> bool {
+        if !Self::is_calldata_word_array(abi_type) {
+            return false;
+        }
+        let Some(element) = self.array_element_type(ty) else { return false };
+        // Full words that solc reads individually keep materialization: it gives the hash a
+        // memory block copy instead of introducing an element loop for int256 and full-width
+        // user-defined types. Narrow words already need the encoder's cleanup loop.
+        if Self::calldata_word_is_full_width(element)
+            && !types::TypeLowerer::copies_as_block(element)
+        {
+            return false;
+        }
+
+        // bytes = checked_mul(slice_len(value), 32)
+        // check_calldata_copy_range(slice_ptr(value), bytes)
+        // validate_words(value)
+        let length = self.builder.slice_len(value);
+        let word = self.builder.imm(32);
+        let bytes = self.builder.checked_mul(length, word);
+        let data = self.builder.slice_ptr(value);
+        self.check_calldata_copy_range(data, bytes);
+        if self.needs_calldata_aggregate_validation(value, ty) {
+            self.validate_calldata_word_array(value, ty);
+        }
+        true
+    }
+
+    /// Hashes dynamic calldata arrays of unsigned words that require validation.
+    /// A word that passes the unsigned validator is already canonical.
+    pub(super) fn try_hash_indexed_unsigned_calldata(
+        &mut self,
+        value: ValueId,
+        ty: Ty<'gcx>,
+        abi_type: &AbiType,
+    ) -> Option<ValueId> {
+        let AbiType::DynamicArray { element, location: PtrLocation::Calldata } = abi_type else {
+            return None;
+        };
+        let AbiType::Word(Some(validator @ AbiWordValidator::Unsigned(_))) = element.as_ref()
+        else {
+            return None;
+        };
+        let element_ty = self.array_element_type(ty)?;
+        if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata)
+            || !self.needs_calldata_aggregate_validation(value, ty)
+            || AbiWordValidator::from_layout(types::TypeLowerer::value_layout(element_ty))
+                != Some(*validator)
+        {
+            return None;
+        }
+        // Check the byte length before applying the calldata copy range check.
+        // An assembly-forged range can pass that check even when its end wraps.
+        let length = self.builder.slice_len(value);
+        let stride = self.builder.imm(32);
+        let bytes = self.builder.checked_mul(length, stride);
+        let source = self.builder.slice_ptr(value);
+        self.check_calldata_copy_range(source, bytes);
+        // for i in 0..length {
+        //     word = calldataload(source + i * 32)
+        //     check_unsigned(word)
+        //     mstore(fmp + i * 32, word)
+        // }
+        // Addresses wrap as in the separate validator and packed encoder.
+        // The payload starts at FMP and the pointer stays available for later allocations.
+        let validator = *validator;
+        let base = self.builder.fmp();
+        let output = self.builder.cast(base, MirType::MEMPTR);
+        self.builder.counted_loop(length, |builder, index| {
+            let offset = builder.mul(index, stride);
+            let position = builder.add(source, offset);
+            let word = builder.load(position, PtrLocation::Calldata);
+            let invalid = validator.violation(builder, word);
+            builder.revert_if(invalid, RevertReason::Empty);
+            let dest = builder.ptradd(output, offset);
+            builder.store(dest, word);
+        });
+        Some(self.builder.keccak256(base, bytes))
+    }
 }

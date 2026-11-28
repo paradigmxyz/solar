@@ -733,6 +733,17 @@ Packed ABI encoding skips allocation rounding when every component occupies
 whole words, while retaining overflow checks. Storage-byte pushes place the
 short-header path first so packed writes can fall through during growth.
 
+`keccak256_packed` accepts the same array shapes as `abi_encode_packed`: word
+elements and fixed arrays of supported elements, in memory or calldata. Its
+array payload is staged at the free-memory pointer without a length header or
+an FMP bump. Both forms share the array copies, cleanup, validation, and element
+loops. Indexed array topics use this hash-only form; validated unsigned dynamic
+calldata word arrays fuse element validation and FMP staging into a single pass
+directly in MIR lowering before hashing, preserving the extent checks and exact
+modular addressing without reserving memory. An explicit `abi.encodePacked`
+array result keeps its allocation point and FMP bump, even when the expression
+immediately hashes that result.
+
 A byte string operand of an ABI encoding names its location in packed parts and
 layouts (`memory_bytes`, `calldata_bytes`, `storage_bytes`), and the encoder
 reads it in place when it runs, after the operands that follow it. A storage

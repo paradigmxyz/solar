@@ -633,19 +633,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn lower_packed_word_array(
+    pub(super) fn lower_packed_word_array_hash(
         &mut self,
         ty: Ty<'gcx>,
         value: ValueId,
     ) -> Option<ValueId> {
         let (element, source, wordwise) = self.packed_array_shape(ty, value)?;
-        // output = abi_encode_packed(array(value))
+        // An indexed event's encoding is consumed immediately, as solc's
+        // YulUtilFunctions::packedHashFunction does, and does not reserve memory.
+        // hash = keccak256_packed(array(value))
         Some(self.builder.emit_inst(
             InstKind::AbiEncodePacked {
                 parts: Box::new([PackedPart::Array { value, element, source, wordwise }]),
-                hash: false,
+                hash: true,
             },
-            Some(MirType::MEMPTR),
+            Some(MirType::I256),
         ))
     }
 

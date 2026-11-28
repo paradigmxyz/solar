@@ -1,0 +1,58 @@
+//@ revisions: gas size
+//@ compile-flags: -Zmir-pipeline=lower-builtins
+//@[gas] compile-flags: -O gas
+//@[size] compile-flags: -O size
+//@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+@module PackedArrayHash
+
+// CHECK-LABEL: fn @words(
+// CHECK-NOT: alloc
+// CHECK: fmp
+// CHECK-NOT: alloc
+// CHECK: mcopy
+// CHECK-NOT: alloc
+// CHECK: keccak256
+fn @words(arg0: ptr<memory>) -> i256 {
+  bb0:
+    v0 = keccak256_packed (array<word> memoryarray<1> arg0)
+    ret v0
+}
+
+// CHECK-LABEL: fn @narrow(
+// CHECK-NOT: alloc
+// CHECK: fmp
+// CHECK-DAG: and {{.*}}, 255
+// CHECK-DAG: mstore
+// CHECK-DAG: keccak256
+fn @narrow(arg0: ptr<memory>) -> i256 {
+  bb0:
+    v0 = keccak256_packed (array<word<uint8>> memoryarray<1> arg0)
+    ret v0
+}
+
+// Each fixed row retains the same copy as the bytes-producing encoder.
+// CHECK-LABEL: fn @fixed_rows(
+// CHECK-NOT: alloc
+// CHECK: fmp
+// CHECK-DAG: mcopy
+// CHECK-DAG: keccak256
+fn @fixed_rows(arg0: ptr<memory>) -> i256 {
+  bb0:
+    v0 = keccak256_packed (array<array<2, word>> memoryarray<1> arg0)
+    ret v0
+}
+
+// Arrays also advance the hash cursor between other packed parts.
+// CHECK-LABEL: fn @mixed(
+// CHECK-NOT: alloc
+// CHECK: fmp
+// CHECK: mstore
+// CHECK: mcopy
+// CHECK: mstore
+// CHECK: keccak256
+fn @mixed(arg0: ptr<memory>) -> i256 {
+  bb0:
+    v0 = keccak256_packed (data hex"ab", array<word> memoryarray<1> arg0, data hex"cd")
+    ret v0
+}

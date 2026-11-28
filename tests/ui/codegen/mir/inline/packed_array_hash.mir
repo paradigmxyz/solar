@@ -1,0 +1,77 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=inline
+//@[size] compile-flags: -Osize -Zmir-pipeline=inline
+//@[gas] filecheck: --check-prefixes=CHECK,GAS
+//@[size] filecheck: --check-prefixes=CHECK,SIZE
+//@ normalize-stdout-test: "(?s).+" -> ""
+@module InlinePackedHash
+
+// CHECK-LABEL: fn @narrow_first(
+// CHECK: icall @narrow, arg0
+fn @narrow_first(arg0: ptr<memory>) -> i256 {
+  bb0:
+    v0 = icall @narrow, arg0
+    ret v0
+}
+
+// CHECK-LABEL: fn @narrow_second(
+// CHECK: icall @narrow, arg0
+fn @narrow_second(arg0: ptr<memory>) -> i256 {
+  bb0:
+    v0 = icall @narrow, arg0
+    ret v0
+}
+
+fn @narrow(arg0: ptr<memory>) -> i256 {
+  bb0:
+    v0 = keccak256_packed (array<word<uint8>> memoryarray<1> arg0)
+    ret v0
+}
+
+// CHECK-LABEL: fn @words_first(
+// GAS: keccak256_packed
+// SIZE: icall @words, arg0
+fn @words_first(arg0: ptr<memory>) -> i256 {
+  bb0:
+    v0 = icall @words, arg0
+    ret v0
+}
+
+// CHECK-LABEL: fn @words_second(
+// GAS: keccak256_packed
+// SIZE: icall @words, arg0
+fn @words_second(arg0: ptr<memory>) -> i256 {
+  bb0:
+    v0 = icall @words, arg0
+    ret v0
+}
+
+fn @words(arg0: ptr<memory>) -> i256 {
+  bb0:
+    v0 = keccak256_packed (array<word> memoryarray<1> arg0)
+    ret v0
+}
+
+// CHECK-LABEL: fn @scalar_first(
+// GAS: keccak256_packed
+// SIZE: icall @scalar, arg0
+fn @scalar_first(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @scalar, arg0
+    ret v0
+}
+
+// CHECK-LABEL: fn @scalar_second(
+// GAS: keccak256_packed
+// SIZE: icall @scalar, arg0
+fn @scalar_second(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @scalar, arg0
+    ret v0
+}
+
+fn @scalar(arg0: i256) -> i256 {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0)
+    ret v0
+}
