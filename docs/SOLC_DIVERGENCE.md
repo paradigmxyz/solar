@@ -1591,6 +1591,23 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   where `solc` panics.
 - Coverage: `tests/ui/codegen/run-call/calldata/calldata_forged_slice_argument_order.sol`.
 
+### CODEGEN-037: Indexed calldata arrays retain the copy range check
+
+- ID: CODEGEN-037
+- Status: parity debt
+- Difference: after assembly sets an indexed event's calldata word array to
+  a range past the end of the input, `solar` rejects ranges that `solc` 0.8.38
+  legacy and via-IR accept. For a 68-byte call, an offset of 128 with length
+  zero or one, or the maximum word offset with length zero, reverts in
+  `solar`. `solc` hashes an empty array or reads the missing word as zero.
+  This applies to `uint256[]`, `address[]` and `uint8[]` in the covering test.
+- Rationale: the indexed array encoder retains the range check previously
+  performed when it materialized the calldata array in memory. Direct
+  staging removes the intermediate object without broadening which forged
+  references are accepted. Ordinary ABI-decoded arrays cannot reach these
+  cases. The check also remains for an empty forged range.
+- Coverage: `tests/ui/codegen/run-call/events-errors/indexed_calldata_forged_range.sol`.
+
 ### TYPECK-026: `@inheritdoc` references
 
 Status: intentional.

@@ -1180,8 +1180,7 @@ impl<'a> Validator<'a> {
                                 ) && ty.type_size().is_some_and(|size| size.bytes() != 0)
                             }
                             crate::PackedPart::Array { element, source, .. } => {
-                                !hash
-                                    && crate::packed_element_bytes(element).is_some()
+                                crate::packed_element_bytes(element).is_some()
                                     && match source {
                                         crate::PackedArraySource::Memory { layout } => {
                                             matches!(

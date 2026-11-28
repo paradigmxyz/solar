@@ -1,0 +1,36 @@
+//@ revisions: gas size
+//@ compile-flags: -Zmir-pipeline=lower-builtins
+//@[gas] compile-flags: -O gas
+//@[size] compile-flags: -O size
+//@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+@module PackedArrayHashMulti
+
+// Two independent array topics must advance the scratch cursor without reserving
+// a Solidity bytes object or leaving a length header in the hash payload.
+// CHECK-LABEL: fn @two_arrays(
+// CHECK-NOT: alloc
+// CHECK: fmp
+// CHECK-NOT: alloc
+// CHECK: mcopy
+// CHECK: mcopy
+// CHECK-NOT: alloc
+// CHECK: keccak256
+fn @two_arrays(arg0: ptr<memory>, arg1: ptr<memory>) -> i256 {
+  bb0:
+    v0 = keccak256_packed (array<word> memoryarray<1> arg0, array<word> memoryarray<1> arg1)
+    ret v0
+}
+
+// A scalar prefix must survive both array copies and a suffix without an
+// intermediate dynamic array allocation; offsets are calculated in bytes.
+// CHECK-LABEL: fn @interleaved(
+// CHECK-NOT: alloc
+// CHECK: fmp
+// CHECK: mcopy
+// CHECK: keccak256
+fn @interleaved(arg0: ptr<memory>, arg1: ptr<memory>) -> i256 {
+  bb0:
+    v0 = keccak256_packed (data hex"ab", array<word> memoryarray<1> arg0, data hex"cd", array<word> memoryarray<1> arg1, data hex"ef")
+    ret v0
+}

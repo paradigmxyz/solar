@@ -218,46 +218,34 @@ fn @loggedIndexed(arg0: i256) -> i256 [selector=0x1d045b60, abi_params=[uint256]
     v3 = extract_value slice<calldata>, v2, 0
     v4 = make_calldata_slice v3, 1
     v5 = extract_value slice<calldata>, v4, 1
-    v6 = extract_value slice<calldata>, v4, 0
-    v7 = mul v5, 32
-    v8 = gt v5, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v8
+    v6 = mul v5, 32
+    v7 = gt v5, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v7
+    v8 = extract_value slice<calldata>, v4, 0
     v9 = calldatasize
-    v10 = ptrtoint ptr<calldata> v6 to i256
-    v11 = add v10, v7
+    v10 = ptrtoint ptr<calldata> v8 to i256
+    v11 = add v10, v6
     v12 = lt v9, v11
     icall revert_if<calldata_tail_too_short>, v12
-    v13 = mul v5, 32
-    v14 = gt v5, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v14
-    v15 = add v13, 32
-    v16 = lt v15, 32
-    icall panic_if<0x41>, v16
-    v17 = alloc v15
-    mstore v17, v5
+    v13 = fmp
     jump bb1
   bb1:                                            ; preds = bb0, bb2
-    v18 = phi [bb0: 0], [bb2: v28]
-    v19 = lt v18, v5
-    jumpi v19, bb2, bb3
+    v14 = phi [bb0: 0], [bb2: v22]
+    v15 = lt v14, v5
+    jumpi v15, bb2, bb3
   bb3:                                            ; preds = bb1
-    v29 = abi_encode_packed (array<word<uint160>> memoryarray<1> v17)
-    v30 = ptradd v29, 32
-    v31 = mload v29
-    v32 = keccak256 v30, v31
-    log 0, 0, 0xecd6fa5826ee9847bd5c2a2e99cbf8c38cf52eaec15f0dde51e42cab0e5c4dce, v32
+    v23 = keccak256 v13, v6
+    log 0, 0, 0xecd6fa5826ee9847bd5c2a2e99cbf8c38cf52eaec15f0dde51e42cab0e5c4dce, v23
     ret 3
   bb2:                                            ; preds = bb1
-    v20 = mul v18, 32
-    v21 = ptrtoint ptr<calldata> v6 to i256
-    v22 = add v21, v20
-    v23 = calldataload v22
-    v24 = gt v23, 0xffffffffffffffffffffffffffffffffffffffff
-    icall revert_if<empty>, v24
-    v25 = shl v18, 5
-    v26 = ptradd v17, v25
-    v27 = ptradd v26, 32
-    mstore v27, v23
-    v28 = add v18, 1
+    v16 = mul v14, 32
+    v17 = ptrtoint ptr<calldata> v8 to i256
+    v18 = add v17, v16
+    v19 = calldataload v18
+    v20 = gt v19, 0xffffffffffffffffffffffffffffffffffffffff
+    icall revert_if<empty>, v20
+    v21 = ptradd v13, v16
+    mstore v21, v19
+    v22 = add v14, 1
     jump bb1
 }

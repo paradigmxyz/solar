@@ -75,14 +75,14 @@ use crate::{
         AbiLayout, AbiType, AllocationSemantics, BlockId, Builtin, Callee, EffectKind, FrameMode,
         FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate, InstId,
         InstKind, Instruction, InstructionMetadata, MirModuleTarget, MirPhase, MirType, Module,
-        PtrLocation, StorageAlias, Terminator, Value, ValueId,
+        PackedPart, PtrLocation, StorageAlias, Terminator, Value, ValueId,
         analysis::{
             AddressSpace, CallGraphInfo, Liveness, LoopAnalyzer, MemoryCallSummaries,
             direct_callees,
         },
         memory::EvmMemoryLayout,
         pass::{MirPass, ModuleAnalyses},
-        transform::utils::redirect_successor_predecessors,
+        transform::{lower_packed::array_copy_has_loop, utils::redirect_successor_predecessors},
         utils::rebuild_predecessors,
     },
     target::Target,
@@ -1036,13 +1036,13 @@ fn summarize_function(
                 } => {
                     summary.has_control_flow = true;
                 }
-                InstKind::AbiEncodePacked { parts, hash: false }
-                    if parts.iter().any(|part| {
-                        matches!(
-                            part,
-                            crate::mir::PackedPart::Bytes { .. }
-                                | crate::mir::PackedPart::Array { .. }
-                        )
+                InstKind::AbiEncodePacked { parts, hash }
+                    if parts.iter().any(|part| match part {
+                        PackedPart::Array { element, source, wordwise, .. } => {
+                            !hash || array_copy_has_loop(element, *source, *wordwise)
+                        }
+                        PackedPart::Bytes { .. } => !hash,
+                        _ => false,
                     }) =>
                 {
                     summary.has_control_flow = true;

@@ -633,7 +633,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let calldata_dynamic = self.builder.func().value_slice_location(value)
                             == Some(PtrLocation::Calldata)
                             && abi_type.is_dynamic();
-                        if calldata_dynamic {
+                        if calldata_dynamic
+                            && let Some(hash) = self.try_hash_indexed_unsigned_calldata(
+                                value,
+                                parameter_ty,
+                                &abi_type,
+                            )
+                        {
+                            topics.push(hash);
+                            continue;
+                        }
+                        let prepared_calldata = calldata_dynamic
+                            && self.prepare_indexed_calldata_word_array(
+                                value,
+                                parameter_ty,
+                                &abi_type,
+                            );
+                        if calldata_dynamic && !prepared_calldata {
                             value = self.materialize_calldata_argument(
                                 parameter_ty,
                                 value,
@@ -643,11 +659,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             abi_type = self.abi_type_for_value(value, abi_type);
                         }
                         if abi_type.is_dynamic() {
-                            if let Some(packed) = self
-                                .lower_packed_word_array(parameter_ty, value)
-                                .or_else(|| self.lower_inplace_dynamic_value(parameter_ty, value))
+                            if let Some(hash) = self
+                                .lower_packed_word_array_hash(parameter_ty, value)
+                                .or_else(|| {
+                                    self.lower_inplace_dynamic_value(parameter_ty, value)
+                                        .map(|packed| self.builder.keccak256_bytes(packed))
+                                })
                             {
-                                topics.push(self.builder.keccak256_bytes(packed));
+                                topics.push(hash);
                                 continue;
                             }
                             return self.cx.report_unsupported(
