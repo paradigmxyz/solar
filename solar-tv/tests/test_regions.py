@@ -157,13 +157,16 @@ class RegionTests(unittest.TestCase):
         before = self.compile("windows.sol", ["--emit=bin,bin-runtime"])
         after = self.compile("windows.sol", ["--emit=bin,bin-runtime"], audit=True)
         self.assertEqual(json.loads(before.stdout), json.loads(after.stdout))
-        self.assertTrue(
-            any(
-                record["layer"] == "evmir"
-                and record.get("region", {}).get("kind") == "region"
-                for record in self.records()
-            )
-        )
+        # Terminal deduplication shares the terminal blocks. It is now checked
+        # with the physical-entry certificate rather than as a local region,
+        # and that check must verify.
+        dedup = [
+            record
+            for record in self.records()
+            if record["layer"] == "evmir" and "`terminal-dedup`" in record["context"]
+        ]
+        self.assertTrue(dedup)
+        self.assertTrue(all(record["status"] == "verified" for record in dedup))
         self.assertNotIn(": counterexample", after.stderr)
 
     def test_join_with_multiple_heights_is_unsupported(self):
