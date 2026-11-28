@@ -74,7 +74,8 @@ class RegionTests(unittest.TestCase):
             and record.get("region", {}).get("kind") == "function"
         ]
         self.assertIn("helper", proved_functions)
-        self.assertTrue(any(record["status"] == "unsupported" for record in records))
+        # Every pass on this contract now has a proof; none may stay unsupported.
+        self.assertTrue(all(record["status"] == "verified" for record in records))
         self.assertTrue(all(record["whole_pass"] is False for record in records))
 
     def test_solidity_evm_windows_keep_bytecode(self):
