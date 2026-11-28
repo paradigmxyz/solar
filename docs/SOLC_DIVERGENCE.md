@@ -1484,6 +1484,37 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   after the selector.
 - Coverage: `tests/ui/codegen/run-call/assembly/abi_encode_selector_forged_bits.sol`.
 
+### CODEGEN-034: Inline assembly cannot read scratch word `0x20` after a multi-return internal call
+
+- ID: CODEGEN-034
+- Status: intentional
+- Difference: MIR models an internal call that returns several words as a write of
+  the pointer to its result buffer to scratch word `0x20`
+  (`MULTI_RETURN_BUFFER_PTR_SLOT`), and the backend emits that store only when a
+  read of the word needs it. Assembly that calls such a function and then reads
+  `mload(0x20)`, expecting the word the callee's own assembly stored there, is not
+  portable. `solc` leaves the word alone and compiles it, so the read sees the
+  callee's value. We return the same value at `-O none`, because the results
+  come back on the stack and nothing touches the word, and at `-O gas` and
+  `-O size` when the callee is inlined. When it is not, the stack planner takes
+  the first read of the word after the call for the protocol's pointer read. A
+  read whose value has another use makes it reject the function with ``codegen
+  cannot lower `f`: multi-word call result through memory``. A read that uses the
+  word as a pointer, such as `mload(add(mload(0x20), 32))`, binds to the call's
+  own results, and `solc` reads the callee's word as an address instead. When
+  the call uses no result beyond the first, a read in a later block is outside
+  the projection, so the call publishes the pointer to the word and the read
+  returns it, silently, at `-O gas` and `-O size`.
+- Rationale: Solidity promises scratch space only between statements inside one
+  inline assembly block, so a value in it does not survive a Solidity statement.
+  Compiling this code would mean telling the user's read from the protocol's
+  pointer read, or moving the pointer to another word, and both change how every
+  multi-return call is lowered for code that no documented rule supports. We
+  keep the rejection where the planner finds the read, and accept the wrong
+  value where it does not.
+- Coverage: `tests/ui/codegen/run-call/assembly/multi_return_scratch_word.sol` and
+  `tests/ui/codegen/run-call/assembly/multi_return_scratch_word_successor.sol`.
+
 ### TYPECK-026: `@inheritdoc` references
 
 Status: intentional.
