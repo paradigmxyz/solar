@@ -8,7 +8,7 @@ use solar_data_structures::{BumpExt, fmt::or_list};
 use solar_interface::{
     BytePos, Ident, Result, Session, Span, Symbol,
     diagnostics::{Diag, DiagCtxt},
-    error_code,
+    error_code, kw,
     source_map::{FileName, SourceFile},
 };
 use std::{fmt, path::Path};
@@ -1198,7 +1198,11 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     #[track_caller]
     fn parse_ident_common(&mut self, recover: bool) -> PResult<'sess, Ident> {
         let ident = self.ident_or_err(recover)?;
-        if self.in_yul && ident.is_future_yul_reserved_identifier(self.sess.opts.evm_version) {
+        // `memoryguard` is a builtin only in pure Yul, where it is already reserved.
+        if self.in_yul
+            && (ident.is_future_yul_reserved_identifier(self.sess.opts.evm_version)
+                || (!self.pure_yul && ident.name == kw::Memoryguard))
+        {
             self.dcx().emit_warn_code(
                 ident.span,
                 error_code!(5470),
