@@ -72,6 +72,21 @@ fn solc_wrapper() -> bool {
     std::env::var_os("SOLC_WRAPPER").is_some_and(|x| x == "1")
 }
 
+/// Returns the solc version to emulate when none is given: `SOLC_WRAPPER_VERSION` under
+/// `SOLC_WRAPPER=1` when it names a supported version, so that forge can select its rules, or
+/// else [`SolcVersion::default`].
+#[cfg(feature = "version")]
+pub fn default_solc_version() -> SolcVersion {
+    if solc_wrapper()
+        && let Ok(version) = std::env::var("SOLC_WRAPPER_VERSION")
+        && let Ok(version) = version.parse()
+    {
+        version
+    } else {
+        SolcVersion::default()
+    }
+}
+
 /// Rewrites the version number in [`SOLC_VERSION`] to `SOLC_WRAPPER_VERSION`
 /// when set, keeping the `+commit....` suffix.
 #[cfg(feature = "version")]

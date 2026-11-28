@@ -114,7 +114,7 @@ pub(super) struct SolarSettings {
     pub(super) unstable: Vec<String>,
     /// The solc version whose language rules to follow, like `--solc-version`.
     #[serde(default)]
-    pub(super) solc_version: SolcVersion,
+    pub(super) solc_version: Option<SolcVersion>,
 }
 
 /// The solc Standard JSON `settings.debug` object.

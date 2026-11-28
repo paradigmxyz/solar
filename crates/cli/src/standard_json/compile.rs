@@ -288,7 +288,8 @@ fn compile(
     // `--evm-version`, `--solc-version`, `--stop-after`, `--revert-strings` and `-Z` flags that
     // change output do not apply, and `settings.solar` replaces `--solc-version` and `-Z`.
     opts.evm_version = EvmVersion::default();
-    opts.solc_version = solar.solc_version;
+    opts.solc_version =
+        solar.solc_version.unwrap_or_else(solar_config::version::default_solc_version);
     opts.stop_after = None;
     opts.revert_strings = RevertStrings::Default;
     match UnstableOpts::try_parse_flags(&solar.unstable) {

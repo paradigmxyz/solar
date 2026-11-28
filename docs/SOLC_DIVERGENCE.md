@@ -133,6 +133,8 @@ that change output, written like `-Z` flags without the prefix, such as
 `["tune=interpreter"]`, and records it in each contract's metadata. It ignores
 other flags in the list. It also reads `settings.solar.solcVersion`, the
 `--solc-version` to follow, which the metadata's compiler version reports.
+Without it, both follow `SOLC_WRAPPER_VERSION` under `SOLC_WRAPPER=1` when it
+names a supported version, so that forge can select 0.9 rules.
 `solc` rejects the unknown `settings.solar` key. Like `solc`, `solar` ignores
 the command line's `--evm-version` in Standard JSON mode, and it also ignores
 `--solc-version`, `--stop-after`, `--revert-strings` and the `-Z` flags that

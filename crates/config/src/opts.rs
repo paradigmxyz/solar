@@ -100,7 +100,10 @@ pub struct CompileOpts {
     #[cfg_attr(feature = "clap", arg(long, value_enum, default_value_t))]
     pub evm_version: EvmVersion,
     /// Solidity version whose language rules to follow.
-    #[cfg_attr(feature = "clap", arg(long, value_enum, default_value_t))]
+    #[cfg_attr(
+        feature = "clap",
+        arg(long, value_enum, default_value_t = crate::version::default_solc_version())
+    )]
     pub solc_version: SolcVersion,
     /// Stop execution after the given compiler stage.
     #[cfg_attr(feature = "clap", arg(long, value_enum))]
