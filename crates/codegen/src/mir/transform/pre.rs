@@ -75,8 +75,10 @@
 //! cross-path merge), the predecessor is treated as unavailable.
 //!
 //! For words at allocation bases, prefer an equivalent constant or a value already live at the
-//! predecessor's exit. A fully redundant reload stays in place if forwarding would extend a
-//! value's lifetime across the join solely to save this cheap load.
+//! predecessor's exit. A fully redundant reload of such a word, or of a word loaded from a
+//! constant address, which a push rebuilds, stays in place if forwarding would extend a value's
+//! lifetime across the join solely to save this cheap load. A stored word is still forwarded,
+//! which can leave its store dead.
 //!
 //! # Safety of rewrites
 //!
@@ -1123,10 +1125,12 @@ impl<'a> Eliminator<'a> {
                 first == result || incoming.iter().any(|&(_, value)| value != first)
             });
         if !needs_phi
-            && matches!(key, LoadKey::Memory(address)
-                if address.is_fixed_allocation_base(func))
             && incoming.first().is_some_and(|&(_, value)| {
-                !matches!(func.value(value), Value::Immediate(_))
+                matches!(key, LoadKey::Memory(address)
+                    if address.is_fixed_allocation_base(func)
+                        || matches!(address.base, MemoryBase::Absolute)
+                            && matches!(func.value_inst_kind(value), Some(InstKind::Load(..))))
+                    && !matches!(func.value(value), Value::Immediate(_))
                     && !self
                         .liveness
                         .get_or_init(|| Liveness::compute_live_sets(func))

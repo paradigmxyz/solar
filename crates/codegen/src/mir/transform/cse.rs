@@ -1130,10 +1130,12 @@ impl CommonSubexprEliminator {
     }
 
     /// Whether forwarding `cached` to the read `key` would only stretch the live range of a loaded
-    /// word: it is a storage or transient read of the same slot that nothing at or after `inst_idx`
-    /// uses. The later read stays and takes over the cache entry. A stored word is always
-    /// forwarded, since the store already holds it live. Only the storage-only mode keeps such
-    /// reads; the full pass merges them, as it always has.
+    /// word: it is a read of the same slot, or of the same word at a constant memory address, that
+    /// nothing at or after `inst_idx` uses. The later read stays and takes over the cache entry. A
+    /// stored word is always forwarded, since the store already holds it live. Only the
+    /// storage-only mode keeps storage and transient reads; the full pass merges them, as it always
+    /// has, but keeps a constant-address memory read, which a push and an `mload` rebuild for no
+    /// more gas than a `DUP` and the swaps around a word carried this far.
     fn reload_shortens_life(
         &self,
         func: &Function,
@@ -1143,15 +1145,18 @@ impl CommonSubexprEliminator {
         block: BlockId,
         inst_idx: usize,
     ) -> bool {
-        if !self.storage_only {
-            return false;
-        }
         let Value::Inst(def) = *func.value(cached) else { return false };
         let loaded = match (key, &func.inst(def).kind) {
             (
                 ExprKey::SlotLoad(read),
                 InstKind::Load(slot, location @ (PtrLocation::Storage | PtrLocation::Transient)),
-            ) => Location::slot(*location, func.storage_alias(def, *slot)) == Some(*read),
+            ) => {
+                self.storage_only
+                    && Location::slot(*location, func.storage_alias(def, *slot)) == Some(*read)
+            }
+            (ExprKey::MLoad(_), InstKind::Load(address, PtrLocation::Memory)) => {
+                !self.storage_only && func.value_u256(*address).is_some()
+            }
             _ => false,
         };
         loaded

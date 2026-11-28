@@ -80,3 +80,21 @@ fn @keep_phi_immutable_loads_before_branch_stores(arg0: i1) -> i256 {
     v3 = phi [bb1: v1], [bb2: v2]
     ret v3
 }
+
+// A word loaded from a constant address is cheaper to load again in a dominated block than to
+// carry there once nothing else reads it.
+// CHECK-LABEL: {{^[ +].*}}fn @reload_constant_word_in_dominated_block{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+// CHECK: {{^ *}}}
+fn @reload_constant_word_in_dominated_block(arg0: i1) -> i256 {
+  bb0:
+    v0 = mload 16
+    v1 = add v0, 1
+    jumpi arg0, bb1, bb2
+  bb1:
+    v2 = mload 16
+    v3 = add v2, v1
+    ret v3
+  bb2:
+    ret v1
+}

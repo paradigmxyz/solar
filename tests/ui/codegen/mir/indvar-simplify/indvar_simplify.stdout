@@ -685,3 +685,34 @@
       ret v7
   }
   
+  fn @keep_families_sharing_scaling(arg0: ptr<memory>, arg1: ptr<memory>, arg2: ptr<memory>) {
+    bb0:
+      v0 = ptrtoint ptr<memory> arg0 to i256
+      v1 = ptrtoint ptr<memory> arg1 to i256
+      v2 = ptrtoint ptr<memory> arg2 to i256
+      jump bb1
+    bb1:                                            ; preds = bb0, bb2
+      v3 = phi [bb0: 0], [bb2: v18]
+      v4 = mload v0
+      v5 = lt v3, v4
+      jumpi v5, bb2, bb3
+    bb3:                                            ; preds = bb1
+      stop
+    bb2:                                            ; preds = bb1
+      v6 = shl v3, 5
+      v7 = add v0, v6
+      v8 = add v7, 32
+      v9 = mload v8
+      v10 = add v1, v6
+      v11 = add v10, 32
+      v12 = mload v11
+      v13 = add v2, v6
+      v14 = add v13, 32
+      v15 = mload v14
+      v16 = add v9, v12
+      v17 = add v16, v15
+      mstore 0, v17
+      v18 = add v3, 1
+      jump bb1
+  }
+  
