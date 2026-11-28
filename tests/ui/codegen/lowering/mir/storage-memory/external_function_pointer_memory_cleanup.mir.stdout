@@ -122,16 +122,18 @@ fn @cleanup(arg0: i256) -> struct0 [selector=0x0aa40018, view, abi_params=[uint2
 ; function dirtyReturn(uint256 value) external view returns (Holder memory holder) [selector 0x2aae0ed6]
 fn @dirtyReturn(arg0: i256) -> ptr<memory> [selector=0x2aae0ed6, view, abi_params=[uint256], abi_returns=[tuple<function>], abi_return_params=[tuple<function>]] {
   bb0:
-    v0 = alloc 32
-    v1 = address
-    v2 = zext i160 v1 to i256
-    v3 = shl v2, 32
-    v4 = or v3, 0x32e43a11
-    v5 = shl v4, 64
-    mstore v0, v5
-    v6 = ptrtoint ptr<memory> v0 to i256
-    mstore v0, arg0
-    ret v0
+    v0 = alloc 32 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = alloc 32
+    v2 = address
+    v3 = zext i160 v2 to i256
+    v4 = shl v3, 32
+    v5 = or v4, 0x32e43a11
+    v6 = shl v5, 64
+    mstore v1, v6
+    v7 = ptrtoint ptr<memory> v1 to i256
+    mstore v1, arg0
+    ret v1
 }
 
 ; function cleanupArray(uint256 value) external view returns (uint256) [selector 0x7e130ca5]

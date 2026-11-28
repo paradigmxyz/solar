@@ -119,57 +119,57 @@ fn @lowerBound() {
 ; function consume(uint256[] calldata proof, bool[] calldata take) external pure returns (uint256 sum, uint256 used) [selector 0x15847e62]
 fn @consume() {
   bb0:
-    v43 = calldatasize
-    v45 = calldataload 4
-    v46 = add v45, 4
-    v48 = sub v43, 36
-    v49 = lt v48, v45
-    v50 = calldataload v46
-    v51 = add v46, 32
-    v52 = sub v43, v51
-    v53 = shr v52, 5
-    v54 = lt v53, v50
-    v73 = or v49, v54
-    v57 = calldataload 36
-    v58 = add v57, 4
-    v61 = lt v48, v57
-    v74 = or v73, v61
-    v62 = calldataload v58
-    v63 = add v58, 32
-    v64 = sub v43, v63
-    v65 = shr v64, 5
-    v66 = lt v65, v62
-    v75 = or v74, v66
-    jumpi v75, bb7, bb11
+    v41 = calldatasize
+    v43 = calldataload 4
+    v44 = add v43, 4
+    v46 = sub v41, 36
+    v47 = lt v46, v43
+    v48 = calldataload v44
+    v49 = add v44, 32
+    v50 = sub v41, v49
+    v51 = shr v50, 5
+    v52 = lt v51, v48
+    v71 = or v47, v52
+    v55 = calldataload 36
+    v56 = add v55, 4
+    v59 = lt v46, v55
+    v72 = or v71, v59
+    v60 = calldataload v56
+    v61 = add v56, 32
+    v62 = sub v41, v61
+    v63 = shr v62, 5
+    v64 = lt v63, v60
+    v73 = or v72, v64
+    jumpi v73, bb7, bb11
   bb11:                                           ; preds = bb0
-    v71 = shl v62, 5
-    v72 = add v63, v71
+    v69 = shl v60, 5
+    v70 = add v61, v69
     jump bb1
   bb1:                                            ; preds = bb3, bb11
-    v2 = phi [bb11: 0], [bb3: v34]
-    v3 = phi [bb11: 0], [bb3: v35]
-    v69 = phi [bb11: v63], [bb3: v70]
-    v6 = ne v72, v69
+    v2 = phi [bb11: 0], [bb3: v32]
+    v3 = phi [bb11: 0], [bb3: v33]
+    v67 = phi [bb11: v61], [bb3: v68]
+    v6 = ne v70, v67
     jumpi v6, bb4, bb2
   bb4:                                            ; preds = bb1
-    v15 = calldataload v69
-    v16 = gt v15, 1
-    jumpi v16, bb7, bb8
+    v14 = calldataload v67
+    v15 = gt v14, 1
+    jumpi v15, bb7, bb8
   bb8:                                            ; preds = bb4
-    v18 = eq v15, 0
-    jumpi v18, bb3, bb5
+    v17 = eq v14, 0
+    jumpi v17, bb3, bb5
   bb5:                                            ; preds = bb8
-    v20 = eq v50, v3
-    jumpi v20, bb2, bb6
+    v19 = eq v48, v3
+    jumpi v19, bb2, bb6
   bb6:                                            ; preds = bb5
-    v27 = shl v3, 5
-    v30 = add v51, v27
-    v31 = calldataload v30
-    v41 = add v31, v2
-    v42 = lt v41, v2
-    jumpi v42, bb9, bb10
+    v26 = shl v3, 5
+    v28 = add v49, v26
+    v29 = calldataload v28
+    v39 = add v29, v2
+    v40 = lt v39, v2
+    jumpi v40, bb9, bb10
   bb10:                                           ; preds = bb6
-    v33 = add v3, 1
+    v31 = add v3, 1
     jump bb3
   bb9 [cold]:                                     ; preds = bb6
     mstore 32, 17 !metadata(memory=scratch)
@@ -180,9 +180,9 @@ fn @consume() {
     mstore 32, v3 !metadata(memory=scratch)
     returndata 0, 64
   bb3:                                            ; preds = bb8, bb10
-    v34 = phi [bb10: v41], [bb8: v2]
-    v35 = phi [bb10: v33], [bb8: v3]
-    v70 = add v69, 32
+    v32 = phi [bb10: v39], [bb8: v2]
+    v33 = phi [bb10: v31], [bb8: v3]
+    v68 = add v67, 32
     jump bb1
   bb7 [cold]:                                     ; preds = bb4, bb0
     revert 0, 0

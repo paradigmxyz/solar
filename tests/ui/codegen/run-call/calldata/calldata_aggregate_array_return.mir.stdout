@@ -72,36 +72,34 @@ fn @row(arg0: slice<calldata>, arg1: i256) -> slice<calldata> [selector=0x538f7f
     icall panic_if<0x32>, v3
     v4 = extract_value slice<calldata>, arg0, 0
     v5 = mul arg1, 32
-    v6 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v6
-    v7 = ptrtoint ptr<calldata> v4 to i256
-    v8 = add v7, v5
-    v9 = calldatasize
-    v10 = sub v9, v8
-    v11 = slt v10, 32
-    icall revert_if<calldata_tail_too_short>, v11
-    v12 = calldataload v8
-    v13 = ptrtoint ptr<calldata> v4 to i256
-    v14 = add v13, v12
-    v15 = calldatasize
-    v16 = ptrtoint ptr<calldata> v4 to i256
-    v17 = sub v15, v16
-    v18 = sub v17, 31
-    v19 = slt v12, v18
-    v20 = eq v19, false
-    icall revert_if<invalid_calldata_tail_offset>, v20
-    v21 = calldataload v14
-    v22 = calldatasize
-    v23 = gt v21, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v23
-    v24 = mul v21, 64
-    v25 = add v14, 32
-    v26 = sub v22, v24
-    v27 = slt v26, v25
-    icall revert_if<calldata_tail_too_short>, v27
-    v28 = inttoptr i256 v25 to ptr<calldata>
-    v29 = make_calldata_slice v28, v21
-    ret v29
+    v6 = ptrtoint ptr<calldata> v4 to i256
+    v7 = add v6, v5
+    v8 = calldatasize
+    v9 = sub v8, v7
+    v10 = slt v9, 32
+    icall revert_if<calldata_tail_too_short>, v10
+    v11 = calldataload v7
+    v12 = ptrtoint ptr<calldata> v4 to i256
+    v13 = add v12, v11
+    v14 = calldatasize
+    v15 = ptrtoint ptr<calldata> v4 to i256
+    v16 = sub v14, v15
+    v17 = sub v16, 31
+    v18 = slt v11, v17
+    v19 = eq v18, false
+    icall revert_if<invalid_calldata_tail_offset>, v19
+    v20 = calldataload v13
+    v21 = calldatasize
+    v22 = gt v20, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v22
+    v23 = mul v20, 64
+    v24 = add v13, 32
+    v25 = sub v21, v23
+    v26 = slt v25, v24
+    icall revert_if<calldata_tail_too_short>, v26
+    v27 = inttoptr i256 v24 to ptr<calldata>
+    v28 = make_calldata_slice v27, v20
+    ret v28
 }
 
 ; function member(Outer calldata o) external pure returns (Pair[] calldata) [selector 0xef3fa208]

@@ -1,5 +1,6 @@
 use crate::{BytePos, CharPos, pos::RelativeBytePos, source_map::SourceRoots};
 use std::{
+    borrow::Cow,
     cmp::Ordering,
     fmt,
     hash::Hash,
@@ -128,23 +129,48 @@ impl FileName {
     /// `m_sources` map. The names are those of [`FileName::display`], including `<stdin>` and
     /// `<custom>`. Unlike `Ord`, which agrees with `Eq`, it keeps repeated separators, so it
     /// orders `a//b` and `a/b` differently.
+    ///
+    /// To sort many file names, use [`FileName::source_unit_name_key`] with
+    /// [`sort_by_cached_key`](slice::sort_by_cached_key) instead, which computes each name once.
     pub fn cmp_source_unit_name(&self, other: &Self) -> Ordering {
-        fn bytes<'a>(name: &'a FileName, roots: Option<&SourceRoots>) -> [&'a [u8]; 3] {
-            match name {
-                FileName::Real(path) => {
-                    let path = roots.map_or(&**path, |roots| roots.source_unit_name(path));
-                    [path.as_os_str().as_encoded_bytes(), b"", b""]
-                }
-                FileName::Stdin => [b"<stdin>", b"", b""],
-                FileName::Custom(s) => [b"<", s.as_bytes(), b">"],
-            }
-        }
-
-        let roots = crate::SessionGlobals::try_with(|g| g.map(|g| g.source_map.roots()))
-            .unwrap_or_else(|| arc_swap::Guard::from_inner(None));
+        let roots = source_roots();
         let roots = roots.as_deref();
-        let flat = |name| bytes(name, roots).into_iter().flatten();
-        flat(self).cmp(flat(other)).then_with(|| self.cmp(other))
+        SourceUnitNameKey::new(self, roots).cmp(&SourceUnitNameKey::new(other, roots))
+    }
+
+    /// Returns a key that orders file names like [`FileName::cmp_source_unit_name`].
+    pub fn source_unit_name_key(&self) -> SourceUnitNameKey<'_> {
+        SourceUnitNameKey::new(self, source_roots().as_deref())
+    }
+}
+
+fn source_roots() -> arc_swap::Guard<Option<Arc<SourceRoots>>> {
+    crate::SessionGlobals::try_with(|g| g.map(|g| g.source_map.roots()))
+        .unwrap_or_else(|| arc_swap::Guard::from_inner(None))
+}
+
+/// A sort key that orders file names by their source unit names, like
+/// [`FileName::cmp_source_unit_name`].
+///
+/// Created by [`FileName::source_unit_name_key`].
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SourceUnitNameKey<'a> {
+    // Field order matters for the derived `Ord`: raw name bytes first, then `FileName`'s `Ord`.
+    bytes: Cow<'a, [u8]>,
+    name: &'a FileName,
+}
+
+impl<'a> SourceUnitNameKey<'a> {
+    fn new(name: &'a FileName, roots: Option<&SourceRoots>) -> Self {
+        let bytes = match name {
+            FileName::Real(path) => {
+                let path = roots.map_or(&**path, |roots| roots.source_unit_name(path));
+                Cow::Borrowed(path.as_os_str().as_encoded_bytes())
+            }
+            FileName::Stdin => Cow::Borrowed(&b"<stdin>"[..]),
+            FileName::Custom(s) => Cow::Owned([b"<", s.as_bytes(), b">"].concat()),
+        };
+        Self { bytes, name }
     }
 }
 

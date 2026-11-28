@@ -118,14 +118,29 @@ impl DiagId {
         Self { s: s.into() }
     }
 
-    /// Creates an error code diagnostic ID.
+    /// Creates an error code diagnostic ID from the code's zero-padded digits.
+    ///
+    /// Use [`error_code!`](crate::error_code) instead, which evaluates this at compile time so
+    /// creating the ID does not allocate. Error codes are passed eagerly on hot paths, e.g. for
+    /// every resolved identifier.
+    #[doc(hidden)]
+    pub const fn new_from_macro(digits: &'static [u8; 4]) -> Self {
+        let Ok(s) = std::str::from_utf8(digits) else { unreachable!() };
+        Self { s: Cow::Borrowed(s) }
+    }
+
+    /// Returns the zero-padded ASCII digits of an error code.
     ///
     /// Use [`error_code!`](crate::error_code) instead.
     #[doc(hidden)]
-    #[cfg_attr(debug_assertions, track_caller)]
-    pub fn new_from_macro(id: u32) -> Self {
-        debug_assert!((1..=9999).contains(&id), "error code must be in range 0001-9999");
-        Self { s: Cow::Owned(format!("{id:04}")) }
+    pub const fn error_code_digits(id: u32) -> [u8; 4] {
+        assert!(1 <= id && id <= 9999, "error code must be in range 0001-9999");
+        [
+            b'0' + (id / 1000) as u8,
+            b'0' + (id / 100 % 10) as u8,
+            b'0' + (id / 10 % 10) as u8,
+            b'0' + (id % 10) as u8,
+        ]
     }
 
     /// Returns the diagnostic ID as a string slice.
@@ -145,7 +160,11 @@ impl DiagId {
 #[macro_export]
 macro_rules! error_code {
     ($id:literal) => {
-        $crate::diagnostics::DiagId::new_from_macro($id)
+        const {
+            $crate::diagnostics::DiagId::new_from_macro(
+                &const { $crate::diagnostics::DiagId::error_code_digits($id) },
+            )
+        }
     };
 }
 
@@ -1293,6 +1312,19 @@ mod tests {
     use snapbox::{assert_data_eq, str};
     use solar_config::HumanEmitterKind;
     use std::sync::Arc;
+
+    #[test]
+    fn error_code_is_zero_padded() {
+        for (id, expected) in [
+            (error_code!(1), "0001"),
+            (error_code!(67), "0067"),
+            (error_code!(1234), "1234"),
+            (error_code!(9999), "9999"),
+        ] {
+            assert_eq!(id.as_str(), expected);
+            assert_eq!(id, DiagId::new_str(expected));
+        }
+    }
 
     #[test]
     fn test_styled_messages() {

@@ -178,11 +178,11 @@ class CorpusTests(unittest.TestCase):
             )
 
     def test_vendored_cases_and_projects_exist(self) -> None:
-        self.assertEqual(len(benchmark.TEST_CASES), 39)
+        self.assertEqual(len(benchmark.TEST_CASES), 41)
         repository_cases = [
             case for case in benchmark.TEST_CASES if case.suite == "repository"
         ]
-        self.assertEqual(len(repository_cases), 13)
+        self.assertEqual(len(repository_cases), 15)
         heavy_cases = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
         self.assertEqual(len(heavy_cases), 10)
         for case in heavy_cases:
@@ -203,6 +203,8 @@ class CorpusTests(unittest.TestCase):
             "solady-algorithms": 5,
             "prb-math": 34,
             "tempo-zones-portal": 23,
+            "tempo-channel-reserve": 5,
+            "tempo-earn-vault": 47,
         }
         for case in repository_cases:
             self.assertTrue(case.project_path.is_file(), case.test_id)
@@ -265,7 +267,13 @@ class CorpusTests(unittest.TestCase):
         )
         self.assertEqual(
             set(fixtures["creation_bytecode"]),
-            {"RuntimeZoneToken", "RuntimeZoneRegistry"},
+            {
+                "RuntimeZoneToken",
+                "RuntimeZoneRegistry",
+                "RuntimeZoneAddressRegistry",
+                "RuntimeZoneStorageCredits",
+                "RuntimeSignatureVerifier",
+            },
         )
         for bytecode in fixtures["creation_bytecode"].values():
             self.assertTrue(bytes.fromhex(bytecode))

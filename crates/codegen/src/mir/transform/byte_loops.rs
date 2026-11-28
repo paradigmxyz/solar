@@ -44,9 +44,9 @@
 //! - a copy's `mstore8` of a gathered byte into a memory object, whose index check may be the
 //!   header test itself when the destination's length is the bound;
 //! - a word copy's `mstore` of an `mload`, both at `object + (index << 5) + 32` of word arrays, or
-//!   of a `calldataload` at `slice.ptr + (index << 5)` with the check that the shift keeps the
-//!   index, counting up, with the same checks as a byte copy. The ranges, offsets and lengths are
-//!   then counted in elements, and the copied bytes are 32 per element.
+//!   of a `calldataload` at `slice.ptr + (index << 5)`, counting up, with the same checks as a byte
+//!   copy. The ranges, offsets and lengths are then counted in elements, and the copied bytes are
+//!   32 per element.
 //!
 //! # Safety
 //!
@@ -56,12 +56,10 @@
 //! check, but that addition can only overflow at a `k` beyond
 //! `length - offset`, where an earlier iteration's bounds check already failed: a length is
 //! below `2^256`. A gather's shift `8 * k` can only overflow after `2^253` iterations, which the
-//! bounds check or gas ends first. A calldata word's shift `index << 5` fails at an index of
-//! `2^251` or more, past a decoded slice's length. Assembly can forge a longer slice, so a
-//! guarded word copy keeps its loop if scaling its index range could overflow, preserving the
-//! original `Panic(0x41)` and its order relative to other checks. Memory word indices scale
-//! unchecked, but the bulk byte count must not truncate: a guarded memory copy keeps its loop
-//! when the count exceeds `2^251 - 1`. Unlike an offset, which may legitimately wrap to a low
+//! bounds check or gas ends first. Word indices scale unchecked, wrapping modulo `2^256` as in
+//! solc, but the bulk byte count must not truncate: a guarded copy keeps its loop when the count
+//! exceeds `2^251 - 1`, as it does for a calldata slice that assembly forged to a length that
+//! large. Unlike an offset, which may legitimately wrap to a low
 //! address, such a count describes more bytes than a single `mcopy` can represent. Otherwise the
 //! first failure is `Panic(0x32)`, and the replacement raises it when the bound is not zero and the
 //! bound exceeds the length or the offset exceeds the length minus the bound, for every buffer, or
@@ -1006,48 +1004,19 @@ fn word_address(func: &Function, lp: &Counted, ptr: ValueId) -> Option<(ValueId,
     (func.value_u64(shift) == Some(5)).then_some((object, idx))
 }
 
-/// Matches the calldata word address `ptrtoint(slice.ptr) + (idx << 5)`, with the check that
-/// the shift keeps `idx`. Returns the slice and the index value, and adds the check to `used`.
-///
-/// NOTE: A decoded slice's bounds rule out indices of `2^251` or more. For an assembly-forged
-/// slice, the replacement's guard keeps the loop when scaling the index range could overflow,
-/// so this check still raises `Panic(0x41)` in the original order.
+/// Matches the calldata word address `ptrtoint(slice.ptr) + (idx << 5)`. Returns the slice and the
+/// index value.
 fn calldata_word_address(
     func: &Function,
     lp: &Counted,
     address: ValueId,
-    used: &mut Vec<InstId>,
 ) -> Option<(ValueId, ValueId)> {
     let (slice, offset) = calldata_address(func, lp, address)?;
     let (_, &InstKind::Shl(shift, idx)) = body_def(func, lp, offset)? else { return None };
     if func.value_u64(shift) != Some(5) {
         return None;
     }
-    // panic_if (gt idx, MAX >> 5), 0x41
-    for &inst in &lp.insts {
-        let InstKind::ICall {
-            function:
-                Callee::Builtin(Builtin::Check {
-                    is_zero: false,
-                    failure: RevertKind::Panic(PanicCode::MemoryAllocationOverflow),
-                }),
-            args,
-        } = &func.inst(inst).kind
-        else {
-            continue;
-        };
-        let [condition] = **args else { continue };
-        if scale_wraps(func, lp, condition, idx) {
-            used.push(inst);
-        }
-    }
     Some((slice, idx))
-}
-
-/// Whether `condition` tests that scaling `idx` by 32 wraps: `gt idx, MAX >> 5`.
-fn scale_wraps(func: &Function, lp: &Counted, condition: ValueId, idx: ValueId) -> bool {
-    matches!(body_def(func, lp, condition), Some((_, &InstKind::Gt(value, limit)))
-        if value == idx && func.value_u256(limit) == Some(U256::MAX >> 5))
 }
 
 /// Matches `dst[dstOffset + k] = src[srcOffset + k]` over arrays of words, counting up.
@@ -1068,7 +1037,7 @@ fn word_copy(func: &Function, aa: &AliasAnalysis, l: &Loop, lp: &Counted) -> Opt
             checked_access(func, l, lp, Buffer::Memory(src_object), src_idx, &mut used)?
         }
         InstKind::Load(address, PtrLocation::Calldata) => {
-            let (slice, src_idx) = calldata_word_address(func, lp, address, &mut used)?;
+            let (slice, src_idx) = calldata_word_address(func, lp, address)?;
             checked_access(func, l, lp, Buffer::Calldata(slice), src_idx, &mut used)?
         }
         _ => return None,
@@ -2111,7 +2080,7 @@ fn skip_when_empty(builder: &mut FunctionBuilder<'_>, lp: &Counted) {
 
 /// Emits whether a calldata access needs its original loop: its addresses wrap past `2^256`,
 /// or scaling its word indices could overflow. The loop adds each byte offset to the slice's
-/// offset unchecked, but checks the index shift first. A slice forged by assembly can exercise
+/// offset unchecked and scales each index unchecked. A slice forged by assembly can exercise
 /// either case. Testing the exclusive index end conservatively keeps the loop when its final
 /// index is exactly the largest scalable word index too.
 fn calldata_wraps(builder: &mut FunctionBuilder<'_>, access: &Access, count: ValueId) -> ValueId {

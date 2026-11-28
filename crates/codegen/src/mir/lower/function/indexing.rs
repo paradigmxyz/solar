@@ -101,7 +101,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             .type_of_expr(expr.id)?
                             .with_loc_if_ref(self.cx.gcx, DataLocation::Calldata);
                         let head_size = self.builder.imm(self.types.abi_type(element)?.head_size());
-                        let offset = self.builder.checked_mul(index, head_size);
+                        let offset = self.builder.mul(index, head_size);
                         let head = self.builder.add(base, offset);
                         // Dynamic-array slices retain their element base for nested offsets;
                         // arbitrary slices still cannot validate offsets relative to the tuple.
@@ -220,7 +220,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             start
         } else {
             let stride = self.builder.imm(element_stride);
-            self.builder.checked_mul(start, stride)
+            self.builder.mul(start, stride)
         };
         // The checks above keep the start inside the base slice.
         // result = slice(ptradd base.data, start * stride, end - start)

@@ -692,9 +692,7 @@ impl<'ast> Sources<'ast> {
             // contract's. solc roots its DFS in name order (`m_sources` is an
             // ordered map by raw name bytes); match it so cycles are cut identically.
             let mut roots = self.sources.indices().collect::<Vec<_>>();
-            roots.sort_by(|&a, &b| {
-                self.sources[a].file.name.cmp_source_unit_name(&self.sources[b].file.name)
-            });
+            roots.sort_by_cached_key(|&id| self.sources[id].file.name.source_unit_name_key());
             for id in roots {
                 self.topo_order(id, &mut order, &mut map, &mut seen);
             }

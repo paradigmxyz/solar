@@ -3,10 +3,17 @@ use std::{
     ffi::c_char,
     mem::align_of,
     ptr,
-    sync::atomic::{AtomicPtr, Ordering},
+    sync::{Mutex, MutexGuard, PoisonError},
 };
 
-static ALLOCATIONS: AtomicPtr<AllocationHeader> = AtomicPtr::new(ptr::null_mut());
+/// Head of the list of live allocations. Every access to the list, including the links stored in
+/// the headers, happens while holding this lock.
+static ALLOCATIONS: Mutex<Head> = Mutex::new(Head(ptr::null_mut()));
+
+struct Head(*mut AllocationHeader);
+
+// SAFETY: the pointer is only dereferenced while holding the `ALLOCATIONS` lock.
+unsafe impl Send for Head {}
 
 #[repr(C)]
 struct AllocationHeader {
@@ -77,20 +84,22 @@ unsafe fn free_with_header(data: *mut u8) {
 }
 
 unsafe fn insert_allocation(header: *mut AllocationHeader) {
-    let head = ALLOCATIONS.load(Ordering::Relaxed);
+    let mut allocations = lock_allocations();
+    let head = allocations.0;
     unsafe {
         (*header).next = head;
         if !head.is_null() {
             (*head).prev = header;
         }
     }
-    ALLOCATIONS.store(header, Ordering::Relaxed);
+    allocations.0 = header;
 }
 
 unsafe fn unlink_allocation(header: *mut AllocationHeader) {
+    let mut allocations = lock_allocations();
     unsafe {
         if (*header).prev.is_null() {
-            ALLOCATIONS.store((*header).next, Ordering::Relaxed);
+            allocations.0 = (*header).next;
         } else {
             (*(*header).prev).next = (*header).next;
         }
@@ -103,7 +112,8 @@ unsafe fn unlink_allocation(header: *mut AllocationHeader) {
 }
 
 unsafe fn reset_allocations() {
-    let mut current = ALLOCATIONS.swap(ptr::null_mut(), Ordering::Relaxed);
+    let mut allocations = lock_allocations();
+    let mut current = std::mem::replace(&mut allocations.0, ptr::null_mut());
     while !current.is_null() {
         unsafe {
             let next = (*current).next;
@@ -123,6 +133,10 @@ unsafe fn dealloc_allocation(header: *mut AllocationHeader) {
     }
 }
 
+fn lock_allocations() -> MutexGuard<'static, Head> {
+    ALLOCATIONS.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
 const fn size_of_header() -> usize {
     std::mem::size_of::<AllocationHeader>()
 }
@@ -130,7 +144,7 @@ const fn size_of_header() -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, MutexGuard};
+    use std::thread;
 
     static ALLOCATOR_TEST_LOCK: Mutex<()> = Mutex::new(());
 
@@ -142,7 +156,7 @@ mod tests {
 
     fn allocation_count() -> usize {
         let mut count = 0;
-        let mut current = ALLOCATIONS.load(Ordering::Relaxed);
+        let mut current = lock_allocations().0;
         while !current.is_null() {
             count += 1;
             unsafe {
@@ -162,7 +176,7 @@ mod tests {
             ptr.copy_from_nonoverlapping([1, 2, 3, 4].as_ptr(), 4);
             free(ptr.cast());
         }
-        assert!(ALLOCATIONS.load(Ordering::Relaxed).is_null());
+        assert_eq!(allocation_count(), 0);
     }
 
     #[test]
@@ -174,7 +188,7 @@ mod tests {
         assert!(!b.is_null());
         assert_eq!(allocation_count(), 2);
         reset();
-        assert!(ALLOCATIONS.load(Ordering::Relaxed).is_null());
+        assert_eq!(allocation_count(), 0);
     }
 
     #[test]
@@ -194,7 +208,7 @@ mod tests {
         assert_eq!(allocation_count(), 2);
 
         reset();
-        assert!(ALLOCATIONS.load(Ordering::Relaxed).is_null());
+        assert_eq!(allocation_count(), 0);
     }
 
     #[test]
@@ -215,7 +229,7 @@ mod tests {
         assert_eq!(allocation_count(), 1);
 
         reset();
-        assert!(ALLOCATIONS.load(Ordering::Relaxed).is_null());
+        assert_eq!(allocation_count(), 0);
     }
 
     #[test]
@@ -227,7 +241,7 @@ mod tests {
         unsafe {
             free(ptr);
         }
-        assert!(ALLOCATIONS.load(Ordering::Relaxed).is_null());
+        assert_eq!(allocation_count(), 0);
     }
 
     #[test]
@@ -235,6 +249,23 @@ mod tests {
         let _lock = allocator_test_lock();
         let ptr = alloc(usize::MAX);
         assert!(ptr.is_null());
-        assert!(ALLOCATIONS.load(Ordering::Relaxed).is_null());
+        assert_eq!(allocation_count(), 0);
+    }
+
+    #[test]
+    fn concurrent_alloc_and_free() {
+        let _lock = allocator_test_lock();
+        thread::scope(|scope| {
+            for _ in 0..8 {
+                scope.spawn(|| {
+                    for size in 0..1000 {
+                        let ptr = alloc(size % 64);
+                        assert!(!ptr.is_null());
+                        unsafe { free(ptr) };
+                    }
+                });
+            }
+        });
+        assert_eq!(allocation_count(), 0);
     }
 }

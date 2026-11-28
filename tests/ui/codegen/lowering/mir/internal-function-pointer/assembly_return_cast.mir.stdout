@@ -211,7 +211,9 @@ fn @_toPairReturnType(arg0: i256) -> i256 [pure] {
 ; function _toPairDecoder(WordDecoder memory inDecoder) internal pure returns (PairDecoder memory outDecoder)
 fn @_toPairDecoder(arg0: ptr<memory>) -> ptr<memory> [pure] {
   bb0:
-    v0 = ptrtoint ptr<memory> arg0 to i256
+    v0 = alloc 32 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = ptrtoint ptr<memory> arg0 to i256
     ret arg0
 }
 

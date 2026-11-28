@@ -1,0 +1,4 @@
+error: codegen cannot lower `f`: multi-word call result through memory
+
+error: aborting due to 1 previous error
+

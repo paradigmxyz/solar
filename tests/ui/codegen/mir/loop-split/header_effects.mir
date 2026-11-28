@@ -1,0 +1,53 @@
+//@compile-flags: -Zmir-pipeline=loop-split
+//@filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+@module HeaderEffects
+
+// The original header repeats its instructions for the iteration the main
+// loop declined, so a store there would run twice: the loop is kept.
+// CHECK-LABEL: {{^[ +].*}}fn @store_header{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @store_header(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v5]
+    sstore 0, v0
+    v1 = lt v0, arg0
+    jumpi v1, bb2, bb4
+  bb2:
+    v2 = add v0, 2
+    v3 = lt v2, arg0
+    v6 = zext i1 v3 to i256
+    v4 = add v0, v6
+    jump bb3
+  bb3:
+    v5 = add v0, 4
+    jump bb1
+  bb4:
+    ret v0
+}
+
+// The same loop without the store splits.
+// CHECK-LABEL: {{^[ +].*}}fn @plain_header{{[( ]}}
+// CHECK: + [[A:v[0-9]+]] = add {{v[0-9]+}}, 2
+// CHECK: + {{v[0-9]+}} = lt [[A]], arg0
+fn @plain_header(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v5]
+    v1 = lt v0, arg0
+    jumpi v1, bb2, bb4
+  bb2:
+    v2 = add v0, 2
+    v3 = lt v2, arg0
+    v6 = zext i1 v3 to i256
+    v4 = add v0, v6
+    jump bb3
+  bb3:
+    v5 = add v0, 4
+    jump bb1
+  bb4:
+    ret v0
+}
