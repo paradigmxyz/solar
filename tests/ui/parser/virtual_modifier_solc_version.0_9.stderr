@@ -19,7 +19,12 @@ error[5827]: modifier `m` is already defined in a base contract
    │
 LL │     modifier m() override { _; }
    │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overridden modifier is here
+   ╭▸ ROOT/tests/ui/parser/virtual_modifier_solc_version.sol:LL:CC
    │
+LL │     modifier m() virtual { _; }
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━
    ╰ note: modifiers cannot be overridden
 
 error: aborting due to 3 previous errors

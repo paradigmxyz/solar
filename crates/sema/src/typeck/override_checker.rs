@@ -373,11 +373,18 @@ impl<'gcx> OverrideChecker<'gcx> {
                         );
                     }
                     if self.gcx.sess.opts.solc_version >= SolcVersion::V0_9_0 {
-                        if self.has_inherited_name_kind(name, true) {
+                        let candidates = override_index(self.gcx).by_name.get(&name);
+                        let base = contract.linearized_bases[1..].iter().find_map(|&id| {
+                            candidates?.iter().find(|c| {
+                                c.is_modifier(self.gcx) && c.contract(self.gcx) == Some(id)
+                            })
+                        });
+                        if let Some(base) = base {
                             let msg =
                                 format!("modifier `{name}` is already defined in a base contract");
                             self.dcx()
                                 .err_code_at(f.span, error_code!(5827), msg)
+                                .span_note(base.span(self.gcx), "overridden modifier is here")
                                 .note("modifiers cannot be overridden")
                                 .emit();
                         }

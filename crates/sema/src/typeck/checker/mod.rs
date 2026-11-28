@@ -1317,8 +1317,7 @@ impl<'gcx> TypeChecker<'gcx> {
             {
                 let msg = "comparison of internal function pointers is not allowed";
                 let span = lhs_e.span.to(rhs_e.span);
-                let guar = self.dcx().emit_err_code(span, error_code!(7641), msg);
-                return self.gcx.mk_ty_err(guar);
+                self.dcx().emit_err_code(span, error_code!(7641), msg);
             }
             if let (true, Some(expr_id)) = (record_common, expr_id) {
                 self.results.ast.solc_tys.insert(expr_id, common);
