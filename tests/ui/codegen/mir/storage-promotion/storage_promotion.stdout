@@ -168,3 +168,22 @@
       jump bb1
   }
   
+  ; selector 0x01020304
+  fn @reject_gas_bounded_loop() [selector=0x01020304] {
+    bb0:
+      jump bb1
+    bb1:                                            ; preds = bb0, bb2
+      v0 = gas
+      v1 = gt v0, 0xc350
+      jumpi v1, bb2, bb3
+    bb3:                                            ; preds = bb1
+      stop
+    bb2:                                            ; preds = bb1
+-     v2 = sload 0
++     v2 = sload 0 !metadata(storage=slot(0))
+      v3 = add v2, 1
+-     sstore 0, v3
++     sstore 0, v3 !metadata(storage=slot(0))
+      jump bb1
+  }
+  

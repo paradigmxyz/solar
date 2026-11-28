@@ -405,10 +405,11 @@ remain conservative. `msize` is an opaque memory read: it is never commoned or m
 writes it may see, and it promises no exact value. A gas read, `gas` or the implicit read of
 a precompile or an `extcall` without a gas argument, is never commoned, speculated, or moved and
 stays in order with other gas reads. It holds back no memory or storage access: DSE, CSE, load
-PRE, LICM, and storage promotion delete, forward, merge, and hoist them across it, so it promises
-no exact value either; only instruction scheduling still keeps work on its side. Before EIP-150, a
-call that forwards the gas left pays its own memory expansion out of a small reserve, so like
-`msize` it keeps the writes before it.
+PRE, and LICM delete, forward, merge, and hoist them across it, so it promises no exact value
+either; only instruction scheduling still keeps work on its side. Storage promotion skips a loop
+that reads gas, since the loop may stop on it and a deferred store could then run out of gas.
+Before EIP-150, a call that forwards the gas left pays its own memory expansion out of a small
+reserve, so like `msize` it keeps the writes before it.
 As in solc, unused storage/account reads and normally returning calls containing
 only those reads may disappear, including their implicit access-list warming.
 Optimization preserves required effects rather than exact gas consumption.

@@ -1456,12 +1456,22 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   section costs can see a different amount: in
   `x = 1; g = gasleft(); x = 2;` only the second store remains. A gas read is
   never commoned, speculated or moved, and two reads keep their order.
+  Storage promotion is the exception: it leaves a loop that reads `gasleft()`
+  alone, because a loop such as `while (gasleft() > n) { x++; }` may stop on
+  the gas left, and moving its stores past that check would make the last gas
+  pay for them, so a call that finishes unoptimized could run out of gas.
+  Before EIP-150, a call that forwards the gas left keeps the memory writes
+  before it, because its own memory expansion comes out of the reserve the
+  compiler withholds; a gas argument computed by hand from `gasleft()` gets no
+  such care.
 - Rationale: optimization preserves required effects, not exact gas use.
   `solc`'s via-IR optimizer treats `gas()` the same way: its
   `SemanticInformation` makes `GAS` neither movable nor commonable but gives it
   no memory, storage or other state effect, and `solc` 0.8.36
   `--via-ir --optimize` compiles the example above to one `sstore(0, 2)`.
-- Coverage: `tests/ui/codegen/mir/storage-dse/gasleft_between_stores.sol`.
+- Coverage: `tests/ui/codegen/mir/storage-dse/gasleft_between_stores.sol` and
+  `reject_gas_bounded_loop` in
+  `tests/ui/codegen/mir/storage-promotion/storage_promotion.mir`.
 
 ### TYPECK-026: `@inheritdoc` references
 

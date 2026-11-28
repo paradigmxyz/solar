@@ -8,6 +8,8 @@
 //! - promote only exact storage aliases that are loop-invariant
 //! - promote multiple slots only when they are pairwise provably disjoint
 //! - reject loops with calls, storage accesses the rewrite cannot update, or non-isolated exits
+//! - reject loops that read the gas left: they may stop on it, and a store deferred past that check
+//!   could run out of gas where the unoptimized loop finishes
 //! - use shared read/write effects to detect storage traffic inside semantic operations
 //! - flush dirty promoted values before any clean observable exit
 //! - skip the flush on revert exits: `revert`/`invalid` roll back every storage write of the frame,
@@ -211,6 +213,9 @@ fn promotion_block_ids(func: &Function, loop_data: &Loop) -> Vec<BlockId> {
     blocks
 }
 
+/// A loop that reads the gas left may stop on it, as a gas-bounded batch does. Promotion would move
+/// its stores past that check, where the last iteration's gas has to pay for them, so a loop that
+/// finishes unoptimized could run out of gas.
 fn promotion_effects_are_safe(func: &Function, loop_data: &Loop) -> bool {
     let alias = AliasAnalysis::new(func);
     for block_id in promotion_block_ids(func, loop_data) {
@@ -218,7 +223,8 @@ fn promotion_effects_are_safe(func: &Function, loop_data: &Loop) -> bool {
             match &func.inst(inst_id).kind {
                 InstKind::Load(_, PtrLocation::Storage)
                 | InstKind::Store(_, _, PtrLocation::Storage) => {}
-                InstKind::Store(_, _, PtrLocation::Transient)
+                InstKind::Gas
+                | InstKind::Store(_, _, PtrLocation::Transient)
                 | InstKind::Call { .. }
                 | InstKind::CallCode { .. }
                 | InstKind::StaticCall { .. }
