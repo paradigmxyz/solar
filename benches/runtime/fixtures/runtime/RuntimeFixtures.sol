@@ -80,6 +80,20 @@ contract RuntimeZoneRegistry {
     }
 }
 
+/// @dev The local address registry reports no virtual addresses.
+contract RuntimeZoneAddressRegistry {
+    function isVirtualAddress(address) external pure returns (bool) {
+        return false;
+    }
+}
+
+/// @dev The local storage credits precompile accepts every budget and mode.
+contract RuntimeZoneStorageCredits {
+    function setBudget(uint64) external {}
+
+    function setMode(uint8) external {}
+}
+
 /// @dev Local copy of the Tempo signature verifier precompile mock in the channel reserve tests.
 contract RuntimeSignatureVerifier {
     error InvalidSignature();

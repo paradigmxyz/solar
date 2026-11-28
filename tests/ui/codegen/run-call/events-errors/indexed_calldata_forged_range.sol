@@ -22,7 +22,7 @@ pragma solidity ^0.8.0;
 // CHECK: @module
 
 // Assembly constructs ranges that ABI decoding could not produce. We retain the copy range
-// check for indexed arrays, including empty ranges. See CODEGEN-032 in docs/SOLC_DIVERGENCE.md.
+// check for indexed arrays, including empty ranges. See CODEGEN-037 in docs/SOLC_DIVERGENCE.md.
 contract ForgedCalldataEvents {
     event Narrow(uint8[] indexed values);
     event Addresses(address[] indexed values);

@@ -28,22 +28,24 @@ Runtime workload definitions and upstream revisions are documented in
 ## Tempo Zones
 
 `tempo-zones.json.gz` captures `forge test --list`'s compiler input from
-[`tempoxyz/zones`](https://github.com/tempoxyz/zones/tree/700069eb8a40fce7e1f7a4bf0fc5703bcc692c43)
-under `crates/contracts/`: 67 sources, including 21 test files. It preserves the upstream
+[`tempoxyz/tempo`](https://github.com/tempoxyz/tempo/tree/a86fa1ef623b756e7194638579470771f21850ee/crates/zones/contracts)
+under `crates/zones/contracts/`: 69 sources, including 23 test files. It preserves the upstream
 via-IR pipeline, 200 optimizer runs, Osaka EVM target, and Foundry output selection, including
 storage layout. Unlike Forge's input, it sets `settings.metadata` to `appendCBOR: false` and
 `bytecodeHash: none`, like the other archives, so unchanged codegen gives identical bytecode,
 and requests each source's AST with `"": ["ast"]`, as the other archives do; set both again
-after regenerating. Sources are inline, so the archive needs neither network access nor submodules.
-No Solidity tests were executed to produce it.
+after regenerating. Sources are inline, with paths relative to `crates/zones/contracts`, so the
+archive needs neither network access nor submodules. No Solidity tests were executed to produce it.
 
-The input was captured at the compiler handoff with Forge `1.6.0-v1.7.0`
-(`f83bad912a9dba7bf0371def1e70bb1896048356`) and solc `0.8.35`.
-`FOUNDRY_HARDFORK=cancun` lets that Forge parse the newer upstream `tempo:T8` setting;
-the Standard JSON EVM target remains `osaka`. Initialize the pinned submodules before regenerating:
+The input was captured at the compiler handoff with Forge `1.9.0`
+(`6056c5845d34205a83cf7108042adb137325c9df`) and solc `0.8.35`: `FOUNDRY_SOLC` pointed at a wrapper
+that copied standard input to a file and ran solc. `forge test --list` requests only `abi`, so the
+archive gives every source Forge's full output selection, which `forge test` sends for the sources
+it compiles. Initialize the pinned submodules before regenerating:
 `tempo-std` at `96f882963ce3b0e0abc7ec2b41d03d42457877bb` and `forge-std` at
-`bf647bd6046f2f7da30d0c2bf435e5c76a780c1b`. Every embedded source was checked against these
-public repositories' pinned Git objects.
+`bf647bd6046f2f7da30d0c2bf435e5c76a780c1b`. Every embedded source was checked against the pinned
+Git objects of `tempo` and these public repositories. The archive holds no local paths and only
+the `language`, `settings`, and `sources` root keys.
 
 Run the compile-only comparison with:
 

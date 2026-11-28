@@ -88,10 +88,13 @@ uv run --project tools/compiler-diff compiler-diff runtime -- \
 
 This case requires local Anvil. Setup impersonates the public native factory address to initialize
 the proxy, registers an encryption key with a proof signed by public test key 1, and installs mock
-TIP-20 and TIP-403 contracts. `fixtures/runtime/Zones.json` pins the helpers' creation bytecode from
-solc 0.8.37, including source hash and compiler settings, so gas uses identical mocks even without
-a live reference compiler. Rebuild it with Standard JSON using `RuntimeFixtures.sol`, the saved
-`settings`, and solc 0.8.37; the bytecode objects must match `creation_bytecode`.
+TIP-20, TIP-403, address registry, and storage credits contracts; the last two answer the portal's
+virtual-address check and its checkpoint budget calls with no effect, so the first deposit also
+writes the portal's first deposit checkpoint. `fixtures/runtime/Zones.json` pins the helpers'
+creation bytecode from solc 0.8.37, including source hash and compiler settings, so gas uses
+identical mocks even without a live reference compiler. Rebuild it with Standard JSON using
+`RuntimeFixtures.sol`, the saved `settings`, and solc 0.8.37; the bytecode objects must match
+`creation_bytecode`.
 The sender starts with 100 million token units and approves the proxy; each deposit transfers
 10 million units with zero deposit fee. Each call is a separate transaction with cold access state.
 Post-call checks require two deposits, 20 million units in escrow, and 80 million with the sender,
@@ -377,13 +380,13 @@ runtime observations.
 | `lilweb3-flashloan` | `m1guelpf/lil-web3` plus `transmissions11/solmate` | `7346bd28c2586da3b07102d5290175a276949b15`, `e802bcf2fb24dda2bf7e513bea86d15c48b57486` | 2 |
 | `lilweb3-fractional` | `m1guelpf/lil-web3` plus `transmissions11/solmate` | `7346bd28c2586da3b07102d5290175a276949b15`, `e802bcf2fb24dda2bf7e513bea86d15c48b57486` | 3 |
 | `maple-erc20` | `maple-labs/erc20` | `baf791a9f894b0b319a2d42d5b9f8d30349ebaad` | 2 |
-| `tempo-zones-portal` | `tempoxyz/zones` plus `tempoxyz/tempo-std` | `700069eb8a40fce7e1f7a4bf0fc5703bcc692c43`, `96f882963ce3b0e0abc7ec2b41d03d42457877bb` | 23 |
+| `tempo-zones-portal` | `tempoxyz/tempo` plus `tempoxyz/tempo-std` | `a86fa1ef623b756e7194638579470771f21850ee`, `96f882963ce3b0e0abc7ec2b41d03d42457877bb` | 23 |
 | `tempo-channel-reserve` | `tempoxyz/tempo` plus `tempoxyz/tempo-std` | `0c061d9178d982863fe5e57c5863374c4215eecc`, `c6c89f5aaf17ff9fabc3e76d05a8e5ebc1e05318` | 5 |
 | `tempo-earn-vault` | `tempoxyz/earn` plus `OpenZeppelin/openzeppelin-contracts` and `TempoEarn.sol` | `d7d85f560d07d9827858ae4dd528c76debe713a5`, `e4f70216d759d8e6a64144a9e1f7bbeed78e7079` | 47 |
 | `solady-encoding` | `Vectorized/solady` plus `Encoding.sol` | `solady-0.1.26` archive | 3 |
 | `solady-algorithms` | `Vectorized/solady` plus `Algorithms.sol` | `solady-0.1.26` archive | 5 |
 | `prb-math` | `PaulRBerg/prb-math` plus `PRBMath.sol` | `b51e8631ed28d3cc917c491dd47cd6c3ff652edc` (4.1.1 archive) | 34 |
-| `tempo-zones-project` (compile-time only) | `tempoxyz/zones` | `700069eb8a40fce7e1f7a4bf0fc5703bcc692c43` | 67 |
+| `tempo-zones-project` (compile-time only) | `tempoxyz/tempo` | `a86fa1ef623b756e7194638579470771f21850ee` | 69 |
 
 File counts are each case's sliced closure. Archives below are in `../../testdata/projects/`. The
 OpenZeppelin cases share `openzeppelin-5.6.1.json.gz`, which replaces the earlier extracted
