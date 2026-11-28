@@ -1,0 +1,214 @@
+; === ROOT/tests/ui/codegen/run-call/calldata/calldata_forged_slice_argument_order.sol:C ===
+@module C
+; function structConstructor(uint256 x) external pure returns (uint256) [selector 0xf14a1da0]
+fn @structConstructor(arg0: i256) -> i256 [selector=0xf14a1da0, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = make_calldata_slice ptr<calldata> 0xffffff, v1
+    v3 = extract_value slice<calldata>, v2, 0
+    v4 = make_calldata_slice v3, 0
+    v5 = alloc 64
+    v6 = extract_value slice<calldata>, v4, 1
+    v7 = add v6, 31
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v9 = add v8, 32
+    v10 = lt v9, v6
+    icall panic_if<0x41>, v10
+    v11 = alloc v9
+    mstore v11, v6
+    v12 = extract_value slice<calldata>, v4, 0
+    v13 = extract_value slice<calldata>, v4, 1
+    v14 = calldatasize
+    v15 = gt v13, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v15
+    v16 = ptrtoint ptr<calldata> v12 to i256
+    v17 = add v16, v13
+    v18 = lt v14, v17
+    icall revert_if<calldata_tail_too_short>, v18
+    v19 = ptradd v11, 32
+    v20 = extract_value slice<calldata>, v4, 0
+    v21 = extract_value slice<calldata>, v4, 1
+    calldatacopy v19, v20, v21
+    v22 = ptrtoint ptr<memory> v11 to i256
+    v23 = checked_sub uint256, arg0, 1
+    mstore v5, v22
+    v24 = ptradd v5, 32
+    mstore v24, v23
+    v25 = ptradd v5, 32
+    v26 = mload v25
+    ret v26
+}
+
+; function internalCall(uint256 x) external pure returns (uint256) [selector 0x1c93908c]
+fn @internalCall(arg0: i256) -> i256 [selector=0x1c93908c, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = make_calldata_slice ptr<calldata> 0xffffff, v1
+    v3 = extract_value slice<calldata>, v2, 0
+    v4 = make_calldata_slice v3, 0
+    v5 = extract_value slice<calldata>, v4, 1
+    v6 = add v5, 31
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v8 = add v7, 32
+    v9 = lt v8, v5
+    icall panic_if<0x41>, v9
+    v10 = alloc v8
+    mstore v10, v5
+    v11 = extract_value slice<calldata>, v4, 0
+    v12 = extract_value slice<calldata>, v4, 1
+    v13 = calldatasize
+    v14 = gt v12, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v14
+    v15 = ptrtoint ptr<calldata> v11 to i256
+    v16 = add v15, v12
+    v17 = lt v13, v16
+    icall revert_if<calldata_tail_too_short>, v17
+    v18 = ptradd v10, 32
+    v19 = extract_value slice<calldata>, v4, 0
+    v20 = extract_value slice<calldata>, v4, 1
+    calldatacopy v18, v19, v20
+    v21 = checked_sub uint256, arg0, 1
+    v22 = icall @take, v10, v21
+    ret v22
+}
+
+; function tuple(uint256 x) external pure returns (uint256) [selector 0xa591a59b]
+fn @tuple(arg0: i256) -> i256 [selector=0xa591a59b, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = make_calldata_slice ptr<calldata> 0xffffff, v1
+    v3 = extract_value slice<calldata>, v2, 0
+    v4 = make_calldata_slice v3, 0
+    v5 = extract_value slice<calldata>, v4, 1
+    v6 = add v5, 31
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v8 = add v7, 32
+    v9 = lt v8, v5
+    icall panic_if<0x41>, v9
+    v10 = alloc v8
+    mstore v10, v5
+    v11 = extract_value slice<calldata>, v4, 0
+    v12 = extract_value slice<calldata>, v4, 1
+    v13 = calldatasize
+    v14 = gt v12, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v14
+    v15 = ptrtoint ptr<calldata> v11 to i256
+    v16 = add v15, v12
+    v17 = lt v13, v16
+    icall revert_if<calldata_tail_too_short>, v17
+    v18 = ptradd v10, 32
+    v19 = extract_value slice<calldata>, v4, 0
+    v20 = extract_value slice<calldata>, v4, 1
+    calldatacopy v18, v19, v20
+    v21 = checked_sub uint256, arg0, 1
+    v22 = mload v10
+    v23 = checked_add uint256, v21, v22
+    ret v23
+}
+
+; function stopInArgument(uint256 x) external pure returns (uint256) [selector 0x1e2f9f95]
+fn @stopInArgument(arg0: i256) -> i256 [selector=0x1e2f9f95, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = make_calldata_slice ptr<calldata> 0xffffff, v1
+    v3 = extract_value slice<calldata>, v2, 0
+    v4 = make_calldata_slice v3, 0
+    v5 = extract_value slice<calldata>, v4, 1
+    v6 = add v5, 31
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v8 = add v7, 32
+    v9 = lt v8, v5
+    icall panic_if<0x41>, v9
+    v10 = alloc v8
+    mstore v10, v5
+    v11 = extract_value slice<calldata>, v4, 0
+    v12 = extract_value slice<calldata>, v4, 1
+    v13 = calldatasize
+    v14 = gt v12, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v14
+    v15 = ptrtoint ptr<calldata> v11 to i256
+    v16 = add v15, v12
+    v17 = lt v13, v16
+    icall revert_if<calldata_tail_too_short>, v17
+    v18 = ptradd v10, 32
+    v19 = extract_value slice<calldata>, v4, 0
+    v20 = extract_value slice<calldata>, v4, 1
+    calldatacopy v18, v19, v20
+    v21 = icall @stopIfZero, arg0
+    v22 = icall @take, v10, v21
+    ret v22
+}
+
+; function allocationSeenByArgument() external pure returns (uint256) [selector 0x31127424]
+fn @allocationSeenByArgument() -> i256 [selector=0x31127424, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @freePointer
+    v1 = calldatasize
+    v2 = make_calldata_slice ptr<calldata> 0, v1
+    v3 = extract_value slice<calldata>, v2, 0
+    v4 = extract_value slice<calldata>, v2, 1
+    v5 = lt v4, 4
+    v6 = lt 4, 0
+    v7 = or v5, v6
+    v8 = zext i1 v7 to i256
+    icall revert_if<empty>, v7
+    v9 = ptradd v3, 0
+    v10 = make_calldata_slice v9, 4
+    v11 = extract_value slice<calldata>, v10, 0
+    v12 = extract_value slice<calldata>, v10, 1
+    v13 = calldatasize
+    v14 = gt v12, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v14
+    v15 = ptrtoint ptr<calldata> v11 to i256
+    v16 = add v15, v12
+    v17 = lt v13, v16
+    icall revert_if<calldata_tail_too_short>, v17
+    v18 = extract_value slice<calldata>, v10, 1
+    v19 = add v18, 31
+    v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v21 = add v20, 32
+    v22 = lt v21, v18
+    icall panic_if<0x41>, v22
+    v23 = alloc v21
+    mstore v23, v18
+    v24 = ptradd v23, 32
+    v25 = extract_value slice<calldata>, v10, 0
+    v26 = extract_value slice<calldata>, v10, 1
+    calldatacopy v24, v25, v26
+    v27 = icall @freePointer
+    v28 = checked_sub uint256, v27, v0
+    v29 = icall @take, v23, v28
+    ret v29
+}
+
+; function freePointer() internal pure returns (uint256 p)
+fn @freePointer() -> i256 [pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    ret v0
+}
+
+; function stopIfZero(uint256 x) internal pure returns (uint256)
+fn @stopIfZero(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = zext i1 v0 to i256
+    v2 = ne v1, 0
+    jumpi v2, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb2
+    ret arg0
+  bb1:                                            ; preds = bb0
+    stop
+}
+
+; function take(bytes memory, uint256 y) internal pure returns (uint256)
+fn @take(arg0: ptr<memory>, arg1: i256) -> i256 [pure] {
+  bb0:
+    ret arg1
+}
