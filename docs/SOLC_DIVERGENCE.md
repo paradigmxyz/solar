@@ -1460,67 +1460,6 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `copy_recursive_struct_overlap_push_self_parent`, and
   `copy_recursive_struct_disjoint_copy_memory_growth` expects no growth.
 
-### CODEGEN-035: Assigning a storage value to itself loads and rewrites it
-
-- ID: CODEGEN-035
-- Status: intentional
-- Difference: `data = data` for a `bytes` or `string`, `s = s` for a struct and
-  `arr = arr` for an array load the value and write it back in `solar`. The copy
-  helpers of `solc` return at once when the source and target slots are equal.
-  With valid storage the stored result is the same, but the load advances the
-  free memory pointer, by 64 bytes for a 1-byte `bytes`, where `solc` leaves it
-  unchanged (as in CODEGEN-031). The write-back is a real `SSTORE`, so a
-  `STATICCALL` to a function that runs `data = data` fails in `solar` and
-  succeeds in `solc`. After assembly writes storage, two things differ. A `bytes` or `string` whose short-form header is invalid, such
-  as `sstore(data.slot, 0x40)`, panics with `Panic(0x22)` in `solar` and stays
-  untouched in `solc`. Dirty bits are cleared by `solar` and kept by `solc`:
-  the padding in the last data word of a long `bytes`, such as `0xaaff..ff`
-  becoming `0xaa00..00` for a 65-byte value, the high byte of a slot that holds
-  `uint8[]` elements, and the high byte of the slot of a struct
-  `{uint8 a; uint256 b}`. A struct whose narrow fields share a slot, such as
-  `{uint8 a; uint8 b}`, keeps the unused bytes in both compilers, as in
-  CODEGEN-025. A copy between distinct slots matches `solc` for the
-  invalid header and for the padding of a long `bytes`: both panic, and both
-  write `0xaa00..00`. Dirty bits in the destination are a different case, which
-  CODEGEN-025 covers. A dirty enum panics as CODEGEN-022 describes.
-- Rationale: only assembly-forged storage changes the stored result, and a slot
-  equality check would add a branch to every storage-to-storage copy. No
-  ordinary contract assigns a value to itself inside a static call.
-- Coverage: `tests/ui/codegen/run-call/storage/storage_self_assign_forged.sol`.
-
-### CODEGEN-036: A calldata argument is copied to memory before later arguments are evaluated
-
-- ID: CODEGEN-036
-- Status: intentional
-- Difference: when a struct constructor, an internal call or a tuple converts a
-  calldata argument to memory, `solar` copies it as soon as it evaluates the
-  argument, before the later ones. `solc` evaluates every argument first, then
-  converts. A copy that follows a storage reference waiting for a later
-  state-writing argument waits as well, as in `solc`, and matches it. In the
-  other cases, if assembly moved the calldata slice past the end of calldata,
-  such as `s.offset := 0xffffff` with `s.length := 0`, then
-  `S({a: s, b: x - 1})`,
-  `take(s, x - 1)` with an internal `take(bytes memory, uint256)`, and
-  `(bytes memory m, uint256 y) = (s, x - 1)` revert with empty data in `solar`
-  and with `Panic(0x11)` in `solc` for `x == 0`. For `x == 1` both revert with
-  empty data. For these expressions only the revert data differs. If a later
-  argument ends the frame, with `stop()` in assembly as in
-  `take(s, stopIfZero(x))` for `x == 0`, or with `selfdestruct`, `solc` stops
-  successfully and `solar` reverts with empty data, so the effects of the
-  later argument, such as a `selfdestruct` transfer, happen only in `solc`.
-  With valid calldata, a later argument that reads the free memory pointer in
-  assembly sees the memory the copy allocated, so a successful call can return
-  a different value than in `solc`. A huge forged
-  length fails the copy for another reason, which CODEGEN-014 covers.
-  CODEGEN-015 covers the opposite order, in ABI decoding.
-- Rationale: only a forged or malformed slice fails the copy, both compilers
-  revert, except when a later argument ends the frame, and deferring every
-  conversion would complicate argument lowering. With valid calldata, only
-  assembly sees the allocation, and the copy still runs before a later
-  argument that panics, so a call with a tight gas limit can run out of gas
-  where `solc` panics.
-- Coverage: `tests/ui/codegen/run-call/calldata/calldata_forged_slice_argument_order.sol`.
-
 ### CODEGEN-032: Packed results store their length before copying the sources
 
 - ID: CODEGEN-032
@@ -1590,6 +1529,67 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   value where it does not.
 - Coverage: `tests/ui/codegen/run-call/assembly/multi_return_scratch_word.sol` and
   `tests/ui/codegen/run-call/assembly/multi_return_scratch_word_successor.sol`.
+
+### CODEGEN-035: Assigning a storage value to itself loads and rewrites it
+
+- ID: CODEGEN-035
+- Status: intentional
+- Difference: `data = data` for a `bytes` or `string`, `s = s` for a struct and
+  `arr = arr` for an array load the value and write it back in `solar`. The copy
+  helpers of `solc` return at once when the source and target slots are equal.
+  With valid storage the stored result is the same, but the load advances the
+  free memory pointer, by 64 bytes for a 1-byte `bytes`, where `solc` leaves it
+  unchanged (as in CODEGEN-031). The write-back is a real `SSTORE`, so a
+  `STATICCALL` to a function that runs `data = data` fails in `solar` and
+  succeeds in `solc`. After assembly writes storage, two things differ. A `bytes` or `string` whose short-form header is invalid, such
+  as `sstore(data.slot, 0x40)`, panics with `Panic(0x22)` in `solar` and stays
+  untouched in `solc`. Dirty bits are cleared by `solar` and kept by `solc`:
+  the padding in the last data word of a long `bytes`, such as `0xaaff..ff`
+  becoming `0xaa00..00` for a 65-byte value, the high byte of a slot that holds
+  `uint8[]` elements, and the high byte of the slot of a struct
+  `{uint8 a; uint256 b}`. A struct whose narrow fields share a slot, such as
+  `{uint8 a; uint8 b}`, keeps the unused bytes in both compilers, as in
+  CODEGEN-025. A copy between distinct slots matches `solc` for the
+  invalid header and for the padding of a long `bytes`: both panic, and both
+  write `0xaa00..00`. Dirty bits in the destination are a different case, which
+  CODEGEN-025 covers. A dirty enum panics as CODEGEN-022 describes.
+- Rationale: only assembly-forged storage changes the stored result, and a slot
+  equality check would add a branch to every storage-to-storage copy. No
+  ordinary contract assigns a value to itself inside a static call.
+- Coverage: `tests/ui/codegen/run-call/storage/storage_self_assign_forged.sol`.
+
+### CODEGEN-036: A calldata argument is copied to memory before later arguments are evaluated
+
+- ID: CODEGEN-036
+- Status: intentional
+- Difference: when a struct constructor, an internal call or a tuple converts a
+  calldata argument to memory, `solar` copies it as soon as it evaluates the
+  argument, before the later ones. `solc` evaluates every argument first, then
+  converts. A copy that follows a storage reference waiting for a later
+  state-writing argument waits as well, as in `solc`, and matches it. In the
+  other cases, if assembly moved the calldata slice past the end of calldata,
+  such as `s.offset := 0xffffff` with `s.length := 0`, then
+  `S({a: s, b: x - 1})`,
+  `take(s, x - 1)` with an internal `take(bytes memory, uint256)`, and
+  `(bytes memory m, uint256 y) = (s, x - 1)` revert with empty data in `solar`
+  and with `Panic(0x11)` in `solc` for `x == 0`. For `x == 1` both revert with
+  empty data. For these expressions only the revert data differs. If a later
+  argument ends the frame, with `stop()` in assembly as in
+  `take(s, stopIfZero(x))` for `x == 0`, or with `selfdestruct`, `solc` stops
+  successfully and `solar` reverts with empty data, so the effects of the
+  later argument, such as a `selfdestruct` transfer, happen only in `solc`.
+  With valid calldata, a later argument that reads the free memory pointer in
+  assembly sees the memory the copy allocated, so a successful call can return
+  a different value than in `solc`. A huge forged
+  length fails the copy for another reason, which CODEGEN-014 covers.
+  CODEGEN-015 covers the opposite order, in ABI decoding.
+- Rationale: only a forged or malformed slice fails the copy, both compilers
+  revert, except when a later argument ends the frame, and deferring every
+  conversion would complicate argument lowering. With valid calldata, only
+  assembly sees the allocation, and the copy still runs before a later
+  argument that panics, so a call with a tight gas limit can run out of gas
+  where `solc` panics.
+- Coverage: `tests/ui/codegen/run-call/calldata/calldata_forged_slice_argument_order.sol`.
 
 ### TYPECK-026: `@inheritdoc` references
 
