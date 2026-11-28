@@ -213,3 +213,18 @@
       ret v3
   }
   
+  fn @forward_stored_word_after_join(arg0: i1) -> i256 {
+    bb0:
+      v0 = sload 7
+      mstore 16, v0
+      jumpi arg0, bb1, bb2
+    bb2:                                            ; preds = bb0
+      jump bb3
+    bb1:                                            ; preds = bb0
+      jump bb3
+    bb3:                                            ; preds = bb1, bb2
+-     v1 = mload 16
+-     ret v1
++     ret v0
+  }
+  

@@ -716,3 +716,41 @@
       jump bb1
   }
   
+  fn @reduce_family_with_own_scaling(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) {
+    bb0:
+      v0 = ptrtoint ptr<memory> arg0 to i256
+      v1 = ptrtoint ptr<memory> arg1 to i256
++     v21 = shl arg2, 5
++     v22 = add v1, v21
+      jump bb1
+    bb1:                                            ; preds = bb0, bb2
+      v2 = phi [bb0: 0], [bb2: v20]
+      v3 = phi [bb0: 0], [bb2: v17]
+      v4 = phi [bb0: 0], [bb2: v18]
+      v5 = phi [bb0: 0], [bb2: v19]
++     v23 = phi [bb0: v22], [bb2: v24]
+      v6 = mload v0
+      v7 = lt v2, v6
+      jumpi v7, bb2, bb3
+    bb3:                                            ; preds = bb1
+      stop
+    bb2:                                            ; preds = bb1
+      v8 = shl v2, 5
+      v9 = add v0, v8
+      v10 = add v9, 32
+      v11 = mload v10
+-     v12 = sub arg2, v2
+-     v13 = shl v12, 5
+-     v14 = add v1, v13
+-     v15 = mload v14
++     v15 = mload v23
+      v16 = add v11, v15
+      mstore 0, v16
+      v17 = add v11, v3
+      v18 = add v11, v4
+      v19 = add v11, v5
+      v20 = add v2, 1
++     v24 = sub v23, 32
+      jump bb1
+  }
+  

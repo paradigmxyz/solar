@@ -213,9 +213,10 @@ fn promotion_block_ids(func: &Function, loop_data: &Loop) -> Vec<BlockId> {
     blocks
 }
 
-/// A loop that reads the gas left may stop on it, as a gas-bounded batch does. Promotion would move
-/// its stores past that check, where the last iteration's gas has to pay for them, so a loop that
-/// finishes unoptimized could run out of gas.
+/// Whether promotion may move the loop's storage accesses: nothing else in it touches storage
+/// or calls out. A loop that reads the gas left may stop on it, as a gas-bounded batch does.
+/// Promotion would move its stores past that check, where the last iteration's gas has to pay for
+/// them, so a loop that finishes unoptimized could run out of gas.
 fn promotion_effects_are_safe(func: &Function, loop_data: &Loop) -> bool {
     let alias = AliasAnalysis::new(func);
     for block_id in promotion_block_ids(func, loop_data) {

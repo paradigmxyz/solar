@@ -245,6 +245,9 @@ struct AddressKey {
 }
 
 impl AddressKey {
+    /// Operations one scaling of the counter costs: a push and a `shl` or `mul`.
+    const SCALING_COST: usize = 2;
+
     /// The key without its constant: addresses sharing it walk in step and can
     /// share one pointer.
     fn family(&self) -> Self {
@@ -258,7 +261,7 @@ impl AddressKey {
     /// the add, and often not even that when the loop shares the sum with a
     /// bounds check.
     fn use_cost(&self, offset_shared: bool) -> usize {
-        let scaling = if self.scale.unsigned_abs() == 1 { 0 } else { 2 };
+        let scaling = if self.scale.unsigned_abs() == 1 { 0 } else { Self::SCALING_COST };
         let base = if self.base.is_some() { 2 } else { 0 };
         let invariants = self
             .invariants
@@ -592,14 +595,17 @@ impl IndVarSimplifier {
         let mut test_pointer = None;
         // Each pointer this loop takes on deepens the words the later ones are weighed against.
         let mut carried = carried;
-        // Families that scale the counter alike share one scaling, which only goes once all of
-        // them step pointers: such a group is weighed as a whole, and a family of a group that
-        // does not pay is weighed without the scaling, which stays for the others.
-        let scale_of = |members: &[(AddressKey, Vec<ValueId>)]| members[0].0.scale.unsigned_abs();
-        let shares_scaling = |scale: u128| {
-            scale != 1 && families.iter().filter(|members| scale_of(members) == scale).count() > 1
+        // Families that scale the counter by the same factor share one scaling, which only goes
+        // once all of them step pointers: such a group is weighed as a whole, and a family of a
+        // group that does not pay is weighed without the scaling, which stays for the others.
+        // NOTE: families that scale different expressions of the counter alike, such as `i` and
+        // `i + 1`, are grouped too; that only ever withholds a reduction.
+        let scale_of = |members: &[(AddressKey, Vec<ValueId>)]| members[0].0.scale;
+        let shares_scaling = |scale: i128| {
+            scale.unsigned_abs() != 1
+                && families.iter().filter(|members| scale_of(members) == scale).count() > 1
         };
-        let mut group_pays = FxHashMap::<u128, bool>::default();
+        let mut group_pays = FxHashMap::<i128, bool>::default();
         for (index, members) in families.iter().enumerate() {
             let (primary, primary_values) = &members[0];
             // ptr = phi [preheader: start], [latch: ptr + delta]
@@ -616,8 +622,7 @@ impl IndVarSimplifier {
                                 Self::family_cost_before(m, &offset_shared) - Self::scaling_cost(m)
                             })
                             .sum::<usize>()
-                            // The shared scaling, as `AddressKey::use_cost` prices it.
-                            + 2;
+                            + AddressKey::SCALING_COST;
                         let after = group
                             .enumerate()
                             .map(|(depth, m)| Self::family_cost_after(m, carried + depth))
@@ -1445,7 +1450,7 @@ impl IndVarSimplifier {
         members
             .iter()
             .filter(|(key, _)| key.scale.unsigned_abs() != 1)
-            .map(|(_, values)| 2 * values.len())
+            .map(|(_, values)| AddressKey::SCALING_COST * values.len())
             .sum()
     }
 

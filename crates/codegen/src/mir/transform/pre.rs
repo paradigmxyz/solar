@@ -1129,7 +1129,9 @@ impl<'a> Eliminator<'a> {
                 matches!(key, LoadKey::Memory(address)
                     if address.is_fixed_allocation_base(func)
                         || matches!(address.base, MemoryBase::Absolute)
-                            && matches!(func.value_inst_kind(value), Some(InstKind::Load(..))))
+                            && matches!(func.value_inst_kind(value),
+                                Some(&InstKind::Load(read, PtrLocation::Memory))
+                                    if func.value_u256(read) == Some(U256::from(address.offset))))
                     && !matches!(func.value(value), Value::Immediate(_))
                     && !self
                         .liveness

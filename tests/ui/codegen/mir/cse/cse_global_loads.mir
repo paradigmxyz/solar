@@ -98,3 +98,31 @@ fn @reload_constant_word_in_dominated_block(arg0: i1) -> i256 {
   bb2:
     ret v1
 }
+
+// Within one block the word is still merged: carrying it there costs no more than loading it again.
+// CHECK-LABEL: {{^[ +].*}}fn @merge_constant_word_in_one_block{{[( ]}}
+// CHECK: {{^-}}{{.*}} = mload 16
+fn @merge_constant_word_in_one_block() -> i256 {
+  bb0:
+    v0 = mload 16
+    v1 = add v0, 1
+    v2 = mload 16
+    v3 = add v2, v1
+    ret v3
+}
+
+// A stored word is forwarded even when it was loaded from another constant address, which can leave
+// the store dead.
+// CHECK-LABEL: {{^[ +].*}}fn @forward_stored_word_to_dominated_block{{[( ]}}
+// CHECK: {{^-}}{{.*}} = mload 16
+fn @forward_stored_word_to_dominated_block(arg0: i1) -> i256 {
+  bb0:
+    v0 = mload 32
+    mstore 16, v0
+    jumpi arg0, bb1, bb2
+  bb1:
+    v2 = mload 16
+    ret v2
+  bb2:
+    ret 0
+}

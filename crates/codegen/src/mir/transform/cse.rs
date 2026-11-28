@@ -89,7 +89,7 @@ use crate::{
         InstKind, Instruction, MirType, Module, OpTraits, PtrLocation, Value, ValueId,
         analysis::{
             Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Liveness, Location,
-            LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
+            LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryBase, MemoryCallSummaries,
             MemoryLocation, returning_blocks,
         },
         memory::EvmMemoryLayout,
@@ -1134,8 +1134,8 @@ impl CommonSubexprEliminator {
     /// nothing at or after `inst_idx` uses. The later read stays and takes over the cache entry. A
     /// stored word is always forwarded, since the store already holds it live. Only the
     /// storage-only mode keeps storage and transient reads; the full pass merges them, as it always
-    /// has, but keeps a constant-address memory read, which a push and an `mload` rebuild for no
-    /// more gas than a `DUP` and the swaps around a word carried this far.
+    /// has, but keeps a constant-address memory read from an earlier block, which a push and an
+    /// `mload` rebuild for no more gas than a `DUP` and the swaps around a word carried this far.
     fn reload_shortens_life(
         &self,
         func: &Function,
@@ -1154,8 +1154,11 @@ impl CommonSubexprEliminator {
                 self.storage_only
                     && Location::slot(*location, func.storage_alias(def, *slot)) == Some(*read)
             }
-            (ExprKey::MLoad(_), InstKind::Load(address, PtrLocation::Memory)) => {
-                !self.storage_only && func.value_u256(*address).is_some()
+            (ExprKey::MLoad(read), InstKind::Load(address, PtrLocation::Memory)) => {
+                !self.storage_only
+                    && matches!(read.address.base, MemoryBase::Absolute)
+                    && func.value_u256(*address) == Some(U256::from(read.address.offset))
+                    && !func.blocks[block].instructions.contains(&def)
             }
             _ => false,
         };

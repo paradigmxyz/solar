@@ -1469,9 +1469,12 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `SemanticInformation` makes `GAS` neither movable nor commonable but gives it
   no memory, storage or other state effect, and `solc` 0.8.36
   `--via-ir --optimize` compiles the example above to one `sstore(0, 2)`.
-- Coverage: `tests/ui/codegen/mir/storage-dse/gasleft_between_stores.sol` and
+- Coverage: `tests/ui/codegen/mir/storage-dse/gasleft_between_stores.sol`,
   `reject_gas_bounded_loop` in
-  `tests/ui/codegen/mir/storage-promotion/storage_promotion.mir`.
+  `tests/ui/codegen/mir/storage-promotion/storage_promotion.mir`, and
+  `tests/ui/codegen/mir/lower-alloc/untouched_heap_call_reserve.mir` and
+  `tests/ui/codegen/mir/memory-dse/overwritten_ranges.mir` for the
+  pre-EIP-150 reserve.
 
 ### TYPECK-026: `@inheritdoc` references
 

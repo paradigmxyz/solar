@@ -706,8 +706,9 @@ diverge. Availability on one predecessor does not make it safe to execute a load
 before the check guarding its original path. A value already available on every
 incoming path can still replace a redundant load without inserting an access.
 
-CSE and load PRE avoid extending a load from an allocation base across blocks
-solely to eliminate a cheap reload. They can reuse a value already live across
+CSE and load PRE avoid extending a load from an allocation base or a constant
+address across blocks solely to eliminate a cheap reload; a stored word is
+still forwarded. They can reuse a value already live across
 the edge, and load PRE prefers an equivalent constant or already-live value.
 The EVM revert pass removes an existing branch inversion around a cold payload
 when success can fall through after layout; it preserves the payload's target.
