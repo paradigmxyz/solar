@@ -1,0 +1,11 @@
+error[6480]: derived contract must override modifier `m`
+   ╭▸ ROOT/tests/ui/overrides/modifier_conflict_solc_version.sol:LL:CC
+   │
+LL │ contract C is A, B {}
+   │          ━
+   │
+   ├ note: two or more base classes define modifier with same name
+   ╰ note: defined in: `A`, `B`
+
+error: aborting due to 1 previous error
+

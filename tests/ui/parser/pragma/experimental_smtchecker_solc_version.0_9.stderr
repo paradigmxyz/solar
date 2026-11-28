@@ -1,0 +1,8 @@
+error[8491]: unsupported experimental feature name
+   ╭▸ ROOT/tests/ui/parser/pragma/experimental_smtchecker_solc_version.sol:LL:CC
+   │
+LL │ pragma experimental SMTChecker;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

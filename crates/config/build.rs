@@ -1,20 +1,19 @@
-use std::{env, io::Read, path::Path};
-
 #[cfg(feature = "version")]
-use std::process::Command;
+use std::{env, io::Read, path::Path, process::Command};
 
-const SOLC_VERSION_FALLBACK: &str = "0.8.39";
+/// The default emulated solc version, `SolcVersion::default()` in `src/lib.rs`.
+const SOLC_VERSION: &str = "0.8.39";
 #[cfg(feature = "version")]
 const VERSION_UNKNOWN: &str = "unknown";
 #[cfg(feature = "version")]
 const VERGEN_IDEMPOTENT_OUTPUT: &str = "VERGEN_IDEMPOTENT_OUTPUT";
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let solc_version = solc_version();
-    println!("cargo:rustc-env=SOLC_SEMVER_VERSION={solc_version}");
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rustc-env=SOLC_SEMVER_VERSION={SOLC_VERSION}");
 
     #[cfg(feature = "version")]
-    emit_version(&solc_version)?;
+    emit_version(SOLC_VERSION)?;
 
     Ok(())
 }
@@ -154,32 +153,4 @@ fn is_cargo_checkout_of(tag: &str, sha: &str) -> bool {
                 .and_then(|mut file| file.read_to_string(&mut lock))
                 .is_ok_and(|_| lock.contains(&pin))
         })
-}
-
-fn solc_version() -> String {
-    let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") else {
-        return SOLC_VERSION_FALLBACK.to_string();
-    };
-    let solc_dir = Path::new(&manifest_dir).join("../../testdata/solidity");
-
-    // A missing path would rerun the build script on every build.
-    let cmake = solc_dir.join("CMakeLists.txt");
-    let watched = if cmake.exists() { cmake.as_path() } else { Path::new("build.rs") };
-    println!("cargo:rerun-if-changed={}", watched.display());
-
-    solc_version_from_cmake(&solc_dir).unwrap_or_else(|_| SOLC_VERSION_FALLBACK.to_string())
-}
-
-fn solc_version_from_cmake(dir: &Path) -> Result<String, Box<dyn std::error::Error>> {
-    let mut cmake = String::new();
-    std::fs::File::open(dir.join("CMakeLists.txt"))?.read_to_string(&mut cmake)?;
-    for line in cmake.lines() {
-        let line = line.trim();
-        if let Some(version) = line.strip_prefix("set(PROJECT_VERSION \"")
-            && let Some(version) = version.strip_suffix("\")")
-        {
-            return Ok(version.to_string());
-        }
-    }
-    Err("failed to determine solc version from CMakeLists.txt".into())
 }

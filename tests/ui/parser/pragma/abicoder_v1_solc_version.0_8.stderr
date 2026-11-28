@@ -1,0 +1,9 @@
+warning[9511]: ABI coder v1 is not supported
+   ╭▸ ROOT/tests/ui/parser/pragma/abicoder_v1_solc_version.sol:LL:CC
+   │
+LL │ pragma abicoder v1;
+   │ ━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: ABI coder v2 is used instead
+   ╰ help: remove the pragma or use `pragma abicoder v2`
+

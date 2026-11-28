@@ -1,0 +1,15 @@
+error[5827]: modifier `m` is already defined in a base contract
+   ╭▸ ROOT/tests/ui/overrides/modifier_redefinition_solc_version.sol:LL:CC
+   │
+LL │     modifier m() { _; }
+   │     ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overridden modifier is here
+   ╭▸ ROOT/tests/ui/overrides/modifier_redefinition_solc_version.sol:LL:CC
+   │
+LL │     modifier m() { _; }
+   │     ━━━━━━━━━━━━━━━━━━━
+   ╰ note: modifiers cannot be overridden
+
+error: aborting due to 1 previous error
+

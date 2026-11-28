@@ -3,7 +3,9 @@ use crate::{PErr, PResult, Parser};
 use itertools::Itertools;
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
-use solar_interface::{Ident, Span, Spanned, diagnostics::DiagMsg, error_code, kw, sym};
+use solar_interface::{
+    Ident, Span, Spanned, config::SolcVersion, diagnostics::DiagMsg, error_code, kw, sym,
+};
 
 impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a source unit.
@@ -158,7 +160,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             _ => unreachable!("parse_function called without function-like keyword"),
         };
         let flags = FunctionFlags::from_kind(kind);
-        let header = self.parse_function_header(flags)?;
+        let mut header = self.parse_function_header(flags)?;
         let was_in_modifier = self.in_modifier;
         self.in_modifier = kind.is_modifier();
         let body = self.parse_spanned(|this| {
@@ -170,6 +172,21 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         });
         self.in_modifier = was_in_modifier;
         let (body_span, body) = body?;
+
+        if kind.is_modifier() && self.sess.opts.solc_version >= SolcVersion::V0_9_0 {
+            let specifiers = [header.virtual_.take(), header.override_.take().map(|o| o.span)];
+            for span in specifiers.into_iter().flatten() {
+                let msg = "modifiers cannot be marked `virtual` or `override`";
+                self.dcx()
+                    .err_code_at(span, error_code!(2785), msg)
+                    .note("virtual modifiers have been removed")
+                    .emit();
+            }
+            if body.is_none() {
+                let msg = "modifiers without implementation are not allowed";
+                self.dcx().emit_err_code(body_span, error_code!(8063), msg);
+            }
+        }
 
         if !self.in_contract && !kind.allowed_in_global() {
             let msg = format!("{kind}s are not allowed in the global scope");

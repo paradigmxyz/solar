@@ -1,0 +1,10 @@
+error[2745]: expected `pragma abicoder v2`
+   ╭▸ ROOT/tests/ui/parser/pragma/abicoder_v1_solc_version.sol:LL:CC
+   │
+LL │ pragma abicoder v1;
+   │ ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ note: ABI coder v1 has been removed
+
+error: aborting due to 1 previous error
+

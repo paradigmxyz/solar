@@ -27,6 +27,7 @@ use solar_data_structures::{
 };
 use solar_interface::{
     Ident, Span, Symbol,
+    config::SolcVersion,
     diagnostics::{Applicability, DiagCtxt},
     error_code,
 };
@@ -370,6 +371,24 @@ impl<'gcx> OverrideChecker<'gcx> {
                             error_code!(5631),
                             "override changes function or public state variable to modifier",
                         );
+                    }
+                    if self.gcx.sess.opts.solc_version >= SolcVersion::V0_9_0 {
+                        let candidates = override_index(self.gcx).by_name.get(&name);
+                        let base = contract.linearized_bases[1..].iter().find_map(|&id| {
+                            candidates?.iter().find(|c| {
+                                c.is_modifier(self.gcx) && c.contract(self.gcx) == Some(id)
+                            })
+                        });
+                        if let Some(base) = base {
+                            let msg =
+                                format!("modifier `{name}` is already defined in a base contract");
+                            self.dcx()
+                                .err_code_at(f.span, error_code!(5827), msg)
+                                .span_note(base.span(self.gcx), "overridden modifier is here")
+                                .note("modifiers cannot be overridden")
+                                .emit();
+                        }
+                        continue;
                     }
                 } else if self.has_inherited_name_kind(name, true) {
                     self.dcx().emit_err_code(
@@ -854,6 +873,20 @@ impl<'gcx> OverrideChecker<'gcx> {
                 continue;
             }
 
+            // Modifiers cannot be overridden in 0.9, so two inherited definitions always conflict.
+            if sig.kind.is_modifier() && self.gcx.sess.opts.solc_version >= SolcVersion::V0_9_0 {
+                let name = sig.name.unwrap();
+                let msg = format!("two or more base classes define modifier `{name}`");
+                let mut diag = self.dcx().err_code_at(contract.name.span, error_code!(3412), msg);
+                for base in bases {
+                    let base_contract = self.gcx.hir.contract(base.contract(self.gcx).unwrap());
+                    let note = format!("defined in `{}`", base_contract.name);
+                    diag = diag.span_note(base.span(self.gcx), note);
+                }
+                diag.emit();
+                continue;
+            }
+
             self.check_ambiguous_overrides_internal(*sig, bases);
         }
     }
@@ -1024,7 +1057,10 @@ fn override_index<'gcx>(gcx: Gcx<'gcx>) -> &'gcx OverrideIndex<'gcx> {
 
         for f_id in gcx.hir.function_ids() {
             let f = gcx.hir.function(f_id);
-            if f.body.is_none() {
+            // In 0.9, the parser rejects modifiers without implementation.
+            if f.body.is_none()
+                && !(f.kind.is_modifier() && gcx.sess.opts.solc_version >= SolcVersion::V0_9_0)
+            {
                 unimplemented_functions.push(f_id);
             }
             if f.is_yul || f.kind.is_constructor() {

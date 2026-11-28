@@ -11,7 +11,7 @@ use serde::{
     de::{self, SeqAccess, Visitor},
 };
 use serde_json::{Map, Value, value::RawValue};
-use solar_config::RevertStrings;
+use solar_config::{RevertStrings, SolcVersion};
 use solar_data_structures::map::FxIndexMap;
 use solar_interface::diagnostics::SolcDiagnostic;
 use solar_sema::output::{Documentation, SourceAstJson, StorageLayoutOutput};
@@ -106,11 +106,15 @@ pub(super) struct Settings<'a> {
 
 /// The Solar-only `settings.solar` object.
 #[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct SolarSettings {
     /// Unstable flags that change output, written like `-Z` flags without the prefix, such as
     /// `tune=interpreter`. Other flags are ignored.
     #[serde(default)]
     pub(super) unstable: Vec<String>,
+    /// The solc version whose language rules to follow, like `--solc-version`.
+    #[serde(default)]
+    pub(super) solc_version: Option<SolcVersion>,
 }
 
 /// The solc Standard JSON `settings.debug` object.

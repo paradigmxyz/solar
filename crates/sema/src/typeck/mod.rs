@@ -15,6 +15,7 @@ use solar_data_structures::{
 };
 use solar_interface::{
     Span,
+    config::SolcVersion,
     diagnostics::{DeferredDiagnostics, ErrorGuaranteed},
     error_code, sym,
 };
@@ -534,9 +535,13 @@ fn check_unimplemented_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         let f = gcx.hir.function(f_id);
 
         // Modifiers are not functions in solc, so they get their own error instead of the
-        // function ones below, and they are never implicitly `virtual` in an interface.
+        // function ones below, and they are never implicitly `virtual` in an interface. In 0.9,
+        // the parser rejects modifiers without implementation instead.
         if f.kind.is_modifier() {
-            if f.body.is_none() && !f.marked_virtual {
+            if f.body.is_none()
+                && !f.marked_virtual
+                && gcx.sess.opts.solc_version < SolcVersion::V0_9_0
+            {
                 gcx.dcx().emit_err_code(
                     f.span,
                     error_code!(8063),

@@ -1,8 +1,9 @@
 # solc Divergence
 
 This file tracks intentional, user-visible differences from `solc`. The baseline is
-the `solc` version checked into `testdata/solidity`, unless an entry names a
-different upstream version. Where `solc`'s legacy and via-IR pipelines behave
+`solc` 0.8.39, the default of `--solc-version`, unless an entry names a different
+upstream version. `--solc-version 0.9.0` follows the language rules of the
+`solc` 0.9.0 pre-release checked into `testdata/solidity`. Where `solc`'s legacy and via-IR pipelines behave
 differently, we follow via-IR, and such cases are not listed.
 
 The goal is not to list every missing feature. A divergence belongs here when
@@ -78,7 +79,8 @@ Difference: contract metadata names the compiler as
 `"compiler": {"name": "solar", "version": "0.8.39+commit.d9f23fbe.solar.0.3.0"}`,
 where solc writes only `"version": "0.8.28+commit.7893614a"`. The version is
 the solc-compatible form that `SOLC_WRAPPER=1 solar --version` prints: the
-emulated solc version, then the Solar commit and version as build metadata.
+emulated solc version, which `--solc-version` selects, then the Solar commit and
+version as build metadata.
 The CBOR auxdata carries a `solar` entry instead of `solc`: three version
 bytes for releases, and the long Solar version as text
 (`0.3.0-dev+commit.d9f23fbe`) for other builds, as solc does for prereleases.
@@ -122,17 +124,21 @@ Coverage: `tests/ui/standard-json/cbor-auxdata/test.jsonc`,
 `tests/ui/standard-json/cbor-auxdata-shared.jsonc` and
 `tests/ui/standard-json/cbor-auxdata-literal.jsonc`.
 
-### JSON-005: `settings.solar` takes unstable flags
+### JSON-005: `settings.solar` takes unstable flags and the solc version
 
 Status: intentional.
 
 Difference: `solar` reads `settings.solar.unstable`, a list of unstable flags
 that change output, written like `-Z` flags without the prefix, such as
 `["tune=interpreter"]`, and records it in each contract's metadata. It ignores
-other flags in the list. `solc` rejects the unknown `settings.solar` key. Like
-`solc`, `solar` ignores the command line's `--evm-version` in Standard JSON
-mode, and it also ignores `--stop-after`, `--revert-strings` and the `-Z`
-flags that change output.
+other flags in the list. It also reads `settings.solar.solcVersion`, the
+`--solc-version` to follow, which the metadata's compiler version reports.
+Without it, both follow `SOLC_WRAPPER_VERSION` under `SOLC_WRAPPER=1` when it
+names a supported version, so that forge can select 0.9 rules.
+`solc` rejects the unknown `settings.solar` key. Like `solc`, `solar` ignores
+the command line's `--evm-version` in Standard JSON mode, and it also ignores
+`--solc-version`, `--stop-after`, `--revert-strings` and the `-Z` flags that
+change output.
 
 Rationale: the Standard JSON input and the compiler version alone must
 determine the output, so that verifiers such as Sourcify can rebuild a
@@ -140,8 +146,31 @@ contract from its metadata. Flags that only change diagnostics or debugging
 output still come from the command line.
 
 Coverage: `tests/ui/standard-json/codegen-error.jsonc`,
+`tests/ui/standard-json/solc-version.jsonc`,
 `tests/ui/standard-json/debug/cli-flag-ignored/test.jsonc` and
 `tests/ui/standard-json/metadata/options/test.jsonc`.
+
+## Options
+
+### OPTION-001: EVM versions before Constantinople
+
+Status: intentional.
+
+Difference: `solc` 0.9.0 dropped the `homestead`, `tangerineWhistle`,
+`spuriousDragon` and `byzantium` EVM versions and rejects them in
+`--evm-version` and Standard JSON. With `--solc-version 0.9.0`, `solar` still
+accepts them and generates code for them. It keeps the checks that `solc`
+removed with them, such as the Yul errors for builtins those versions lack,
+`staticcall` and `salt` errors, and the errors for typed `catch` clauses before
+Byzantium.
+
+Rationale: dropping the versions would only remove features. Their lowerings
+already exist and are tested, and no 0.9.0 language change depends on their
+removal.
+
+Coverage: `tests/ui/typeck/evm_version/byzantium.sol`,
+`tests/ui/assembly/yul_builtins_byzantium_evm_version.sol` and the other tests
+that pass `--evm-version homestead` or `--evm-version byzantium`.
 
 ## Import Resolution
 
@@ -1149,7 +1178,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   selects it, so that unit cannot use structs or nested dynamic arrays at ABI
   boundaries. `solar` warns that ABI coder v1 is not supported, generates ABI
   coder v2 code, and does not apply v1's restrictions. The warning reuses
-  `solc`'s 9511 code, so `--allow 9511` also hides this change.
+  `solc`'s 9511 code, so `--allow 9511` also hides this change. With
+  `--solc-version 0.9.0`, `solar` rejects the pragma with error 2745, as `solc`
+  0.9.0 does.
 - Rationale: ABI coder v1 is deprecated, and both coders encode the types v1
   accepts the same way. A second coder would only change which types compile.
 - Coverage: `tests/ui/codegen/run-call/abi-decode/abicoder_v1_uses_v2.sol` and

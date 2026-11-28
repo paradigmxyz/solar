@@ -155,7 +155,8 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
                     _ => args.extend(["-Zui-testing", "-Zparse-yul"].map(Into::into)),
                 }
                 if mode.is_solc() {
-                    args.push("--stop-after=parsing".into());
+                    // `testdata/solidity` tracks a solc 0.9 release.
+                    args.extend(["--stop-after=parsing", "--solc-version=0.9.0"].map(Into::into));
                 }
                 args
             },

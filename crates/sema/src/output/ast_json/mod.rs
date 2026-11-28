@@ -43,7 +43,10 @@ use serde_json::value::RawValue;
 use solar_ast::{self as ast, CommentKind, DocComments, token::TokenLitKind};
 use solar_data_structures::index::IndexVec;
 use solar_interface::{
-    BytePos, Ident, Span, Symbol, config::CompilerStage, kw, source_map::SourceFile,
+    BytePos, Ident, Span, Symbol,
+    config::{CompilerStage, SolcVersion},
+    kw,
+    source_map::SourceFile,
 };
 use solar_parse::Lexer;
 use std::{
@@ -1348,7 +1351,9 @@ impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemFunction<'_>, Option<hir
             m.entry("kind", if free { "freeFunction" } else { function.kind.to_str() });
             m.entry("stateMutability", header.state_mutability().to_str());
         }
-        m.entry("virtual", &header.virtual_());
+        // solc 0.9 removed `virtual` from modifiers.
+        let v0_9 = gcx.sess.opts.solc_version >= SolcVersion::V0_9_0;
+        m.opt("virtual", (!(is_modifier && v0_9)).then(|| header.virtual_()));
         if let Some(overrides) = &header.override_ {
             m.entry("overrides", &cx.w((overrides, f.map(|f| f.overrides))));
         }

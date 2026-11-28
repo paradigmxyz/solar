@@ -1,0 +1,8 @@
+error[7641]: comparison of internal function pointers is not allowed
+   ╭▸ ROOT/tests/ui/typeck/function_ptr_comparisons_solc_version.sol:LL:CC
+   │
+LL │         return f == f;
+   ╰╴               ━━━━━━
+
+error: aborting due to 1 previous error
+

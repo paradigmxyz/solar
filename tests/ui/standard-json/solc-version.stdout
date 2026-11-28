@@ -1,0 +1,14 @@
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "C": {
+        "metadata": "{\"compiler\":{\"name\":\"solar\",\"version\":\"0.9.0+commit.00000000.solar.0.0.0\"},\"language\":\"Solidity\",\"output\":{\"abi\":[],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"A.sol\":\"C\"},\"evmVersion\":\"osaka\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[],\"solar\":{\"solcVersion\":\"0.9.0\"}},\"sources\":{\"A.sol\":{\"keccak256\":\"0xacec79147063fb094988371afc323ba6cf0f00745e1de783f511869b381eb8a1\",\"urls\":[\"bzz-raw://71963504135dc99092b67978b770a77ed9bc737fb20c17c1a55397a76f35c638\",\"dweb:/ipfs/QmdoefN6kdDqKamLU5agv341naoceWbXn7PGvw3XH4chhr\"]}},\"version\":1}"
+      }
+    }
+  }
+}

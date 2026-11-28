@@ -20,7 +20,7 @@ use solar_data_structures::{
 };
 use solar_interface::{
     Ident, Symbol,
-    config::EvmVersion,
+    config::{EvmVersion, SolcVersion},
     diagnostics::{DiagBuilder, DiagCtxt, DiagId, ErrorGuaranteed},
     error_code, kw, sym,
 };
@@ -1311,6 +1311,14 @@ impl<'gcx> TypeChecker<'gcx> {
         if let Some(common) = common
             && !(assign && common != lhs)
         {
+            if let TyKind::Fn(f) = common.kind
+                && f.is_internal()
+                && self.gcx.sess.opts.solc_version >= SolcVersion::V0_9_0
+            {
+                let msg = "comparison of internal function pointers is not allowed";
+                let span = lhs_e.span.to(rhs_e.span);
+                self.dcx().emit_err_code(span, error_code!(7641), msg);
+            }
             if let (true, Some(expr_id)) = (record_common, expr_id) {
                 self.results.ast.solc_tys.insert(expr_id, common);
             }

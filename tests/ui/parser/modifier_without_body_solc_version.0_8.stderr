@@ -1,0 +1,22 @@
+error[8063]: modifiers without implementation must be marked `virtual`
+   ╭▸ ROOT/tests/ui/parser/modifier_without_body_solc_version.sol:LL:CC
+   │
+LL │     modifier m();
+   ╰╴    ━━━━━━━━━━━━━
+
+error[3656]: contract `A` has unimplemented functions
+   ╭▸ ROOT/tests/ui/parser/modifier_without_body_solc_version.sol:LL:CC
+   │
+LL │ contract A {
+   │ ┬─────── ━
+   │ │
+   │ help: mark the contract as abstract: `abstract contract`
+   ╰╴
+note: unimplemented modifier `m` defined in `A`
+   ╭▸ ROOT/tests/ui/parser/modifier_without_body_solc_version.sol:LL:CC
+   │
+LL │     modifier m();
+   ╰╴    ━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

@@ -6,7 +6,7 @@ use rayon::prelude::*;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use solar_codegen::backend::evm::op;
-use solar_config::{RevertStrings, version};
+use solar_config::{RevertStrings, SolcVersion, version};
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     index::IndexVec,
@@ -146,7 +146,7 @@ fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> St
     let (optimizer_enabled, optimizer_runs) =
         optimizer_settings(metadata.settings.optimizer.as_ref());
     let mut value = json!({
-        "compiler": { "name": "solar", "version": version::solc_compat_version() },
+        "compiler": { "name": "solar", "version": version::solc_compat_version(opts.solc_version) },
         "language": "Solidity",
         "output": {
             "abi": gcx.contract_abi(contract_id),
@@ -170,8 +170,15 @@ fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> St
     if opts.revert_strings != RevertStrings::Default {
         value["settings"]["debug"] = json!({ "revertStrings": opts.revert_strings.to_string() });
     }
+    let mut solar = Map::new();
     if !metadata.settings.solar.unstable.is_empty() {
-        value["settings"]["solar"] = json!({ "unstable": metadata.settings.solar.unstable });
+        solar.insert("unstable".into(), json!(metadata.settings.solar.unstable));
+    }
+    if opts.solc_version != SolcVersion::default() {
+        solar.insert("solcVersion".into(), json!(opts.solc_version.to_str()));
+    }
+    if !solar.is_empty() {
+        value["settings"]["solar"] = solar.into();
     }
     serde_json::to_string(&value).expect("contract metadata must serialize")
 }
