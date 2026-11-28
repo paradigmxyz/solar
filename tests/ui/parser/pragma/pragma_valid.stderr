@@ -1,34 +1,34 @@
-error[2745]: ABI coder v1 has been removed
+error[2745]: expected `pragma abicoder v2`
    ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
    │
 LL │ pragma abicoder v1;
    │ ━━━━━━━━━━━━━━━━━━━
    │
-   ╰ help: remove the pragma or use `pragma abicoder v2`
+   ╰ note: ABI coder v1 has been removed
 
-error[2745]: ABI coder v1 has been removed
+error[2745]: expected `pragma abicoder v2`
    ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
    │
 LL │ pragma abicoder "v1";
    │ ━━━━━━━━━━━━━━━━━━━━━
    │
-   ╰ help: remove the pragma or use `pragma abicoder v2`
+   ╰ note: ABI coder v1 has been removed
 
-error[2745]: ABI coder v1 has been removed
+error[2745]: expected `pragma abicoder v2`
    ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
    │
 LL │ pragma "abicoder" v1;
    │ ━━━━━━━━━━━━━━━━━━━━━
    │
-   ╰ help: remove the pragma or use `pragma abicoder v2`
+   ╰ note: ABI coder v1 has been removed
 
-error[2745]: ABI coder v1 has been removed
+error[2745]: expected `pragma abicoder v2`
    ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
    │
 LL │ pragma "abicoder" "v1";
    │ ━━━━━━━━━━━━━━━━━━━━━━━
    │
-   ╰ help: remove the pragma or use `pragma abicoder v2`
+   ╰ note: ABI coder v1 has been removed
 
 error[2044]: the experimental ABIEncoderV2 pragma has been removed
    ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
@@ -46,13 +46,13 @@ LL │ pragma experimental "ABIEncoderV2";
    │
    ╰ help: remove the pragma; ABI coder v2 is the default
 
-error[8491]: the experimental SMTChecker pragma has been removed
+error[8491]: unsupported experimental feature name
    ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
    │
 LL │ pragma experimental SMTChecker;
    ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error[8491]: the experimental SMTChecker pragma has been removed
+error[8491]: unsupported experimental feature name
    ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
    │
 LL │ pragma experimental "SMTChecker";
@@ -74,13 +74,13 @@ LL │ pragma "experimental" "ABIEncoderV2";
    │
    ╰ help: remove the pragma; ABI coder v2 is the default
 
-error[8491]: the experimental SMTChecker pragma has been removed
+error[8491]: unsupported experimental feature name
    ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
    │
 LL │ pragma "experimental" SMTChecker;
    ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error[8491]: the experimental SMTChecker pragma has been removed
+error[8491]: unsupported experimental feature name
    ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
    │
 LL │ pragma "experimental" "SMTChecker";

@@ -279,17 +279,17 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 let name = name.as_str();
                 let value = value.as_ref().map(ast::IdentOrStrLit::as_str);
                 match (name, value) {
-                    ("abicoder", Some("v1")) => {
+                    ("abicoder", Some("v2")) => {}
+                    ("abicoder", _) => {
                         self.dcx()
                             .err_code_at(
                                 self.item_span,
                                 error_code!(2745),
-                                "ABI coder v1 has been removed",
+                                "expected `pragma abicoder v2`",
                             )
-                            .help("remove the pragma or use `pragma abicoder v2`")
+                            .note("ABI coder v1 has been removed")
                             .emit();
                     }
-                    ("abicoder", Some("v2")) => {}
                     ("experimental", Some("ABIEncoderV2")) => {
                         self.dcx()
                             .err_code_at(
@@ -300,16 +300,13 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                             .help("remove the pragma; ABI coder v2 is the default")
                             .emit();
                     }
-                    ("experimental", Some("SMTChecker")) => {
-                        self.dcx().emit_err_code(
-                            self.item_span,
-                            error_code!(8491),
-                            "the experimental SMTChecker pragma has been removed",
-                        );
-                    }
                     ("experimental", Some("solidity")) => {
                         let msg = "experimental solidity features are not supported";
                         self.dcx().emit_err(self.item_span, msg);
+                    }
+                    ("experimental", Some(_)) => {
+                        let msg = "unsupported experimental feature name";
+                        self.dcx().emit_err_code(self.item_span, error_code!(8491), msg);
                     }
                     _ => {
                         self.dcx().emit_err(self.item_span, "unknown pragma");

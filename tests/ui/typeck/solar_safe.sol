@@ -179,6 +179,17 @@ contract SafeOverride is ReviewedBase {
     }
 }
 
+/// @custom:solar-safe
+contract SafeModifier {
+    modifier m() {
+        assembly { mstore(0x40, 0) } //~ ERROR: `SafeModifier` is tagged `@custom:solar-safe` but runs inline assembly
+        _;
+    }
+
+    function f() external m returns (uint256) {
+        return 1;
+    }
+}
 
 /// @custom:solar-trusted
 abstract contract ReviewedInit {

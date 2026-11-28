@@ -228,13 +228,6 @@ fn offers_fallback_fixes_for_known_codes() {
                 solc_override,
             ),
             (
-                "contract Test { modifier onlyOwner() { _; } }",
-                "modifier onlyOwner() { _; }",
-                "solar",
-                Some("9456"),
-                "overriding modifier is missing `override` specifier",
-            ),
-            (
                 "contract Test { uint256 public value; }",
                 "uint256 public value",
                 "solar",
@@ -305,9 +298,6 @@ Add `override` preferred=Some(false)
 == receive() external payable {}
 Add `override` preferred=Some(false)
   Test.sol 0:43-0:43 "override "
-== modifier onlyOwner() { _; }
-Add `override` preferred=Some(false)
-  Test.sol 0:37-0:37 "override "
 == uint256 public value
 Add `override` preferred=Some(false)
   Test.sol 0:31-0:31 "override "

@@ -210,7 +210,7 @@ pub(crate) struct OverrideSignature<'gcx> {
 ///
 /// Node 0 represents the current contract (implicit).
 /// Node 1 represents an artificial "top" node that all roots connect to.
-/// Nodes 2+ represent actual functions/modifiers in the inheritance chain.
+/// Nodes 2+ represent actual functions in the inheritance chain.
 struct OverrideGraph<'gcx> {
     nodes: FxHashMap<OverrideProxy, usize>,
     node_inv: FxHashMap<usize, OverrideProxy>,
@@ -822,12 +822,11 @@ impl<'gcx> OverrideChecker<'gcx> {
             if sig.kind.is_modifier() {
                 let name = sig.name.unwrap();
                 let msg = format!("two or more base classes define modifier `{name}`");
-                let mut diag =
-                    self.dcx().err_code_at(self.contract().name.span, error_code!(3412), msg);
+                let mut diag = self.dcx().err_code_at(contract.name.span, error_code!(3412), msg);
                 for base in bases {
-                    let contract = self.gcx.hir.contract(base.contract(self.gcx).unwrap());
-                    diag = diag
-                        .span_note(base.span(self.gcx), format!("defined in `{}`", contract.name));
+                    let base_contract = self.gcx.hir.contract(base.contract(self.gcx).unwrap());
+                    let note = format!("defined in `{}`", base_contract.name);
+                    diag = diag.span_note(base.span(self.gcx), note);
                 }
                 diag.emit();
                 continue;
@@ -998,7 +997,8 @@ fn override_index<'gcx>(gcx: Gcx<'gcx>) -> &'gcx OverrideIndex<'gcx> {
 
         for f_id in gcx.hir.function_ids() {
             let f = gcx.hir.function(f_id);
-            if f.body.is_none() {
+            // The parser reports modifiers without implementation.
+            if f.body.is_none() && !f.kind.is_modifier() {
                 unimplemented_functions.push(f_id);
             }
             if f.is_yul || f.kind.is_constructor() {

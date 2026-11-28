@@ -522,8 +522,9 @@ form. Every program `solc` accepts here has the same meaning in `solar`.
 Coverage: `tests/ui/typeck/inheritance/base_arguments.sol`,
 `tests/ui/typeck/inheritance/modifier_arguments.sol`,
 `tests/ui/codegen/run-call/constructors/base_constructor_args.sol`,
-`tests/ui/codegen/run-call/calls/named_arguments_extended.sol`, and
-`tests/ui/codegen/run-call/modifiers/modifier_named_arguments_override.sol`.
+`tests/ui/codegen/run-call/calls/named_arguments_extended.sol`,
+`tests/ui/codegen/run-call/modifiers/modifier_named_arguments.sol`, and
+`tests/ui/codegen/run-call/dirty-values/raw-parity/modifier_named_argument.sol`.
 
 ### TYPECK-005: Parenthesized `try` targets
 

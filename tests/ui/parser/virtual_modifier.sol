@@ -14,3 +14,10 @@ abstract contract A {
 
     function g() public a {}
 }
+
+// An unimplemented modifier does not make the contract abstract.
+contract B {
+    modifier m(); //~ ERROR: modifiers without implementation are not allowed
+
+    function g() public m {}
+}

@@ -58,5 +58,11 @@ error[8063]: modifiers without implementation are not allowed
 LL │     modifier f() virtual;
    ╰╴                        ━
 
-error: aborting due to 8 previous errors
+error[8063]: modifiers without implementation are not allowed
+   ╭▸ ROOT/tests/ui/parser/virtual_modifier.sol:LL:CC
+   │
+LL │     modifier m();
+   ╰╴                ━
+
+error: aborting due to 9 previous errors
 
