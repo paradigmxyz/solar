@@ -78,3 +78,24 @@ fn @keep_aliasing_sload() -> i256 {
   bb3:
     ret v1
 }
+
+// A gas read holds back no other work: the `mul` leaves the loop, but the gas read stays in it.
+// CHECK-LABEL: @hoist_work_past_gas
+// CHECK: {{^[ +] ?}}bb0:
+// CHECK-NEXT: {{^\+ +}}{{v[0-9]+}} = mul arg0, 7
+// CHECK: {{^[ +] ?}}bb2:
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = gas
+// CHECK-NEXT: {{^- +}}{{v[0-9]+}} = mul arg0, 7
+fn @hoist_work_past_gas(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb2: v2]
+    jumpi true, bb2, bb3
+  bb2:
+    v1 = gas
+    v2 = mul arg0, 7
+    jump bb1
+  bb3:
+    ret v3
+}

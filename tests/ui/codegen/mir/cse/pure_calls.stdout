@@ -36,6 +36,13 @@
       ret v0
   }
   
+  fn @gas_left(arg0: i256) -> i256 {
+    bb0:
+      v0 = gas
+      v1 = add v0, arg0
+      ret v1
+  }
+  
   fn @hash_slot(arg0: i256) -> i256 {
     bb0:
       mstore 0, arg0
@@ -77,12 +84,16 @@
       v5 = icall @stored, arg0
       sstore arg0, 7
       v6 = icall @stored, arg0
-      v7 = add v0, v1
-      v8 = add v5, v6
-      v9 = add v7, v8
-      v10 = add v2, v4
+      v7 = icall @gas_left, arg0
+      v8 = icall @gas_left, arg0
+      v9 = add v0, v1
+      v10 = add v5, v6
       v11 = add v9, v10
-      ret v11
+      v12 = add v2, v4
+      v13 = add v11, v12
+      v14 = add v7, v8
+      v15 = add v13, v14
+      ret v15
   }
   
   fn @frame_word(arg0: i256) -> i256 {

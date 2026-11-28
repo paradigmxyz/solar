@@ -1472,7 +1472,7 @@ impl AliasAnalysis {
                 effects.write(Access::Location(Location::Immutable(id)));
             }
             InstKind::ExtCall { policy, input, .. } => {
-                if input.is_some() {
+                if input.is_some() || Self::needs_expanded_memory(func, kind) {
                     effects.read_any(AddressSpace::Memory);
                 }
                 effects.read_any(AddressSpace::Storage);
@@ -1486,7 +1486,11 @@ impl AliasAnalysis {
             | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::DelegateCall { args_offset, args_size, ret_offset, ret_size, .. } => {
-                read_memory(&mut effects, args_offset, SizeOperand::Value(args_size));
+                if Self::needs_expanded_memory(func, kind) {
+                    effects.read_any(AddressSpace::Memory);
+                } else {
+                    read_memory(&mut effects, args_offset, SizeOperand::Value(args_size));
+                }
                 write_memory(&mut effects, ret_offset, SizeOperand::Value(ret_size));
                 effects.read_any(AddressSpace::Storage);
                 effects.read_any(AddressSpace::Transient);
@@ -1572,6 +1576,25 @@ impl AliasAnalysis {
             | Terminator::SelfDestruct { .. } => {}
         }
         effects
+    }
+
+    /// Whether `kind` is a call whose `gas` operand withholds a reserve from the gas left, as a
+    /// call that forwards the gas left does before EIP-150.
+    ///
+    /// Such a call pays its own memory expansion out of the few gas the reserve leaves, so it
+    /// depends on the memory size every earlier write and fill reached, the way `msize` does.
+    #[must_use]
+    pub(crate) fn needs_expanded_memory(func: &Function, kind: &InstKind) -> bool {
+        let gas = match *kind {
+            InstKind::ExtCall { gas: Some(gas), .. }
+            | InstKind::Call { gas, .. }
+            | InstKind::CallCode { gas, .. }
+            | InstKind::StaticCall { gas, .. }
+            | InstKind::DelegateCall { gas, .. } => gas,
+            _ => return false,
+        };
+        matches!(func.value_inst_kind(gas), Some(&InstKind::Sub(left, _))
+            if matches!(func.value_inst_kind(left), Some(InstKind::Gas)))
     }
 
     /// Returns the canonical free-memory-pointer word location.

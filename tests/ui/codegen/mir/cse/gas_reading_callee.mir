@@ -3,10 +3,10 @@
 //@[storage] compile-flags: -Zmir-pipeline=storage-cse
 //@ filecheck:
 
-@module GasRevertOnly
+@module GasReadingCallee
 
-// The helper reads gas only before it reverts, so the call starts no observation, and the
-// load after it forwards the one before it.
+// The helper reads gas but writes no storage, so the load after the call forwards the one before
+// it.
 // CHECK-LABEL: fn @revert_only_callee
 // CHECK-COUNT-1: {{^[ +].*}}v{{[0-9]+}} = sload arg0
 // CHECK-NOT: {{^[ +].*}}v{{[0-9]+}} = sload arg0

@@ -1452,8 +1452,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Difference: the value `gasleft()` returns, and the gas that an external call
   without a gas limit forwards, can differ from `solc` and between `-O none`,
   `-O gas` and `-O size`. Optimization deletes, forwards, merges and moves
-  memory and storage accesses and other code across a gas read, so code that
-  measures what a section costs can see a different amount: in
+  memory and storage accesses across a gas read, so code that measures what a
+  section costs can see a different amount: in
   `x = 1; g = gasleft(); x = 2;` only the second store remains. A gas read is
   never commoned, speculated or moved, and two reads keep their order.
 - Rationale: optimization preserves required effects, not exact gas use.

@@ -16,8 +16,10 @@
 //!   into a constant range overwrites before any read; a small word-sized zero fill or calldata
 //!   copy whose every word such a write overwrites goes too. Returndata copies stay because their
 //!   source bounds check can revert. Reads over constant ranges, such as hashes, logs, and call
-//!   inputs, only keep the words they cover. A reload of the free-memory-pointer word forwards
-//!   across every instruction that cannot write it, such as a write through a heap pointer.
+//!   inputs, only keep the words they cover, except that a call paying its own memory expansion out
+//!   of a pre-EIP-150 gas reserve keeps all memory, since it needs every earlier expansion. A
+//!   reload of the free-memory-pointer word forwards across every instruction that cannot write it,
+//!   such as a write through a heap pointer.
 //! - Store narrowing: when a later full-word store overwrites the last 31 bytes of a word store
 //!   before any read, only the first byte of the earlier store is observable, so the backward scan
 //!   shortens the store to an `mstore8` of that byte. `mstore8` demands only the low 8 bits of its
@@ -1673,7 +1675,9 @@ impl MemoryStoreEliminator {
                 InstKind::Call { args_offset, args_size, .. }
                 | InstKind::CallCode { args_offset, args_size, .. }
                 | InstKind::StaticCall { args_offset, args_size, .. }
-                | InstKind::DelegateCall { args_offset, args_size, .. } => {
+                | InstKind::DelegateCall { args_offset, args_size, .. }
+                    if !AliasAnalysis::needs_expanded_memory(func, &inst.kind) =>
+                {
                     // A call reads its whole input, but it only copies
                     // `min(ret_size, returndatasize())` bytes into the output
                     // area. The rest remains unchanged, so the output cannot

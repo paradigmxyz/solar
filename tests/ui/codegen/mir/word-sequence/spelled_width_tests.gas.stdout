@@ -141,7 +141,7 @@
       ret v0
   }
   
-  fn @leaf_gas_barrier(arg0: i256, arg1: i256) -> i256 {
+  fn @leaf_at_comparison(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = gt arg0, 0xffffffffffffffff
 +     v5 = shr arg0, 64

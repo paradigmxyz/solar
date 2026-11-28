@@ -9,8 +9,7 @@
 // solc's optimizer.
 // CHECK-LABEL: fn @f()
 // CHECK-NOT: sstore
-// CHECK: = gas
-// CHECK-NEXT: sstore 0, 2
+// CHECK: sstore 0, 2
 // CHECK-NOT: sstore
 // CHECK: returndata
 contract GasleftBetweenStores {

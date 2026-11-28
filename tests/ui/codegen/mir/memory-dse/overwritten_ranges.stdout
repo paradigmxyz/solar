@@ -52,6 +52,17 @@
       ret v0
   }
   
+  fn @keep_expansion_for_call_reserve() -> i1 {
+    bb0:
+      calldatacopy 256, 0, 64
+      mstore 256, 7
+      v0 = gas
+      v1 = sub v0, 50
+      v2 = call v1, 1, 0, 0, 0, 0, 0
+      mstore 288, 9
+      ret v2
+  }
+  
   fn @keep_returndata_bounds_check() {
     bb0:
       returndatacopy 256, 0, 64

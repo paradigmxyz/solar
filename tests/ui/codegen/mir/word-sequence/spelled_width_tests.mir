@@ -184,13 +184,12 @@ fn @shared_shift(arg0: i256) -> i256 {
     ret arg0
 }
 
-// A width test that joins a zero-tested word as a shift is computed where the comparison was, so
-// it stays before an observation of the remaining gas.
-// CHECK-LABEL: {{^[ +].*}}fn @leaf_gas_barrier{{[( ]}}
+// A width test that joins a zero-tested word as a shift is computed where the comparison was.
+// CHECK-LABEL: {{^[ +].*}}fn @leaf_at_comparison{{[( ]}}
 // CHECK: [[HIGH:v[0-9]+]] = shr arg0, 64
 // CHECK: = gas
 // CHECK: = or [[HIGH]], arg1
-fn @leaf_gas_barrier(arg0: i256, arg1: i256) -> i256 {
+fn @leaf_at_comparison(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = gt arg0, 0xffffffffffffffff
     v1 = zext i1 v0 to i256

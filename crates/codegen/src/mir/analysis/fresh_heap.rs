@@ -46,9 +46,10 @@
 //! may write the range: the allocation covers it, and the memory it covers was zero.
 //!
 //! A dropped fill leaves memory unexpanded, which lowers the gas a call spends and changes what
-//! `msize` returns. Every function of a module that reads `msize` keeps its fills. A fill of more
-//! than [`EvmMemoryLayout::MAX_DEAD_FILL`] bytes stays too: expanding that much memory costs more
-//! gas than a call has, so the fill is what makes a huge allocation fail.
+//! `msize` returns. Every function of a module that reads `msize`, or makes a call that pays its
+//! memory expansion out of a pre-EIP-150 gas reserve, keeps its fills. A fill of more than
+//! [`EvmMemoryLayout::MAX_DEAD_FILL`] bytes stays too: expanding that much memory costs more gas
+//! than a call has, so the fill is what makes a huge allocation fail.
 
 use super::{
     Access, AddressSpace, AliasAnalysis, CallGraphInfo, CfgInfo, Location, LocationSize,
@@ -83,13 +84,16 @@ impl FreshHeap {
         module: &Module,
         summaries: impl FnOnce() -> Arc<MemoryCallSummaries>,
     ) -> Self {
-        let reads_msize = module.functions.iter().any(|func| {
-            func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize))
+        let keeps_expansion = module.functions.iter().any(|func| {
+            func.instructions().any(|inst| {
+                let kind = &func.inst(inst).kind;
+                matches!(kind, InstKind::MSize) || AliasAnalysis::needs_expanded_memory(func, kind)
+            })
         });
         let has_fill = module
             .functions
             .iter()
-            .map(|func| !reads_msize && has_zero_fill(func))
+            .map(|func| !keeps_expansion && has_zero_fill(func))
             .collect::<IndexVec<FunctionId, _>>();
         let wanted = |id: FunctionId, func: &Function| {
             let objective = module.objective_of(func);

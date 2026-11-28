@@ -1,6 +1,6 @@
-- ; === ROOT/tests/ui/codegen/mir/cse/gas_revert_only.mir (before cse) ===
-+ ; === ROOT/tests/ui/codegen/mir/cse/gas_revert_only.mir (after cse) ===
-  @module GasRevertOnly
+- ; === ROOT/tests/ui/codegen/mir/cse/gas_reading_callee.mir (before storage-cse) ===
++ ; === ROOT/tests/ui/codegen/mir/cse/gas_reading_callee.mir (after storage-cse) ===
+  @module GasReadingCallee
   fn @revert_only_callee(arg0: i256, arg1: i1) -> i256 {
     bb0:
       v0 = sload arg0
