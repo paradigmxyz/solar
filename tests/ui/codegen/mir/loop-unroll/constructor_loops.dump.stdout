@@ -9,10 +9,10 @@ fn @constructor() [constructor] {
     v25 = constructor_args_end
     v26 = add v24, 32
     v27 = lt v25, v26
-    v32 = zext i1 v27 to i256
-    v33 = or v29, v32
-    v34 = ne v33, 0
-    jumpi v34, bb10, bb11
+    v36 = zext i1 v27 to i256
+    v37 = or v29, v36
+    v38 = ne v37, 0
+    jumpi v38, bb10, bb11
   bb11:                                           ; preds = bb0
     v28 = mload v24
     jump bb1
@@ -21,6 +21,10 @@ fn @constructor() [constructor] {
     v2 = lt v1, 8
     jumpi v2, bb2, bb3
   bb3:                                            ; preds = bb1
+    v32 = eq v28, 0
+    v34 = zext i1 v32 to i256
+    v33 = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v28
+    v35 = sub v33, v34
     jump bb4
   bb4:                                            ; preds = bb3, bb9
     v10 = phi [bb3: 0], [bb9: v14]
@@ -30,11 +34,8 @@ fn @constructor() [constructor] {
     ret
   bb6:                                            ; preds = bb4
     v17 = mul v28, v10
-    v18 = eq v10, 0
-    v19 = div v17, v10
-    v20 = eq v19, v28
-    v21 = or v18, v20
-    jumpi v21, bb9, bb7
+    v21 = lt v35, v10
+    jumpi v21, bb7, bb9
   bb9:                                            ; preds = bb6
     mstore 0, v10 !metadata(memory=scratch)
     mstore 32, 8 !metadata(memory=scratch)

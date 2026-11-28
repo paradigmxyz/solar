@@ -291,11 +291,10 @@ may be deferred. Checked arithmetic and ABI validation can revert even when
 their result is unused. Keep those checks as semantic effects until proved
 redundant. Low-level calls and precompiles retain their gas, returndata, and
 failure behavior. `extcall`s carry external-call effects before expansion, so
-loop motion cannot reuse an older return-data size across them. Gas observations also include the implicit reads
-in precompiles and `extcall`s without an explicit gas argument. LICM
-respects those reads before expansion. Solidity's checked division and Yul's
-division by zero must not share a folding rule that changes their distinct
-semantics.
+loop motion cannot reuse an older return-data size across them. Gas reads also
+include the implicit reads in precompiles and `extcall`s without an explicit gas
+argument. Solidity's checked division and Yul's division by zero must not share
+a folding rule that changes their distinct semantics.
 
 Aim for one typed body per source function, with external entries represented
 by interface declarations. ABI lowering owns decoding, validation, encoding,
@@ -404,7 +403,10 @@ termination. Compute them only for called functions, including tail-call targets
 uncalled bodies need no interprocedural summary. DCE removes unused calls only
 when these summaries prove normal termination and no observable effects. Recursive calls and possible CFG cycles
 remain conservative. `msize` is an opaque memory read: it is never commoned or moved, DSE keeps the
-writes it may see, and it promises no exact value.
+writes it may see, and it promises no exact value. A gas read, `gas` or the implicit read of
+an `extcall` without a gas argument, is never commoned, speculated, or moved and stays in order
+with other gas reads, but it holds back no other code: passes delete, forward, merge, and move
+memory, storage, and other operations across it, so it promises no exact value either.
 As in solc, unused storage/account reads and normally returning calls containing
 only those reads may disappear, including their implicit access-list warming.
 Optimization preserves required effects rather than exact gas consumption.

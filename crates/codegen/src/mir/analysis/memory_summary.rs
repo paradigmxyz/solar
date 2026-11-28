@@ -1,4 +1,4 @@
-//! Interprocedural memory, gas-observation, and pointer-capture summaries.
+//! Interprocedural memory and pointer-capture summaries.
 //!
 //! Summaries are computed only for internal-call targets, to a fixpoint over their edges. Missing
 //! bodies stay fully conservative; recursive groups converge because every
@@ -10,8 +10,8 @@
 //! value identities escape into a caller summary.
 
 use super::{
-    Access, AddressSpace, AliasAnalysis, GasObservations, Location, LocationSize, MemoryAddress,
-    MemoryBase, MemoryLocation, direct_callees,
+    Access, AddressSpace, AliasAnalysis, Location, LocationSize, MemoryAddress, MemoryBase,
+    MemoryLocation, direct_callees,
 };
 use crate::mir::{
     ArgIdx, BlockId, Callee, ControlEffects, Function, FunctionId, InstId, InstKind, MemoryRegion,
@@ -176,11 +176,6 @@ pub(crate) struct FunctionMemorySummary {
     may_recycle_fmp: bool,
     /// Whether the function may read or write the free-memory pointer directly.
     may_observe_fmp: bool,
-    /// Whether this function or a transitive callee may observe remaining gas.
-    may_observe_gas: bool,
-    /// Whether the function may observe remaining gas and still return to its caller afterwards.
-    /// An observation on a path that only reverts measures nothing the caller runs later.
-    may_return_after_gas: bool,
     /// Parameters whose pointer value may escape the call.
     captures: DenseBitSet<ArgIdx>,
     /// Parameters whose pointer value the function may relate to the heap: a value derived
@@ -206,8 +201,6 @@ impl FunctionMemorySummary {
             may_wrap_write: false,
             may_recycle_fmp: false,
             may_observe_fmp: false,
-            may_observe_gas: false,
-            may_return_after_gas: false,
             captures: DenseBitSet::new_empty(params),
             observes: DenseBitSet::new_empty(params),
         }
@@ -235,8 +228,6 @@ impl FunctionMemorySummary {
             may_wrap_write: true,
             may_recycle_fmp: true,
             may_observe_fmp: true,
-            may_observe_gas: true,
-            may_return_after_gas: true,
             captures: DenseBitSet::new_filled(params),
             observes: DenseBitSet::new_filled(params),
         }
@@ -293,19 +284,6 @@ impl FunctionMemorySummary {
     #[must_use]
     pub(crate) const fn may_observe_fmp(&self) -> bool {
         self.may_observe_fmp
-    }
-
-    /// Returns whether this function or a transitive callee may read remaining gas.
-    #[must_use]
-    pub(crate) const fn may_observe_gas(&self) -> bool {
-        self.may_observe_gas
-    }
-
-    /// Returns whether this function or a transitive callee may observe remaining gas on a path
-    /// that still returns to the caller.
-    #[must_use]
-    pub(crate) const fn may_return_after_gas(&self) -> bool {
-        self.may_return_after_gas
     }
 
     /// Returns whether the function may terminate the current EVM call successfully.
@@ -395,7 +373,6 @@ impl FunctionMemorySummary {
         self.may_wrap_write |= other.may_wrap_write;
         self.may_recycle_fmp |= other.may_recycle_fmp;
         self.may_observe_fmp |= other.may_observe_fmp;
-        self.may_observe_gas |= other.may_observe_gas;
     }
 }
 
@@ -420,8 +397,6 @@ pub(crate) struct LocalSummaryCache {
 
 struct LocalSummaryEntry {
     sources: Rc<BitMatrix<ValueId, ArgIdx>>,
-    /// The blocks from which control can still return to the caller.
-    returning: DenseBitSet<BlockId>,
     /// The alias analysis as the local summary left it. Address memos are depth-limited, so
     /// their results depend on query order and later queries must continue from this state.
     alias: AliasAnalysis,
@@ -432,9 +407,8 @@ impl LocalSummaryEntry {
     fn new(module: &Module, func: &Function) -> Self {
         let sources = parameter_sources(func);
         let alias = AliasAnalysis::new(func);
-        let returning = returning_blocks(func);
-        let summary = local_summary(module, func, &sources, &alias, &returning);
-        Self { sources: Rc::new(sources), returning, alias, summary }
+        let summary = local_summary(module, func, &sources, &alias, &returning_blocks(func));
+        Self { sources: Rc::new(sources), alias, summary }
     }
 
     /// Checks that recomputing the entry reproduces it. Values added since, such as
@@ -452,10 +426,7 @@ impl LocalSummaryEntry {
                 }
             });
         assert!(
-            same_sources
-                && self.returning == fresh.returning
-                && self.summary == fresh.summary
-                && self.alias.same_memo(&fresh.alias),
+            same_sources && self.summary == fresh.summary && self.alias.same_memo(&fresh.alias),
             "stale local memory summary of `{}`",
             func.name
         );
@@ -627,8 +598,7 @@ impl MemoryCallSummaries {
         let recursive = recursive_functions(callees);
 
         // The parameter sources, alias analysis, and local summary of each target, and its
-        // internal calls in body order, found once instead of on every visit, with whether
-        // control can still return to the target's caller after the call.
+        // internal calls in body order, found once instead of on every visit.
         let mut facts = IndexVec::with_capacity(functions);
         let mut local = index_vec![None; functions];
         let mut call_sites = index_vec![Vec::new(); functions];
@@ -649,18 +619,17 @@ impl MemoryCallSummaries {
             local[func_id] = Some(summary);
             facts.push(Some((Rc::clone(&entry.sources), entry.alias.clone())));
             let sites = &mut call_sites[func_id];
-            for (block_id, block) in func.blocks.iter_enumerated() {
-                let returns = entry.returning.contains(block_id);
+            for block in func.blocks.iter() {
                 for &inst_id in &block.instructions {
                     if let InstKind::ICall {
                         function: Callee::Function(function), ref args, ..
                     } = func.inst(inst_id).kind
                     {
-                        sites.push((function, &args[..], returns));
+                        sites.push((function, &args[..]));
                     }
                 }
                 if let Some(Terminator::TailCall { function, args }) = &block.terminator {
-                    sites.push((*function, &args[..], returns));
+                    sites.push((*function, &args[..]));
                 }
             }
         }
@@ -673,13 +642,12 @@ impl MemoryCallSummaries {
             let func = &module.functions[func_id];
             let (sources, alias) = facts[func_id].as_ref().unwrap();
             let mut summary = local[func_id].clone().unwrap();
-            for &(function, args, returns) in &call_sites[func_id] {
+            for &(function, args) in &call_sites[func_id] {
                 merge_call(
                     &mut summary,
                     func,
                     summaries.get(function).and_then(Option::as_ref),
                     args,
-                    returns,
                     sources,
                     alias,
                 );
@@ -710,7 +678,6 @@ fn merge_call(
     func: &Function,
     callee: Option<&FunctionMemorySummary>,
     args: &[ValueId],
-    returns: bool,
     sources: &BitMatrix<ValueId, ArgIdx>,
     aa: &AliasAnalysis,
 ) {
@@ -722,8 +689,6 @@ fn merge_call(
         &conservative
     };
     summary.merge_effects(callee);
-    // A call whose block can only revert never hands control back to the caller's caller.
-    summary.may_return_after_gas |= returns && callee.may_return_after_gas;
     for write in [false, true] {
         for access in callee.memory_accesses(func, aa, args, write) {
             summary.record_access(func, access, write);
@@ -765,9 +730,6 @@ fn local_summary(
     } else {
         heap_derived_values(func)
     };
-    // A `gas` read that only sets an external call's gas forwards it without observing it,
-    // as `GasObservations` treats it within the function.
-    let forwarded_gas = GasObservations::classify_forwarded_call_gas(func);
     for (block_id, block) in func.blocks.iter_enumerated() {
         // A write or free-memory-pointer move on a path that can only revert is
         // rolled back with the call frame, so no caller observes it; a panic
@@ -812,9 +774,6 @@ fn local_summary(
                 summary.may_recycle_fmp |= instruction_may_recycle_fmp(func, inst_id);
             }
             summary.may_observe_fmp |= instruction_observes_fmp(func, inst_id);
-            let observes_gas = matches!(kind, InstKind::Gas) && !forwarded_gas.contains(inst_id);
-            summary.may_observe_gas |= observes_gas;
-            summary.may_return_after_gas |= observes_gas && returns;
             // An instruction that consumes both a pointer-derived value and a heap-derived one
             // can relate the object to the heap, whatever the positions: comparisons, pointer
             // arithmetic against the free-memory pointer, or storing one through the other.

@@ -69,8 +69,7 @@ contract PackedWrites {
         return (this.raw(a), this.raw(b));
     }
 
-    // `gasCheck` reads gas, but `bubble` reverts after it, so no gas read comes
-    // after the writes and they still merge.
+    // `bubble` reads gas and may revert before the writes, which still merge.
     // CHECK-LABEL: fn @guarded()
     // CHECK: sload
     // CHECK: sstore {{.*}}, 0x10000000000000000000000000000010001
@@ -84,21 +83,6 @@ contract PackedWrites {
         status.numerator = 1;
         status.denominator = 1;
         return this.raw(h);
-    }
-
-    // Between two gas reads, every access stays for the second read to observe.
-    // CHECK-LABEL: fn @measured()
-    // CHECK: = gas
-    // CHECK-COUNT-4: sstore
-    // CHECK: = gas
-    function measured(uint256 h) external returns (uint256) {
-        OrderStatus storage status = statuses[h];
-        uint256 g = gasleft();
-        status.isValidated = true;
-        status.isCancelled = false;
-        status.numerator = 1;
-        status.denominator = 1;
-        return g - gasleft();
     }
 
     function peek(uint256 h) external view returns (uint256) {

@@ -13,10 +13,6 @@
 //! unrelated pure expressions. Rewrites stay within one block and respect the target's reachable
 //! stack depth; the pass does not perform alias analysis or move instructions across control flow.
 //!
-//! After a `GAS` read, memory, hashing, and storage reads are no longer reused or forwarded, as
-//! MIR's common-subexpression elimination also leaves them alone once gas is observed: a warm
-//! `SLOAD` costs 100 gas, so dropping one changes what the next `GAS` read measures.
-//!
 //! This runs after physical stack scheduling, where repeated expressions and redundant constant
 //! memory traffic are visible. Peephole cleanup follows it because removing a computation can
 //! expose adjacent stack and arithmetic simplifications.
@@ -78,7 +74,6 @@ struct Cse {
     /// already present is a no-op, and a load of a known word yields the stored expression.
     known_stores: FxHashMap<u64, usize>,
     const_exprs: FxHashMap<usize, u64>,
-    gas_observed: bool,
     changed: bool,
 }
 
@@ -89,7 +84,6 @@ impl Cse {
         self.expressions.clear();
         self.known_stores.clear();
         self.const_exprs.clear();
-        self.gas_observed = false;
         self.changed = false;
         for inst in instructions.drain(..) {
             self.step(inst);
@@ -110,17 +104,7 @@ impl Cse {
             return self.store(inst);
         }
 
-        // Once gas is observed, every read of memory or storage is a new expression.
-        if self.gas_observed {
-            match opcode {
-                op::MLOAD | op::KECCAK256 => self.memory_epoch += 1,
-                op::SLOAD | op::TLOAD => self.storage_epoch += 1,
-                _ => {}
-            }
-        }
-        self.gas_observed |= opcode == op::GAS;
-
-        if opcode == op::MLOAD && !self.gas_observed {
+        if opcode == op::MLOAD {
             self.ensure_depth(1);
             let addr = self.stack[self.stack.len() - 1];
             if let Some(&known) =

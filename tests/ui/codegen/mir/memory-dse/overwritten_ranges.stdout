@@ -43,15 +43,6 @@
       ret v0
   }
   
-  fn @keep_gas_observer() -> i256 {
-    bb0:
-      memory_zero 256, 64
-      mstore 256, 7
-      v0 = gas
-      mstore 288, 9
-      ret v0
-  }
-  
   fn @keep_expansion_observer() -> i256 {
     bb0:
       calldatacopy 256, 0, 64

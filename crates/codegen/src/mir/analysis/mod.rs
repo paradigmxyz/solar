@@ -19,9 +19,6 @@ pub(crate) use memory_summary::{LocalSummaryCache, MemoryCallSummaries, returnin
 
 mod memory_restoration;
 
-mod gas;
-pub(crate) use gas::GasObservations;
-
 mod fresh_heap;
 pub(crate) use fresh_heap::FreshHeap;
 

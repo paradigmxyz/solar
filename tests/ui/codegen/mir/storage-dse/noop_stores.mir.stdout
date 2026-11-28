@@ -85,17 +85,6 @@ fn @write(arg0: i256, arg1: i256) -> i256 [selector=0x9c0e3f7a, abi_params=[uint
     ret v7
 }
 
-; function measured() external returns (uint256) [selector 0x6724f0a2]
-fn @measured() -> i256 [selector=0x6724f0a2, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = gas
-    v1 = sload 1 !metadata(storage=slot(1))
-    sstore 1, v1 !metadata(storage=slot(1))
-    v2 = gas
-    v3 = checked_sub uint256, v0, v2
-    ret v3
-}
-
 ; function staticTouch() external view returns (bool ok) [selector 0x7a96c521]
 fn @staticTouch() -> i1 [selector=0x7a96c521, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:

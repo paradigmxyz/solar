@@ -10,74 +10,64 @@
     bb2:                                            ; preds = bb0
       v2 = calldataload 0
       v3 = shr v2, 224
-      switch v3, default bb3, [0x30000001 => bb4, 0x3000001f => bb5, 0x30000002 => bb6, 0x30000003 => bb7, 0x30000004 => bb8, 0x30000005 => bb9, 0x30000006 => bb10, 0x30000007 => bb11, 0x30000008 => bb12, 0x30000009 => bb13, 0x3000000a => bb14, 0x3000000b => bb15, 0x3000000c => bb16, 0x3000000d => bb17, 0x3000000e => bb18, 0x3000000f => bb19, 0x30000010 => bb20, 0x30000011 => bb21, 0x30000012 => bb22, 0x30000013 => bb23, 0x30000014 => bb24, 0x30000015 => bb25, 0x30000016 => bb26, 0x30000017 => bb27, 0x30000018 => bb28, 0x30000019 => bb29, 0x3000001a => bb30, 0x3000001b => bb31, 0x3000001c => bb32, 0x3000001d => bb33, 0x3000001e => bb34, 0x30000022 => bb35]
-    bb35:                                           ; preds = bb2
-      tail_call @tail_after_allocator
-    bb34:                                           ; preds = bb2
-      tail_call @sibling_reads_gas
-    bb33:                                           ; preds = bb2
-      tail_call @sibling_fills
-    bb32:                                           ; preds = bb2
-      tail_call @tail_observes
-    bb31:                                           ; preds = bb2
-      tail_call @tail_in_loop
+      switch v3, default bb1, [0x30000001 => bb3, 0x3000001f => bb4, 0x30000002 => bb5, 0x30000003 => bb6, 0x30000004 => bb7, 0x30000005 => bb8, 0x30000006 => bb9, 0x30000007 => bb10, 0x30000008 => bb11, 0x30000009 => bb12, 0x3000000a => bb13, 0x3000000b => bb14, 0x3000000c => bb15, 0x3000000e => bb16, 0x3000000f => bb17, 0x30000010 => bb18, 0x30000011 => bb19, 0x30000012 => bb20, 0x30000013 => bb21, 0x30000014 => bb22, 0x30000015 => bb23, 0x30000016 => bb24, 0x30000017 => bb25, 0x30000018 => bb26, 0x30000019 => bb27, 0x3000001b => bb28, 0x3000001d => bb29, 0x30000022 => bb30]
     bb30:                                           ; preds = bb2
-      tail_call @measures
+      tail_call @tail_after_allocator
     bb29:                                           ; preds = bb2
-      tail_call @after_tail_stager
+      tail_call @sibling_fills
     bb28:                                           ; preds = bb2
-      tail_call @calls_recursive
+      tail_call @tail_in_loop
     bb27:                                           ; preds = bb2
-      tail_call @zero_store_written
+      tail_call @after_tail_stager
     bb26:                                           ; preds = bb2
-      tail_call @zero_store_fill
+      tail_call @calls_recursive
     bb25:                                           ; preds = bb2
-      tail_call @call_fill
+      tail_call @zero_store_written
     bb24:                                           ; preds = bb2
-      tail_call @loop_fill
+      tail_call @zero_store_fill
     bb23:                                           ; preds = bb2
-      tail_call @branch_fill
+      tail_call @call_fill
     bb22:                                           ; preds = bb2
-      tail_call @bytes_tail_dirty
+      tail_call @loop_fill
     bb21:                                           ; preds = bb2
-      tail_call @bytes_tail_written
+      tail_call @branch_fill
     bb20:                                           ; preds = bb2
-      tail_call @bytes_tail
+      tail_call @bytes_tail_dirty
     bb19:                                           ; preds = bb2
-      tail_call @calls_shared_dirty
+      tail_call @bytes_tail_written
     bb18:                                           ; preds = bb2
-      tail_call @calls_shared_clean
+      tail_call @bytes_tail
     bb17:                                           ; preds = bb2
-      tail_call @observes_gas
+      tail_call @calls_shared_dirty
     bb16:                                           ; preds = bb2
-      tail_call @after_allocator
+      tail_call @calls_shared_clean
     bb15:                                           ; preds = bb2
-      tail_call @after_stager
+      tail_call @after_allocator
     bb14:                                           ; preds = bb2
-      tail_call @loop_allocating
+      tail_call @after_stager
     bb13:                                           ; preds = bb2
-      tail_call @loop_staging
+      tail_call @loop_allocating
     bb12:                                           ; preds = bb2
-      tail_call @after_log
+      tail_call @loop_staging
     bb11:                                           ; preds = bb2
-      tail_call @after_scratch
+      tail_call @after_log
     bb10:                                           ; preds = bb2
-      tail_call @after_slot_store
+      tail_call @after_scratch
     bb9:                                            ; preds = bb2
-      tail_call @after_unknown_store
+      tail_call @after_slot_store
     bb8:                                            ; preds = bb2
-      tail_call @after_staging
+      tail_call @after_unknown_store
     bb7:                                            ; preds = bb2
-      tail_call @written_object
+      tail_call @after_staging
     bb6:                                            ; preds = bb2
-      tail_call @entry_struct
+      tail_call @written_object
     bb5:                                            ; preds = bb2
-      tail_call @unbounded_size
+      tail_call @entry_struct
     bb4:                                            ; preds = bb2
-      tail_call @entry_zeroed
+      tail_call @unbounded_size
     bb3:                                            ; preds = bb2
-      tail_call @sibling_reads_gas
-    bb1:                                            ; preds = bb0
+      tail_call @entry_zeroed
+    bb1:                                            ; preds = bb0, bb2
       tail_call @sibling_fills
   }
   
@@ -326,20 +316,6 @@
 +     v1 = inttoptr i256 v4 to ptr<memory> !metadata(memory=scratch)
 +     v5 = add v4, 64 !metadata(alloc_ptr)
 +     mstore 64, v5 !metadata(memory=scratch)
-      v2 = ptrtoint ptr<memory> v1 to i256
-      v3 = add v0, v2
-      ret v3
-  }
-  
-  fn @observes_gas() -> i256 {
-    bb0:
-      v0 = gas
--     v1 = alloc 64
-+     v4 = heap_floor !metadata(alloc_ptr)
-+     v1 = inttoptr i256 v4 to ptr<memory> !metadata(memory=scratch)
-+     v5 = add v4, 64 !metadata(alloc_ptr)
-+     mstore 64, v5 !metadata(memory=scratch)
-      memory_zero v1, 64
       v2 = ptrtoint ptr<memory> v1 to i256
       v3 = add v0, v2
       ret v3
@@ -602,27 +578,6 @@
       ret v1
   }
   
-  fn @measured() -> i256 {
-    bb0:
--     v0 = alloc 64
-+     v2 = heap_floor !metadata(alloc_ptr)
-+     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch)
-+     v3 = add v2, 64 !metadata(alloc_ptr)
-+     mstore 64, v3 !metadata(memory=scratch)
-      memory_zero v0, 64
-      v1 = ptrtoint ptr<memory> v0 to i256
-      ret v1
-  }
-  
-  fn @measures() -> i256 {
-    bb0:
-      v0 = gas
-      v1 = icall @measured
-      v2 = gas
-      v3 = sub v0, v2
-      ret v3
-  }
-  
   fn @tail_in_loop() {
     bb0:
       v0 = calldataload 4
@@ -651,24 +606,6 @@
       jump bb1
   }
   
-  fn @observer() {
-    bb0:
-      v0 = gas
-      mstore 0, v0
-      stop
-  }
-  
-  fn @tail_observes() {
-    bb0:
--     v0 = alloc 64
-+     v1 = heap_floor !metadata(alloc_ptr)
-+     v0 = inttoptr i256 v1 to ptr<memory> !metadata(memory=scratch)
-+     v2 = add v1, 64 !metadata(alloc_ptr)
-+     mstore 64, v2 !metadata(memory=scratch)
-      memory_zero v0, 64
-      tail_call @observer
-  }
-  
   fn @sibling_fills() {
     bb0:
 -     v0 = alloc 64
@@ -677,13 +614,6 @@
 +     v0 = inttoptr i256 v1 to ptr<memory> !metadata(memory=scratch)
 +     v2 = add v1, 64 !metadata(alloc_ptr)
 +     mstore 64, v2 !metadata(memory=scratch)
-      stop
-  }
-  
-  fn @sibling_reads_gas() {
-    bb0:
-      v0 = gas
-      mstore 0, v0
       stop
   }
   

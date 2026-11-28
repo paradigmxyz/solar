@@ -96,18 +96,6 @@ fn @return_pointer() -> i256 {
     ret 160
 }
 
-// CHECK-LABEL: @gas_barrier
-// CHECK: {{^ +}}mstore [[ADDR:[0-9]+]], 0
-// CHECK: {{^ +}}{{v[0-9]+}} = gas
-// CHECK: {{^ +}}mstore [[ADDR]], 42
-fn @gas_barrier() {
-  bb0:
-    mstore 128, 0
-    v0 = gas
-    mstore 128, 42
-    ret
-}
-
 // CHECK-LABEL: @distinct_immediate_addresses
 // CHECK: -     mstore [[ADDR:[0-9]+]], 0
 // CHECK:       mstore [[ADDR]], 42

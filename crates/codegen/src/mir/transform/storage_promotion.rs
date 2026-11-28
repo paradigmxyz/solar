@@ -190,16 +190,14 @@ fn exit_rolls_back(func: &Function, exit: BlockId) -> bool {
     func.blocks[exit].terminator.as_ref().is_some_and(Terminator::reverts)
 }
 
-/// A rollback exit must not contain calls (a callee could observe the
-/// unflushed slot and leak that observation into the revert data) or
-/// other instructions whose results escape the rolled-back frame.
+/// A rollback exit must not contain calls: a callee could observe the
+/// unflushed slot and leak that observation into the revert data.
 fn rollback_exit_has_no_observable_effects(func: &Function, exit: BlockId) -> bool {
     func.blocks[exit].instructions.iter().all(|&inst_id| {
-        let kind = &func.inst(inst_id).kind;
         !matches!(
-            kind.effect_kind(),
+            func.inst(inst_id).kind.effect_kind(),
             EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
-        ) && !kind.observes_gas()
+        )
     })
 }
 
@@ -217,11 +215,7 @@ fn promotion_effects_are_safe(func: &Function, loop_data: &Loop) -> bool {
     let alias = AliasAnalysis::new(func);
     for block_id in promotion_block_ids(func, loop_data) {
         for &inst_id in &func.blocks[block_id].instructions {
-            let inst = func.inst(inst_id);
-            if inst.kind.observes_gas() {
-                return false;
-            }
-            match &inst.kind {
+            match &func.inst(inst_id).kind {
                 InstKind::Load(_, PtrLocation::Storage)
                 | InstKind::Store(_, _, PtrLocation::Storage) => {}
                 InstKind::Store(_, _, PtrLocation::Transient)
@@ -323,7 +317,7 @@ fn preheader_tail_is_safe(func: &Function, preheader: BlockId, candidates: &[Can
             | InstKind::Store8(..)
             | InstKind::Copy(_, _, _, PtrLocation::Memory)
             | InstKind::DataCopy(_, _, _) => {}
-            kind if kind.has_side_effects() || kind.observes_gas() => return false,
+            kind if kind.has_side_effects() => return false,
             _ => {}
         }
     }

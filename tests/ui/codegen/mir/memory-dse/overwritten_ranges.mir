@@ -58,18 +58,6 @@ fn @keep_read_fill() -> i256 {
     ret v0
 }
 
-// CHECK-LABEL: @keep_gas_observer
-// CHECK: {{^[ +].*}}memory_zero 256, 64
-// CHECK: {{^[ +].*}}v0 = gas
-fn @keep_gas_observer() -> i256 {
-  bb0:
-    memory_zero 256, 64
-    mstore 256, 7
-    v0 = gas
-    mstore 288, 9
-    ret v0
-}
-
 // CHECK-LABEL: @keep_expansion_observer
 // CHECK: {{^[ +].*}}calldatacopy 256, 0, 64
 // CHECK: {{^[ +].*}}v0 = msize

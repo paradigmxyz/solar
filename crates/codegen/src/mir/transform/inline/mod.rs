@@ -14,7 +14,7 @@
 //! the shared body and its call protocols (see `all_sites`). Gas mode also
 //! considers scalar loop helpers, constant-argument wrappers, and callees sharing
 //! a direct constant-slot read with the call block. The latter
-//! must not write storage or observe gas; later CSE removes redundant reads.
+//! must not write storage; later CSE removes redundant reads.
 //! Reference-returning helpers stay shared except for transparent forwarders
 //! and one-word literals used once per emitted artifact. After memory lowering,
 //! a memory pointer is one word and no longer counts as a reference. Shared void
@@ -706,10 +706,7 @@ impl MirInliner {
             return false;
         };
         let callee = module.function(site.callee);
-        if summary.writes(AddressSpace::Storage)
-            || summary.may_observe_gas()
-            || callee.attributes.no_inline
-            || site.returns > 1
+        if summary.writes(AddressSpace::Storage) || callee.attributes.no_inline || site.returns > 1
         {
             return false;
         }

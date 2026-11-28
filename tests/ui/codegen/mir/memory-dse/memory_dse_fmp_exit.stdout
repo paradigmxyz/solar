@@ -97,16 +97,6 @@
       returndata v0, 32
   }
   
-  fn @keep_bump_before_gas() {
-    bb0:
-      v0 = mload 64 !metadata(alloc_ptr)
-      v1 = add v0, 32
-      mstore 64, v1
-      v2 = gas
-      mstore v0, v2
-      returndata v0, 32
-  }
-  
   fn @forward_reload_across_heap_write(arg0: i256) -> i256 {
     bb0:
       v0 = mload 64 !metadata(alloc_ptr)

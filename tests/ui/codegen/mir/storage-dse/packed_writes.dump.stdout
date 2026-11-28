@@ -6,26 +6,24 @@ fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
-    jumpi v1, bb9, bb1
+    jumpi v1, bb8, bb1
   bb1:                                            ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
-    switch v3, default bb9, [0x207ea53d => bb2, 0x302e678f => bb3, 0x3fda5389 => bb4, 0x6eff5374 => bb5, 0x74749eae => bb6, 0x7861d269 => bb7, 0x9fe538de => bb8]
-  bb8:                                            ; preds = bb1
-    tail_call @callBetween
+    switch v3, default bb8, [0x302e678f => bb2, 0x3fda5389 => bb3, 0x6eff5374 => bb4, 0x74749eae => bb5, 0x7861d269 => bb6, 0x9fe538de => bb7]
   bb7:                                            ; preds = bb1
-    tail_call @peek
+    tail_call @callBetween
   bb6:                                            ; preds = bb1
-    tail_call @guarded
+    tail_call @peek
   bb5:                                            ; preds = bb1
-    tail_call @twoSlots
+    tail_call @guarded
   bb4:                                            ; preds = bb1
-    tail_call @fill
+    tail_call @twoSlots
   bb3:                                            ; preds = bb1
-    tail_call @raw
+    tail_call @fill
   bb2:                                            ; preds = bb1
-    tail_call @measured
-  bb9 [cold]:                                     ; preds = bb0, bb1
+    tail_call @raw
+  bb8 [cold]:                                     ; preds = bb0, bb1
     revert 0, 0
 }
 
@@ -226,48 +224,6 @@ fn @guarded() {
     mstore 0, v23 !metadata(memory=scratch)
     returndata 0, 32
   bb5 [cold]:                                     ; preds = bb4, bb0
-    revert 0, 0
-}
-
-; function measured(uint256 h) external returns (uint256) [selector 0x207ea53d]
-fn @measured() {
-  bb0:
-    v18 = calldatasize
-    v19 = lt v18, 36
-    jumpi v19, bb3, bb4
-  bb4:                                            ; preds = bb0
-    v20 = calldataload 4
-    mstore 0, v20 !metadata(memory=scratch)
-    mstore 32, 0 !metadata(memory=scratch)
-    v21 = keccak256 0, 64 !metadata(memory=scratch)
-    v1 = gas
-    v2 = sload v21
-    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v4 = or v3, 1
-    sstore v21, v4
-    v5 = sload v21
-    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
-    sstore v21, v6
-    v8 = sload v21
-    v9 = and v8, 0xffffffffffffffffffffffffffffff000000000000000000000000000000ffff
-    v10 = or v9, 0x10000
-    sstore v21, v10
-    v11 = sload v21
-    v12 = and v11, 0xffffffffffffffffffffffffffffffffff
-    v13 = or v12, 0x10000000000000000000000000000000000
-    sstore v21, v13
-    v14 = gas
-    v16 = sub v1, v14
-    v17 = lt v1, v14
-    jumpi v17, bb1, bb2
-  bb2:                                            ; preds = bb4
-    mstore 0, v16 !metadata(memory=scratch)
-    returndata 0, 32
-  bb1 [cold]:                                     ; preds = bb4
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-  bb3 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 

@@ -45,16 +45,14 @@
 //! of an allocation made then needs none when no instruction between the allocation and the fill
 //! may write the range: the allocation covers it, and the memory it covers was zero.
 //!
-//! A dropped fill leaves memory unexpanded, which changes what the program can observe: its gas,
-//! and `msize`. A function that observes gas, directly or through a call or tail call (the
-//! dispatch entry's tail calls excepted), or has a caller that does, keeps its fills, and so does
-//! every function of a module that reads `msize`. A fill of more than
-//! [`EvmMemoryLayout::MAX_DEAD_FILL`] bytes stays too: expanding that much memory costs more gas
-//! than a call has, so the fill is what makes a huge allocation fail.
+//! A dropped fill leaves memory unexpanded, which lowers the gas a call spends and changes what
+//! `msize` returns. Every function of a module that reads `msize` keeps its fills. A fill of more
+//! than [`EvmMemoryLayout::MAX_DEAD_FILL`] bytes stays too: expanding that much memory costs more
+//! gas than a call has, so the fill is what makes a huge allocation fail.
 
 use super::{
-    Access, AddressSpace, AliasAnalysis, CallGraphInfo, CfgInfo, GasObservations, Location,
-    LocationSize, MemoryAddress, MemoryBase, MemoryCallSummaries, MemoryLocation,
+    Access, AddressSpace, AliasAnalysis, CallGraphInfo, CfgInfo, Location, LocationSize,
+    MemoryAddress, MemoryBase, MemoryCallSummaries, MemoryLocation,
     integers::unsigned_bounds_with_opcodes,
 };
 use crate::mir::{
@@ -218,7 +216,6 @@ struct Analysis<'a> {
     callers: IndexVec<FunctionId, Vec<CallSite>>,
     /// Indexed by [`Fact`].
     memo: [FactMemo; 2],
-    observes_gas: IndexVec<FunctionId, Option<bool>>,
 }
 
 impl<'a> Analysis<'a> {
@@ -249,7 +246,6 @@ impl<'a> Analysis<'a> {
             runtime_entries: module.runtime_entries(),
             callers,
             memo: [memo(), memo()],
-            observes_gas: index_vec![None; module.functions.len()],
         }
     }
 
@@ -368,42 +364,6 @@ impl<'a> Analysis<'a> {
         freshness
     }
 
-    /// Whether `id`, or a function that calls it, may observe gas.
-    fn exposed_to_gas(&mut self, id: FunctionId) -> bool {
-        let mut seen = DenseBitSet::new_empty(self.module.functions.len());
-        let mut worklist = vec![id];
-        while let Some(function) = worklist.pop() {
-            if !seen.insert(function) {
-                continue;
-            }
-            if self.observes_gas(function) {
-                return true;
-            }
-            worklist.extend(self.callers[function].iter().map(|site| site.caller()));
-        }
-        false
-    }
-
-    fn observes_gas(&mut self, id: FunctionId) -> bool {
-        if let Some(observes) = self.observes_gas[id] {
-            return observes;
-        }
-        let func = &self.module.functions[id];
-        let alias = AliasAnalysis::with_call_summaries(func, Arc::clone(self.summaries));
-        let cfg = CfgInfo::new(func);
-        // A tail call hands the rest of the call to a callee, which may observe gas. The dispatch
-        // entry runs no code of its own before the entry it picks, so its tail calls measure
-        // nothing.
-        let tail_observes = self.module.dispatch_entry() != Some(id)
-            && cfg.rpo().iter().any(|&block| {
-                matches!(func.blocks[block].terminator, Some(Terminator::TailCall { function, .. })
-                if self.summaries.get(function).is_none_or(|summary| summary.may_observe_gas()))
-            });
-        let observes = tail_observes || GasObservations::any(func, &cfg, &alias);
-        self.observes_gas[id] = Some(observes);
-        observes
-    }
-
     /// The functions `id` calls that keep the memory above the pointer zero.
     fn zero_keepers(&mut self, id: FunctionId) -> FxHashSet<FunctionId> {
         let mut callees = self.call_graph.callees(id).collect::<FxHashSet<_>>();
@@ -419,9 +379,6 @@ impl<'a> Analysis<'a> {
         let module = self.module;
         let func = &module.functions[id];
         let mut fills = FxHashSet::default();
-        if self.exposed_to_gas(id) {
-            return fills;
-        }
         let alias = AliasAnalysis::with_call_summaries(func, Arc::clone(self.summaries));
         let cfg = CfgInfo::new(func);
         let keepers = self.zero_keepers(id);

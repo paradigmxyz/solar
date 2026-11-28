@@ -1445,6 +1445,24 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `copy_recursive_struct_overlap_push_self_parent`, and
   `copy_recursive_struct_disjoint_copy_memory_growth` expects no growth.
 
+### CODEGEN-032: `gasleft()` values differ between compilers and optimization levels
+
+- ID: CODEGEN-032
+- Status: intentional
+- Difference: the value `gasleft()` returns, and the gas that an external call
+  without a gas limit forwards, can differ from `solc` and between `-O none`,
+  `-O gas` and `-O size`. Optimization deletes, forwards, merges and moves
+  memory and storage accesses and other code across a gas read, so code that
+  measures what a section costs can see a different amount: in
+  `x = 1; g = gasleft(); x = 2;` only the second store remains. A gas read is
+  never commoned, speculated or moved, and two reads keep their order.
+- Rationale: optimization preserves required effects, not exact gas use.
+  `solc`'s via-IR optimizer treats `gas()` the same way: its
+  `SemanticInformation` makes `GAS` neither movable nor commonable but gives it
+  no memory, storage or other state effect, and `solc` 0.8.36
+  `--via-ir --optimize` compiles the example above to one `sstore(0, 2)`.
+- Coverage: `tests/ui/codegen/mir/storage-dse/gasleft_between_stores.sol`.
+
 ### TYPECK-026: `@inheritdoc` references
 
 Status: intentional.

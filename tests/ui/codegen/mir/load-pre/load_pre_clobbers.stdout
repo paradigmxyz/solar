@@ -82,22 +82,6 @@
 +     ret v4
   }
   
-  fn @gas_blocks_rewrite(arg0: i1) -> i256 {
-    bb0:
-      jumpi arg0, bb1, bb2
-    bb2:                                            ; preds = bb0
-      v1 = sload 5
-      jump bb3
-    bb1:                                            ; preds = bb0
-      v0 = sload 5
-      jump bb3
-    bb3:                                            ; preds = bb1, bb2
-      v2 = gas
-      v3 = sload 5
-      v4 = add v2, v3
-      ret v4
-  }
-  
   fn @checked_arithmetic_blocks_memory_insertion(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2

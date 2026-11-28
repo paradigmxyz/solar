@@ -96,24 +96,3 @@ fn @join(arg0: i1) -> i256 {
     sstore 0, v0
     ret v0
 }
-
-// After a gas read, storage accesses stay so that a later read observes their
-// cost, here and in every block the read reaches.
-// CHECK-LABEL: {{^[ +].*}}fn @after_gas{{[( ]}}
-// CHECK: + sstore 0, {{v[0-9]+}}
-// CHECK: + sstore 1, {{v[0-9]+}}
-fn @after_gas(arg0: i1) -> i256 {
-  bb0:
-    v0 = gas
-    v1 = sload 0
-    sstore 0, v1
-    jumpi arg0, bb1, bb2
-  bb1:
-    v2 = sload 1
-    sstore 1, v2
-    jump bb2
-  bb2:
-    v3 = gas
-    v4 = sub v0, v3
-    ret v4
-}

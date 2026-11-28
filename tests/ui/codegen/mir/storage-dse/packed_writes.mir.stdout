@@ -189,32 +189,6 @@ fn @guarded(arg0: i256, arg1: i1) -> i256 [selector=0x74749eae, abi_params=[uint
     ret v23
 }
 
-; function measured(uint256 h) external returns (uint256) [selector 0x207ea53d]
-fn @measured(arg0: i256) -> i256 [selector=0x207ea53d, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = mapping_slot arg0, 0
-    v1 = gas
-    v2 = sload v0 !metadata(storage=symbolic(v0))
-    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v4 = or v3, 1
-    sstore v0, v4 !metadata(storage=symbolic(v0))
-    v5 = sload v0 !metadata(storage=symbolic(v0))
-    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
-    v7 = or v6, 0
-    sstore v0, v7 !metadata(storage=symbolic(v0))
-    v8 = sload v0 !metadata(storage=symbolic(v0))
-    v9 = and v8, 0xffffffffffffffffffffffffffffff000000000000000000000000000000ffff
-    v10 = or v9, 0x10000
-    sstore v0, v10 !metadata(storage=symbolic(v0))
-    v11 = sload v0 !metadata(storage=symbolic(v0))
-    v12 = and v11, 0xffffffffffffffffffffffffffffffffff
-    v13 = or v12, 0x10000000000000000000000000000000000
-    sstore v0, v13 !metadata(storage=symbolic(v0))
-    v14 = gas
-    v15 = checked_sub uint256, v1, v14
-    ret v15
-}
-
 ; function peek(uint256 h) external view returns (uint256) [selector 0x7861d269]
 fn @peek(arg0: i256) -> i256 [selector=0x7861d269, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:

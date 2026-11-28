@@ -323,9 +323,6 @@ impl Access {
 pub(crate) struct ModRef {
     reads: SmallVec<[Access; 4]>,
     writes: SmallVec<[Access; 4]>,
-    observes_gas: bool,
-    /// Whether the operation may observe remaining gas and then continue after it.
-    continues_after_gas: bool,
 }
 
 impl ModRef {
@@ -339,19 +336,6 @@ impl ModRef {
     #[must_use]
     pub(crate) fn writes(&self) -> &[Access] {
         &self.writes
-    }
-
-    /// Returns whether the operation observes remaining gas.
-    #[must_use]
-    pub(crate) const fn observes_gas(&self) -> bool {
-        self.observes_gas
-    }
-
-    /// Returns whether the operation may observe remaining gas on a path that continues after it.
-    /// A call whose every gas read precedes a revert observes gas but never continues after it.
-    #[must_use]
-    pub(crate) const fn continues_after_gas(&self) -> bool {
-        self.continues_after_gas
     }
 
     /// Returns whether any access reads `space`.
@@ -1528,14 +1512,10 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
-                    effects.observes_gas = summary.may_observe_gas();
-                    effects.continues_after_gas = summary.may_return_after_gas();
                     let args =
                         kind.operands().into_iter().map(resolve).collect::<SmallVec<[_; 8]>>();
                     effects.merge_call_summary(summary, func, self, &args);
                 } else {
-                    effects.observes_gas = true;
-                    effects.continues_after_gas = true;
                     effects.read_write_any(AddressSpace::ALL);
                 }
 
@@ -1556,8 +1536,6 @@ impl AliasAnalysis {
             }
             _ => {}
         }
-        effects.observes_gas |= kind.observes_gas();
-        effects.continues_after_gas |= kind.observes_gas();
         effects
     }
 
@@ -1579,10 +1557,8 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
-                    effects.observes_gas = summary.may_observe_gas();
                     effects.merge_call_summary(summary, func, self, &terminator.operands());
                 } else {
-                    effects.observes_gas = true;
                     effects.read_write_any(AddressSpace::ALL);
                 }
             }

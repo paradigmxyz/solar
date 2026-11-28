@@ -177,7 +177,7 @@ fn @msize_does_not_block_memory(arg0: i1) -> i256 {
     ret v6
 }
 
-// Implicit gas observations constrain partial-redundancy insertion.
+// A call without an explicit gas argument constrains partial-redundancy insertion.
 // CHECK-LABEL: {{^[ +].*}}fn @default_gas_call_blocks_prefix{{[( ]}}
 // CHECK: {{^[ +] *}}bb2:
 // CHECK-NEXT: {{^[ +] *}}jump bb3
@@ -201,7 +201,7 @@ fn @default_gas_call_blocks_prefix(arg0: i1, arg1: ptr<memory>) -> i256 {
     ret v4
 }
 
-// Implicit gas observations constrain partial-redundancy insertion.
+// A call without an explicit gas argument constrains partial-redundancy insertion.
 // CHECK-LABEL: {{^[ +].*}}fn @default_gas_call_blocks_reload{{[( ]}}
 // CHECK: {{^[ +] *}}bb2:
 // CHECK-NEXT: {{^[ +] *}}jump bb3

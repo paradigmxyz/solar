@@ -69,11 +69,6 @@ impl InstructionEffects {
 }
 
 impl InstKind {
-    /// Whether this operation reads remaining gas, directly or during builtin expansion.
-    pub const fn observes_gas(&self) -> bool {
-        matches!(self, Self::Gas | Self::ExtCall { gas: None, .. })
-    }
-
     /// Whether this operation reads account state, a balance or deployed code, which
     /// [`may_change_account_state`](Self::may_change_account_state) operations can change.
     pub const fn reads_account_state(&self) -> bool {
@@ -253,7 +248,7 @@ impl InstKind {
                     | Self::StorageBytesStoreLiteral { .. }
                     | Self::StorageClearWords(..)
             ),
-            observes_execution: self.observes_gas() || matches!(self, Self::MSize),
+            observes_execution: matches!(self, Self::Gas | Self::MSize),
             idempotent_write: matches!(
                 self,
                 Self::MappingSlot(..)

@@ -83,15 +83,11 @@
 //! Pure expressions never read or write state, so moving them crosses nothing. The rest of this
 //! section is about reads.
 //!
-//! A join load is never removed or moved after a gas observation on any incoming
-//! CFG path, including loop backedges and observations in transitive callees that may return
-//! after reading gas (see `GasObservations`).
 //! A join load is a candidate only if no kill of its key precedes it in the join block.
-//! For that scan, gas observations and calls block all spaces: a partial-redundancy
-//! insertion moves the read to the end of a predecessor, so everything in the join block
-//! above the original load executes after the moved read, and a `gas` read there would
-//! observe the moved load's gas early. A call can also observe storage-access warming even when
-//! it cannot change stored values. Removal-only (fully redundant) rewrites do not move reads, but
+//! For that scan, calls block all spaces: a partial-redundancy insertion moves the read to the
+//! end of a predecessor, so everything in the join block above the original load executes after
+//! the moved read, and a call can observe storage-access warming even when it cannot change
+//! stored values. Removal-only (fully redundant) rewrites do not move reads, but
 //! we keep the single conservative scan for these cases for simplicity.
 //!
 //! Before inserting a read, also reject a join prefix that may revert, terminate, or diverge:
@@ -124,9 +120,8 @@ use crate::{
         InstructionMetadata, MirType, Module, PtrLocation, StorageAlias, Terminator, Value,
         ValueId,
         analysis::{
-            Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
-            Location, LocationSize, MemoryAddress, MemoryBase, MemoryCallSummaries, MemoryLocation,
-            ModRef,
+            Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Liveness, Location,
+            LocationSize, MemoryAddress, MemoryBase, MemoryCallSummaries, MemoryLocation, ModRef,
         },
         pass::{MirPass, run_function_pass_with_alias_and_cfg, run_function_pass_with_cfg},
         utils as mir_utils,
@@ -191,7 +186,6 @@ struct Eliminator<'a> {
     /// they are absent.
     reads: Option<ReadAnalyses>,
     liveness: OnceCell<Liveness>,
-    gas: OnceCell<GasObservations>,
     /// Shared CFG snapshot for the availability dataflow.
     cfg: Option<Rc<CfgInfo>>,
     target: &'a Target,
@@ -621,7 +615,7 @@ impl LoadWalk {
 
 impl<'a> Eliminator<'a> {
     fn new(target: &'a Target, cfg: Option<Rc<CfgInfo>>, reads: Option<ReadAnalyses>) -> Self {
-        Self { reads, liveness: OnceCell::new(), gas: OnceCell::new(), cfg, target }
+        Self { reads, liveness: OnceCell::new(), cfg, target }
     }
 
     /// Runs PRE to a fixed point under the rewrite budget. Returns whether it changed `func`.
@@ -638,7 +632,6 @@ impl<'a> Eliminator<'a> {
 
         while rewrites < rewrite_limit {
             self.liveness.take();
-            self.gas.take();
             let Some(analysis) = self.compute_analysis(func) else { break };
             locate_cache.clear();
             let mut cx = CandidateCx {
@@ -677,11 +670,6 @@ impl<'a> Eliminator<'a> {
 
     fn alias(&self) -> &AliasAnalysis {
         &self.reads.as_ref().expect("read keys need alias analysis").alias
-    }
-
-    /// Returns the gas observations of this round's CFG.
-    fn gas(&self, func: &Function, cfg: &CfgInfo) -> &GasObservations {
-        self.gas.get_or_init(|| GasObservations::new(func, cfg, self.alias()))
     }
 
     /// Computes the read key universe and, when it is not empty, the availability fixpoint.
@@ -869,9 +857,7 @@ impl<'a> Eliminator<'a> {
                 continue;
             }
 
-            if predecessors.iter().any(|&pred| !cx.analysis.cfg.is_reachable(pred))
-                || self.gas(func, &cx.analysis.cfg).at_entry(target)
-            {
+            if predecessors.iter().any(|&pred| !cx.analysis.cfg.is_reachable(pred)) {
                 continue;
             }
 
@@ -913,10 +899,10 @@ impl<'a> Eliminator<'a> {
     /// key precedes it on the way from `target`'s entry and `target` holds no load of it. It is
     /// then fully redundant when that value is available on every predecessor.
     ///
-    /// Gas observations and calls end or restrict every scan: a partial-redundancy insertion
-    /// moves the read to a predecessor's end, so it must not cross a gas observation or call (any
-    /// space) in the join prefix. The walk below `target` starts only when `target` has none, and
-    /// visits at most [`Self::MAX_DESCENDANT_BLOCKS`] blocks.
+    /// Calls end or restrict every scan: a partial-redundancy insertion moves the read to a
+    /// predecessor's end, so it must not cross a call (any space) in the join prefix. The walk
+    /// below `target` starts only when `target` has none, and visits at most
+    /// [`Self::MAX_DESCENDANT_BLOCKS`] blocks.
     fn join_loads(
         &self,
         func: &Function,
@@ -940,9 +926,7 @@ impl<'a> Eliminator<'a> {
                 if visited >= Self::MAX_DESCENDANT_BLOCKS {
                     return;
                 }
-                if successor == target
-                    || func.blocks[successor].predecessors.as_slice() != [block]
-                    || self.gas(func, &analysis.cfg).at_entry(successor)
+                if successor == target || func.blocks[successor].predecessors.as_slice() != [block]
                 {
                     continue;
                 }
@@ -980,7 +964,7 @@ impl<'a> Eliminator<'a> {
 
     /// Appends to `found` each load in `block` of a key that `scan` neither blocks nor has taken,
     /// updating `scan` with the block's kills. Returns whether the whole block was scanned,
-    /// rather than stopping at a gas observation or a call.
+    /// rather than stopping at a call.
     fn scan_first_loads(
         &self,
         func: &Function,
@@ -991,9 +975,6 @@ impl<'a> Eliminator<'a> {
     ) -> bool {
         let LoadScan { blocked, taken } = scan;
         for &inst_id in &func.blocks[block].instructions {
-            if self.gas(func, &analysis.cfg).observes(inst_id) {
-                return false;
-            }
             if let Some((key, GenSource::LoadResult)) = self.gen_key_value(func, inst_id) {
                 if let Some(&idx) = analysis.key_index.get(&key)
                     && !blocked.contains(idx)
@@ -1005,7 +986,7 @@ impl<'a> Eliminator<'a> {
             }
             let kind = &func.inst(inst_id).kind;
             match kind {
-                // Gas observations and calls block motion in every space.
+                // Calls block motion in every space.
                 _ if Self::blocks_motion(kind) => return false,
                 _ if kind.has_side_effects() => {
                     // Kills block their keys; a store's own-key gen is also a
@@ -1028,11 +1009,10 @@ impl<'a> Eliminator<'a> {
     }
 
     fn blocks_motion(kind: &InstKind) -> bool {
-        kind.observes_gas()
-            || matches!(
-                kind.effect_kind(),
-                EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
-            )
+        matches!(
+            kind.effect_kind(),
+            EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
+        )
     }
 
     fn same_key_loads_in_target(
@@ -1390,7 +1370,7 @@ impl<'a> Eliminator<'a> {
 
     #[must_use]
     fn effects_kill_key(&self, effects: &ModRef, key: LoadKey) -> bool {
-        effects.observes_gas() || effects.may_write(self.alias(), key.location())
+        effects.may_write(self.alias(), key.location())
     }
 
     fn for_each_killed_key(
