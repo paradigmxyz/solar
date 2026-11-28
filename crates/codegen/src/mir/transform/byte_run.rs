@@ -167,7 +167,7 @@ fn fuse(
         let position = position as u64;
         // The byte at `offset + k` contributes at bit `8 * (run - 1 - k)`.
         if leaf.base != first.base
-            || leaf.offset != first.offset + position
+            || first.offset.checked_add(position) != Some(leaf.offset)
             || leaf.shift != 8 * (run as u64 - 1 - position)
         {
             return false;

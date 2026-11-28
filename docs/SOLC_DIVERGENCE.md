@@ -1445,6 +1445,28 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `copy_recursive_struct_overlap_push_self_parent`, and
   `copy_recursive_struct_disjoint_copy_memory_growth` expects no growth.
 
+### CODEGEN-037: Local memory objects may not follow the previous allocation
+
+- ID: CODEGEN-037
+- Status: intentional
+- Difference: with optimization, the `defer-alloc` pass places a constant-size
+  memory allocation of an external function in a static slot when it runs at
+  most once per call and its pointer never escapes: every use reads or writes
+  inside the object, or passes it to an internal call that provably neither
+  captures it nor relates it to the free memory pointer. The object then no
+  longer starts right after the previous heap allocation, and assembly that
+  writes past the end of one object does not reach the next one. In
+  `uint256[1] memory p = [uint256(1)]; uint256[1] memory q = [uint256(2)];`
+  followed by `mstore(add(p, 32), 0x1111)`, `mstore(q, 0x2222)` and
+  `mload(add(p, 32))`, `q` sits at `p + 32` in `solc` and the load returns
+  `0x2222`; `solar` places `q` statically and returns `0x1111`. Without
+  optimization, `solar` matches `solc`.
+- Rationale: such a store accesses memory outside the bounds of the array it
+  references, which breaks `solc`'s own memory-safety rules, and code that
+  keeps to them cannot tell where a local object lies. Placing these objects
+  statically saves their free memory pointer bumps.
+- Coverage: `tests/ui/codegen/run-call/memory/deferred_alloc_overrun.sol`.
+
 ### TYPECK-026: `@inheritdoc` references
 
 Status: intentional.

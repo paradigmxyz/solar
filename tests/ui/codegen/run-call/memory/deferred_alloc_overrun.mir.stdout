@@ -1,0 +1,19 @@
+; === ROOT/tests/ui/codegen/run-call/memory/deferred_alloc_overrun.sol:DeferredAllocOverrun ===
+@module DeferredAllocOverrun
+; function g() external pure returns (uint256 r) [selector 0xe2179b8e]
+fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 32
+    mstore v0, 1
+    v1 = alloc 32
+    mstore v1, 2
+    v2 = ptrtoint ptr<memory> v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x1111
+    v4 = ptrtoint ptr<memory> v1 to i256
+    mstore v1, 0x2222
+    v5 = ptrtoint ptr<memory> v0 to i256
+    v6 = add v5, 32
+    v7 = mload v6
+    ret v7
+}

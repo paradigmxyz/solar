@@ -1,0 +1,106 @@
+; === ROOT/tests/ui/codegen/mir/readonly-eval/out_of_bounds_store.sol:OutOfBoundsStore ===
+@module OutOfBoundsStore
+; function a() external pure returns (uint256) [selector 0x0dbe671f]
+fn @a() -> i256 [selector=0x0dbe671f, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc zeroed checked 32
+    mstore v0, 0
+    v1 = alloc zeroed checked 32
+    mstore v1, 0
+    v2 = ptrtoint ptr<memory> v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x1111
+    v4 = ptrtoint ptr<memory> v1 to i256
+    mstore v1, 0x2222
+    v5 = icall @read, v0
+    ret v5
+}
+
+; function read(bytes memory data) internal pure returns (uint256 result)
+fn @read(arg0: ptr<memory>) -> i256 [pure] {
+  bb0:
+    v0 = ptrtoint ptr<memory> arg0 to i256
+    v1 = add v0, 32
+    v2 = mload v1
+    v3 = shr v2, 200
+    v4 = eq v3, 0
+    jumpi v4, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v5 = checked_mul uint256, v2, 3
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v6 = phi [bb1: v5], [bb2: v2]
+    v7 = eq v3, 1
+    jumpi v7, bb4, bb5
+  bb5:                                            ; preds = bb3
+    jump bb6
+  bb4:                                            ; preds = bb3
+    v8 = checked_mul uint256, v6, 4
+    v9 = checked_add uint256, v8, 1
+    jump bb6
+  bb6:                                            ; preds = bb4, bb5
+    v10 = phi [bb4: v9], [bb5: v6]
+    v11 = eq v3, 2
+    jumpi v11, bb7, bb8
+  bb8:                                            ; preds = bb6
+    jump bb9
+  bb7:                                            ; preds = bb6
+    v12 = checked_mul uint256, v10, 5
+    v13 = checked_add uint256, v12, 2
+    jump bb9
+  bb9:                                            ; preds = bb7, bb8
+    v14 = phi [bb7: v13], [bb8: v10]
+    v15 = eq v3, 3
+    jumpi v15, bb10, bb11
+  bb11:                                           ; preds = bb9
+    jump bb12
+  bb10:                                           ; preds = bb9
+    v16 = checked_mul uint256, v14, 6
+    v17 = checked_add uint256, v16, 3
+    jump bb12
+  bb12:                                           ; preds = bb10, bb11
+    v18 = phi [bb10: v17], [bb11: v14]
+    v19 = eq v3, 4
+    jumpi v19, bb13, bb14
+  bb14:                                           ; preds = bb12
+    jump bb15
+  bb13:                                           ; preds = bb12
+    v20 = checked_mul uint256, v18, 7
+    v21 = checked_add uint256, v20, 4
+    jump bb15
+  bb15:                                           ; preds = bb13, bb14
+    v22 = phi [bb13: v21], [bb14: v18]
+    v23 = eq v3, 5
+    jumpi v23, bb16, bb17
+  bb17:                                           ; preds = bb15
+    jump bb18
+  bb16:                                           ; preds = bb15
+    v24 = checked_mul uint256, v22, 8
+    v25 = checked_add uint256, v24, 5
+    jump bb18
+  bb18:                                           ; preds = bb16, bb17
+    v26 = phi [bb16: v25], [bb17: v22]
+    v27 = eq v3, 6
+    jumpi v27, bb19, bb20
+  bb20:                                           ; preds = bb18
+    jump bb21
+  bb19:                                           ; preds = bb18
+    v28 = checked_mul uint256, v26, 9
+    v29 = checked_add uint256, v28, 6
+    jump bb21
+  bb21:                                           ; preds = bb19, bb20
+    v30 = phi [bb19: v29], [bb20: v26]
+    v31 = eq v3, 7
+    jumpi v31, bb22, bb23
+  bb23:                                           ; preds = bb21
+    jump bb24
+  bb22:                                           ; preds = bb21
+    v32 = checked_mul uint256, v30, 10
+    v33 = checked_add uint256, v32, 7
+    jump bb24
+  bb24:                                           ; preds = bb22, bb23
+    v34 = phi [bb22: v33], [bb23: v30]
+    ret v34
+}

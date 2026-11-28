@@ -11,6 +11,10 @@
 //! invalidate the grouping; those end the current group instead of being
 //! crossed. Checked allocations also remain separate: fusing their panic checks
 //! could move a later failure ahead of an earlier check or memory expansion.
+//! A `gas` read may sit between members: the fused bump before it costs the
+//! same as the first member's, so the read sees the same remaining gas. Only
+//! the fixed cost of the later bump goes away, which is allowed because
+//! optimization keeps required effects, not exact gas.
 //!
 //! Intervening accesses may legitimately target a later member's future
 //! range: because every member keeps its pointer value and its initialization
