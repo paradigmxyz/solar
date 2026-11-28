@@ -1879,6 +1879,11 @@ def prepare_zones_portal(
         (
             ("RuntimeZoneToken", ZONES_TOKEN),
             ("RuntimeZoneRegistry", "0x403c000000000000000000000000000000000000"),
+            (
+                "RuntimeZoneAddressRegistry",
+                "0xfDC0000000000000000000000000000000000000",
+            ),
+            ("RuntimeZoneStorageCredits", "0x1060000000000000000000000000000000000000"),
         ),
         rpc_url,
         private_key,
