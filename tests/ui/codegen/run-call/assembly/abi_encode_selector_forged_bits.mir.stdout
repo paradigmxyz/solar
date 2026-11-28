@@ -1,0 +1,17 @@
+; === ROOT/tests/ui/codegen/run-call/assembly/abi_encode_selector_forged_bits.sol:C ===
+@module C
+@types
+  struct0: {i256, i256}
+
+; function f() external pure returns (uint256 length, bytes32 word) [selector 0x26121ff0]
+fn @f() -> struct0 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, bytes32]] {
+  bb0:
+    v0 = abi_encode [], object, selector 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v1 = mload v0
+    v2 = ptrtoint ptr<memory> v0 to i256
+    v3 = add v2, 32
+    v4 = mload v3
+    v5 = insert_value struct0, undef struct0, 0, v1
+    v6 = insert_value struct0, v5, 1, v4
+    ret v6
+}
