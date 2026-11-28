@@ -1,4 +1,4 @@
-use super::item::VarFlags;
+use super::{PARSER_RECURSION_LIMIT, item::VarFlags};
 use crate::{PResult, Parser};
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
@@ -385,11 +385,18 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             return Ok((ty, IndexAccessedPath::default()));
         }
 
+        self.type_height = 0;
         let iap = self.parse_iap()?;
         let ty = if self.token.is_non_reserved_ident(self.in_yul)
             || self.token.is_location_specifier()
         {
             // `a.b memory`, `a[b] c`
+            // Each index becomes an array level of the type, as in `parse_type_inner`, and sits
+            // above the types inside the indices.
+            let indices = iap.path.len() - iap.n_idents;
+            if self.recursion_depth + self.type_height + indices > PARSER_RECURSION_LIMIT {
+                return Err(self.recursion_limit_reached("type"));
+            }
             LookAheadInfo::VariableDeclaration
         } else {
             LookAheadInfo::Expression

@@ -9,6 +9,8 @@ use solar_codegen::{
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::{Gcx, hir::ContractId};
 
+use crate::source_map::{enters_function, function_entries};
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(untagged)]
 enum EthdebugId {
@@ -106,6 +108,8 @@ struct EthdebugContext {
     r#return: Option<EthdebugFunctionExit>,
     #[serde(skip_serializing_if = "Option::is_none")]
     revert: Option<EthdebugFunctionExit>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    transform: Vec<&'static str>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -322,6 +326,8 @@ pub(crate) fn make_ethdebug_program(
         .ok()
         .map(|range| EthdebugRange { offset: range.start, length: range.end - range.start });
 
+    let function_entries = function_entries(debug_info, bytecode);
+    let mut previous = None;
     let instructions = debug_info
         .instructions(bytecode)
         .map(|instruction| {
@@ -336,7 +342,15 @@ pub(crate) fn make_ethdebug_program(
                 .map(|argument| format!("0x{}", alloy_primitives::hex::display(argument)))
                 .into_iter()
                 .collect();
-            let context = make_ethdebug_context(gcx, &source_ids, &instruction);
+            let context = make_ethdebug_context(
+                gcx,
+                &source_ids,
+                bytecode,
+                &function_entries,
+                previous.as_ref(),
+                &instruction,
+            );
+            previous = Some(instruction);
             EthdebugInstruction {
                 offset: instruction.offset as usize,
                 operation: EthdebugOperation { mnemonic, arguments },
@@ -373,6 +387,9 @@ fn push_argument<'a>(bytecode: &'a [u8], instruction: &DebugInstruction<'_>) -> 
 fn make_ethdebug_context(
     gcx: Gcx<'_>,
     source_ids: &FxHashMap<u32, u32>,
+    bytecode: &[u8],
+    function_entries: &FxHashSet<u32>,
+    previous: Option<&DebugInstruction<'_>>,
     instruction: &DebugInstruction<'_>,
 ) -> Option<EthdebugContext> {
     let location = instruction.location;
@@ -387,6 +404,7 @@ fn make_ethdebug_context(
             invoke: None,
             r#return: None,
             revert: None,
+            transform: Vec::new(),
         })
         .collect::<Vec<_>>();
     // Several spans are alternatives, one of which holds, unless an optimization folded the work
@@ -407,6 +425,16 @@ fn make_ethdebug_context(
         (Some(DebugFunctionExit::Revert), 0xfd) => (None, Some(EthdebugFunctionExit {})),
         _ => (None, None),
     };
+    // A tail call leaves the caller and enters the callee with one `JUMP`, so that jump carries the
+    // caller's `return` and `transform: ["tailcall"]`. The callee's entry `JUMPDEST` carries its
+    // `invoke`, as for any call, so the jump needs none.
+    let mut transform = Vec::new();
+    if r#return.is_some()
+        && instruction.opcode == op::JUMP
+        && enters_function(bytecode, previous, instruction, function_entries)
+    {
+        transform.push("tailcall");
+    }
     if code.is_none()
         && pick.is_empty()
         && gather.is_empty()
@@ -416,7 +444,7 @@ fn make_ethdebug_context(
     {
         None
     } else {
-        Some(EthdebugContext { code, pick, gather, invoke, r#return, revert })
+        Some(EthdebugContext { code, pick, gather, invoke, r#return, revert, transform })
     }
 }
 

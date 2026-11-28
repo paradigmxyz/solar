@@ -24,34 +24,34 @@ fn @entry() [entry] {
 ; function pick(uint256[] calldata a, uint256 r) external pure returns (uint256) [selector 0x9d6a1cd3]
 fn @pick() {
   bb0:
-    v13 = calldatasize
-    v14 = lt v13, 68
-    v16 = calldataload 4
-    v17 = add v16, 4
-    v19 = sub v13, 36
-    v20 = lt v19, v16
-    v28 = or v14, v20
-    v21 = calldataload v17
-    v22 = add v17, 32
-    v23 = sub v13, v22
-    v24 = shr v23, 5
-    v25 = lt v24, v21
-    v29 = or v28, v25
-    jumpi v29, bb3, bb4
+    v12 = calldatasize
+    v13 = lt v12, 68
+    v15 = calldataload 4
+    v16 = add v15, 4
+    v18 = sub v12, 36
+    v19 = lt v18, v15
+    v27 = or v13, v19
+    v20 = calldataload v16
+    v21 = add v16, 32
+    v22 = sub v12, v21
+    v23 = shr v22, 5
+    v24 = lt v23, v20
+    v28 = or v27, v24
+    jumpi v28, bb3, bb4
   bb4:                                            ; preds = bb0
-    v11 = ne v21, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v20, 0
+    jumpi v10, bb2, bb1
   bb1 [cold]:                                     ; preds = bb4
     mstore 32, 18 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:                                            ; preds = bb4
-    v30 = calldataload 36
-    v12 = mod v30, v21
-    v6 = shl v12, 5
-    v9 = add v22, v6
-    v10 = calldataload v9
-    mstore 0, v10 !metadata(memory=scratch)
+    v29 = calldataload 36
+    v11 = mod v29, v20
+    v6 = shl v11, 5
+    v8 = add v21, v6
+    v9 = calldataload v8
+    mstore 0, v9 !metadata(memory=scratch)
     returndata 0, 32
   bb3 [cold]:                                     ; preds = bb0
     revert 0, 0

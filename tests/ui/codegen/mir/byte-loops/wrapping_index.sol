@@ -16,8 +16,8 @@
 //@ run-call-fail: destinationFirst 0x01, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call: wrappedCopy 0x, 4 => 0x00bd307f
 //@ run-call: wrappedWord 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x00c280cc68000000000000000000000000000000000000000000000000000000
-//@ run-call-fail: wrappedArray [], 0, 0x0800000000000000000000000000000000000000000000000000000000000000, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
-//@ run-call-fail: wrappedArray [], 32, 0x07ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@ run-call: wrappedArray [], 0, 0x0800000000000000000000000000000000000000000000000000000000000000, 1 => [0x20a8a4e400000000000000000000000000000000000000000000000000000000]
+//@ run-call: wrappedArray [], 32, 0x07ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2 => [0x20a8a4e400000000000000000000000000000000000000000000000000000000, 0x0000008000000000000000000000000000000000000000000000000000000000]
 //@ run-call-fail: wrappedArray [], 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call: wrappedArray [], 0, 0x07ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1 => [0]
 //@ run-call: wrappedArray [], 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0 => []
@@ -152,9 +152,9 @@ contract Test {
         }
     }
 
-    // Scaling an index to bytes must preserve the loop's 0x41 check even when assembly forges
-    // a slice length large enough to admit that index. Crossing the index limit can also lose
-    // bits when the resulting byte address itself does not wrap.
+    // Scaling an index to bytes wraps modulo `2^256`, as in solc, even when assembly forges a
+    // slice length large enough to admit that index, so the copy keeps the loop as its fallback
+    // when the scaled indices wrap.
     // CHECK-LABEL: fn @wrappedArray(
     // CHECK: [[INDEX:v[0-9]+]] = calldataload 68
     // CHECK: [[INDEX_END:v[0-9]+]] = add [[INDEX]], {{v[0-9]+}}

@@ -52,7 +52,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         loop {
             let docs = self.parse_doc_comments();
             if self.check_keyword(sym::object) {
-                children.push(self.parse_yul_object(docs)?);
+                children.push(
+                    self.with_recursion_limit("Yul object", |this| this.parse_yul_object(docs))?,
+                );
             } else if self.check_keyword(sym::data) {
                 data.push(self.parse_yul_data()?);
             } else {
@@ -334,7 +336,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
     /// Parses a Yul expression.
     fn parse_yul_expr(&mut self) -> PResult<'sess, Expr<'ast>> {
-        self.parse_spanned(Self::parse_yul_expr_kind).map(|(span, kind)| Expr { span, kind })
+        self.with_recursion_limit("Yul expression", |this| {
+            this.parse_spanned(Self::parse_yul_expr_kind).map(|(span, kind)| Expr { span, kind })
+        })
     }
 
     /// Parses a Yul expression kind.

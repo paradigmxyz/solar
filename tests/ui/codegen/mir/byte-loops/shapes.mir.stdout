@@ -674,7 +674,7 @@ fn @wordsFromCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0xd35cf802
   bb1:                                            ; preds = bb0, bb3
     v14 = phi [bb0: arg0], [bb3: v14]
     v15 = phi [bb0: v13], [bb3: v15]
-    v16 = phi [bb0: 0], [bb3: v34]
+    v16 = phi [bb0: 0], [bb3: v33]
     v17 = extract_value slice<calldata>, v14, 1
     v18 = lt v16, v17
     jumpi v18, bb4, bb5
@@ -689,24 +689,22 @@ fn @wordsFromCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0xd35cf802
     icall panic_if<0x32>, v21
     v22 = extract_value slice<calldata>, v14, 0
     v23 = mul v16, 32
-    v24 = gt v16, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v24
-    v25 = ptrtoint ptr<calldata> v22 to i256
-    v26 = add v25, v23
-    v27 = calldataload v26
-    v28 = mload v15
-    v29 = lt v16, v28
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = shl v16, 5
-    v32 = ptradd v15, v31
-    v33 = ptradd v32, 32
-    mstore v33, v27
+    v24 = ptrtoint ptr<calldata> v22 to i256
+    v25 = add v24, v23
+    v26 = calldataload v25
+    v27 = mload v15
+    v28 = lt v16, v27
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    v30 = shl v16, 5
+    v31 = ptradd v15, v30
+    v32 = ptradd v31, 32
+    mstore v32, v26
     jump bb6
   bb6:                                            ; preds = bb4
     jump bb3
   bb3:                                            ; preds = bb6
-    v34 = checked_add uint256, v16, 1
+    v33 = checked_add uint256, v16, 1
     jump bb1
 }
 
