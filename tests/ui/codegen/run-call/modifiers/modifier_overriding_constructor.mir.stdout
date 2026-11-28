@@ -1,6 +1,6 @@
 ; === ROOT/tests/ui/codegen/run-call/modifiers/modifier_overriding_constructor.sol:A ===
 @module A
-; constructor() mod1 [creation entry]
+; constructor() m [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -25,11 +25,11 @@ fn @getData() -> i256 [selector=0x3bc5de30, abi_params=[], abi_returns=[word], a
 
 ; === ROOT/tests/ui/codegen/run-call/modifiers/modifier_overriding_constructor.sol:C ===
 @module C
-; creation entry
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = or v0, 4
+    v1 = or v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = or v2, 2
@@ -40,6 +40,9 @@ fn @constructor() [constructor] {
   bb2:                                            ; preds = bb3
     jump bb1
   bb1:                                            ; preds = bb2
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = or v4, 4
+    sstore 0, v5 !metadata(storage=slot(0))
     ret
 }
 

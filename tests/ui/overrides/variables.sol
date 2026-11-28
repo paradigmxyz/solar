@@ -5,7 +5,7 @@ contract BaseWithFunc {
 }
 
 contract BaseWithModifier {
-    modifier onlyOwner() virtual { _; }
+    modifier onlyOwner() { _; }
 }
 
 contract BaseWithPublicVar {

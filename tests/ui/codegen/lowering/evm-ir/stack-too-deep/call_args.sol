@@ -3,7 +3,7 @@
 //@ run-call: call 5 => 290
 //@ run-call-fail: call 115792089237316195423570985008687907853269984665640564039457584007913129639917 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 // solc 0.8.30 without --via-ir reports `Stack too deep` for this contract.
-pragma solidity ^0.8.0;
+pragma solidity ^0.9.0;
 
 contract StackTooDeepCall {
     // The twenty arguments differ by constants, so each is computed from `x + 1` where it is

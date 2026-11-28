@@ -179,24 +179,6 @@ contract SafeOverride is ReviewedBase {
     }
 }
 
-abstract contract ModifiedBase {
-    modifier m() virtual {
-        _;
-    }
-
-    /// @custom:solar-trusted
-    function f() external m returns (uint256) {
-        return 1;
-    }
-}
-
-/// @custom:solar-safe
-contract SafeModifier is ModifiedBase {
-    modifier m() override {
-        assembly { mstore(0x40, 0) } //~ ERROR: `SafeModifier` is tagged `@custom:solar-safe` but runs inline assembly
-        _;
-    }
-}
 
 /// @custom:solar-trusted
 abstract contract ReviewedInit {

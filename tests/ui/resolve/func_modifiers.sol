@@ -7,7 +7,7 @@ abstract contract A {
 }
 
 interface B {
-    modifier x() { //~ERROR: modifiers cannot be defined or declared in interfaces
+    modifier x() { //~ERROR: modifiers cannot be defined in interfaces
         _;
     }
 

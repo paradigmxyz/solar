@@ -1,10 +1,10 @@
-//! Override checker for function and modifier overrides in inheritance hierarchies.
+//! Override checker for function overrides and modifier conflicts in inheritance hierarchies.
 //!
 //! This module validates:
 //! - Functions with `override` actually override something
 //! - Base functions must be `virtual` to be overridden
 //! - `override(Base1, Base2)` must list all bases being overridden in multi-inheritance
-//! - Modifier override validation (same rules as functions)
+//! - Modifiers cannot be overridden, and two inherited modifiers with the same name conflict
 //! - Multi-inheritance conflict detection (diamond inheritance)
 //! - Abstract function checks (non-abstract contracts cannot have unimplemented functions)
 //! - Visibility compatibility (override cannot be more restrictive)
@@ -371,6 +371,17 @@ impl<'gcx> OverrideChecker<'gcx> {
                             "override changes function or public state variable to modifier",
                         );
                     }
+                    if self.has_inherited_name_kind(name, true) {
+                        self.dcx()
+                            .err_code_at(
+                                f.span,
+                                error_code!(5827),
+                                format!("modifier `{name}` is already defined in a base contract"),
+                            )
+                            .note("modifiers cannot be overridden")
+                            .emit();
+                    }
+                    continue;
                 } else if self.has_inherited_name_kind(name, true) {
                     self.dcx().emit_err_code(
                         f.span,
@@ -586,10 +597,6 @@ impl<'gcx> OverrideChecker<'gcx> {
             }
         }
 
-        if base.is_modifier(gcx) {
-            self.check_modifier_signature_compatibility(overriding, base);
-        }
-
         if !overriding.is_implemented(gcx) && base.is_implemented(gcx) {
             self.dcx()
                 .err_code_at(
@@ -655,10 +662,6 @@ impl<'gcx> OverrideChecker<'gcx> {
 
     fn check_mutability_compatibility(&self, overriding: OverrideProxy, base: OverrideProxy) {
         let gcx = self.gcx;
-
-        if base.is_modifier(gcx) {
-            return;
-        }
 
         let overriding_mut = overriding.state_mutability(gcx);
         let base_mut = base.state_mutability(gcx);
@@ -785,45 +788,6 @@ impl<'gcx> OverrideChecker<'gcx> {
         }
     }
 
-    fn check_modifier_signature_compatibility(
-        &self,
-        overriding: OverrideProxy,
-        base: OverrideProxy,
-    ) {
-        let gcx = self.gcx;
-
-        let Some(overriding_id) = overriding.function_id() else { return };
-        let Some(base_id) = base.function_id() else { return };
-
-        let overriding_f = gcx.hir.function(overriding_id);
-        let base_f = gcx.hir.function(base_id);
-
-        if overriding_f.parameters.len() != base_f.parameters.len() {
-            self.dcx().emit_err_code(
-                overriding.span(gcx),
-                error_code!(1078),
-                "override changes modifier signature",
-            );
-            return;
-        }
-
-        for (&over_param, &base_param) in
-            overriding_f.parameters.iter().zip(base_f.parameters.iter())
-        {
-            let over_ty = gcx.type_of_item(over_param.into());
-            let base_ty = gcx.type_of_item(base_param.into());
-
-            if over_ty != base_ty {
-                self.dcx().emit_err_code(
-                    overriding.span(gcx),
-                    error_code!(1078),
-                    "override changes modifier signature",
-                );
-                return;
-            }
-        }
-    }
-
     fn check_ambiguous_overrides(&self) {
         let contract = self.contract();
         if contract.bases.len() <= 1 {
@@ -851,6 +815,21 @@ impl<'gcx> OverrideChecker<'gcx> {
 
         for (sig, bases) in &inherited {
             if own_signatures.contains(sig) {
+                continue;
+            }
+
+            // Modifiers cannot be overridden, so two inherited definitions always conflict.
+            if sig.kind.is_modifier() {
+                let name = sig.name.unwrap();
+                let msg = format!("two or more base classes define modifier `{name}`");
+                let mut diag =
+                    self.dcx().err_code_at(self.contract().name.span, error_code!(3412), msg);
+                for base in bases {
+                    let contract = self.gcx.hir.contract(base.contract(self.gcx).unwrap());
+                    diag = diag
+                        .span_note(base.span(self.gcx), format!("defined in `{}`", contract.name));
+                }
+                diag.emit();
                 continue;
             }
 
@@ -911,19 +890,14 @@ impl<'gcx> OverrideChecker<'gcx> {
             .map(|&c| format!("`{}`", self.gcx.hir.contract(c).name.as_str()))
             .collect();
 
-        let kind = if sig.kind.is_modifier() { "modifier" } else { "function" };
-
         let has_variable = remaining.iter().any(|p| p.is_variable());
         let name_display = sig.name.map(|n| n.to_string()).unwrap_or_else(|| sig.kind.to_string());
-        let msg = format!("derived contract must override {kind} `{name_display}`");
+        let msg = format!("derived contract must override function `{name_display}`");
 
         let mut diag = self.dcx().err_code_at(self.contract().name.span, error_code!(6480), msg);
 
-        diag = diag.note(format!(
-            "two or more base classes define {} with same {}",
-            kind,
-            if sig.kind.is_modifier() { "name" } else { "name and parameter types" }
-        ));
+        diag = diag
+            .note("two or more base classes define function with same name and parameter types");
         diag = diag.note(format!("defined in: {}", base_names.join(", ")));
 
         if has_variable {

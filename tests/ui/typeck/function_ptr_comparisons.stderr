@@ -1,3 +1,21 @@
+error[7641]: comparison of internal function pointers is not allowed
+   ╭▸ ROOT/tests/ui/typeck/function_ptr_comparisons.sol:LL:CC
+   │
+LL │         return internalTarget == internalTarget &&
+   ╰╴               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[7641]: comparison of internal function pointers is not allowed
+   ╭▸ ROOT/tests/ui/typeck/function_ptr_comparisons.sol:LL:CC
+   │
+LL │             ptr == internalOther &&
+   ╰╴            ━━━━━━━━━━━━━━━━━━━━
+
+error[7641]: comparison of internal function pointers is not allowed
+   ╭▸ ROOT/tests/ui/typeck/function_ptr_comparisons.sol:LL:CC
+   │
+LL │             ptr != internalTarget;
+   ╰╴            ━━━━━━━━━━━━━━━━━━━━━
+
 error[2271]: cannot apply builtin operator `!=` to `function ()` and `function () external`
    ╭▸ ROOT/tests/ui/typeck/function_ptr_comparisons.sol:LL:CC
    │
@@ -66,5 +84,5 @@ LL │             FunctionComparisonLib.f == FunctionComparisonLib.g;
    │             │
    ╰╴            function ()
 
-error: aborting due to 9 previous errors
+error: aborting due to 12 previous errors
 

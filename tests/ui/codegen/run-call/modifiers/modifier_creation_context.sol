@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: C::getData => 0x4300
+//@ run-call: C::getData => 0x4320
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_calling_functions_in_creation_context.sol
 
 contract A {
@@ -21,7 +21,7 @@ contract A {
 
     function f3() public virtual {}
 
-    modifier mod1 virtual {
+    modifier mod1 {
         f2();
         _;
     }
@@ -37,9 +37,8 @@ contract A {
 }
 
 contract C is A {
-    modifier mod1 override {
+    constructor() {
         f4();
-        _;
     }
 
     function f3() public override {

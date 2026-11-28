@@ -1,42 +1,96 @@
-warning[9511]: ABI coder v1 is not supported
+error[2745]: ABI coder v1 has been removed
    ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
    │
 LL │ pragma abicoder v1;
    │ ━━━━━━━━━━━━━━━━━━━
    │
-   ├ note: ABI coder v2 is used instead
    ╰ help: remove the pragma or use `pragma abicoder v2`
 
-warning[9511]: ABI coder v1 is not supported
+error[2745]: ABI coder v1 has been removed
    ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
    │
 LL │ pragma abicoder "v1";
    │ ━━━━━━━━━━━━━━━━━━━━━
    │
-   ├ note: ABI coder v2 is used instead
    ╰ help: remove the pragma or use `pragma abicoder v2`
 
-warning[9511]: ABI coder v1 is not supported
+error[2745]: ABI coder v1 has been removed
    ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
    │
 LL │ pragma "abicoder" v1;
    │ ━━━━━━━━━━━━━━━━━━━━━
    │
-   ├ note: ABI coder v2 is used instead
    ╰ help: remove the pragma or use `pragma abicoder v2`
 
-warning[9511]: ABI coder v1 is not supported
+error[2745]: ABI coder v1 has been removed
    ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
    │
 LL │ pragma "abicoder" "v1";
    │ ━━━━━━━━━━━━━━━━━━━━━━━
    │
-   ├ note: ABI coder v2 is used instead
    ╰ help: remove the pragma or use `pragma abicoder v2`
+
+error[2044]: the experimental ABIEncoderV2 pragma has been removed
+   ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
+   │
+LL │ pragma experimental ABIEncoderV2;
+   │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove the pragma; ABI coder v2 is the default
+
+error[2044]: the experimental ABIEncoderV2 pragma has been removed
+   ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
+   │
+LL │ pragma experimental "ABIEncoderV2";
+   │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove the pragma; ABI coder v2 is the default
+
+error[8491]: the experimental SMTChecker pragma has been removed
+   ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
+   │
+LL │ pragma experimental SMTChecker;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[8491]: the experimental SMTChecker pragma has been removed
+   ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
+   │
+LL │ pragma experimental "SMTChecker";
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[2044]: the experimental ABIEncoderV2 pragma has been removed
+   ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
+   │
+LL │ pragma "experimental" ABIEncoderV2;
+   │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove the pragma; ABI coder v2 is the default
+
+error[2044]: the experimental ABIEncoderV2 pragma has been removed
+   ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
+   │
+LL │ pragma "experimental" "ABIEncoderV2";
+   │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove the pragma; ABI coder v2 is the default
+
+error[8491]: the experimental SMTChecker pragma has been removed
+   ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
+   │
+LL │ pragma "experimental" SMTChecker;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[8491]: the experimental SMTChecker pragma has been removed
+   ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
+   │
+LL │ pragma "experimental" "SMTChecker";
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 warning[5333]: source file requires different compiler version (current compiler is SOLC_VERSION)
    ╭▸ ROOT/tests/ui/parser/pragma/pragma_valid.sol:LL:CC
    │
-LL │ pragma solidity ^0.8.30.1;
-   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━
+LL │ pragma solidity ^SOLC_VERSION.1;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 12 previous errors; 1 warning emitted
 

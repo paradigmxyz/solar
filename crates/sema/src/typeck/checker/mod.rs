@@ -1311,6 +1311,14 @@ impl<'gcx> TypeChecker<'gcx> {
         if let Some(common) = common
             && !(assign && common != lhs)
         {
+            if let TyKind::Fn(f) = common.kind
+                && f.is_internal()
+            {
+                let msg = "comparison of internal function pointers is not allowed";
+                let span = lhs_e.span.to(rhs_e.span);
+                let guar = self.dcx().emit_err_code(span, error_code!(7641), msg);
+                return self.gcx.mk_ty_err(guar);
+            }
             if let (true, Some(expr_id)) = (record_common, expr_id) {
                 self.results.ast.solc_tys.insert(expr_id, common);
             }
@@ -3935,16 +3943,6 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         // contract's other base argument lists, in `check_contract_header`.
         if matches!(modifier.id, hir::ItemId::Contract(_)) {
             return ControlFlow::Continue(());
-        }
-        if modifier.qualified
-            && let Some(id) = modifier.id.as_function()
-            && self.gcx.hir.function(id).body.is_none()
-        {
-            self.dcx()
-                .err_code_at(modifier.span, error_code!(1835), "cannot call unimplemented modifier")
-                .note("the modifier has no implementation in the referenced contract")
-                .help("refer to it by its unqualified name to call the implementation in the most derived contract")
-                .emit();
         }
         let Some(param_tys) = self.gcx.item_parameter_types_opt(modifier.id) else {
             return self.walk_modifier(modifier);

@@ -739,13 +739,13 @@ fn renames_override_families_but_not_function_typed_parameters() {
         //- /OverrideFamily.sol
         contract Base {
             function $1run() public virtual {}
-            modifier $3guard() virtual { _; }
+            modifier $3guard() { _; }
             function $10hook(uint256 x) public virtual returns (uint256) { return x; }
         }
 
         contract Child is Base {
             function $2run() public override {}
-            modifier $4guard() override { _; }
+            modifier other() { _; }
             function call() public $5guard { $6run(); }
             function use(function(uint256) external returns (uint256) $11hook, uint256 x)
                 public returns (uint256) { return $12hook(x); }
@@ -766,7 +766,7 @@ fn renames_override_families_but_not_function_typed_parameters() {
     fixture.check_renames(
         &[
             ("$1 $2 $6", "renamed"),
-            ("$3 $4 $5", "checked"),
+            ("$3 $5", "checked"),
             ("$7 $8 $9", "amount"),
             ("$11 $12", "callback"),
             ("$10", "renamed"),
@@ -776,9 +776,8 @@ $1 $2 $6:
 /OverrideFamily.sol:1:13-1:16 -> renamed
 /OverrideFamily.sol:6:13-6:16 -> renamed
 /OverrideFamily.sol:8:35-8:38 -> renamed
-$3 $4 $5:
+$3 $5:
 /OverrideFamily.sol:2:13-2:18 -> checked
-/OverrideFamily.sol:7:13-7:18 -> checked
 /OverrideFamily.sol:8:27-8:32 -> checked
 $7 $8 $9:
 /OverrideFamily.sol:13:13-13:18 -> amount
@@ -1088,7 +1087,7 @@ fn preserves_import_aliases_in_declaration_free_batches() {
     let fixture = RequestFixture::new_in_batches(
         r#"
         //- /Empty.sol
-        pragma solidity ^0.8.0;
+        pragma solidity ^0.9.0;
 
         //- /Main.sol
         import "./Empty.sol" as $1Alias;

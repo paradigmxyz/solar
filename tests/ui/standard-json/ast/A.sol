@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.9.0;
 pragma abicoder v2;
 
 import {Math as M, Num} from "./B.sol";
@@ -40,7 +40,7 @@ interface IFallback {
 }
 
 abstract contract Base {
-    modifier onlyOwner() virtual {
+    modifier onlyOwner() {
         _;
     }
 

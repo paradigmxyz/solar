@@ -1,0 +1,8 @@
+error[7801]: library functions cannot be `virtual`
+   ╭▸ ROOT/tests/ui/typeck/libraries/library_modifier.sol:LL:CC
+   │
+LL │     function g() internal virtual returns (uint256) { return 1; }
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

@@ -21,7 +21,7 @@
 //@ run-call: findReturn [1, 2, 3, 4, 5], 7 => 5
 //@ run-call: count [1, 2, 0, 4], 3 => 2
 //@ run-call: count [5, 6], 6 => 2
-pragma solidity ^0.8.0;
+pragma solidity ^0.9.0;
 
 // A search leaves its loop at a match as well as at the end, and still unrolls: every copy
 // tests for a match, and the block after a match takes the pointer each copy reached through

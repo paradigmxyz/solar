@@ -18,7 +18,7 @@
 //@ run-call: siftValues 16, 17 => [3, 7, 2, 10, 6, 0, 9, 5, 1, 8, 4, 111, 7, 3, 10, 6]
 //@ run-call-fail: siftValues 3, 6 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call: literalInLoop 1, [7, 0, 0, 0] => 3
-pragma solidity ^0.8.0;
+pragma solidity ^0.9.0;
 
 // A counted loop whose bound is not the length of the arrays it checks its accesses against
 // gets a copy without those checks, behind a test that the bound does not exceed the lengths.

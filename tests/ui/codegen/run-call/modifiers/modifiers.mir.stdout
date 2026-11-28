@@ -238,44 +238,6 @@ fn @repeated() -> i256 [selector=0xc7642fc4, abi_params=[], abi_returns=[word], 
     ret v0
 }
 
-; === ROOT/tests/ui/codegen/run-call/modifiers/modifiers.sol:ModBase ===
-@module ModBase
-; function guardedV() public vguard returns (uint256) [selector 0x099f200a]
-fn @guardedV() -> i256 [selector=0x099f200a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_add uint256, v0, 1
-    sstore 0, v1 !metadata(storage=slot(0))
-    v2 = sload 0 !metadata(storage=slot(0))
-    jump bb2
-  bb2:                                            ; preds = bb0
-    jump bb1
-  bb1:                                            ; preds = bb2
-    ret v2
-}
-
-; === ROOT/tests/ui/codegen/run-call/modifiers/modifiers.sol:ModDerived ===
-@module ModDerived
-; creation entry
-fn @constructor() [constructor] {
-  bb0:
-    ret
-}
-
-; function guardedV() public vguard returns (uint256) [selector 0x099f200a]
-fn @guardedV() -> i256 [selector=0x099f200a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = checked_add uint256, v0, 100
-    sstore 0, v1 !metadata(storage=slot(0))
-    v2 = sload 0 !metadata(storage=slot(0))
-    jump bb2
-  bb2:                                            ; preds = bb0
-    jump bb1
-  bb1:                                            ; preds = bb2
-    ret v2
-}
-
 ; === ROOT/tests/ui/codegen/run-call/modifiers/modifiers.sol:CtorMod ===
 @module CtorMod
 ; constructor() init [creation entry]

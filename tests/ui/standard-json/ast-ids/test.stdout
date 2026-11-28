@@ -16,7 +16,7 @@
       "id": 0,
       "ast": {
         "id": 12,
-        "src": "32:228:0",
+        "src": "32:227:0",
         "nodeType": "SourceUnit",
         "absolutePath": "A.sol",
         "exportedSymbols": {
@@ -28,21 +28,21 @@
         "nodes": [
           {
             "id": 13,
-            "src": "32:24:0",
+            "src": "32:23:0",
             "nodeType": "PragmaDirective",
             "literals": [
               "solidity",
               "^",
-              "0.8",
-              ".20"
+              "0.9",
+              ".0"
             ]
           },
           {
             "id": 0,
-            "src": "58:201:0",
+            "src": "57:201:0",
             "nodeType": "ContractDefinition",
             "name": "A",
-            "nameLocation": "67:1:0",
+            "nameLocation": "66:1:0",
             "contractKind": "contract",
             "abstract": false,
             "baseContracts": [],
@@ -53,13 +53,13 @@
             "nodes": [
               {
                 "id": 5,
-                "src": "75:20:0",
+                "src": "74:20:0",
                 "nodeType": "VariableDeclaration",
                 "name": "count",
-                "nameLocation": "90:5:0",
+                "nameLocation": "89:5:0",
                 "typeName": {
                   "id": 14,
-                  "src": "75:7:0",
+                  "src": "74:7:0",
                   "nodeType": "ElementaryTypeName",
                   "name": "uint256",
                   "typeDescriptions": {
@@ -81,13 +81,13 @@
               },
               {
                 "id": 6,
-                "src": "101:30:0",
+                "src": "100:30:0",
                 "nodeType": "VariableDeclaration",
                 "name": "owner",
-                "nameLocation": "126:5:0",
+                "nameLocation": "125:5:0",
                 "typeName": {
                   "id": 15,
-                  "src": "101:7:0",
+                  "src": "100:7:0",
                   "nodeType": "ElementaryTypeName",
                   "name": "address",
                   "typeDescriptions": {
@@ -110,13 +110,13 @@
               },
               {
                 "id": 7,
-                "src": "137:31:0",
+                "src": "136:31:0",
                 "nodeType": "VariableDeclaration",
                 "name": "decimals",
-                "nameLocation": "160:8:0",
+                "nameLocation": "159:8:0",
                 "typeName": {
                   "id": 16,
-                  "src": "137:5:0",
+                  "src": "136:5:0",
                   "nodeType": "ElementaryTypeName",
                   "name": "uint8",
                   "typeDescriptions": {
@@ -138,7 +138,7 @@
               },
               {
                 "id": 4,
-                "src": "175:82:0",
+                "src": "174:82:0",
                 "nodeType": "FunctionDefinition",
                 "name": "",
                 "nameLocation": "-1:-1:-1",
@@ -147,18 +147,18 @@
                 "virtual": false,
                 "parameters": {
                   "id": 18,
-                  "src": "186:16:0",
+                  "src": "185:16:0",
                   "nodeType": "ParameterList",
                   "parameters": [
                     {
                       "id": 11,
-                      "src": "187:14:0",
+                      "src": "186:14:0",
                       "nodeType": "VariableDeclaration",
                       "name": "owner_",
-                      "nameLocation": "195:6:0",
+                      "nameLocation": "194:6:0",
                       "typeName": {
                         "id": 19,
-                        "src": "187:7:0",
+                        "src": "186:7:0",
                         "nodeType": "ElementaryTypeName",
                         "name": "address",
                         "typeDescriptions": {
@@ -182,7 +182,7 @@
                 },
                 "returnParameters": {
                   "id": 17,
-                  "src": "203:0:0",
+                  "src": "202:0:0",
                   "nodeType": "ParameterList",
                   "parameters": []
                 },
@@ -192,21 +192,21 @@
                 "visibility": "public",
                 "body": {
                   "id": 20,
-                  "src": "203:54:0",
+                  "src": "202:54:0",
                   "nodeType": "Block",
                   "statements": [
                     {
                       "id": 21,
-                      "src": "213:14:0",
+                      "src": "212:14:0",
                       "nodeType": "ExpressionStatement",
                       "expression": {
                         "id": 22,
-                        "src": "213:14:0",
+                        "src": "212:14:0",
                         "nodeType": "Assignment",
                         "operator": "=",
                         "leftHandSide": {
                           "id": 23,
-                          "src": "213:5:0",
+                          "src": "212:5:0",
                           "nodeType": "Identifier",
                           "name": "owner",
                           "referencedDeclaration": 6,
@@ -218,7 +218,7 @@
                         },
                         "rightHandSide": {
                           "id": 24,
-                          "src": "221:6:0",
+                          "src": "220:6:0",
                           "nodeType": "Identifier",
                           "name": "owner_",
                           "referencedDeclaration": 11,
@@ -234,22 +234,21 @@
                         },
                         "isLValue": false,
                         "isPure": false,
-                        "isConstant": false,
                         "lValueRequested": false
                       }
                     },
                     {
                       "id": 25,
-                      "src": "237:13:0",
+                      "src": "236:13:0",
                       "nodeType": "ExpressionStatement",
                       "expression": {
                         "id": 26,
-                        "src": "237:13:0",
+                        "src": "236:13:0",
                         "nodeType": "Assignment",
                         "operator": "=",
                         "leftHandSide": {
                           "id": 27,
-                          "src": "237:8:0",
+                          "src": "236:8:0",
                           "nodeType": "Identifier",
                           "name": "decimals",
                           "referencedDeclaration": 7,
@@ -261,7 +260,7 @@
                         },
                         "rightHandSide": {
                           "id": 28,
-                          "src": "248:2:0",
+                          "src": "247:2:0",
                           "nodeType": "Literal",
                           "kind": "number",
                           "value": "18",
@@ -272,7 +271,6 @@
                           },
                           "isLValue": false,
                           "isPure": true,
-                          "isConstant": false,
                           "lValueRequested": false
                         },
                         "typeDescriptions": {
@@ -281,7 +279,6 @@
                         },
                         "isLValue": false,
                         "isPure": false,
-                        "isConstant": false,
                         "lValueRequested": false
                       }
                     }

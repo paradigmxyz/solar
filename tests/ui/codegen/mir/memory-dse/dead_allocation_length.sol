@@ -8,7 +8,7 @@
 //@ run-call-fail: 0xdeadbeef5ed7ca5b => 0x
 //@ run-call-fail: 0xdeadbeef
 //@ run-call: relay 0x1234 => 0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000021234000000000000000000000000000000000000000000000000000000000000
-pragma solidity ^0.8.0;
+pragma solidity ^0.9.0;
 
 // A `bytes` object handed to a call, and the returndata copy a proxy bubbles up, keep their
 // length words in memory only for the code that reads them. Once forwarding replaces those

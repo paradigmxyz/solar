@@ -1,0 +1,62 @@
+error[2785]: modifiers cannot be marked `virtual` or `override`
+   ╭▸ ROOT/tests/ui/parser/virtual_modifier.sol:LL:CC
+   │
+LL │     modifier a() virtual { _; }
+   │                  ━━━━━━━
+   │
+   ╰ note: virtual modifiers have been removed
+
+error[2785]: modifiers cannot be marked `virtual` or `override`
+   ╭▸ ROOT/tests/ui/parser/virtual_modifier.sol:LL:CC
+   │
+LL │     modifier b() override { _; }
+   │                  ━━━━━━━━
+   │
+   ╰ note: virtual modifiers have been removed
+
+error[2785]: modifiers cannot be marked `virtual` or `override`
+   ╭▸ ROOT/tests/ui/parser/virtual_modifier.sol:LL:CC
+   │
+LL │     modifier c() override(A) { _; }
+   │                  ━━━━━━━━━━━
+   │
+   ╰ note: virtual modifiers have been removed
+
+error[2785]: modifiers cannot be marked `virtual` or `override`
+   ╭▸ ROOT/tests/ui/parser/virtual_modifier.sol:LL:CC
+   │
+LL │     modifier d virtual override { _; }
+   │                ━━━━━━━
+   │
+   ╰ note: virtual modifiers have been removed
+
+error[2785]: modifiers cannot be marked `virtual` or `override`
+   ╭▸ ROOT/tests/ui/parser/virtual_modifier.sol:LL:CC
+   │
+LL │     modifier d virtual override { _; }
+   │                        ━━━━━━━━
+   │
+   ╰ note: virtual modifiers have been removed
+
+error[8063]: modifiers without implementation are not allowed
+   ╭▸ ROOT/tests/ui/parser/virtual_modifier.sol:LL:CC
+   │
+LL │     modifier e();
+   ╰╴                ━
+
+error[2785]: modifiers cannot be marked `virtual` or `override`
+   ╭▸ ROOT/tests/ui/parser/virtual_modifier.sol:LL:CC
+   │
+LL │     modifier f() virtual;
+   │                  ━━━━━━━
+   │
+   ╰ note: virtual modifiers have been removed
+
+error[8063]: modifiers without implementation are not allowed
+   ╭▸ ROOT/tests/ui/parser/virtual_modifier.sol:LL:CC
+   │
+LL │     modifier f() virtual;
+   ╰╴                        ━
+
+error: aborting due to 8 previous errors
+

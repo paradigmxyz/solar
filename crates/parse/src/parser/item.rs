@@ -170,6 +170,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         });
         self.in_modifier = was_in_modifier;
         let (body_span, body) = body?;
+        if kind.is_modifier() && body.is_none() {
+            let msg = "modifiers without implementation are not allowed";
+            self.dcx().emit_err_code(body_span, error_code!(8063), msg);
+        }
 
         if !self.in_contract && !kind.allowed_in_global() {
             let msg = format!("{kind}s are not allowed in the global scope");
@@ -304,7 +308,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 }
             } else if self.eat_keyword(kw::Virtual) {
                 let span = self.prev_token.span;
-                if !flags.contains(FunctionFlags::VIRTUAL) {
+                if flags == FunctionFlags::MODIFIER {
+                    self.emit_virtual_modifier_err(span);
+                } else if !flags.contains(FunctionFlags::VIRTUAL) {
                     let msg = "`virtual` is not allowed here";
                     self.dcx().emit_err(span, msg);
                 } else if let Some(prev) = header.virtual_ {
@@ -316,7 +322,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             } else if self.eat_keyword(kw::Override) {
                 let o = self.parse_override()?;
                 let span = o.span;
-                if !flags.contains(FunctionFlags::OVERRIDE) {
+                if flags == FunctionFlags::MODIFIER {
+                    self.emit_virtual_modifier_err(span);
+                } else if !flags.contains(FunctionFlags::OVERRIDE) {
                     let msg = "`override` is not allowed here";
                     self.dcx().emit_err(span, msg);
                 } else if let Some(prev) = &header.override_ {
@@ -339,6 +347,14 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
         header.modifiers = self.alloc_vec(modifiers);
         Ok(())
+    }
+
+    fn emit_virtual_modifier_err(&self, span: Span) {
+        let msg = "modifiers cannot be marked `virtual` or `override`";
+        self.dcx()
+            .err_code_at(span, error_code!(2785), msg)
+            .note("virtual modifiers have been removed")
+            .emit();
     }
 
     /// Parses a struct definition.
@@ -1304,9 +1320,7 @@ bitflags::bitflags! {
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.modifierDefinition
         const MODIFIER    = Self::NAME.bits()
-                          | Self::NO_PARENS.bits()
-                          | Self::VIRTUAL.bits()
-                          | Self::OVERRIDE.bits();
+                          | Self::NO_PARENS.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.fallbackFunctionDefinition
         const FALLBACK    = Self::EXTERNAL.bits()
@@ -1786,7 +1800,6 @@ mod tests {
                 None,
             ),
             ("function foo() virtual override {}", None, None, Some("virtual"), "()", None),
-            ("modifier bar() virtual {}", None, None, Some("virtual"), "()", None),
             (
                 "function foo() public virtual returns (uint) {}",
                 Some("public"),

@@ -1347,8 +1347,8 @@ impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemFunction<'_>, Option<hir
             let free = !cx.in_contract && function.kind.is_ordinary();
             m.entry("kind", if free { "freeFunction" } else { function.kind.to_str() });
             m.entry("stateMutability", header.state_mutability().to_str());
+            m.entry("virtual", &header.virtual_());
         }
-        m.entry("virtual", &header.virtual_());
         if let Some(overrides) = &header.override_ {
             m.entry("overrides", &cx.w((overrides, f.map(|f| f.overrides))));
         }
@@ -1413,9 +1413,8 @@ impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemFunction<'_>, Option<hir
                 m.entry("functionSelector", &hex::encode(gcx.function_selector(id)));
             }
             let bases = gcx.base_override_items(id.into());
-            if !bases.is_empty() {
-                let key = if is_modifier { "baseModifiers" } else { "baseFunctions" };
-                m.entry(key, &sorted_ids(*cx, bases.iter().copied()));
+            if !is_modifier && !bases.is_empty() {
+                m.entry("baseFunctions", &sorted_ids(*cx, bases.iter().copied()));
             }
         }
         m.end()

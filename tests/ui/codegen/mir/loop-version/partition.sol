@@ -23,7 +23,7 @@
 //@ run-call: sort [2, 1, 2, 2, 1, 1, 2, 0, 0, 2, 0, 2, 1, 2, 0, 2, 0] => [0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2]
 //@ run-call: sort [20, 97, 75, 5, 38, 99, 3, 34, 60, 76, 92, 49, 91, 54, 50, 93, 73, 56, 17, 46, 12, 4, 17, 63, 27, 33, 86, 55, 99, 80, 38, 53, 64] => [3, 4, 5, 12, 17, 17, 20, 27, 33, 34, 38, 38, 46, 49, 50, 53, 54, 55, 56, 60, 63, 64, 73, 75, 76, 80, 86, 91, 92, 93, 97, 99, 99]
 //@ run-call: sort [1, 2, 1, 2, 2, 1, 2, 0, 1, 2, 0, 1, 2, 2, 2, 0, 2, 1, 2, 2, 2, 0, 2, 2, 0, 2, 2, 1, 1, 0, 0, 1, 2] => [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
-pragma solidity ^0.8.0;
+pragma solidity ^0.9.0;
 
 // A Hoare partition's loop gets a copy whose scans run without their bounds checks, behind a test
 // that the scans stop at the elements at both ends of the range; the swaps keep the elements they

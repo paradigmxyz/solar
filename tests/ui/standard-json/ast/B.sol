@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.9.0;
 
 library Math {
     function twice(uint256 a) internal pure returns (uint256) {

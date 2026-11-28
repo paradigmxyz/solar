@@ -193,7 +193,6 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
         self.argument_types(m, parent);
         m.entry("isLValue", &is_lvalue);
         m.entry("isPure", &self.gcx.is_pure(self.pure, expr));
-        m.entry("isConstant", &false);
         m.entry("lValueRequested", &parent.lvalue);
     }
 
@@ -960,7 +959,6 @@ impl<'gcx> Serialize for W<'_, 'gcx, PayableCallee<'gcx>> {
             cx.argument_types(m, Parent { args: Some(*args), ..Parent::default() });
             m.entry("isLValue", &false);
             m.entry("isPure", &true);
-            m.entry("isConstant", &false);
             m.entry("lValueRequested", &false);
         })
     }
@@ -1037,7 +1035,6 @@ impl<'gcx> Serialize for W<'_, 'gcx, TypeExpr<'_, '_, 'gcx>> {
             cx.argument_types(m, *parent);
             m.entry("isLValue", &false);
             m.entry("isPure", &true);
-            m.entry("isConstant", &false);
             m.entry("lValueRequested", &false);
         };
         let kind = hir.map(|hir| &hir.kind);
@@ -1200,7 +1197,6 @@ impl<'gcx> Serialize for W<'_, 'gcx, PathExpr<'_, 'gcx>> {
             // A member of a module is pure, but a member of a contract is not.
             let of_module = res.len().checked_sub(2).and_then(|i| res[i]);
             m.entry("isPure", &matches!(of_module, Some(Res::Namespace(_))));
-            m.entry("isConstant", &false);
             m.entry("lValueRequested", &false);
         })
     }

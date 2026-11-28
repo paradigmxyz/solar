@@ -1,7 +1,7 @@
 //@compile-flags: -Zdump=evm-ir-runtime --pretty-json
 //@ filecheck:
 // solc 0.8.30 without --via-ir reports `Stack too deep` for this contract.
-pragma solidity ^0.8.0;
+pragma solidity ^0.9.0;
 
 contract StackTooDeepParams {
     // CHECK-LABEL: @module StackTooDeepParams_runtime

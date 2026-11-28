@@ -13,7 +13,7 @@
 //@ run-call-fail: checked 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call: checkedConstant 4 => 8
 //@ run-call-fail: checkedConstant 0x8000000000000000000000000000000000000000000000000000000000000000; gas=100000
-pragma solidity ^0.8.0;
+pragma solidity ^0.9.0;
 
 contract Recurrences {
     function sum(uint256 x, uint256 y, uint256 step, uint256 n) external pure returns (uint256, uint256, uint256 i) {

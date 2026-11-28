@@ -54,7 +54,7 @@ Status: intentional.
 
 Difference: `solar` always emits full ethdebug output for the
 `evm.bytecode.ethdebug`, `evm.deployedBytecode.ethdebug` and `ethdebug.*`
-selections. `solc` 0.8.39 emits no semantic debug info for the program outputs
+selections. `solc` 0.9.0 emits no semantic debug info for the program outputs
 unless `settings.debug.debugInfo` contains `ethdebug`, and rejects ethdebug
 outputs and `ethdebug` in `debugInfo` unless `settings.experimental` is set.
 `solar` has no `settings.experimental` and ignores it. It rejects `ethdebug`
@@ -75,7 +75,7 @@ Coverage: `tests/ui/standard-json/debug/ethdebug-output-without-debug-info`,
 Status: intentional.
 
 Difference: contract metadata names the compiler as
-`"compiler": {"name": "solar", "version": "0.8.39+commit.d9f23fbe.solar.0.3.0"}`,
+`"compiler": {"name": "solar", "version": "0.9.0+commit.d9f23fbe.solar.0.3.0"}`,
 where solc writes only `"version": "0.8.28+commit.7893614a"`. The version is
 the solc-compatible form that `SOLC_WRAPPER=1 solar --version` prints: the
 emulated solc version, then the Solar commit and version as build metadata.
@@ -142,6 +142,27 @@ output still come from the command line.
 Coverage: `tests/ui/standard-json/codegen-error.jsonc`,
 `tests/ui/standard-json/debug/cli-flag-ignored/test.jsonc` and
 `tests/ui/standard-json/metadata/options/test.jsonc`.
+
+## Options
+
+### OPTION-001: EVM versions before Constantinople
+
+Status: intentional.
+
+Difference: `solc` 0.9.0 dropped the `homestead`, `tangerineWhistle`,
+`spuriousDragon` and `byzantium` EVM versions and rejects them in
+`--evm-version` and Standard JSON. `solar` still accepts them and generates
+code for them. It keeps the checks that `solc` removed with them, such as the
+Yul errors for builtins those versions lack, `staticcall` and `salt` errors, and
+the errors for typed `catch` clauses before Byzantium.
+
+Rationale: dropping the versions would only remove features. Their lowerings
+already exist and are tested, and no 0.9.0 language change depends on their
+removal.
+
+Coverage: `tests/ui/typeck/evm_version/byzantium.sol`,
+`tests/ui/assembly/yul_builtins_byzantium_evm_version.sol` and the other tests
+that pass `--evm-version homestead` or `--evm-version byzantium`.
 
 ## Import Resolution
 
@@ -528,10 +549,10 @@ Status: intentional.
 Difference: Solar rejects copying or ABI-encoding fixed arrays with more than
 `2^64 - 1` elements during type checking, including arrays nested in structs.
 It still accepts their storage declarations, indexed accesses, and storage
-reference bindings. Solc 0.8.39 compiles the storage-to-storage array, tuple,
+reference bindings. Solc 0.9.0 compiles the storage-to-storage array, tuple,
 and struct copies covered by the fixture, but those copies panic with code
 `0x41` at runtime. ABI-encoding the same array causes an internal compiler
-error in solc 0.8.39. These results hold with optimization enabled or
+error in solc 0.9.0. These results hold with optimization enabled or
 disabled.
 
 Rationale: report unsupported copies at their source during type checking,
@@ -702,7 +723,7 @@ struct's head counts all its members together. The check covers calldata
 variables; parameters of constructors, events, errors and external function
 types; parameters and returns of public and external functions; arguments of
 `abi.encode` and its variants other than `abi.encodePacked`; and `abi.decode`
-types. `solc` 0.8.39 checks only constructor and public callable parameters
+types. `solc` 0.9.0 checks only constructor and public callable parameters
 against calldata, and sizes structs one member at a time, so it accepts, for
 example, an external function that takes a calldata struct with two
 `uint256[134217727]` members.
@@ -1141,20 +1162,6 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `PreAndPostFulfillmentCheckTest::testBasicStateful(uint8,uint8)` at 38
   additional recipients or fewer; 39 already fail.
 
-### CODEGEN-011: ABI coder v1 is not supported
-
-- ID: CODEGEN-011
-- Status: intentional
-- Difference: `solc` applies ABI coder v1's restrictions to a source unit that
-  selects it, so that unit cannot use structs or nested dynamic arrays at ABI
-  boundaries. `solar` warns that ABI coder v1 is not supported, generates ABI
-  coder v2 code, and does not apply v1's restrictions. The warning reuses
-  `solc`'s 9511 code, so `--allow 9511` also hides this change.
-- Rationale: ABI coder v1 is deprecated, and both coders encode the types v1
-  accepts the same way. A second coder would only change which types compile.
-- Coverage: `tests/ui/codegen/run-call/abi-decode/abicoder_v1_uses_v2.sol` and
-  `tests/ui/parser/pragma/pragma_valid.sol`.
-
 ### CODEGEN-012: External function pointer suffixes keep only their field bits
 
 - ID: CODEGEN-012
@@ -1423,7 +1430,7 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Status: intentional
 - Difference: a storage-to-storage copy of a struct or array reads the whole
   source into memory, then writes the target. Two things differ from `solc`
-  0.8.39, which copies directly when the operands are disjoint and takes a
+  0.9.0, which copies directly when the operands are disjoint and takes a
   memory snapshot only when it finds the source inside the target.
   - A copy whose source contains its target, such as
     `root.children[0].children[0] = root` or `root.children.push(root)`,

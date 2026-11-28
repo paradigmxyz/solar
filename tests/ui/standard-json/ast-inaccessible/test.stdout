@@ -241,7 +241,6 @@
                           ],
                           "isLValue": false,
                           "isPure": false,
-                          "isConstant": false,
                           "lValueRequested": false
                         },
                         "names": [],
@@ -268,7 +267,6 @@
                         },
                         "isLValue": false,
                         "isPure": false,
-                        "isConstant": false,
                         "lValueRequested": false
                       }
                     },
@@ -289,7 +287,6 @@
                         },
                         "isLValue": false,
                         "isPure": true,
-                        "isConstant": false,
                         "lValueRequested": false
                       },
                       "functionReturnParameters": 13

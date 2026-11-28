@@ -1529,7 +1529,7 @@ fn analysis_uses_nested_dependency_remappings_for_import_resolution() {
         import "x/X.sol"; contract Main { function value() external pure returns (uint) { return X.value(); } }
 
         //- /lib/x/src/X.sol
-        pragma solidity ^0.8.0;
+        pragma solidity ^0.9.0;
         import "y/Vendored.sol";
         library X { function value() internal pure returns (uint) { return Vendored.value(); } }
 
@@ -1537,7 +1537,7 @@ fn analysis_uses_nested_dependency_remappings_for_import_resolution() {
         y/=lib/vendored/
 
         //- /lib/x/lib/vendored/Vendored.sol
-        pragma solidity ^0.8.0;
+        pragma solidity ^0.9.0;
         library Vendored { function value() internal pure returns (uint) { return 7; } }
         "#,
     );

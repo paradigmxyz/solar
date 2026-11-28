@@ -102,7 +102,6 @@
                         },
                         "isLValue": false,
                         "isPure": true,
-                        "isConstant": false,
                         "lValueRequested": false
                       },
                       "functionReturnParameters": 4

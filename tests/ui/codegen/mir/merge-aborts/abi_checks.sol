@@ -25,7 +25,7 @@
 // CHECK: [[REST:v[0-9]+]] = or [[SIGNED]], {{v[0-9]+}}
 // CHECK-NEXT: [[ANY:v[0-9]+]] = ne [[REST]], 0
 // CHECK-NEXT: jumpi [[ANY]], [[REVERT:bb[0-9]+]], {{bb[0-9]+}}
-pragma solidity ^0.8.0;
+pragma solidity ^0.9.0;
 
 contract AbiChecks {
     function check(bool a, address b, uint96 c, int24 d) external pure returns (uint256 r) {

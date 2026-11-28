@@ -3,7 +3,7 @@
 // CHECK: "nodeType": "SourceUnit"
 // CHECK: "license": "MIT"
 // CHECK: "nodeType": "PragmaDirective"
-// CHECK: ".20"
+// CHECK: ".0"
 // CHECK: "nodeType": "ContractDefinition"
 // CHECK: "nodeType": "FunctionDefinition"
 // CHECK: "nodeType": "ParameterList"

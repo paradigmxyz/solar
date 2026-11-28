@@ -115,7 +115,6 @@
               },
               "isLValue": false,
               "isPure": true,
-              "isConstant": false,
               "lValueRequested": false
             },
             "scope": 16,
@@ -203,7 +202,6 @@
                   },
                   "isLValue": false,
                   "isPure": true,
-                  "isConstant": false,
                   "lValueRequested": false
                 },
                 "scope": 0,
@@ -246,7 +244,6 @@
                   },
                   "isLValue": false,
                   "isPure": true,
-                  "isConstant": false,
                   "lValueRequested": false
                 },
                 "scope": 0,
@@ -262,7 +259,6 @@
                 "nodeType": "ModifierDefinition",
                 "name": "m",
                 "nameLocation": "223:1:0",
-                "virtual": false,
                 "parameters": {
                   "id": 27,
                   "src": "224:2:0",
@@ -399,7 +395,6 @@
                         },
                         "isLValue": false,
                         "isPure": true,
-                        "isConstant": false,
                         "lValueRequested": false
                       }
                     },
@@ -486,7 +481,6 @@
                             },
                             "isLValue": false,
                             "isPure": true,
-                            "isConstant": false,
                             "lValueRequested": false
                           },
                           {
@@ -502,7 +496,6 @@
                             },
                             "isLValue": false,
                             "isPure": true,
-                            "isConstant": false,
                             "lValueRequested": false
                           }
                         ],
@@ -512,7 +505,6 @@
                         },
                         "isLValue": false,
                         "isPure": true,
-                        "isConstant": false,
                         "lValueRequested": false
                       }
                     },
@@ -558,7 +550,6 @@
                             },
                             "isLValue": false,
                             "isPure": true,
-                            "isConstant": false,
                             "lValueRequested": false
                           }
                         ],
@@ -570,7 +561,6 @@
                         },
                         "isLValue": false,
                         "isPure": false,
-                        "isConstant": false,
                         "lValueRequested": false
                       }
                     },
@@ -624,7 +614,6 @@
                         },
                         "isLValue": false,
                         "isPure": false,
-                        "isConstant": false,
                         "lValueRequested": false
                       }
                     }

@@ -5,7 +5,7 @@
 //@ run-call: inclusive() => 7
 //@ run-call: inclusiveStep() => 7
 //@ run-call: fullRange() => 7
-pragma solidity ^0.8.0;
+pragma solidity ^0.9.0;
 
 contract CounterWrap {
     function below() external pure returns (uint256) {

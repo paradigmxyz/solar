@@ -1,7 +1,7 @@
 //@ filecheck:
 // Assembly blocks in a free function, a modifier, a constructor, `receive` and a function with an
 // `unchecked` block, which define Yul functions of the same name, and a constant of another source.
-// CHECK: ".28"
+// CHECK: ".0"
 // CHECK-NEXT: ]
 // CHECK-NEXT: },
 // CHECK-NEXT: {

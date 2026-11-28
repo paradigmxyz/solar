@@ -281,18 +281,32 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 match (name, value) {
                     ("abicoder", Some("v1")) => {
                         self.dcx()
-                            .warn_code_at(
+                            .err_code_at(
                                 self.item_span,
-                                error_code!(9511),
-                                "ABI coder v1 is not supported",
+                                error_code!(2745),
+                                "ABI coder v1 has been removed",
                             )
-                            .note("ABI coder v2 is used instead")
                             .help("remove the pragma or use `pragma abicoder v2`")
                             .emit();
                     }
                     ("abicoder", Some("v2")) => {}
-                    ("experimental", Some("ABIEncoderV2")) => {}
-                    ("experimental", Some("SMTChecker")) => {}
+                    ("experimental", Some("ABIEncoderV2")) => {
+                        self.dcx()
+                            .err_code_at(
+                                self.item_span,
+                                error_code!(2044),
+                                "the experimental ABIEncoderV2 pragma has been removed",
+                            )
+                            .help("remove the pragma; ABI coder v2 is the default")
+                            .emit();
+                    }
+                    ("experimental", Some("SMTChecker")) => {
+                        self.dcx().emit_err_code(
+                            self.item_span,
+                            error_code!(8491),
+                            "the experimental SMTChecker pragma has been removed",
+                        );
+                    }
                     ("experimental", Some("solidity")) => {
                         let msg = "experimental solidity features are not supported";
                         self.dcx().emit_err(self.item_span, msg);

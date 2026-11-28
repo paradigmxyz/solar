@@ -1,17 +1,17 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: ConstructorModifierOverride::getData => 6
+//@ run-call: ConstructorModifierOverride::getData => 7
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_for_constructor.sol
 
 contract ConstructorModifierOverrideBase {
     uint256 data;
 
-    constructor() mod1 {
+    constructor() m {
         data |= 2;
     }
 
-    modifier mod1 virtual {
+    modifier m {
         data |= 1;
         _;
     }
@@ -22,8 +22,7 @@ contract ConstructorModifierOverrideBase {
 }
 
 contract ConstructorModifierOverride is ConstructorModifierOverrideBase {
-    modifier mod1 override {
+    constructor() {
         data |= 4;
-        _;
     }
 }

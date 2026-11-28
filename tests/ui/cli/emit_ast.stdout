@@ -23,7 +23,7 @@
             "literals": [
               "solidity",
               "^",
-              "0.8",
+              "0.9",
               ".0"
             ]
           },
@@ -75,7 +75,6 @@
                   },
                   "isLValue": false,
                   "isPure": true,
-                  "isConstant": false,
                   "lValueRequested": false
                 },
                 "scope": 0,
@@ -231,7 +230,6 @@
                           },
                           "isLValue": false,
                           "isPure": false,
-                          "isConstant": false,
                           "lValueRequested": false
                         },
                         "typeDescriptions": {
@@ -240,7 +238,6 @@
                         },
                         "isLValue": false,
                         "isPure": false,
-                        "isConstant": false,
                         "lValueRequested": false
                       }
                     }

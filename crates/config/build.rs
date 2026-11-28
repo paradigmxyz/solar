@@ -3,7 +3,7 @@ use std::{env, io::Read, path::Path};
 #[cfg(feature = "version")]
 use std::process::Command;
 
-const SOLC_VERSION_FALLBACK: &str = "0.8.39";
+const SOLC_VERSION_FALLBACK: &str = "0.9.0";
 #[cfg(feature = "version")]
 const VERSION_UNKNOWN: &str = "unknown";
 #[cfg(feature = "version")]
