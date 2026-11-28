@@ -28,12 +28,14 @@ class RegionTests(unittest.TestCase):
         self.audits = self.directory / "tv"
 
     def run_command(self, command):
+        # An audited compile of the Solidity examples now runs and proves about 20
+        # region and function checks in sequence, several of them over 20 s.
         return subprocess.run(
             command,
             env={**os.environ, "SOLAR_TV": CLI, "SOLAR": SOLAR},
             text=True,
             capture_output=True,
-            timeout=180,
+            timeout=600,
             check=False,
         )
 
@@ -72,7 +74,8 @@ class RegionTests(unittest.TestCase):
             and record.get("region", {}).get("kind") == "function"
         ]
         self.assertIn("helper", proved_functions)
-        self.assertTrue(any(record["status"] == "unsupported" for record in records))
+        # Every pass on this contract now has a proof; none may stay unsupported.
+        self.assertTrue(all(record["status"] == "verified" for record in records))
         self.assertTrue(all(record["whole_pass"] is False for record in records))
 
     def test_solidity_evm_windows_keep_bytecode(self):
@@ -154,13 +157,16 @@ class RegionTests(unittest.TestCase):
         before = self.compile("windows.sol", ["--emit=bin,bin-runtime"])
         after = self.compile("windows.sol", ["--emit=bin,bin-runtime"], audit=True)
         self.assertEqual(json.loads(before.stdout), json.loads(after.stdout))
-        self.assertTrue(
-            any(
-                record["layer"] == "evmir"
-                and record.get("region", {}).get("kind") == "region"
-                for record in self.records()
-            )
-        )
+        # Terminal deduplication shares the terminal blocks. It is now checked
+        # with the physical-entry certificate rather than as a local region,
+        # and that check must verify.
+        dedup = [
+            record
+            for record in self.records()
+            if record["layer"] == "evmir" and "`terminal-dedup`" in record["context"]
+        ]
+        self.assertTrue(dedup)
+        self.assertTrue(all(record["status"] == "verified" for record in dedup))
         self.assertNotIn(": counterexample", after.stderr)
 
     def test_join_with_multiple_heights_is_unsupported(self):
@@ -235,23 +241,33 @@ bb2 [stack=0]:
                     ]
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn(
-                    "cyclic EVM regions require loop invariants"
-                    if name == "cycle"
-                    else "universal prefix proof did not close",
-                    result.stderr,
-                )
                 records = [
                     json.loads(path.read_text())
                     for path in (self.audits / name / "audits").glob("*.json")
                 ]
                 self.assertTrue(records)
                 self.assertTrue(
-                    all(record["status"] == "unsupported" for record in records)
-                )
-                self.assertTrue(
                     all(record["region"]["stack_height"] is None for record in records)
                 )
+                if name == "cycle":
+                    # The drifting loop has no fixed entry height, so no stack-height
+                    # proof applies. The edit inside it is local, and the contextual
+                    # peephole proof covers every incoming stack without a loop
+                    # invariant.
+                    self.assertIn(": verified", result.stderr)
+                    self.assertTrue(
+                        all(
+                            record["status"] == "verified"
+                            and record["region"]["proof"]
+                            == "kernel-checked-contextual-peephole"
+                            for record in records
+                        )
+                    )
+                else:
+                    self.assertIn("universal prefix proof did not close", result.stderr)
+                    self.assertTrue(
+                        all(record["status"] == "unsupported" for record in records)
+                    )
 
     def test_non_dense_successors_keep_their_identity(self):
         source = """@module Labels

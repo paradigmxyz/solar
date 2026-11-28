@@ -1,0 +1,9 @@
+killed     Counter.constructor SDL line 11: `limit = _limit;` -> `` (by Counter.constructor)
+killed     Counter.increment SDL line 17: `count += 1;` -> `` (by Counter.increment)
+killed     Counter.increment AOR line 17: `+=` -> `-=` (by Counter.increment)
+killed     Counter.increment CRP line 17: `1` -> `0` (by Counter.increment)
+killed     Counter.bump SDL line 22: `require(count + n <= limit, "over");` -> `` (by Counter.bump)
+killed     Counter.bump ROR line 23: `<` -> `<=` (by Counter.bump)
+survived   Counter.bump AOR line 23: `++` -> `--`
+survived   Counter.max ROR line 31: `>=` -> `>`
+mutation results:: 6 killed, 2 survived, 0 equivalent, 0 undecided, 0 stillborn; score 6/8 = 75%

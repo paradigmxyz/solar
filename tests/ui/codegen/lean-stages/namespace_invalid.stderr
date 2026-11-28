@@ -1,0 +1,4 @@
+error: -Zemit-lean-stages: `-Zlean-stages-namespace` must be dot-separated identifiers, not `Run.1x`
+
+error: aborting due to 1 previous error
+

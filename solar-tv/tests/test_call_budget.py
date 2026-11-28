@@ -67,10 +67,17 @@ class CallBudgetTests(unittest.TestCase):
                     output,
                     "--caller-worlds",
                     worlds,
+                    # Some caller-entry modules, such as the unchanged MIR call
+                    # context and the ABI decoders, take 90-135 s of Lean on a
+                    # busy runner, over the default 60 s per invocation.
+                    "--timeout",
+                    "300",
                 ],
                 capture_output=True,
                 text=True,
-                timeout=1500,
+                # The full certificate runs about 240 Lean modules in sequence:
+                # about 26 minutes on four dedicated cores.
+                timeout=3600,
                 check=False,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

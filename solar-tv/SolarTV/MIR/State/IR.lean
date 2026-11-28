@@ -205,6 +205,9 @@ structure Config where
   builtinGas : List Nat := []
   debugReverts : Bool := false
   messageGas : Option (List Nat) := none
+  /-- Whether any function of the module reads `MSIZE`. Only then does an unhashed packed
+  encoding that does not end on a word also clear the word after it, as the compiler does. -/
+  readsMsize : Bool := false
 
 structure Frame where
   world : Journal

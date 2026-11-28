@@ -1,0 +1,1967 @@
+//! Frontend: collect contracts, flatten inheritance and parse NatSpec specs with Solar's parser.
+use crate::{
+    spec::{QInfo, preprocess},
+    ty::{Ty, parse_ty_text_in},
+};
+use solar_parse::{
+    Parser,
+    ast::{
+        self, ContractKind, ElementaryType, Expr, ItemFunction, ItemKind, NatSpecKind, SourceUnit,
+        Stmt, StmtKind, Type, TypeKind,
+    },
+    interface::{
+        Session, Span,
+        data_structures::map::{FxHashMap, FxHashSet},
+        source_map::FileName,
+    },
+};
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+/// The library that holds the file-level (free) functions of every file: they are called and
+/// verified as internal library functions. The name is no Solidity identifier.
+pub(crate) const FREE: &str = "<free>";
+
+pub(crate) struct Spec<'a> {
+    pub expr: &'a Expr<'a>,
+    pub text: String,
+    pub span: Span,
+}
+
+pub(crate) struct Func<'a> {
+    pub name: String,
+    pub contract: String,
+    pub item: &'a ItemFunction<'a>,
+    pub requires: Vec<Spec<'a>>,
+    pub ensures: Vec<Spec<'a>>,
+    /// `@custom:succeeds_if P`: from a pre-state where P (and the requires) hold, the function
+    /// returns normally.
+    pub succeeds: Vec<Spec<'a>>,
+    pub params: Vec<(String, Ty)>,
+    pub rets: Vec<(String, Ty)>,
+    /// `@custom:spec` / pure-or-view single-expression body: usable inside specs.
+    pub spec_body: Option<&'a Expr<'a>>,
+    /// `@custom:check P`: a claim enforced at runtime (`--instrument` emits it as a require at
+    /// the body's start) and then used as a fact; a failure blames the claim, not the caller.
+    pub checks: Vec<Spec<'a>>,
+    /// `@custom:opaque` on a spec function: specs see an uninterpreted function; its body is
+    /// available only through `@custom:reveal f(args)`.
+    pub opaque: bool,
+    pub trusted: bool,
+    pub synthetic: bool,
+    /// `@custom:` statement specs in the body that no statement carries (a doc comment with no
+    /// statement after it in its block): never silently dropped, verifying the function fails.
+    pub orphans: Vec<(Span, String)>,
+    /// Reached by `@custom:use` (a lemma, or a function a lemma runs): its ensures are assumed
+    /// where it is used, so it must also return normally wherever its requires hold.
+    pub ghost_fn: bool,
+    /// `@custom:broadcast`: a lemma whose requires ==> ensures, over all its parameters, is an
+    /// axiom wherever `@custom:broadcast-use` names it (see `crate::broadcast`).
+    pub broadcast: bool,
+    /// `@custom:trigger e1, e2` on a broadcast lemma: one multi-pattern per tag.
+    pub triggers: Vec<Vec<Spec<'a>>>,
+    /// `@custom:broadcast-use L|G` on the function: lemmas and groups its VCs assume.
+    pub broadcast_use: Vec<(String, Span)>,
+    /// Trusted at a built-in summary (`Math.mulDiv`) rather than at specs of its own.
+    pub summary: bool,
+}
+
+impl Func<'_> {
+    pub(crate) fn has_contract(&self) -> bool {
+        !self.requires.is_empty()
+            || !self.ensures.is_empty()
+            || !self.succeeds.is_empty()
+            || self.item.body.is_none()
+            || self.trusted
+    }
+    pub(crate) fn is_static(&self) -> bool {
+        use ast::StateMutability::*;
+        matches!(self.item.header.state_mutability(), Pure | View)
+    }
+    pub(crate) fn is_entry(&self) -> bool {
+        use ast::Visibility::*;
+        self.item.kind.is_constructor()
+            || matches!(self.item.header.visibility(), None | Some(Public) | Some(External))
+                && !self.item.kind.is_modifier()
+    }
+}
+
+pub(crate) struct StateVar<'a> {
+    pub name: String,
+    pub ty: Ty,
+    pub init: Option<&'a Expr<'a>>,
+    pub constant: bool,
+    pub immutable: bool,
+    pub ghost: bool,
+    /// The `@custom:ghost T name` tag that declared it: a user ghost variable, graded ghost by the
+    /// non-interference check (the model's own ghosts, such as `__balance`, stand for real state).
+    pub ghost_decl: Option<Span>,
+    /// EIP-1153 transient storage (`transient` variables, and the ghost `__traw` behind
+    /// tload/tstore): cleared at the end of every transaction.
+    pub transient: bool,
+    /// The declaration: the variable's, or the `@custom:ghost` tag's; `Span::DUMMY` for the
+    /// model's own state (`__balance` and the like). Two entries of one name are one variable
+    /// only when their spans are equal (`spec_lean` checks a spec's names this way).
+    pub span: Span,
+}
+
+pub(crate) struct Contract<'a> {
+    pub name: String,
+    pub kind: ContractKind,
+    pub state: Vec<StateVar<'a>>,
+    pub funcs: Vec<Func<'a>>,
+    pub modifiers: FxHashMap<String, &'a ItemFunction<'a>>,
+    pub invariants: Vec<Spec<'a>>,
+    /// `@custom:lock-stable P`: entry points callable under the reentrancy lock keep P true.
+    pub lock_stable: Vec<Spec<'a>>,
+    pub lock: Option<(String, Span)>,
+    /// `@custom:reentrancy-guard` given as a boolean expression (such as a transient slot):
+    /// the lock holds when it is true.
+    pub lock_expr: Option<Spec<'a>>,
+    /// functions replaced by an override, kept for `super` calls
+    pub overridden: Vec<Func<'a>>,
+    /// linearization, bases first
+    pub lin: Vec<String>,
+    /// `@custom:group G L1 L2 ...`: named sets of broadcast lemmas and groups.
+    pub groups: Vec<Group>,
+    /// `@custom:broadcast-use L|G` on the contract: assumed by every function's VCs.
+    pub broadcast_use: Vec<(String, Span)>,
+    /// constructors of base contracts, in linearization order (bases first)
+    pub base_ctors: Vec<(String, &'a ItemFunction<'a>)>,
+    /// `is B(args)` arguments given anywhere in the hierarchy
+    pub base_args: FxHashMap<String, &'a ast::CallArgs<'a>>,
+    /// Defined in a file the verified file imports: not verified itself, though the functions a
+    /// verified contract inherits from it are, as that contract's.
+    pub imported: bool,
+    /// A contract in the hierarchy gives a custom storage layout (`layout at S`): the declared
+    /// state variables do not start at slot 0.
+    pub custom_layout: bool,
+}
+
+/// An enum declaration.
+pub(crate) struct EnumDecl {
+    pub name: String,
+    /// The contract that declares it, or None for a file-level enum.
+    pub container: Option<String>,
+    /// Declared in a file the verified file imports.
+    pub imported: bool,
+    pub variants: Vec<String>,
+}
+
+/// What an enum member `E.m` written in some declaration scope is (see `Program::enum_member`).
+pub(crate) enum EnumMember {
+    /// `E` is an enum visible there, and `m` its member with this index.
+    Index(usize),
+    /// No enum `E` is visible there.
+    NotVisible,
+    /// `E` names an enum there, but not one member `m` of one enum: why.
+    Refused(String),
+}
+
+/// `@custom:group G L1 L2 ...` on a contract.
+pub(crate) struct Group {
+    pub name: String,
+    pub members: Vec<String>,
+    pub span: Span,
+}
+
+pub(crate) struct Program<'a> {
+    pub contracts: Vec<Contract<'a>>,
+    pub quants: Vec<QInfo>,
+    /// statement span -> (tag, spec) for `@custom:invariant|decreases|assert|ghost`
+    pub stmt_specs: FxHashMap<Span, Vec<(String, Spec<'a>)>>,
+    /// `@custom:assert` / `@custom:assume` comments after the last statement of a block (Solar
+    /// attaches them to nothing), keyed by the block's span: they run when the block ends.
+    pub block_tail: FxHashMap<Span, Vec<(String, Spec<'a>)>>,
+    pub enums: FxHashMap<String, usize>,
+    pub enum_variants: FxHashMap<String, usize>,
+    /// Every enum declaration, where it is declared and its members (see `Program::enum_member`).
+    pub enum_decls: Vec<EnumDecl>,
+    /// Each contract's declaration, by name: what a span inside one is written in.
+    pub contract_spans: Vec<(String, Span)>,
+    pub structs: Vec<(String, Vec<(String, Ty)>)>,
+    pub udvts: FxHashMap<String, Ty>,
+    /// User-defined value types over a `bytesN` (left-aligned in their ABI word).
+    pub udvt_bytes: FxHashSet<String>,
+    /// spans of variable-declaration statements that carry specs (--instrument keeps their scope)
+    pub decl_stmts: FxHashSet<Span>,
+    /// `@custom:invariant` on a struct declaration, over its field names
+    pub struct_invs: FxHashMap<String, Vec<Spec<'a>>>,
+    /// constants with a literal integer value (to size fixed arrays)
+    pub const_sizes: FxHashMap<String, u64>,
+    pub errors: Vec<(Span, String)>,
+    /// Ghost code that is not erasable (see `crate::ghost`): a program with any is not verified.
+    pub ghost_errors: Vec<crate::ghost::Violation>,
+    /// Why no proof about the file is attempted: a fixed array size no constant resolves, or a
+    /// contract whose storage or invariants reach an ambiguous struct name.
+    pub refused: Vec<(Span, String)>,
+    /// Functions, by address of their item, that reach an ambiguous struct name (see
+    /// `refuse_ambiguous`), with why each is not verified.
+    pub refused_fns: FxHashMap<usize, String>,
+    /// Loop invariant candidates the abstract interpreter found, keyed by the loop statement's
+    /// span; inference checks them like any other candidate (`vc::infer`).
+    pub absint: FxHashMap<Span, Vec<Spec<'a>>>,
+    /// What `using` directives attach in each contract: a library's name (`using L for T`),
+    /// or `L.f` for one of its functions (`using {L.f} for T`). Its own directives, its file's
+    /// and every `global` one.
+    pub using: FxHashMap<String, FxHashSet<String>>,
+    /// `import {A as B}` renames: `B` stands for `A` everywhere (names are global).
+    pub import_aliases: FxHashMap<String, String>,
+    /// Struct names several contracts declare (`IOld.Item`, `INew.Item`): each such struct is
+    /// keyed by its qualified name, and a bare use resolves in the contracts in scope.
+    pub qualified_structs: FxHashSet<String>,
+    /// Each spec's expression, which is parsed as a file of its own, with the NatSpec tag it
+    /// was written in.
+    pub spec_sites: Vec<(Span, Span)>,
+    /// Interfaces several files declare alike (see `sources::same_interface`): one interface
+    /// here, with the members of each.
+    pub shared_interfaces: FxHashSet<String>,
+}
+
+impl<'a> Program<'a> {
+    /// Why `f` is not verified, when it reaches an ambiguous struct name.
+    pub(crate) fn refused_fn(&self, f: &Func<'_>) -> Option<&String> {
+        self.refused_item(f.item)
+    }
+
+    /// Why the function, modifier or constructor `item` is not verified, when it reaches an
+    /// ambiguous struct name.
+    pub(crate) fn refused_item(&self, item: &ItemFunction<'_>) -> Option<&String> {
+        self.refused_fns.get(&std::ptr::from_ref(item).addr())
+    }
+
+    pub(crate) fn struct_fields(&self, name: &str) -> Option<&Vec<(String, Ty)>> {
+        self.structs.iter().find(|(n, _)| n == name).map(|(_, f)| f)
+    }
+    /// A library function callable as `x.f(args)` (`using L for T`), with `nargs` explicit args.
+    /// Every library function callable as `x.f(args)`: overloads (such as OpenZeppelin
+    /// TransientSlot's `tload` per slot type) are told apart by the caller.
+    pub(crate) fn using_fns(&self, f: &str, nargs: usize) -> Vec<(&Contract<'a>, &Func<'a>)> {
+        self.contracts
+            .iter()
+            .filter(|c| c.kind == ContractKind::Library && c.name != FREE)
+            .flat_map(|c| {
+                c.funcs
+                    .iter()
+                    .filter(move |g| g.name == f && g.params.len() == nargs + 1)
+                    .map(move |g| (c, g))
+            })
+            .collect()
+    }
+    /// The library functions `x.f(args)` may call in contract `scope`: those a `using`
+    /// directive in force there attaches. Without one, `x.f` is a builtin member or an error.
+    pub(crate) fn attached_fns(
+        &self,
+        scope: &str,
+        f: &str,
+        nargs: usize,
+    ) -> Vec<(&Contract<'a>, &Func<'a>)> {
+        let Some(att) = self.using.get(scope) else { return vec![] };
+        self.using_fns(f, nargs)
+            .into_iter()
+            .filter(|(c, g)| {
+                att.contains(&c.name) || att.contains(&format!("{}.{}", c.name, g.name))
+            })
+            .collect()
+    }
+
+    /// The key of struct `n` as written where the contracts `scope` (a linearization) are
+    /// visible: its bare name, or for a name several contracts declare, the one declaration
+    /// in scope (`C.n`), else a file-level one. None when that is not exactly one.
+    pub(crate) fn struct_key(&self, scope: &[String], n: &str) -> Option<String> {
+        if !self.qualified_structs.contains(n) {
+            return self.struct_fields(n).is_some().then(|| n.to_string());
+        }
+        let found: Vec<String> = scope
+            .iter()
+            .map(|c| format!("{c}.{n}"))
+            .filter(|k| self.struct_fields(k).is_some())
+            .collect();
+        match &found[..] {
+            [k] => Some(k.clone()),
+            [] => self.struct_fields(n).is_some().then(|| n.to_string()),
+            _ => None,
+        }
+    }
+
+    /// The key of struct `C.n` written with its contract's name.
+    pub(crate) fn qualified_struct(&self, c: &str, n: &str) -> Option<String> {
+        let c = self.import_aliases.get(c).map_or(c, String::as_str);
+        let k = format!("{c}.{n}");
+        if self.struct_fields(&k).is_some() {
+            return Some(k);
+        }
+        // A struct only one declaration has keeps its bare name.
+        (!self.qualified_structs.contains(n) && self.struct_fields(n).is_some())
+            .then(|| n.to_string())
+    }
+
+    /// What `e.m` names when written in the declarations of contract `scope` (None: at file
+    /// level, as in a file-level struct's invariant), by Solidity's lookup: an enum that contract
+    /// or one of its bases declares, else a file-level enum. A file-level enum of an imported
+    /// file, an enum two bases both declare, or two file-level enums of one name are refused
+    /// rather than guessed. (`enum_variants` is keyed by bare name over every contract, so it
+    /// would also accept an enum another contract declares, which `scope` cannot see.)
+    pub(crate) fn enum_member(&self, scope: Option<&str>, e: &str, m: &str) -> EnumMember {
+        let decls = || self.enum_decls.iter().filter(move |d| d.name == e);
+        let lin: &[String] = match scope {
+            Some(c) => match self.contract(c) {
+                Some(c) => &c.lin,
+                None => {
+                    return EnumMember::Refused(format!("no contract `{c}` to resolve `{e}` in"));
+                }
+            },
+            None => &[],
+        };
+        let inner: Vec<&EnumDecl> =
+            decls().filter(|d| d.container.as_ref().is_some_and(|c| lin.contains(c))).collect();
+        let found: Vec<&EnumDecl> = if inner.is_empty() {
+            decls().filter(|d| d.container.is_none()).collect()
+        } else {
+            inner
+        };
+        let d = match &found[..] {
+            [] => return EnumMember::NotVisible,
+            [d] => *d,
+            _ => {
+                return EnumMember::Refused(format!(
+                    "enum `{e}` is declared more than once in scope"
+                ));
+            }
+        };
+        if d.imported {
+            return EnumMember::Refused(format!("enum `{e}` is declared in an imported file"));
+        }
+        match d.variants.iter().position(|v| v == m) {
+            Some(i) => EnumMember::Index(i),
+            None => EnumMember::Refused(format!("enum `{e}` has no member `{m}`")),
+        }
+    }
+
+    /// The contract whose declaration contains `sp`, such as a spec on one of its functions or
+    /// structs: None at file level.
+    pub(crate) fn scope_at(&self, sp: Span) -> Option<String> {
+        self.contract_spans.iter().find(|(_, s)| s.contains(sp)).map(|(n, _)| n.clone())
+    }
+
+    pub(crate) fn contract(&self, name: &str) -> Option<&Contract<'a>> {
+        let name = self.import_aliases.get(name).map_or(name, String::as_str);
+        self.contracts.iter().find(|c| c.name == name)
+    }
+    /// The contract whose modifiers `f`'s header names, when `f` runs for `c`: `c` itself
+    /// for its own and inherited functions (a virtual modifier resolves in the most derived
+    /// contract), else the library that declares `f`.
+    pub(crate) fn mod_scope<'s>(&'s self, c: &'s Contract<'a>, f: &Func<'a>) -> &'s Contract<'a> {
+        if c.lin.contains(&f.contract) { c } else { self.contract(&f.contract).unwrap_or(c) }
+    }
+
+    /// Where the spec code at `span` was written: its NatSpec tag, or `span` itself when it is
+    /// not spec code.
+    pub(crate) fn spec_site(&self, span: Span) -> Span {
+        self.spec_sites.iter().find(|(e, _)| e.contains(span)).map_or(span, |&(_, tag)| tag)
+    }
+}
+
+struct Builder<'s, 'a> {
+    sess: &'s Session,
+    arena: &'a ast::Arena,
+    quants: Vec<QInfo>,
+    errors: Vec<(Span, String)>,
+    enums: FxHashMap<String, usize>,
+    enum_variants: FxHashMap<String, usize>,
+    enum_decls: Vec<EnumDecl>,
+    udvts: FxHashMap<String, &'a Type<'a>>,
+    struct_items: Vec<&'a ast::ItemStruct<'a>>,
+    struct_names: FxHashSet<String>,
+    struct_docs: Vec<(String, &'a ast::DocComments<'a>)>,
+    /// Struct names that declarations with different fields share (such as `IOld.Item` and
+    /// `INew.Item`): structs are keyed by bare name, so such a name stands for no one datatype
+    /// and values of it stay opaque.
+    ambiguous_structs: FxHashSet<String>,
+    /// Every declaration of an enum, user-defined value type or contract, by bare name.
+    type_spans: FxHashMap<String, FxHashSet<Span>>,
+    /// `import {A as B}`: `B` to `A`.
+    import_aliases: FxHashMap<String, String>,
+    /// Each struct declaration with the contract that declares it, if any.
+    struct_decls: Vec<(Option<String>, &'a ast::ItemStruct<'a>, &'a ast::DocComments<'a>)>,
+    /// See `Program::qualified_structs`; `struct_keys` holds every struct's key.
+    qualified_structs: FxHashSet<String>,
+    struct_keys: FxHashSet<String>,
+    /// See `Program::spec_sites`.
+    spec_sites: Vec<(Span, Span)>,
+    /// The contracts whose declarations are visible where types are being read.
+    scope: Vec<String>,
+    /// Constant names that several declarations give different sizes, and constants sized
+    /// through another constant: sizes are keyed by bare name, so neither sizes an array.
+    const_conflicts: FxHashSet<String>,
+    const_derived: FxHashSet<String>,
+    /// Fixed array sizes that no constant resolves.
+    unknown_sizes: Vec<Span>,
+    decl_stmts: FxHashSet<Span>,
+    contract_names: Vec<String>,
+    stmt_specs: FxHashMap<Span, Vec<(String, Spec<'a>)>>,
+    block_tail: FxHashMap<Span, Vec<(String, Spec<'a>)>>,
+    absint: FxHashMap<Span, Vec<Spec<'a>>>,
+    const_sizes: FxHashMap<String, u64>,
+    /// Spans of the doc comments some statement carries.
+    seen_docs: Vec<Span>,
+}
+
+pub(crate) fn custom_tags(docs: &ast::DocComments<'_>) -> Vec<(String, String, Span)> {
+    let mut v = vec![];
+    for d in docs.iter() {
+        for it in d.natspec.iter() {
+            if let NatSpecKind::Custom { name } = it.kind {
+                let content: String = it
+                    .content()
+                    .lines()
+                    .map(|l| l.trim().trim_start_matches('*').trim())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                v.push((name.as_str().to_string(), content.trim().to_string(), it.span));
+            }
+        }
+    }
+    v
+}
+
+impl<'s, 'a> Builder<'s, 'a> {
+    fn parse_spec(&mut self, text: &str, span: Span) -> Option<Spec<'a>> {
+        let pre = match preprocess(text, &mut self.quants) {
+            Ok(p) => p,
+            Err(e) => {
+                self.errors.push((span, format!("bad spec `{text}`: {e}")));
+                return None;
+            }
+        };
+        // The source map returns the file it already has for a name, so a spec's name must be
+        // unique across every program the session builds, not only this one: reusing `spec#1`
+        // for a second input file would parse the first file's spec in its place.
+        let n = SPECS.fetch_add(1, Ordering::Relaxed) + 1;
+        let mut p = Parser::from_source_code(
+            self.sess,
+            self.arena,
+            FileName::Custom(format!("spec#{n}")),
+            pre,
+        )
+        .ok()?;
+        match p.parse_expr() {
+            Ok(_) if p.token.kind != solar_parse::token::TokenKind::Eof => {
+                // never check a prefix of what was written: `a == b c` must not verify as `a == b`
+                self.errors.push((
+                    span,
+                    format!("could not parse spec `{text}`: unexpected text after the expression"),
+                ));
+                None
+            }
+            Ok(e) => {
+                self.spec_sites.push((e.span, span));
+                Some(Spec { expr: e, text: text.to_string(), span })
+            }
+            Err(d) => {
+                d.emit();
+                self.errors.push((span, format!("could not parse spec `{text}`")));
+                None
+            }
+        }
+    }
+
+    pub(crate) fn ty(&mut self, t: &'a Type<'a>) -> Ty {
+        match &t.kind {
+            TypeKind::Elementary(e) => match e {
+                ElementaryType::Bool => Ty::Bool,
+                ElementaryType::Address(_) => Ty::Addr,
+                ElementaryType::UInt(n) => Ty::Uint(n.bits()),
+                ElementaryType::Int(n) => Ty::Int(n.bits()),
+                ElementaryType::FixedBytes(n) => Ty::Bytes(n.bytes() as u16 * 8),
+                ElementaryType::String | ElementaryType::Bytes => Ty::Opaque,
+            },
+            TypeKind::Mapping(m) => Ty::Map(Box::new(self.ty(&m.key)), Box::new(self.ty(&m.value))),
+            TypeKind::Array(a) => {
+                let size = a.size.as_deref().and_then(|e| array_size(&self.const_sizes, e));
+                // A fixed array whose size is not known would read as a dynamic one.
+                if let Some(e) = a.size.as_deref()
+                    && size.is_none()
+                {
+                    self.unknown_sizes.push(e.span);
+                }
+                Ty::Arr(Box::new(self.ty(&a.element)), size)
+            }
+            TypeKind::Function(f) if f.visibility() != Some(ast::Visibility::External) => {
+                let params = f.parameters.iter().map(|v| self.ty(&v.ty)).collect();
+                let rets = f.returns().iter().map(|v| self.ty(&v.ty)).collect();
+                Ty::Fn(Box::new((params, rets)))
+            }
+            TypeKind::Function(_) => Ty::Opaque,
+            TypeKind::Custom(p) => {
+                let mut n = p.last().as_str().to_string();
+                if p.segments().len() == 1
+                    && let Some(a) = self.import_aliases.get(&n)
+                {
+                    n = a.clone();
+                }
+                if self.qualified_structs.contains(&n) {
+                    let segs = p.segments();
+                    if segs.len() >= 2 {
+                        let c = segs[segs.len() - 2].as_str();
+                        let c = self.import_aliases.get(c).map_or(c, String::as_str);
+                        let k = format!("{c}.{n}");
+                        if self.struct_keys.contains(&k) {
+                            return Ty::Struct(k);
+                        }
+                    }
+                    let found: Vec<String> = self
+                        .scope
+                        .iter()
+                        .map(|c| format!("{c}.{n}"))
+                        .filter(|k| self.struct_keys.contains(k))
+                        .collect();
+                    match &found[..] {
+                        [k] => return Ty::Struct(k.clone()),
+                        [] if self.struct_keys.contains(&n) => return Ty::Struct(n),
+                        _ => {
+                            self.errors.push((
+                                t.span,
+                                format!("struct name `{n}` does not name one declaration here"),
+                            ));
+                            return Ty::Opaque;
+                        }
+                    }
+                }
+                if self.ambiguous_structs.contains(&n) {
+                    Ty::Opaque
+                } else if let Some(k) = self.enums.get(&n) {
+                    Ty::Enum(n, *k)
+                } else if self.contract_names.contains(&n) {
+                    Ty::Contract(n)
+                } else if self.ambiguous_structs.contains(&n) {
+                    Ty::Opaque
+                } else if self.struct_names.contains(&n) {
+                    Ty::Struct(n)
+                } else if let Some(u) = self.udvts.get(&n).copied() {
+                    self.ty(u)
+                } else {
+                    self.errors.push((
+                        t.span,
+                        format!("unsupported type `{n}` (structs are not supported yet)"),
+                    ));
+                    Ty::Opaque
+                }
+            }
+        }
+    }
+
+    /// `@custom:` doc comments inside `body` that no statement carries.
+    fn orphan_specs(&self, body: Span) -> Vec<(Span, String)> {
+        let Ok(text) = self.sess.source_map().span_to_snippet(body) else {
+            return vec![];
+        };
+        let lo = body.lo();
+        let mut out = vec![];
+        let mut pos = 0usize;
+        while let Some(i) = text[pos..].find("@custom:") {
+            let at = pos + i;
+            pos = at + 8;
+            // only inside a doc comment: a `///` line, or a `/** */` block
+            let line_start = text[..at].rfind('\n').map(|k| k + 1).unwrap_or(0);
+            let line = &text[line_start..at];
+            let in_line_doc = line.trim_start().starts_with("///");
+            let in_block_doc = match (text[..at].rfind("/**"), text[..at].rfind("*/")) {
+                (Some(o), Some(c)) => o > c,
+                (Some(_), None) => true,
+                _ => false,
+            };
+            if !in_line_doc && !in_block_doc {
+                continue;
+            }
+            let abs = lo + solar_parse::interface::BytePos(at as u32);
+            if self.seen_docs.iter().any(|d| d.lo() <= abs && abs < d.hi()) {
+                continue;
+            }
+            let end = text[at..].find('\n').map(|k| at + k).unwrap_or(text.len());
+            let sp = Span::new(abs, lo + solar_parse::interface::BytePos(end as u32));
+            out.push((sp, text[at..end].trim().to_string()));
+        }
+        out
+    }
+
+    /// Attaches the orphan specs of `body` that end a block (`@custom:assert` / `assume` after
+    /// its last statement) to that block; returns the rest, which are errors.
+    fn attach_tails(&mut self, body: &'a ast::Block<'a>) -> Vec<(Span, String)> {
+        let orphans = self.orphan_specs(body.span);
+        if orphans.is_empty() {
+            return orphans;
+        }
+        let mut blocks: Vec<&'a ast::Block<'a>> = vec![body];
+        for st in body.stmts.iter() {
+            crate::walk::all_stmts(st, &mut |x| match &x.kind {
+                StmtKind::Block(b) | StmtKind::UncheckedBlock(b) => blocks.push(b),
+                StmtKind::Try(t) => t.clauses.iter().for_each(|c| blocks.push(&c.block)),
+                _ => {}
+            });
+        }
+        let mut rest = vec![];
+        for (sp, text) in orphans {
+            let p = sp.lo();
+            let inner = blocks
+                .iter()
+                .filter(|b| b.span.lo() <= p && p < b.span.hi())
+                .min_by_key(|b| b.span.hi().0 - b.span.lo().0);
+            let tail = inner.filter(|b| b.stmts.last().is_none_or(|l| l.span.hi() <= p));
+            let body_txt = text.trim_start_matches("@custom:");
+            let (tag, content) = body_txt.split_once(char::is_whitespace).unwrap_or((body_txt, ""));
+            match tail {
+                Some(b) if tag == "assert" || tag == "assume" => {
+                    if let Some(spec) = self.parse_spec(content.trim(), sp) {
+                        self.block_tail.entry(b.span).or_default().push((tag.to_string(), spec));
+                    }
+                }
+                _ => rest.push((sp, text)),
+            }
+        }
+        rest
+    }
+
+    fn walk_stmt_docs(&mut self, s: &'a Stmt<'a>) {
+        for d in s.docs.iter() {
+            self.seen_docs.push(d.span);
+        }
+        let tags = custom_tags(&s.docs);
+        let mut v = vec![];
+        for (tag, content, span) in tags {
+            if tag == "broadcast-use" {
+                // Names, one spec each, resolved by the verifier.
+                for (n, _) in self.names(&content, span) {
+                    v.extend(self.parse_spec(&n, span).map(|sp| (tag.clone(), sp)));
+                }
+                continue;
+            }
+            if ["invariant", "decreases", "assert", "ghost", "assume", "check", "use", "reveal"]
+                .contains(&tag.as_str())
+            {
+                if tag == "check" && !executable(&content) {
+                    self.errors.push((span, format!("@custom:check must be executable Solidity (no old(), quantifiers, ==> or <==>): it becomes a require: `{content}`")));
+                    continue;
+                }
+                if let Some(sp) = self.parse_spec(&content, span) {
+                    v.push((tag, sp));
+                }
+            }
+        }
+        if !v.is_empty() {
+            if matches!(s.kind, StmtKind::DeclSingle(_) | StmtKind::DeclMulti(..)) {
+                self.decl_stmts.insert(s.span);
+            }
+            self.stmt_specs.insert(s.span, v);
+        }
+        crate::walk::sub_stmts(s, &mut |c| self.walk_stmt_docs(c));
+    }
+
+    fn func(&mut self, cname: &str, item: &'a ast::Item<'a>, f: &'a ItemFunction<'a>) -> Func<'a> {
+        let mut requires = vec![];
+        let mut ensures = vec![];
+        let mut succeeds = vec![];
+        let mut trusted = false;
+        let mut is_spec = false;
+        let mut checks = vec![];
+        let mut opaque = false;
+        let mut broadcast = false;
+        let mut triggers = vec![];
+        let mut broadcast_use = vec![];
+        let mut summary = false;
+        for (tag, content, span) in custom_tags(&item.docs) {
+            match tag.as_str() {
+                "broadcast" => broadcast = true,
+                "trigger" => {
+                    let terms: Vec<Spec<'a>> = crate::spec::split_top(&content, ",")
+                        .into_iter()
+                        .filter_map(|t| self.parse_spec(t.trim(), span))
+                        .collect();
+                    if terms.is_empty() {
+                        self.errors.push((span, "@custom:trigger needs a term".into()));
+                    } else {
+                        triggers.push(terms);
+                    }
+                }
+                "broadcast-use" => broadcast_use.extend(self.names(&content, span)),
+                "requires" => requires.extend(self.parse_spec(&content, span)),
+                "ensures" => ensures.extend(self.parse_spec(&content, span)),
+                "succeeds_if" | "succeeds-if" => succeeds.extend(self.parse_spec(&content, span)),
+                "trusted" | "external_body" => trusted = true,
+                "check" => {
+                    if executable(&content) {
+                        checks.extend(self.parse_spec(&content, span))
+                    } else {
+                        self.errors.push((span, format!("@custom:check must be executable Solidity (no old(), quantifiers, ==> or <==>): it becomes a require: `{content}`")));
+                    }
+                }
+                "opaque" => opaque = true,
+                "spec" => is_spec = true,
+                _ => {}
+            }
+        }
+        if let Some((spec, live)) = builtin_summary(cname, f) {
+            // a library whose behavior is documented but whose 512-bit assembly is out of reach:
+            // trusted at that documented contract (listed in the README's trusted assumptions)
+            trusted = true;
+            summary = true;
+            ensures.extend(self.parse_spec(spec, item.span));
+            succeeds.extend(self.parse_spec(live, item.span));
+        }
+        let params = f
+            .header
+            .parameters
+            .iter()
+            .enumerate()
+            .map(|(i, p)| {
+                (
+                    p.name.map(|n| n.as_str().to_string()).unwrap_or(format!("__arg{i}")),
+                    self.ty(&p.ty),
+                )
+            })
+            .collect();
+        let rets = f
+            .header
+            .returns()
+            .iter()
+            .enumerate()
+            .map(|(i, p)| {
+                (
+                    p.name.map(|n| n.as_str().to_string()).unwrap_or(format!("__ret{i}")),
+                    self.ty(&p.ty),
+                )
+            })
+            .collect();
+        let mut spec_body = None;
+        let mut orphans = vec![];
+        if let Some(b) = &f.body {
+            for s in b.stmts.iter() {
+                self.walk_stmt_docs(s);
+            }
+            orphans = self.attach_tails(b);
+            // `--infer-absint`: the abstract interpreter's facts become inference candidates, which
+            // `crate::vc::infer` checks like any other.
+            if crate::absint::enabled() {
+                let pre: Vec<&'a Expr<'a>> = requires.iter().map(|r: &Spec<'a>| r.expr).collect();
+                let post: Vec<&str> = ensures.iter().map(|e: &Spec<'a>| e.text.as_str()).collect();
+                let mut loops: Vec<_> =
+                    crate::absint::infer_function(f, &pre, &post).into_iter().collect();
+                loops.sort_by_key(|(sp, _)| sp.lo());
+                for (sp, texts) in loops {
+                    if std::env::var_os("SOLAR_VERIFY_DEBUG").is_some() {
+                        let at = self.sess.source_map().span_to_snippet(sp).unwrap_or_default();
+                        let head = at.lines().next().unwrap_or_default();
+                        eprintln!("absint: {cname}: loop {head:?}: {texts:#?}");
+                    }
+                    let specs: Vec<Spec<'a>> =
+                        texts.iter().filter_map(|t| self.parse_spec(t, sp)).collect();
+                    self.absint.insert(sp, specs);
+                }
+            }
+            use ast::StateMutability::*;
+            if (is_spec || matches!(f.header.state_mutability(), Pure | View))
+                && let [s] = &b.stmts[..]
+                && let StmtKind::Return(Some(e)) = &s.kind
+            {
+                spec_body = Some(&**e);
+            }
+        }
+        let name = match f.kind {
+            ast::FunctionKind::Constructor => "constructor".to_string(),
+            ast::FunctionKind::Fallback => "fallback".to_string(),
+            ast::FunctionKind::Receive => "receive".to_string(),
+            _ => f.header.name.map(|n| n.as_str().to_string()).unwrap_or_default(),
+        };
+        Func {
+            name,
+            contract: cname.to_string(),
+            item: f,
+            requires,
+            ensures,
+            succeeds,
+            params,
+            rets,
+            spec_body,
+            checks,
+            opaque,
+            trusted,
+            synthetic: false,
+            orphans,
+            ghost_fn: false,
+            broadcast,
+            triggers,
+            broadcast_use,
+            summary,
+        }
+    }
+
+    /// The lemma and group names of a `@custom:broadcast-use` or `@custom:group` tag: `L` or
+    /// `C.L`, separated by spaces or commas.
+    fn names(&mut self, content: &str, span: Span) -> Vec<(String, Span)> {
+        let mut out = vec![];
+        for n in content.split(|c: char| c.is_whitespace() || c == ',').filter(|n| !n.is_empty()) {
+            let ident = |p: &str| {
+                p.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_' || c == '$')
+                    && p.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '$')
+            };
+            let parts: Vec<&str> = n.split('.').collect();
+            if parts.len() > 2 || !parts.iter().all(|p| ident(p)) {
+                self.errors.push((
+                    span,
+                    format!("`{n}` is not a lemma or group name (`L` or `Contract.L`)"),
+                ));
+                continue;
+            }
+            out.push((n.to_string(), span));
+        }
+        if out.is_empty() {
+            self.errors.push((span, "a lemma or group name is missing".into()));
+        }
+        out
+    }
+}
+
+/// The program of the verified file, the last of `units`, and of the files it imports, which come
+/// before it.
+pub(crate) fn build<'a>(
+    sess: &Session,
+    arena: &'a ast::Arena,
+    units: &[&'a SourceUnit<'a>],
+) -> Program<'a> {
+    let mut b = Builder {
+        sess,
+        arena,
+        quants: vec![],
+        errors: vec![],
+        enums: FxHashMap::default(),
+        enum_variants: FxHashMap::default(),
+        enum_decls: vec![],
+        udvts: FxHashMap::default(),
+        struct_items: vec![],
+        struct_names: FxHashSet::default(),
+        struct_docs: vec![],
+        ambiguous_structs: FxHashSet::default(),
+        type_spans: FxHashMap::default(),
+        import_aliases: FxHashMap::default(),
+        struct_decls: vec![],
+        qualified_structs: FxHashSet::default(),
+        struct_keys: FxHashSet::default(),
+        spec_sites: vec![],
+        scope: vec![],
+        const_conflicts: FxHashSet::default(),
+        const_derived: FxHashSet::default(),
+        unknown_sizes: vec![],
+        decl_stmts: Default::default(),
+        contract_names: vec![],
+        stmt_specs: FxHashMap::default(),
+        absint: FxHashMap::default(),
+        block_tail: FxHashMap::default(),
+        const_sizes: FxHashMap::default(),
+        seen_docs: vec![],
+    };
+    // The later declarations of each interface several files declare alike.
+    let mut shared_ifaces: FxHashMap<String, Vec<&'a ast::ItemContract<'a>>> = FxHashMap::default();
+    let mut items: FxHashMap<String, (&'a ast::Item<'a>, &'a ast::ItemContract<'a>)> =
+        FxHashMap::default();
+    // file-level constants, visible in every contract
+    let mut file_consts: Vec<(String, &'a ast::VariableDefinition<'a>)> = vec![];
+    // inline assembly anywhere in a library (inlined into contracts that call it)
+    let mut lib_asm = false;
+    let mut order = vec![];
+    let mut imported = FxHashSet::default();
+    // file-level functions, and whether each comes from an imported file
+    let mut free_fns: Vec<(&'a ast::Item<'a>, &'a ItemFunction<'a>, bool)> = vec![];
+    // `import {A as B}`: names are global here, so `B` stands for `A` in every file.
+    for u in units {
+        for it in u.items.iter() {
+            if let ItemKind::Import(imp) = &it.kind
+                && let ast::ImportItems::Aliases(list) = &imp.items
+            {
+                for (orig, alias) in list.iter() {
+                    let Some(a) = alias else { continue };
+                    let (o, a) = (orig.as_str().to_string(), a.as_str().to_string());
+                    match b.import_aliases.get(&a) {
+                        Some(prev) if *prev != o => b.errors.push((
+                            it.span,
+                            format!("import alias `{a}` stands for both `{prev}` and `{o}`: names are resolved globally"),
+                        )),
+                        _ => {
+                            b.import_aliases.insert(a, o);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let collect_names =
+        |b: &mut Builder<'_, 'a>, it: &'a ast::Item<'a>, container: Option<&str>| match &it.kind {
+            ItemKind::Enum(e) => {
+                b.enum_decls.push(EnumDecl {
+                    name: e.name.as_str().to_string(),
+                    container: container.map(str::to_string),
+                    imported: false,
+                    variants: e.variants.iter().map(|v| v.name.as_str().to_string()).collect(),
+                });
+                b.type_spans.entry(e.name.as_str().to_string()).or_default().insert(e.name.span);
+                b.enums.insert(e.name.as_str().to_string(), e.variants.len());
+                for (i, v) in e.variants.iter().enumerate() {
+                    b.enum_variants.insert(format!("{}.{}", e.name.as_str(), v.name.as_str()), i);
+                }
+            }
+            ItemKind::Udvt(u) => {
+                b.type_spans.entry(u.name.as_str().to_string()).or_default().insert(u.name.span);
+                b.udvts.insert(u.name.as_str().to_string(), &u.ty);
+            }
+            ItemKind::Struct(st) => {
+                b.struct_decls.push((container.map(str::to_string), st, &it.docs));
+                b.struct_items.push(st);
+                b.struct_names.insert(st.name.as_str().to_string());
+                b.struct_docs.push((st.name.as_str().to_string(), &it.docs));
+            }
+            ItemKind::Variable(v) => {
+                if let (Some(n), Some(init)) = (v.name, v.initializer.as_deref())
+                    && let Some(k) = array_size(&b.const_sizes, init)
+                {
+                    let n = n.as_str().to_string();
+                    if matches!(init.kind, ast::ExprKind::Ident(_)) {
+                        b.const_derived.insert(n.clone());
+                    }
+                    if b.const_sizes.get(&n).is_some_and(|&old| old != k) {
+                        b.const_conflicts.insert(n.clone());
+                    }
+                    if !b.const_conflicts.contains(&n) {
+                        b.const_sizes.insert(n, k);
+                    }
+                }
+            }
+            _ => {}
+        };
+    let last = units.len().saturating_sub(1);
+    let items_of = units
+        .iter()
+        .enumerate()
+        .flat_map(|(index, unit)| unit.items.iter().map(move |item| (item, index != last)));
+    for (it, from_import) in items_of {
+        let enums_before = b.enum_decls.len();
+        collect_names(&mut b, it, None);
+        for d in &mut b.enum_decls[enums_before..] {
+            d.imported = from_import;
+        }
+        if let ItemKind::Function(f) = &it.kind {
+            free_fns.push((it, f, from_import));
+            for st in f.body.iter().flat_map(|b| b.stmts.iter()) {
+                crate::walk::all_stmts(st, &mut |x| {
+                    lib_asm |= matches!(x.kind, StmtKind::Assembly(_))
+                });
+            }
+        }
+        if let ItemKind::Variable(v) = &it.kind
+            && let Some(n) = v.name
+            // a constant two files repeat alike (the loader checked they read alike)
+            && !file_consts.iter().any(|(m, _)| m == n.as_str())
+        {
+            file_consts.push((n.as_str().to_string(), v));
+        }
+        if let ItemKind::Contract(c) = &it.kind
+            && c.kind == ContractKind::Library
+        {
+            for sub in c.body.iter() {
+                if let ItemKind::Function(f) = &sub.kind {
+                    for st in f.body.iter().flat_map(|b| b.stmts.iter()) {
+                        crate::walk::all_stmts(st, &mut |x| {
+                            lib_asm |= matches!(x.kind, StmtKind::Assembly(_))
+                        });
+                    }
+                }
+            }
+        }
+        if let ItemKind::Contract(c) = &it.kind {
+            let n = c.name.as_str().to_string();
+            // An interface another file declares alike (see `sources::same_interface`): one
+            // interface with the members of both.
+            if let Some(&(first, _)) = items.get(&n)
+                && first.span != it.span
+                && crate::sources::same_interface(sess, first, it)
+            {
+                shared_ifaces.entry(n).or_default().push(c);
+                continue;
+            }
+            b.type_spans.entry(n.clone()).or_default().insert(c.name.span);
+            b.contract_names.push(n.clone());
+            items.insert(n.clone(), (it, c));
+            if from_import {
+                imported.insert(n.clone());
+            }
+            order.push(n);
+            for sub in c.body.iter() {
+                collect_names(&mut b, sub, Some(c.name.as_str()));
+            }
+        }
+    }
+    for (a, o) in b.import_aliases.clone() {
+        if a != o
+            && (b.type_spans.contains_key(&a)
+                || b.struct_names.contains(&a)
+                || free_fns.iter().any(|(_, f, _)| f.header.name.is_some_and(|n| n.as_str() == a)))
+        {
+            b.errors.push((
+                Span::DUMMY,
+                format!("import alias `{a}` (for `{o}`) is also the name of a declaration: names are resolved globally"),
+            ));
+        }
+    }
+    // A name that several declarations share stays opaque, even when they read alike: types,
+    // overloads and invariants here are keyed by the bare name, so two alike declarations would
+    // make distinct overloads look like overrides and share either one's invariants. The same
+    // declaration seen twice (one file imported by several) is one datatype.
+    let mut spans: FxHashMap<&str, FxHashSet<Span>> = FxHashMap::default();
+    for st in &b.struct_items {
+        spans.entry(st.name.as_str()).or_default().insert(st.name.span);
+    }
+    // A struct named like an enum, contract or user-defined value type is ambiguous too: types
+    // resolve by bare name, so the other declaration would give it the wrong size and layout.
+    let other_kind = |n: &str| {
+        b.enums.contains_key(n)
+            || b.contract_names.iter().any(|c| c == n)
+            || b.udvts.contains_key(n)
+    };
+    // Several declarations of a struct name, each in a different contract (and at most one at
+    // file level), are told apart by qualified name: `INew.Item`.
+    let mut qualified: FxHashSet<String> = FxHashSet::default();
+    for (n, s) in &spans {
+        if s.len() < 2 || other_kind(n) {
+            continue;
+        }
+        let mut seen: FxHashMap<Option<String>, Span> = FxHashMap::default();
+        let mut ok = true;
+        for (c, st, _) in &b.struct_decls {
+            if st.name.as_str() != *n {
+                continue;
+            }
+            if let Some(sp) = seen.get(c)
+                && *sp != st.name.span
+            {
+                ok = false;
+            }
+            seen.insert(c.clone(), st.name.span);
+        }
+        // A contract's struct shadows a file-level one of its name in its own code, but not in
+        // a base's code, which is verified in the derived contract's scope: keep those apart by
+        // refusing them, as before.
+        ok &= !seen.contains_key(&None);
+        if ok {
+            qualified.insert(n.to_string());
+        }
+    }
+    b.ambiguous_structs = spans
+        .into_iter()
+        .filter(|(n, s)| (s.len() > 1 || other_kind(n)) && !qualified.contains(*n))
+        .map(|(n, _)| n.to_string())
+        .collect();
+    for (c, st, _) in &b.struct_decls {
+        let n = st.name.as_str();
+        let key = match c {
+            Some(c) if qualified.contains(n) => format!("{c}.{n}"),
+            _ => n.to_string(),
+        };
+        b.struct_keys.insert(key);
+    }
+    b.qualified_structs = qualified;
+    let only_structs = b.ambiguous_structs.iter().all(|n| !other_kind(n));
+    // Enums, user-defined value types and contracts are keyed by bare name too: two of them
+    // (or one of each) sharing a name would give one the other's range, size or kind.
+    let other_ambiguous: Vec<String> =
+        b.type_spans.iter().filter(|(_, s)| s.len() > 1).map(|(n, _)| n.clone()).collect();
+    let only_structs = only_structs && other_ambiguous.is_empty();
+    b.ambiguous_structs.extend(other_ambiguous);
+    // An ambiguous type's values are opaque, so overloads, hashes and length writes on them
+    // could prove false facts: nothing that reaches one is verified (see `refuse_ambiguous`).
+    let (refused, refused_fns) = refuse_ambiguous(sess, units, &b.ambiguous_structs, only_structs);
+    // A size another constant gave may be the conflicting name's other value.
+    if !b.const_conflicts.is_empty() {
+        for n in b.const_conflicts.iter().chain(&b.const_derived) {
+            b.const_sizes.remove(n);
+        }
+    }
+    // Every fixed-array size in the files, including those in function bodies and expressions,
+    // which `vc::ty_of` would otherwise read as dynamic arrays.
+    for u in units {
+        crate::walk::all_types(u, &mut |site| {
+            let size = match site {
+                crate::walk::TypeSite::Type(t) => match &t.kind {
+                    ast::TypeKind::Array(a) => a.size.as_deref(),
+                    _ => None,
+                },
+                crate::walk::TypeSite::Size(e) => Some(e),
+            };
+            if let Some(e) = size
+                && array_size(&b.const_sizes, e).is_none()
+            {
+                b.unknown_sizes.push(e.span);
+            }
+        });
+    }
+    let mut structs = vec![];
+    let mut emitted = FxHashSet::default();
+    let mut struct_docs = vec![];
+    for (c, st, docs) in b.struct_decls.clone() {
+        let name = st.name.as_str();
+        if b.ambiguous_structs.contains(name) {
+            continue;
+        }
+        let key = match &c {
+            Some(c) if b.qualified_structs.contains(name) => format!("{c}.{name}"),
+            _ => name.to_string(),
+        };
+        if !emitted.insert(key.clone()) {
+            continue;
+        }
+        // Field types read in the declaring contract's scope.
+        b.scope = c.iter().cloned().collect();
+        let fields = st
+            .fields
+            .iter()
+            .map(|f| (f.name.map(|n| n.as_str().to_string()).unwrap_or_default(), b.ty(&f.ty)))
+            .collect();
+        structs.push((key.clone(), fields));
+        struct_docs.push((key, docs));
+    }
+    b.scope.clear();
+    let mut struct_invs: FxHashMap<String, Vec<Spec<'a>>> = FxHashMap::default();
+    for (n, docs) in struct_docs {
+        for (tag, content, span) in custom_tags(docs) {
+            if tag == "invariant"
+                && let Some(sp) = b.parse_spec(&content, span)
+            {
+                struct_invs.entry(n.clone()).or_default().push(sp);
+            }
+        }
+    }
+    let mut udvts = FxHashMap::default();
+    let mut udvt_bytes = FxHashSet::default();
+    for (n, t) in b.udvts.clone() {
+        if matches!(t.kind, TypeKind::Elementary(ElementaryType::FixedBytes(_))) {
+            udvt_bytes.insert(n.clone());
+        }
+        udvts.insert(n, b.ty(t));
+    }
+    let mut contracts = vec![];
+    for name in &order {
+        // Solidity's C3 linearization, most base first; a depth-first order where it fails
+        // (solc rejects such a hierarchy).
+        let mut lin: Vec<String> = vec![];
+        let aliases = b.import_aliases.clone();
+        let base_name = |p: &ast::AstPath<'_>| -> String {
+            let n = p.last().as_str();
+            aliases.get(n).cloned().unwrap_or_else(|| n.to_string())
+        };
+        fn c3<'a>(
+            n: &str,
+            items: &FxHashMap<String, (&'a ast::Item<'a>, &'a ast::ItemContract<'a>)>,
+            base_name: &dyn Fn(&ast::AstPath<'_>) -> String,
+            depth: usize,
+        ) -> Option<Vec<String>> {
+            let (_, c) = items.get(n)?;
+            if depth > 64 {
+                return None;
+            }
+            // Bases are listed from the most base-like to the most derived.
+            let bases: Vec<String> = c.bases.iter().rev().map(|b| base_name(&b.name)).collect();
+            let mut seqs: Vec<Vec<String>> = vec![];
+            for b in &bases {
+                if items.contains_key(b) {
+                    seqs.push(c3(b, items, base_name, depth + 1)?);
+                }
+            }
+            seqs.push(bases.iter().filter(|b| items.contains_key(*b)).cloned().collect());
+            let mut out = vec![n.to_string()];
+            loop {
+                seqs.retain(|s| !s.is_empty());
+                if seqs.is_empty() {
+                    return Some(out);
+                }
+                let head = seqs
+                    .iter()
+                    .map(|s| s[0].clone())
+                    .find(|h| !seqs.iter().any(|s| s[1..].contains(h)))?;
+                for s in &mut seqs {
+                    if s[0] == head {
+                        s.remove(0);
+                    }
+                }
+                out.push(head);
+            }
+        }
+        fn dfs<'a>(
+            n: &str,
+            items: &FxHashMap<String, (&'a ast::Item<'a>, &'a ast::ItemContract<'a>)>,
+            base_name: &dyn Fn(&ast::AstPath<'_>) -> String,
+            lin: &mut Vec<String>,
+        ) {
+            if lin.iter().any(|x| x == n) {
+                return;
+            }
+            if let Some((_, c)) = items.get(n) {
+                for base in c.bases.iter() {
+                    dfs(&base_name(&base.name), items, base_name, lin);
+                }
+                lin.push(n.to_string());
+            }
+        }
+        match c3(name, &items, &base_name, 0) {
+            Some(mut l) => {
+                l.reverse();
+                lin = l;
+            }
+            None => dfs(name, &items, &base_name, &mut lin),
+        }
+        let (_, own) = items[name];
+        let mut con = Contract {
+            name: name.clone(),
+            kind: own.kind,
+            state: vec![],
+            funcs: vec![],
+            modifiers: FxHashMap::default(),
+            invariants: vec![],
+            lock_stable: vec![],
+            lock: None,
+            lock_expr: None,
+            groups: vec![],
+            broadcast_use: vec![],
+            overridden: vec![],
+            lin: lin.clone(),
+            base_ctors: vec![],
+            imported: imported.contains(name),
+            base_args: FxHashMap::default(),
+            custom_layout: lin.iter().any(|cn| items[cn].1.layout.is_some()),
+        };
+        let mut has_asm = false;
+        // whether the contract's code creates contracts (`new C`; assembly may too)
+        let mut creates = false;
+        for cn in &lin {
+            for sub in items[cn].1.body.iter() {
+                if let ItemKind::Function(f) = &sub.kind {
+                    for st in f.body.iter().flat_map(|b| b.stmts.iter()) {
+                        crate::walk::all_stmts(st, &mut |x| {
+                            has_asm |= matches!(x.kind, StmtKind::Assembly(_));
+                            crate::walk::stmt_exprs(x, &mut |e| {
+                                crate::walk::sub_exprs(e, &mut |e| {
+                                    creates |= matches!(e.kind, ast::ExprKind::New(_))
+                                })
+                            });
+                        });
+                    }
+                }
+            }
+        }
+        // A struct name several contracts declare resolves among this hierarchy's.
+        b.scope = lin.clone();
+        for cn in &lin {
+            let (item, c) = items[cn];
+            for (tag, content, span) in custom_tags(&item.docs) {
+                match tag.as_str() {
+                    "invariant" => con.invariants.extend(b.parse_spec(&content, span)),
+                    "broadcast-use" => con.broadcast_use.extend(b.names(&content, span)),
+                    "group" => {
+                        let mut names = b.names(&content, span).into_iter().map(|(n, _)| n);
+                        match names.next() {
+                            Some(name) if !name.contains('.') => {
+                                con.groups.push(Group { name, members: names.collect(), span })
+                            }
+                            _ => b.errors.push((
+                                span,
+                                "@custom:group needs a name, then its lemmas and groups".into(),
+                            )),
+                        }
+                    }
+                    "lock-stable" | "lock_stable" => {
+                        con.lock_stable.extend(b.parse_spec(&content, span))
+                    }
+                    "reentrancy-guard" | "reentrancy_guard" => {
+                        let t = content.trim().to_string();
+                        let simple =
+                            !t.is_empty() && t.chars().all(|c| c.is_alphanumeric() || c == '_');
+                        con.lock_expr = if simple { None } else { b.parse_spec(&t, span) };
+                        con.lock = Some((t, span))
+                    }
+                    "ghost" => {
+                        let content = content.trim().trim_end_matches(';');
+                        // A struct, enum, contract or user-defined value type by its name, or by
+                        // a qualified one (`I.Deposit`) whose last part names one declaration.
+                        let named = |t: &str| -> Option<Ty> {
+                            let n = t.rsplit('.').next()?.trim();
+                            if b.ambiguous_structs.contains(n) {
+                                return None;
+                            }
+                            if b.qualified_structs.contains(n) {
+                                let q = t.trim();
+                                let q = match q.rsplit_once('.') {
+                                    Some((c, s)) => {
+                                        let c = c.rsplit('.').next().unwrap_or(c);
+                                        let c = b.import_aliases.get(c).map_or(c, String::as_str);
+                                        format!("{c}.{s}")
+                                    }
+                                    None => return None,
+                                };
+                                return b.struct_keys.contains(&q).then_some(Ty::Struct(q));
+                            }
+                            if b.struct_names.contains(n) {
+                                return Some(Ty::Struct(n.to_string()));
+                            }
+                            if let Some(k) = b.enums.get(n) {
+                                return Some(Ty::Enum(n.to_string(), *k));
+                            }
+                            if b.contract_names.iter().any(|c| c == n) {
+                                return Some(Ty::Contract(n.to_string()));
+                            }
+                            udvts.get(n).cloned()
+                        };
+                        match content
+                            .rsplit_once(char::is_whitespace)
+                            .and_then(|(t, n)| Some((parse_ty_text_in(t, &named)?, n)))
+                        {
+                            Some((ty, n)) => con.state.push(StateVar {
+                                name: n.to_string(),
+                                ty,
+                                init: None,
+                                constant: false,
+                                immutable: false,
+                                ghost: true,
+                                ghost_decl: Some(span),
+                                transient: false,
+                                span,
+                            }),
+                            None => {
+                                b.errors.push((span, format!("bad ghost declaration `{content}`")))
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            for base in c.bases.iter() {
+                if !base.arguments.is_empty() {
+                    con.base_args.insert(base_name(&base.name), &base.arguments);
+                }
+            }
+            // An interface several files declare alike has the members of every declaration,
+            // each once.
+            let copies = shared_ifaces.get(cn.as_str()).map_or(&[][..], |v| &v[..]);
+            let mut shapes = FxHashSet::default();
+            for sub in std::iter::once(c).chain(copies.iter().copied()).flat_map(|c| c.body.iter())
+            {
+                if !copies.is_empty()
+                    && !shapes.insert(crate::sources::iface_member_shape(sess, sub))
+                {
+                    continue;
+                }
+                match &sub.kind {
+                    ItemKind::Variable(v) => {
+                        let ty = b.ty(&v.ty);
+                        con.state.push(StateVar {
+                            name: v.name.map(|n| n.as_str().to_string()).unwrap_or_default(),
+                            ty,
+                            init: v.initializer.as_deref(),
+                            constant: v.mutability == Some(ast::VarMut::Constant),
+                            immutable: v.mutability == Some(ast::VarMut::Immutable),
+                            ghost: false,
+                            ghost_decl: None,
+                            transient: v.data_location == Some(ast::DataLocation::Transient),
+                            span: v.span,
+                        });
+                    }
+                    ItemKind::Function(f) if f.kind.is_modifier() => {
+                        if let Some(b2) = &f.body {
+                            for s in b2.stmts.iter() {
+                                b.walk_stmt_docs(s);
+                            }
+                            for (sp, t) in b.attach_tails(b2) {
+                                b.errors.push((sp, format!("spec comment `{t}` is attached to no statement: only @custom:assert and @custom:assume may end a block; put a statement after it")));
+                            }
+                        }
+                        con.modifiers.insert(
+                            f.header.name.map(|n| n.as_str().to_string()).unwrap_or_default(),
+                            f,
+                        );
+                    }
+                    ItemKind::Function(f) => {
+                        let func = b.func(cn, sub, f);
+                        let sm = b.sess.source_map();
+                        let texts = |it: &ItemFunction<'_>| -> Vec<String> {
+                            it.header
+                                .parameters
+                                .iter()
+                                .map(|p| {
+                                    sm.span_to_snippet(p.ty.span)
+                                        .unwrap_or_default()
+                                        .split_whitespace()
+                                        .collect::<String>()
+                                })
+                                .collect()
+                        };
+                        let mine = texts(f);
+                        let overrides = |g: &Func<'a>| {
+                            // an override comes from a base contract; one contract's own
+                            // overloads (TransientSlot's tload per slot type) all stay, even
+                            // when their parameter types erase to the same Ty
+                            // A function of a base's name and erased parameter types overrides
+                            // it only when it says `override` or implements a declaration
+                            // without a body: otherwise it is an overload whose parameter
+                            // types differ before erasure (`W` and `uint256`, `string` and
+                            // `bytes`).
+                            g.name == func.name
+                                && g.contract != func.contract
+                                && g.params
+                                    .iter()
+                                    .map(|p| &p.1)
+                                    .eq(func.params.iter().map(|p| &p.1))
+                                && (f.header.override_.is_some()
+                                    || g.item.body.is_none()
+                                    || texts(g.item) == mine)
+                                && func.name != "constructor"
+                        };
+                        if let Some(i) = con.funcs.iter().position(overrides) {
+                            // An override of several bases (`override(A, B)`) replaces them all.
+                            let rest: Vec<usize> = con
+                                .funcs
+                                .iter()
+                                .enumerate()
+                                .skip(i + 1)
+                                .filter(|(_, g)| overrides(g))
+                                .map(|(j, _)| j)
+                                .collect();
+                            for j in rest.into_iter().rev() {
+                                let old = con.funcs.remove(j);
+                                con.overridden.push(old);
+                            }
+                            let old = std::mem::replace(&mut con.funcs[i], func);
+                            con.overridden.push(old);
+                        } else if func.name == "constructor" && cn != name {
+                            con.base_ctors.push((cn.clone(), f));
+                        } else {
+                            con.funcs.push(func);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        for (n, v) in &file_consts {
+            if v.mutability == Some(ast::VarMut::Constant) {
+                let ty = b.ty(&v.ty);
+                con.state.push(StateVar {
+                    name: n.clone(),
+                    ty,
+                    init: v.initializer.as_deref(),
+                    constant: true,
+                    immutable: false,
+                    ghost: false,
+                    ghost_decl: None,
+                    transient: false,
+                    span: v.span,
+                });
+            }
+        }
+        if (con.kind == ContractKind::Contract || con.kind == ContractKind::AbstractContract)
+            && (has_asm || lib_asm)
+        {
+            // transient storage (tload/tstore): arbitrary when a call starts (it may reenter
+            // mid-transaction), kept within it, havocked at external calls like storage
+            con.state.push(StateVar {
+                name: "__traw".into(),
+                ty: Ty::Map(Box::new(Ty::Uint(256)), Box::new(Ty::Uint(256))),
+                init: None,
+                constant: false,
+                immutable: false,
+                ghost: true,
+                ghost_decl: None,
+                transient: true,
+                span: Span::DUMMY,
+            });
+            // raw storage slots that inline assembly reaches with sload/sstore (assumed disjoint
+            // from the declared state variables)
+            con.state.push(StateVar {
+                name: "__raw".into(),
+                ty: Ty::Map(Box::new(Ty::Uint(256)), Box::new(Ty::Uint(256))),
+                init: None,
+                constant: false,
+                immutable: false,
+                ghost: true,
+                ghost_decl: None,
+                transient: false,
+                span: Span::DUMMY,
+            });
+        }
+        let uses_time = con.invariants.iter().any(|s| s.text.contains("__time"))
+            || con
+                .funcs
+                .iter()
+                .any(|f| f.requires.iter().chain(&f.ensures).any(|s| s.text.contains("__time")));
+        if (con.kind == ContractKind::Contract || con.kind == ContractKind::AbstractContract)
+            && uses_time
+        {
+            // the latest block.timestamp this contract has seen: block time never goes backwards,
+            // so every call starts at or after it (added only when a spec mentions it)
+            con.state.push(StateVar {
+                name: "__time".into(),
+                ty: Ty::Uint(256),
+                init: None,
+                constant: false,
+                immutable: false,
+                ghost: true,
+                ghost_decl: None,
+                transient: false,
+                span: Span::DUMMY,
+            });
+        }
+        if con.kind == ContractKind::Contract || con.kind == ContractKind::AbstractContract {
+            // ETH balances, as a ghost mapping every contract carries
+            con.state.push(StateVar {
+                name: "__balance".into(),
+                ty: Ty::Map(Box::new(Ty::Addr), Box::new(Ty::Uint(256))),
+                init: None,
+                constant: false,
+                immutable: false,
+                ghost: true,
+                ghost_decl: None,
+                transient: false,
+                span: Span::DUMMY,
+            });
+            // which code each address holds: a value of this epoch, which every external call and
+            // contract creation moves on (code changes only through outside code), so code read
+            // twice between calls (in the body and in a spec) is the same code
+            con.state.push(StateVar {
+                name: "__code_epoch".into(),
+                ty: Ty::Uint(256),
+                init: None,
+                constant: false,
+                immutable: false,
+                ghost: true,
+                ghost_decl: None,
+                transient: false,
+                span: Span::DUMMY,
+            });
+            if creates || has_asm || lib_asm {
+                // the addresses this contract deployed with code that can never be removed
+                // (see `Vc::created`): each holds code, so no later creation lands there
+                con.state.push(StateVar {
+                    name: "__created".into(),
+                    ty: Ty::Map(Box::new(Ty::Addr), Box::new(Ty::Bool)),
+                    init: None,
+                    constant: false,
+                    immutable: false,
+                    ghost: true,
+                    ghost_decl: None,
+                    transient: false,
+                    span: Span::DUMMY,
+                });
+            }
+            if con.kind == ContractKind::Contract
+                && !con.funcs.iter().any(|f| f.name == "constructor")
+            {
+                // deployment must establish the invariants even without an explicit constructor
+                let (item, _) = items[name];
+                let fake: &'a ItemFunction<'a> = arena.alloc(ItemFunction {
+                    kind: ast::FunctionKind::Constructor,
+                    header: ast::FunctionHeader { span: item.span, ..Default::default() },
+                    body: None,
+                    body_span: item.span,
+                });
+                con.funcs.push(Func {
+                    name: "constructor".into(),
+                    contract: name.clone(),
+                    item: fake,
+                    requires: vec![],
+                    ensures: vec![],
+                    succeeds: vec![],
+                    params: vec![],
+                    rets: vec![],
+                    spec_body: None,
+                    checks: vec![],
+                    opaque: false,
+                    trusted: false,
+                    synthetic: true,
+                    orphans: vec![],
+                    ghost_fn: false,
+                    broadcast: false,
+                    triggers: vec![],
+                    broadcast_use: vec![],
+                    summary: false,
+                });
+            }
+        }
+        // An implementation of an interface function inherits its exported contract: the
+        // interface's ensures (under its requires, as old(..) ==> ..) are proved of the body, so
+        // what callers through the interface trust is checked wherever the implementation is here.
+        let mut inherit: Vec<(usize, Spec<'a>)> = vec![];
+        for old in &con.overridden {
+            if old.item.body.is_some() || old.ensures.is_empty() {
+                continue;
+            }
+            if !items.get(&old.contract).is_some_and(|(_, c)| c.kind == ContractKind::Interface) {
+                continue;
+            }
+            let Some(i) = con.funcs.iter().position(|g| {
+                g.name == old.name
+                    && g.params.iter().map(|p| &p.1).eq(old.params.iter().map(|p| &p.1))
+            }) else {
+                continue;
+            };
+            let imp = &con.funcs[i];
+            if imp.item.body.is_none() {
+                continue;
+            }
+            let pn = |f: &Func<'_>| f.params.iter().map(|p| p.0.clone()).collect::<Vec<_>>();
+            let rn = |f: &Func<'_>| f.rets.iter().map(|p| p.0.clone()).collect::<Vec<_>>();
+            let named_ret = old.rets.iter().any(|r| !r.0.starts_with("__ret"));
+            if pn(imp) != pn(old) || (named_ret && rn(imp) != rn(old)) {
+                b.errors.push((
+                    old.ensures[0].span,
+                    format!(
+                        "{}.{} implements {}.{} with other parameter or return names: use the interface's names so its contract can be checked",
+                        imp.contract, imp.name, old.contract, old.name
+                    ),
+                ));
+                continue;
+            }
+            let pre = if old.requires.is_empty() {
+                None
+            } else {
+                Some(
+                    old.requires
+                        .iter()
+                        .map(|r| format!("({})", r.text))
+                        .collect::<Vec<_>>()
+                        .join(" && "),
+                )
+            };
+            for e in &old.ensures {
+                let text = match &pre {
+                    Some(p) => format!("old({p}) ==> ({})", e.text),
+                    None => e.text.clone(),
+                };
+                if let Some(sp) = b.parse_spec(&text, e.span) {
+                    inherit.push((i, sp));
+                }
+            }
+        }
+        for (i, sp) in inherit {
+            con.funcs[i].ensures.push(sp);
+        }
+        contracts.push(con);
+    }
+    if !free_fns.is_empty() {
+        let mut con = Contract {
+            name: FREE.into(),
+            kind: ContractKind::Library,
+            state: vec![],
+            funcs: vec![],
+            modifiers: FxHashMap::default(),
+            invariants: vec![],
+            lock_stable: vec![],
+            lock: None,
+            lock_expr: None,
+            groups: vec![],
+            broadcast_use: vec![],
+            overridden: vec![],
+            lin: vec![FREE.into()],
+            base_ctors: vec![],
+            imported: free_fns.iter().all(|(_, _, imp)| *imp),
+            base_args: FxHashMap::default(),
+            custom_layout: false,
+        };
+        for (it, f, _) in &free_fns {
+            con.funcs.push(b.func(FREE, it, f));
+        }
+        for (n, v) in &file_consts {
+            if v.mutability == Some(ast::VarMut::Constant) {
+                let ty = b.ty(&v.ty);
+                con.state.push(StateVar {
+                    name: n.clone(),
+                    ty,
+                    init: v.initializer.as_deref(),
+                    constant: true,
+                    immutable: false,
+                    ghost: false,
+                    ghost_decl: None,
+                    transient: false,
+                    span: v.span,
+                });
+            }
+        }
+        contracts.push(con);
+    }
+    // What `using` directives attach in each contract: its own, its file's and every global one.
+    let mut using: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let mut global_using: FxHashSet<String> = FxHashSet::default();
+    // Free functions are gathered from every file into one pseudo-library: each file's
+    // directives count for all of them.
+    let mut free_using: FxHashSet<String> = FxHashSet::default();
+    let attach = |out: &mut FxHashSet<String>, d: &ast::UsingDirective<'_>| match &d.list {
+        ast::UsingList::Single(p) => {
+            out.insert(p.last().as_str().to_string());
+        }
+        ast::UsingList::Multiple(list) => {
+            for (p, _) in list.iter() {
+                let segs = p.segments();
+                let n = segs.len();
+                out.insert(if n >= 2 {
+                    format!("{}.{}", segs[n - 2].as_str(), segs[n - 1].as_str())
+                } else {
+                    segs[0].as_str().to_string()
+                });
+            }
+        }
+    };
+    for u in units {
+        let mut file = FxHashSet::default();
+        let mut own: Vec<(String, FxHashSet<String>)> = vec![];
+        for it in u.items.iter() {
+            match &it.kind {
+                ItemKind::Using(d) => {
+                    attach(&mut file, d);
+                    if d.global {
+                        attach(&mut global_using, d);
+                    }
+                }
+                ItemKind::Contract(c) => {
+                    let mut set = FxHashSet::default();
+                    for sub in c.body.iter() {
+                        if let ItemKind::Using(d) = &sub.kind {
+                            attach(&mut set, d);
+                        }
+                    }
+                    own.push((c.name.as_str().to_string(), set));
+                }
+                _ => {}
+            }
+        }
+        free_using.extend(file.iter().cloned());
+        for (n, set) in own {
+            let e = using.entry(n).or_default();
+            e.extend(set);
+            e.extend(file.iter().cloned());
+        }
+    }
+    using.entry(FREE.to_string()).or_default().extend(free_using);
+    for c in &contracts {
+        using.entry(c.name.clone()).or_default().extend(global_using.iter().cloned());
+    }
+    let mut unknown_seen = FxHashSet::default();
+    let mut program = Program {
+        contracts,
+        quants: b.quants,
+        stmt_specs: b.stmt_specs,
+        block_tail: b.block_tail,
+        enums: b.enums,
+        enum_variants: b.enum_variants,
+        enum_decls: std::mem::take(&mut b.enum_decls),
+        contract_spans: items.iter().map(|(n, (it, _))| (n.clone(), it.span)).collect(),
+        structs,
+        udvts,
+        udvt_bytes,
+        struct_invs,
+        decl_stmts: b.decl_stmts.clone(),
+        const_sizes: b.const_sizes.clone(),
+        errors: b.errors,
+        ghost_errors: vec![],
+        refused: refused
+            .into_iter()
+            .chain(b.unknown_sizes.iter().filter(|&&sp| unknown_seen.insert(sp)).map(|&sp| {
+                (
+                    sp,
+                    "fixed array size is not a known constant, so this file is not verified"
+                        .to_string(),
+                )
+            }))
+            .collect(),
+        refused_fns,
+        absint: b.absint,
+        using,
+        import_aliases: b.import_aliases.clone(),
+        qualified_structs: b.qualified_structs.clone(),
+        spec_sites: std::mem::take(&mut b.spec_sites),
+        shared_interfaces: shared_ifaces.keys().cloned().collect(),
+    };
+    let (ghost_errors, lemmas) = crate::ghost::check(&program);
+    for c in &mut program.contracts {
+        for f in c.funcs.iter_mut().chain(&mut c.overridden) {
+            f.ghost_fn = lemmas.contains(&(f.contract.clone(), f.name.clone(), f.params.len()));
+        }
+    }
+    program.ghost_errors = ghost_errors;
+    program
+}
+
+/// The value of a fixed array's size expression: an integer literal, or a constant naming one.
+pub(crate) fn array_size(consts: &FxHashMap<String, u64>, e: &ast::Expr<'_>) -> Option<u64> {
+    use solar_parse::ast::{ExprKind, LitKind};
+    match &e.kind {
+        ExprKind::Lit(l, None) => match &l.kind {
+            LitKind::Number(n) => u64::try_from(*n).ok(),
+            _ => None,
+        },
+        ExprKind::Ident(i) => consts.get(i.as_str()).copied(),
+        _ => None,
+    }
+}
+
+/// A spec text that also runs as Solidity (it becomes a require under --instrument).
+pub(crate) fn executable(text: &str) -> bool {
+    !(text.contains("old(")
+        || text.contains("==>")
+        || text.contains("<==>")
+        || text.contains("forall")
+        || text.contains("exists"))
+}
+
+/// Summaries solar-verify trusts for well-known library functions it cannot verify itself, applied
+/// only when the function carries no specs of its own and its parameters are named as upstream.
+/// OpenZeppelin `Math.mulDiv`: the exact quotient of the 512-bit product, rounded as asked; it
+/// reverts when `denominator` is zero or the result does not fit in `uint256`.
+fn builtin_summary(cname: &str, f: &ItemFunction<'_>) -> Option<(&'static str, &'static str)> {
+    if cname != "Math"
+        || f.header.name.map(|n| n.as_str() != "mulDiv").unwrap_or(true)
+        || f.header.returns().len() != 1
+    {
+        return None;
+    }
+    let names: Vec<String> = f
+        .header
+        .parameters
+        .iter()
+        .map(|p| p.name.map(|n| n.as_str().to_string()).unwrap_or_default())
+        .collect();
+    let names: Vec<&str> = names.iter().map(String::as_str).collect();
+    match names.as_slice() {
+        ["x", "y", "denominator"] => Some((
+            "denominator > 0 && result == x * y / denominator",
+            "denominator > 0 && x * y / denominator <= type(uint256).max",
+        )),
+        ["x", "y", "denominator", "rounding"] => Some((
+            "denominator > 0 && result == ((rounding == Rounding.Ceil || rounding == Rounding.Expand) ? (x * y + denominator - 1) / denominator : x * y / denominator)",
+            "denominator > 0 && (x * y + denominator - 1) / denominator <= type(uint256).max",
+        )),
+        _ => None,
+    }
+}
+
+/// Specs parsed in this process, which names each one's source file.
+static SPECS: AtomicUsize = AtomicUsize::new(0);
+
+/// Struct names that stand for several declarations (`ambiguous`) have no datatype, and an
+/// opaque value in their place lets overloads, hashes and length writes prove false facts. This
+/// finds what reaches such a name, by name: an item whose source or doc comments mention a
+/// reached name (struct, event, error, function, modifier, variable) is reached, and its own name
+/// then reaches further, to a fixed point. A name match stands for whatever it names, so this
+/// over-approximates. A contract whose state variables or doc comments are reached cannot be
+/// verified at all (its layout and invariants depend on the opaque value), so the file is
+/// refused; otherwise only the reached functions are, by the address of their item.
+#[allow(clippy::type_complexity)]
+fn refuse_ambiguous(
+    sess: &Session,
+    units: &[&SourceUnit<'_>],
+    ambiguous: &FxHashSet<String>,
+    only_structs: bool,
+) -> (Vec<(Span, String)>, FxHashMap<usize, String>) {
+    enum Kind {
+        Func(usize),
+        Storage,
+        Other,
+    }
+    struct Entry {
+        name: Option<String>,
+        words: FxHashSet<String>,
+        span: Span,
+        kind: Kind,
+        hit: bool,
+    }
+    let mut refused = vec![];
+    let mut fns = FxHashMap::default();
+    if ambiguous.is_empty() {
+        return (refused, fns);
+    }
+    let words = |text: &str| -> FxHashSet<String> {
+        text.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '$'))
+            .filter(|w| !w.is_empty())
+            .map(str::to_string)
+            .collect()
+    };
+    let docs_text = |docs: &ast::DocComments<'_>| -> String {
+        docs.iter().map(|d| d.symbol.as_str().to_string()).collect::<Vec<_>>().join("\n")
+    };
+    let mut entries = vec![];
+    let entry = |it: &ast::Item<'_>, kind: Kind| {
+        let src = sess.source_map().span_to_snippet(it.span).unwrap_or_default();
+        Entry {
+            name: it.name().map(|n| n.as_str().to_string()),
+            words: words(&format!("{src}\n{}", docs_text(&it.docs))),
+            span: it.name().map_or(it.span, |n| n.span),
+            kind,
+            hit: false,
+        }
+    };
+    for u in units {
+        for it in u.items.iter() {
+            match &it.kind {
+                ItemKind::Contract(c) => {
+                    // The contract's own doc comments (its invariants) and its state variables.
+                    let holds_state = !c.kind.is_interface() && c.kind != ContractKind::Library;
+                    entries.push(Entry {
+                        name: None,
+                        words: words(&docs_text(&it.docs)),
+                        span: c.name.span,
+                        kind: if holds_state { Kind::Storage } else { Kind::Other },
+                        hit: false,
+                    });
+                    for sub in c.body.iter() {
+                        match &sub.kind {
+                            ItemKind::Function(f) => {
+                                entries.push(entry(sub, Kind::Func(std::ptr::from_ref(f).addr())))
+                            }
+                            ItemKind::Variable(v) if v.mutability.is_none() => {
+                                entries.push(entry(sub, Kind::Storage))
+                            }
+                            _ => entries.push(entry(sub, Kind::Other)),
+                        }
+                    }
+                }
+                ItemKind::Function(f) => {
+                    entries.push(entry(it, Kind::Func(std::ptr::from_ref(f).addr())))
+                }
+                _ => entries.push(entry(it, Kind::Other)),
+            }
+        }
+    }
+    let mut reached: FxHashSet<String> = ambiguous.clone();
+    loop {
+        let mut grew = false;
+        for e in entries.iter_mut().filter(|e| !e.hit) {
+            if e.words.iter().any(|w| reached.contains(w)) {
+                e.hit = true;
+                if let Some(n) = &e.name {
+                    grew |= reached.insert(n.clone());
+                }
+            }
+        }
+        if !grew {
+            break;
+        }
+    }
+    let mut names: Vec<&str> = ambiguous.iter().map(String::as_str).collect();
+    names.sort_unstable();
+    let names = names.iter().map(|n| format!("`{n}`")).collect::<Vec<_>>().join(", ");
+    let what = if only_structs { "structs" } else { "types" };
+    let why = format!("several {what} share the name {names}: {what} are keyed by name");
+    for e in entries.iter().filter(|e| e.hit) {
+        match e.kind {
+            Kind::Func(a) => {
+                fns.insert(a, format!("this function reaches {names}, and {why}"));
+            }
+            Kind::Storage => {
+                refused.push((e.span, format!("this contract's storage or invariants reach {names}, and {why}, so this file is not verified")));
+            }
+            Kind::Other => {}
+        }
+    }
+    (refused, fns)
+}

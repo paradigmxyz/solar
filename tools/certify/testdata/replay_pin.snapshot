@@ -1,0 +1,20 @@
+only the binary digest differs: 0 CERTIFIED: replay of <path> a fresh cold run from the same pinned source/build inputs gave identical checked outputs (<path>)
+bytecode differs: 1 REJECTED: replay: bytecode_sha256 differs between the record and the fresh run (record None, fresh 9999999999999999999999999999999999999999999999999999999999999999)
+Cargo.lock differs: 1 REJECTED: replay: solar.build.cargo_lock_sha256 differs between the record and the fresh run (record 7777777777777777777777777777777777777777777777777777777777777777, fresh 8888888888888888888888888888888888888888888888888888888888888888)
+toolchain differs: 1 REJECTED: replay: solar.build.rustc_vv differs between the record and the fresh run (record rustc 1.100.0 (abc 2026-01-01)\nbinary: rustc\ncommit-hash: abc\nhost: x86_64-unknown-linux-gnu, fresh rustc 1.101.0\nhost: x86_64-unknown-linux-gnu)
+flags differ: 1 REJECTED: replay: solar.build.rustflags differs between the record and the fresh run (record {'RUSTFLAGS': None, 'CARGO_ENCODED_RUSTFLAGS': None, 'CARGO_BUILD_RUSTFLAGS': None}, fresh {'RUSTFLAGS': '-Copt-level=3', 'CARGO_ENCODED_RUSTFLAGS': None, 'CARGO_BUILD_RUSTFLAGS': None})
+source tree differs: 1 REJECTED: replay: solar.build.tree differs between the record and the fresh run (record 6666666666666666666666666666666666666666, fresh 0000000000000000000000000000000000000000)
+stale producer: 1 REJECTED: replay: stale producer: the recorded run's solar embeds 4444444444444444444444444444444444444444, not the commit it was built from (5555555555555555555555555555555555555555)
+substituted executable (record): 1 REJECTED: replay: substituted executable: the recorded run's build produced eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee, not the recorded dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+substituted executable (fresh): 1 REJECTED: replay: substituted executable: the fresh run's scripts/certify ran solar eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee, not the built ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+old record without provenance: 1 REJECTED: replay: versioned-unsupported: the recorded run has no solar build provenance version 2 (solar.build); nothing is filled in
+fresh record without provenance: 1 REJECTED: replay: versioned-unsupported: the fresh run has no solar build provenance version 2 (solar.build); nothing is filled in
+dirty checkout: 1 REJECTED: replay: the recorded run's solar checkout is dirty
+artifact is not the recorded binary: 1 REJECTED: replay: substituted executable: the recorded run's build produced cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc, not the recorded eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+Cargo config differs: 1 REJECTED: replay: solar.build.cargo_config differs between the record and the fresh run (record [{'scope': 'repo', 'name': 'config.toml', 'sha256': '3333333333333333333333333333333333333333333333333333333333333333'}], fresh [{'scope': 'cargo_home', 'name': 'config.toml', 'sha256': '2222222222222222222222222222222222222222222222222222222222222)
+Cargo environment differs: 1 REJECTED: replay: solar.build.cargo_env differs between the record and the fresh run (record {'CARGO_INCREMENTAL': None}, fresh {'CARGO_INCREMENTAL': '1'})
+lifecycle binding differs: 1 REJECTED: replay: lifecycle.bind differs between the record and the fresh run (record None, fresh {'source_module': 'Verify.LoopSource.Equiv.CounterCreated'})
+lifecycle record without bind: 1 REJECTED: replay: versioned-unsupported: the recorded run has no lifecycle provenance (bind); nothing is filled in
+lifecycle record without args: 1 REJECTED: replay: versioned-unsupported: the recorded run has no lifecycle provenance (args); nothing is filled in
+lifecycle record without creation_sha256: 1 REJECTED: replay: versioned-unsupported: the recorded run has no lifecycle provenance (creation_sha256); nothing is filled in
+old provenance version 1: 1 REJECTED: replay: versioned-unsupported: the recorded run has no solar build provenance version 2 (solar.build); nothing is filled in

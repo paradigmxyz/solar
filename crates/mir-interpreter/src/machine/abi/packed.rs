@@ -2,8 +2,9 @@
 //! adjacent literals up to a total width of 32 bytes. Other pieces retain their
 //! individual word stores, including unaligned tails. Scratch placement depends
 //! on the last byte written, not just the length hashed. This is independent of
-//! compiler expansion and retains exact MSIZE and overwritten padding. An encoded
-//! object has no additional clearing store after its pieces.
+//! compiler expansion and retains exact MSIZE and overwritten padding. Only in a
+//! module that reads MSIZE does an unhashed encoding that does not end on a word
+//! also clear the word after it, as the compiler does.
 
 use crate::machine::{Outcome, Run, calldata_word, limit};
 use alloy_primitives::{U256, keccak256};
@@ -105,6 +106,7 @@ impl Run<'_, '_, '_> {
             }
             pieces.push(Piece { bytes, scalar });
         }
+        let aligned = pieces.iter().all(|piece| piece.bytes.len().is_multiple_of(32));
         let writes = word_stores(&pieces);
         let write_end = writes.iter().map(|(offset, _)| offset + 32).max().unwrap_or_default();
         let length = U256::from(length);
@@ -122,6 +124,10 @@ impl Run<'_, '_, '_> {
         self.burn(writes.len() as u64)?;
         for (offset, word) in writes {
             limit(self.memory.store(data.wrapping_add(U256::from(offset)), word))?;
+        }
+        if self.machine.reads_msize && !hash && !aligned {
+            // mstore(data + length, 0)
+            limit(self.memory.store(data.wrapping_add(length), U256::ZERO))?;
         }
         if hash {
             self.burn_words(length)?;

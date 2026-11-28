@@ -1,0 +1,10 @@
+error: cannot instrument a `@custom:check` in an imported file
+  ╭▸ tests/snapshots/imports/auxiliary/Checked.sol:7:43
+  │
+7 │       function store(uint256 amount) public {
+  │ ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+8 │ ┃         stored = amount;
+9 │ ┃     }
+  │ ┗━━━━━┛
+  │
+  ╰ note: the verification assumed it holds; instrument that file, or flatten it in

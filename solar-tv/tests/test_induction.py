@@ -37,6 +37,8 @@ def call_data(elements, needle):
 
 
 class InductionFixture(unittest.TestCase):
+    lean_timeout = 60
+
     @classmethod
     def matches_capture(cls, item):
         return (
@@ -87,10 +89,12 @@ class InductionFixture(unittest.TestCase):
                 "--report",
                 report,
                 "--verbose",
+                "--timeout",
+                str(self.lean_timeout),
             ],
             capture_output=True,
             text=True,
-            timeout=90,
+            timeout=self.lean_timeout + 30,
             check=False,
         )
         return result, json.loads(report.read_text())
@@ -192,6 +196,8 @@ class CalldataInductionTests(InductionFixture):
 class MemoryInductionTests(InductionFixture):
     source = "continued_counter.sol"
     function = "fill"
+    # The kernel checks both fills in one proof of about 45 s.
+    lean_timeout = 120
 
     @staticmethod
     def array(observation):

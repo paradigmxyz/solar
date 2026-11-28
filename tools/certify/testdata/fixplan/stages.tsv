@@ -1,0 +1,11 @@
+# NAME	SOURCE	STAGE	DECL: the driver's stage-gate negatives (tools/certify/stage_neg.sh). STAGE is the
+# registered stage, verbatim from tools/certify-adversarial/stages.tsv (752d9b30): a Python regex the
+# driver's last line must match. DECL is the declaration whose kernel-checked refutation the line
+# names ("refuted in the kernel by <module>.DECL"), required with --kernel.
+clampwrongspec-r2	ClampWrongSpecR2.sol	^REJECTED: spec: \S*\bclamp_meets0 does not check	clamp_meets0_refuted
+siblingfns-r2	SiblingFnsR2.sol	^REJECTED: spec: \S*\blo_meets0 does not check(?!.*\bhi_)	lo_meets0_refuted
+initbroken-r2	InitBrokenR2.sol	^REJECTED: .*\binvariant\b.*\b(initial|constructor|deploy)	invariants_initial_refuted
+invbroken-r2	InvBrokenR2.sol	^REJECTED: .*\binvariant\b.*\breset\b	reset_meets0_refuted
+flag-succeedsalways	FlagSucceedsAlways.sol	^REJECTED: spec: \S*\blower_succeeds0 does not check	lower_value_refuses_refuted
+vacuoussecond-r2a	VacuousSecondR2a.sol	^REJECTED: .*\bvacuous.*\btwo\b|^REJECTED: .*\btwo\b.*\bvacuous	two_requires_unsat
+vacuoussecond-r2b	VacuousSecondR2b.sol	^REJECTED: .*\bvacuous.*\btwo\b|^REJECTED: .*\btwo\b.*\bvacuous	two_requires_unsat

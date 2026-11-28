@@ -1540,7 +1540,12 @@ def main() -> int:
                     fallback = lower_abi.check(
                         programs, args.function, rust_replay, version, args.timeout
                     )
-                except (Unsupported, OSError, subprocess.TimeoutExpired) as retry:
+                except Unsupported as retry:
+                    # Most interface changes are not ABI lowerings. Keep the
+                    # interface mismatch as the reason, as the other fallbacks do.
+                    if args.verbose:
+                        print(f"ABI lowering proof: {retry}", file=sys.stderr)
+                except (OSError, subprocess.TimeoutExpired) as retry:
                     error = retry
             if fallback is None:
                 for validate in (abi_encode.check, abi_effects.check):

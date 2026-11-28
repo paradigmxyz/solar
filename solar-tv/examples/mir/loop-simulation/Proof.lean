@@ -27,7 +27,7 @@ private def body (thunk : Bool) : Functions :=
     ⟨[incoming thunk],[write thunk],.jump (if thunk then 2 else 1)⟩] ++
     (if thunk then [⟨[],[],.jump 1⟩] else []),none⟩)]
 
-private def cfg : Config := ⟨.osaka,⟨0,0,0,0,0,0,[],false,0⟩,{},[0x52],false,128,none,[],{},[],false,none⟩
+private def cfg : Config := ⟨.osaka,⟨0,0,0,0,0,0,[],false,0⟩,{},[0x52],false,128,none,[],{},[],false,none,false⟩
 
 private def scratch (thunk : Bool) : Frame :=
   let memory := writeBytes (List.replicate 160 0) 128 (wordBytes 7)

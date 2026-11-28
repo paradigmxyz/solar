@@ -65,7 +65,7 @@ theorem signingEnvelope (frame : Frame) (domain digest : Word) :
     simp [pieces, Except.bind, Bind.bind] at plan
   | ok piecesValue =>
     simp only [pieces, Except.bind, Bind.bind, Pure.pure, Except.pure, Except.ok.injEq] at plan
-    simp only [abiPacked, pieces, plan, Bool.false_eq_true, ite_false,
+    simp only [abiPacked, pieces, plan, Bool.false_and, Bool.false_eq_true, ite_false,
       Except.bind, Bind.bind, Pure.pure, Except.pure, loweredSigningEnvelope]
     cases alloc : allocate frame 128 false false with
     | error _ => rfl

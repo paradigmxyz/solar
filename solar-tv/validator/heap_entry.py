@@ -12,6 +12,9 @@ from . import audit, dispatch_proof, entry_proof, metered_prefix, native, world
 from .common import Inconclusive, Program, Unsupported
 
 MODULE = "SolarTV.EVMIR.Transforms.HeapEntry"
+# The ABI route proof also imports this module, which the default Lean
+# target does not build.
+ABI_MODULE = "SolarTV.MIR.Transforms.TransferFromABI"
 
 
 def observe(image, fixture, version, executable, timeout, pc=None):
@@ -106,7 +109,7 @@ theorem producer (frame : MIR.State.Frame) (env : World.Environment) (tail : Lis
 
 def routed_source(image, route, selector, minimum, floor, extent, configuration):
     source = f"""import {MODULE}
-import SolarTV.MIR.Transforms.TransferFromABI
+import {ABI_MODULE}
 open SolarTV EvmRules Execution EVM.State
 set_option autoImplicit false
 set_option maxRecDepth 16384
@@ -258,7 +261,8 @@ def check_routed(
         source = routed_source(
             image, route, selector, minimum, floor, extent, configuration
         )
-        entry_proof.success(build_model(timeout), MODULE)
+        for module in (MODULE, ABI_MODULE):
+            entry_proof.success(build_model(timeout, module), module)
         output = entry_proof.success(
             entry_proof.lean(directory, "HeapABI", source, timeout), "ABI heap entry"
         )

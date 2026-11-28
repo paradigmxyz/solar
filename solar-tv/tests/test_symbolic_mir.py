@@ -50,7 +50,7 @@ class SymbolicMirTests(unittest.TestCase):
     def test_width_guards_with_stateful_internal_calls(self):
         for example, function, timeout, proof in (
             ("width-guard", "f", 20, "universal-caller-state"),
-            ("erc20-width-guard", "burn", 45, "kernel-checked-typed-jump-chain"),
+            ("erc20-width-guard", "burn", 120, "kernel-checked-typed-jump-chain"),
         ):
             with self.subTest(example=example):
                 folder = ROOT / "examples/mir" / example

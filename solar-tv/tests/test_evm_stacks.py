@@ -1,11 +1,12 @@
 """Symbolic block entries, live stack observations, and EVM terminal outcomes."""
 
 import re
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-from test_cli import ROOT, check
+from test_cli import ROOT, SOLAR, check
 
 
 class EvmStackTests(unittest.TestCase):
@@ -86,11 +87,29 @@ class EvmStackTests(unittest.TestCase):
         self.assertIn("empty stack", result.stderr)
 
     def test_stack_overflow_is_a_counterexample(self):
+        # The compiler accepts a block that overflows the 1024-word stack and warns that it
+        # overflows at runtime; the overflowing push then halts exceptionally, which deleting
+        # it changes.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "overflow.evmir"
+            path.write_text("@module Stack\nbb0 [stack=1024]:\npush 0\nstop\n")
+            compiled = subprocess.run(
+                [SOLAR, "-Zevm-ir-pipeline=none", "--emit=bin-runtime", path],
+                text=True,
+                check=False,
+                capture_output=True,
+                timeout=120,
+            )
+        self.assertEqual(compiled.returncode, 0, compiled.stderr)
+        self.assertIn("warning[0068]", compiled.stderr)
+        self.assertIn("grows the EVM stack to 1025 words", compiled.stderr)
         result = self.pair("push 0\nstop", "stop", height=1024, status=1)
+        self.assertIn("counterexample", result.stdout)
         self.assertIn(
             "before = exception(stack-overflow)\n  after  = success(empty)",
             result.stdout,
         )
+        self.assertIn("Exceptional halt behavior changed", result.stdout)
         self.assertIn("Lean kernel: confirmed", result.stdout)
         self.assertIn("Rust interpreter: matched", result.stdout)
 

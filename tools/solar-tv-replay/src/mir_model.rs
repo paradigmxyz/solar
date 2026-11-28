@@ -204,6 +204,11 @@ fn export_module(module: &Module, name: Option<&str>, whole_module: bool) -> Res
             export_function(module, id.index(), function)
         })
         .collect::<Result<Vec<_>, String>>()?;
+    // Whether any function of the whole module, exported or not, reads `MSIZE`, as the compiler
+    // decides it when it lowers packed encodings.
+    let reads_msize = module.functions.iter().any(|func| {
+        func.instructions().any(|inst| matches!(func.inst(inst).kind, solar_mir::InstKind::MSize))
+    });
     let Some(id) = entry else {
         let route = |id| {
             let func = module.function(id);
@@ -237,6 +242,7 @@ fn export_module(module: &Module, name: Option<&str>, whole_module: bool) -> Res
             "fallback_route": module.fallback().map(route),
             "library": module.is_library,
             "library_immutable": module.library_deploy_address().map(|id| id.index()),
+            "reads_msize": reads_msize,
             "functions": functions,
         }));
     };
@@ -266,6 +272,7 @@ fn export_module(module: &Module, name: Option<&str>, whole_module: bool) -> Res
         "entry_id": id.index(),
         "params": body.params.iter().map(|&ty|value_type(module, ty)).collect::<Result<Vec<_>, _>>()?,
         "returns": body.return_components().iter().map(|&ty|value_type(module, ty)).collect::<Result<Vec<_>, _>>()?,
+        "reads_msize": reads_msize,
         "functions": functions,
     }))
 }

@@ -1,0 +1,57 @@
+{
+  "format": "solar-verify loop heads 1",
+  "functions": [
+    {
+      "function": "Bump.bump",
+      "loops": [
+        {
+          "column": 9,
+          "line": 8,
+          "occurrence": 0,
+          "vars": [
+            {
+              "entry": {
+                "ssa": "count@3"
+              },
+              "havocked": true,
+              "head": {
+                "ssa": "count@7"
+              },
+              "kind": "storage",
+              "name": "count",
+              "offset": 0,
+              "slot": "0",
+              "sort": "Int",
+              "type": "t_uint256"
+            },
+            {
+              "entry": {
+                "term": "0"
+              },
+              "havocked": true,
+              "head": {
+                "ssa": "i@8"
+              },
+              "kind": "local",
+              "name": "i",
+              "sort": "Int"
+            },
+            {
+              "entry": {
+                "ssa": "n@5"
+              },
+              "havocked": false,
+              "head": {
+                "ssa": "n@5"
+              },
+              "kind": "param",
+              "name": "n",
+              "sort": "Int"
+            }
+          ]
+        }
+      ],
+      "status": "verified"
+    }
+  ]
+}

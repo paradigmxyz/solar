@@ -524,6 +524,15 @@ def function_body(value, definitions):
     return f"({number(value['id'])},⟨{params},{returns},{blocks},{buffer}⟩)"
 
 
+def reads_msize(model):
+    """Whether the exported module reads MSIZE anywhere, the flag the compiler lowers packed
+    encodings by: only then is the word after an unaligned unhashed encoding cleared."""
+    value = model["reads_msize"]
+    if type(value) is not bool:
+        raise Unsupported("invalid MIR MSIZE marker")
+    return value
+
+
 def translate(text, solar, version, fixture, timeout, function, replay=None):
     if fixture["gas_policy"] is not None:
         raise Unsupported("direct MIR state validation does not assign EVM gas costs")
@@ -570,6 +579,7 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
         entry = model["entry"]
         if type(entry) is not bool:
             raise Unsupported("invalid MIR entry marker")
+        msize = reads_msize(model)
         if entry and any(a["transient"] for a in fixture["accounts"]):
             raise Unsupported(
                 "MIR transaction entries start with empty transient storage"
@@ -601,7 +611,10 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
         solar, version, fixture, timeout, replay, root_is_mir=True
     ).replace("tvWorldConfig", "mirExternalConfig")
     external_config = "some mirExternalConfig"
-    config += f"def mirWorldConfig : MIR.State.Config := ⟨.{version},{env},{world.context_expression(fixture)},[{','.join(available)}],{'true' if entry else 'false'},128,{external_config},{fixture['creation_gas']},{mir_layout.expression(fixture['mir_layout']) if 'mir_layout' in fixture else '{}'},{fixture['builtin_gas']},{'true' if fixture['debug_reverts'] else 'false'},{'none' if fixture['message_gas'] is None else 'some ' + str(fixture['message_gas'])}⟩\n"
+    config += f"def mirWorldConfig : MIR.State.Config := ⟨.{version},{env},{world.context_expression(fixture)},[{','.join(available)}],{'true' if entry else 'false'},128,{external_config},{fixture['creation_gas']},{mir_layout.expression(fixture['mir_layout']) if 'mir_layout' in fixture else '{}'},{fixture['builtin_gas']},{'true' if fixture['debug_reverts'] else 'false'},{'none' if fixture['message_gas'] is None else 'some ' + str(fixture['message_gas'])},false⟩\n"
+    # Whether the module reads MSIZE is a property of each side's program, not of the shared
+    # world configuration that both sides must agree on.
+    cfg = "{mirWorldConfig with readsMsize := true}" if msize else "mirWorldConfig"
     boundary_inputs = []
     for index, ty in enumerate(params):
         for path, leaf in leaf_paths(ty):
@@ -620,7 +633,7 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
         f"let accounts : List Execution.Account := {world.accounts_expression(fixture)}\n"
         f"let journal : Execution.Journal := ⟨accounts,accounts,[{','.join(world.warm_addresses(fixture, version))}],[{','.join(f'({a},{k.removeprefix("$")})' for a, k in fixture['warm_slots'])}],[],0⟩\n"
         f"let memory : List Execution.Byte := {fixture['memory']['data']} ++ List.replicate {fixture['memory']['size'] - len(fixture['memory']['data'])} 0\n"
-        f"MIR.State.execute {fixture['fuel']} mirWorldConfig {functions} {entry_id} ⟨journal,memory,{arguments},[],[],0,0,[]⟩"
+        f"MIR.State.execute {fixture['fuel']} {cfg} {functions} {entry_id} ⟨journal,memory,{arguments},[],[],0,0,[]⟩"
     )
     return Program(
         (

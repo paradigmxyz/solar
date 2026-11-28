@@ -5,7 +5,9 @@ import SolarTV.Keccak
 groups may share one word with adjacent literals; otherwise literal chunks and
 scalars retain their own unaligned word stores. Scratch selection uses the end
 of every store, not just the hashed length. Padding and active memory stay live.
-An encoded object writes its length and the piece stores, with no extra tail clear.
+An encoded object writes its length and the piece stores. Only in a module that
+reads `MSIZE` does an encoding that does not end on a word also clear the word
+after it, as the compiler does: elsewhere those bytes keep their contents.
 No compiler pass, backend image or exported store recipe supplies this model. -/
 
 namespace SolarTV.MIR.State
@@ -62,8 +64,10 @@ def packedStorePlan (pieces : List PackedPiece) : PackedStores :=
       (plan,piece::pending,length+size)) (({} : PackedStores),[],0)
   packedFlush plan pending
 
-def abiPacked (frame : Frame) (parts : List PackedInput) (hash : Bool) (args : List Word) : Step := do
+def abiPacked (frame : Frame) (parts : List PackedInput) (hash : Bool) (args : List Word)
+    (readsMsize : Bool := false) : Step := do
   let pieces ← packedPieces parts args
+  let aligned := pieces.all (fun piece => piece.bytes.length % 32 == 0)
   let plan := packedStorePlan pieces
   let (base,frame) ← if hash then
       if plan.maxEnd ≤ 64 then pure (0,frame) else do
@@ -81,6 +85,10 @@ def abiPacked (frame : Frame) (parts : List PackedInput) (hash : Bool) (args : L
     let address := data+BitVec.ofNat 256 offset
     memory ← expand memory address.toNat 32
     memory := writeBytes memory address.toNat (wordBytes word)
+  if readsMsize && !hash && !aligned then
+    let address := data+BitVec.ofNat 256 plan.offset
+    memory ← expand memory address.toNat 32
+    memory := writeBytes memory address.toNat (wordBytes 0)
   if hash then
     memory ← expand memory data.toNat plan.offset
     return .returned (some (Keccak.hash (readBytes memory data.toNat plan.offset)),{frame with memory})

@@ -60,7 +60,7 @@ def expected (base : Nat) (frame : Frame) : List Store × Result :=
 def config (fork : Fork) (name : String) (env : World.Environment)
     (ctx : Execution.Block) (base : Nat) : Config :=
   ⟨fork,env,ctx,[1,3,16,17,23,27,28,81,82],true,128,none,[],
-    {functions := [(name,{heapFloor := some (BitVec.ofNat 256 base)})]},[],false,none⟩
+    {functions := [(name,{heapFloor := some (BitVec.ofNat 256 base)})]},[],false,none,false⟩
 
 def initial (frame : Frame) : Machine :=
   ⟨{function := 0},[],{frame with arguments := [],locals := []}⟩

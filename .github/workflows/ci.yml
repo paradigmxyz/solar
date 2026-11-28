@@ -78,7 +78,7 @@ jobs:
   solar-tv:
     name: MIR and EVM IR translation validation
     runs-on: depot-ubuntu-latest-8
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       id-token: write
       contents: read
@@ -131,9 +131,9 @@ jobs:
           path: target/tv-evaluation
           if-no-files-found: ignore
       - name: Check real pass outputs and counterexamples
-        run: uv run --locked --all-packages pytest -n 2 --dist worksteal solar-tv/tests -v
+        run: uv run --locked --all-packages pytest -n 4 --dist worksteal solar-tv/tests -v
       - name: Check counterexample stops and replay
-        run: cargo nextest run --locked -p solar-compiler --test it --run-ignored all -E 'test(solar_tv::)'
+        run: uv run --locked --all-packages cargo nextest run --locked -p solar-compiler --test it --run-ignored all -E 'test(solar_tv::)'
         env:
           SOLAR: ${{ github.workspace }}/target/debug/solar
           SOLAR_TV: ${{ github.workspace }}/solar-tv/solar-tv

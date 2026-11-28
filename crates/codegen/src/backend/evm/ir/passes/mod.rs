@@ -280,6 +280,9 @@ fn run_passes(
             if gcx.dcx().err_count() != errors_before {
                 return changed;
             }
+            if !cached && crate::lean_stages::evm_pass(gcx, pass_name, module).is_err() {
+                return changed;
+            }
             if let Some(tv) = tv
                 && tv.check(gcx, pass_name, module).is_err()
             {

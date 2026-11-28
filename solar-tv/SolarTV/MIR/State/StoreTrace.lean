@@ -117,6 +117,7 @@ theorem runStores_one (fuel : Nat) (cfg : Config) (functions : Functions) (machi
 open Lean Meta Simp in
 simproc_decl reduceStoreRun (runStores _ _ _ _) := fun expression =>
   reduceRunStep expression ``runStores_error ``runStores_next ``runStores_finished ``runStores_one
+    (evaluateTransition := true)
 
 open Lean Meta Simp in
 dsimproc_decl reduceStoreAt (storeAt _ _) := fun expression => do

@@ -428,6 +428,23 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long, requires = "solar_tv"))]
     pub solar_tv_capture: bool,
 
+    /// Write the program after every stage of the backend to DIR as Lean definitions of the
+    /// `solar-tv` semantics, in a directory per contract: the first lowered MIR, the module after
+    /// each MIR pass that changes it, the scheduled runtime EVM IR, the program after each EVM IR
+    /// pass that changes it, the runtime bytecode, and a manifest binding them to the sources,
+    /// the compiler and its options. Code the semantics cannot represent is an error.
+    #[cfg_attr(feature = "clap", arg(long, value_name = "DIR"))]
+    pub emit_lean_stages: Option<PathBuf>,
+
+    /// The Lean namespace `-Zemit-lean-stages` puts each contract's definitions under, before the
+    /// contract's name: dot-separated identifiers. Defaults to `SolarTV.Export`. A distinct one
+    /// lets a Lean environment import two exports of contracts with the same name.
+    #[cfg_attr(
+        feature = "clap",
+        arg(long, value_name = "NAMESPACE", requires = "emit_lean_stages")
+    )]
+    pub lean_stages_namespace: Option<String>,
+
     /// Validate MIR and EVM IR after each pass. Enabled by default in debug builds.
     /// Accepts `true` or `false`.
     #[cfg_attr(
@@ -563,6 +580,8 @@ impl UnstableOpts {
             debugify_output: _,
             solar_tv: _,
             solar_tv_capture: _,
+            emit_lean_stages: _,
+            lean_stages_namespace: _,
             validate_ir: _,
             time_passes: _,
             forget_gcx: _,

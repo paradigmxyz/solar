@@ -398,4 +398,34 @@ fn @twice(arg0: i256) -> i256 {
             }
         }
     }
+
+    #[test]
+    fn replay_packed_tail_clear_follows_msize() {
+        // The free memory pointer is 128 and memory from 128 holds 0xff. The object takes
+        // 128..192: its length word, then the payload's word at 160, whose bytes end at 162.
+        let mut memory = vec![0; 256];
+        memory[95] = 128;
+        memory[128..].fill(0xff);
+        let source = |helper: &str| {
+            format!(
+                "@module Packed\nfn @f() -> i256 {{\nbb0:\nv0 = abi_encode_packed (data hex\"0102\")\nret 0\n}}\n{helper}"
+            )
+        };
+        let run = |text: &str| {
+            let result =
+                replay::run_function(text, Some("f"), &[], &memory, 256, Options::default())
+                    .unwrap();
+            assert!(matches!(result.outcome, replay::Outcome::Return(_)), "{:?}", result.outcome);
+            result.memory
+        };
+        // Without MSIZE, the word after the payload keeps its bytes past the object.
+        let plain = run(&source(""));
+        assert_eq!(plain[128..192], [&[0; 31][..], &[2, 1, 2], &[0; 30]].concat()[..]);
+        assert_eq!(plain[192..], [0xff; 64]);
+        // MSIZE anywhere in the module clears the word after the payload, 162..194.
+        let observed = run(&source("fn @g() -> i256 {\nbb0:\nv0 = msize\nret v0\n}\n"));
+        assert_eq!(observed[128..192], plain[128..192]);
+        assert_eq!(observed[192..194], [0; 2]);
+        assert_eq!(observed[194..], [0xff; 62]);
+    }
 }
