@@ -267,7 +267,13 @@ class CorpusTests(unittest.TestCase):
         )
         self.assertEqual(
             set(fixtures["creation_bytecode"]),
-            {"RuntimeZoneToken", "RuntimeZoneRegistry", "RuntimeSignatureVerifier"},
+            {
+                "RuntimeZoneToken",
+                "RuntimeZoneRegistry",
+                "RuntimeZoneAddressRegistry",
+                "RuntimeZoneStorageCredits",
+                "RuntimeSignatureVerifier",
+            },
         )
         for bytecode in fixtures["creation_bytecode"].values():
             self.assertTrue(bytes.fromhex(bytecode))
