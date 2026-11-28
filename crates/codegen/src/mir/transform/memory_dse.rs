@@ -6,34 +6,35 @@
 //!   `mload` of the same word, as assembly reading clone arguments does, reuses the word an
 //!   identical dominating copy loaded and becomes an `mstore` of it.
 //! - Frame stores: a store to an internal-frame word that no instruction or terminator of the
-//!   function can read is removed, unless the function makes internal calls or observes gas.
+//!   function can read is removed, unless the function makes internal calls.
 //! - Within each block: `keccak256` over words that constant stores fully define folds to its hash
 //!   when that is cheaper: the hash is a `PUSH32` at each use, where the result stays on the stack,
 //!   so the fold must repay those bytes with the stores it leaves dead, found by running the
 //!   liveness dataflow below without the hash; an `mload` reads the value of the latest store to
 //!   the same canonical word; a store of the value the word already holds is removed; and a
 //!   backward scan removes a full-word store that a later full-word store, `memory_zero`, or copy
-//!   into a constant range overwrites before any read or gas observation; a small word-sized zero
-//!   fill or calldata copy whose every word such a write overwrites goes too. Returndata copies
-//!   stay because their source bounds check can revert. Reads over constant ranges, such as hashes,
-//!   logs, and call inputs, only keep the words they cover. A reload of the free-memory-pointer
-//!   word forwards across every instruction that cannot write it, such as a write through a heap
-//!   pointer.
+//!   into a constant range overwrites before any read; a small word-sized zero fill or calldata
+//!   copy whose every word such a write overwrites goes too. Returndata copies stay because their
+//!   source bounds check can revert. Reads over constant ranges, such as hashes, logs, and call
+//!   inputs, only keep the words they cover, except that a call paying its own memory expansion out
+//!   of a pre-EIP-150 gas reserve keeps all memory, since it needs every earlier expansion. A
+//!   reload of the free-memory-pointer word forwards across every instruction that cannot write it,
+//!   such as a write through a heap pointer.
 //! - Store narrowing: when a later full-word store overwrites the last 31 bytes of a word store
-//!   before any read or gas observation, only the first byte of the earlier store is observable, so
-//!   the backward scan shortens the store to an `mstore8` of that byte. `mstore8` demands only the
-//!   low 8 bits of its operand, so the operand needs the top byte of the stored word in its low
-//!   bits: that is `v` for `shl v, 248` over a 256-bit `v`, and `c >> 248` for a nonzero constant
-//!   `c` whose low 248 bits are zero. Other values stay whole, since a `shr` would cost what the
-//!   shift saves, and so does a store whose tail is read or never overwritten, such as a
-//!   one-character string literal. The later store already expands memory past the narrowed one, so
-//!   the size and the final contents do not change. This follows the partial-overwrite
-//!   classification of LLVM's dead store elimination, which only shortens `memset` and `memcpy`
-//!   because a narrower scalar store needs a new value; `mstore8` is as cheap as `mstore` and the
-//!   operand already exists. Deliberate limits: it needs one later store at the next byte, not the
-//!   union of several later overwrites, and it leaves a store whose only surviving byte is the
-//!   last. A byte store kills nothing across blocks, so narrowing can hide an earlier dead store of
-//!   the same word in another block from the cross-block rewrites.
+//!   before any read, only the first byte of the earlier store is observable, so the backward scan
+//!   shortens the store to an `mstore8` of that byte. `mstore8` demands only the low 8 bits of its
+//!   operand, so the operand needs the top byte of the stored word in its low bits: that is `v` for
+//!   `shl v, 248` over a 256-bit `v`, and `c >> 248` for a nonzero constant `c` whose low 248 bits
+//!   are zero. Other values stay whole, since a `shr` would cost what the shift saves, and so does
+//!   a store whose tail is read or never overwritten, such as a one-character string literal. The
+//!   later store already expands memory past the narrowed one, so the size and the final contents
+//!   do not change. This follows the partial-overwrite classification of LLVM's dead store
+//!   elimination, which only shortens `memset` and `memcpy` because a narrower scalar store needs a
+//!   new value; `mstore8` is as cheap as `mstore` and the operand already exists. Deliberate
+//!   limits: it needs one later store at the next byte, not the union of several later overwrites,
+//!   and it leaves a store whose only surviving byte is the last. A byte store kills nothing across
+//!   blocks, so narrowing can hide an earlier dead store of the same word in another block from the
+//!   cross-block rewrites.
 //! - Dead allocation stores: a constant-offset `mstore` or `mstore8` into an `alloc` whose pointer
 //!   does not escape is removed when no read reachable after it overlaps its bytes. The pass
 //!   derives the object's pointers through `ptrtoint`, `inttoptr`, and constant `add` and `ptradd`;
@@ -54,17 +55,16 @@
 //!   object, which static placement keeps unrelated to the free-memory pointer, ignores them. A
 //!   store that may reach past the end of its object may write over the next one and stays: the
 //!   size of an infallible allocation, whose arithmetic cannot wrap, is bounded below through sums
-//!   and word-rounding masks, and other runtime sizes have no bound. Functions observing gas keep
-//!   their stores, since the stores pay for memory expansion. Writes the object receives from
-//!   copies and calls stay: only stores are candidates.
+//!   and word-rounding masks, and other runtime sizes have no bound. Writes the object receives
+//!   from copies and calls stay: only stores are candidates.
 //! - Write-only allocations: an allocation that nothing reads loses every store and copy that fills
 //!   it, which the dead-allocation-store rule above leaves when they are copies, fills, or indexed
 //!   stores. Alias analysis shows that the allocation does not escape, no read may alias it, and
 //!   its writes stay inside it. Its proof scans the whole function, so only `memory-dse-unread`,
 //!   the run after builtin expansion, applies it. See `write_only`.
 //! - Across edges: a constant store equal to the constant a sole predecessor left in the word is
-//!   removed, and a store that the single jump successor overwrites first, with no memory or gas
-//!   observer in between, is removed.
+//!   removed, and a store that the single jump successor overwrites first, with no memory observer
+//!   in between, is removed.
 //! - Across the CFG: a backward liveness dataflow over constant, word-aligned addresses removes a
 //!   full-word store that no path reads before overwriting it. Writes keep nothing live. A read of
 //!   unknown extent keeps every word from its address on when an allocation, a frame, or a read of
@@ -111,8 +111,8 @@ use crate::{
         Immediate, InstId, InstKind, MangledSymbol, MemoryRegion, MirModuleTarget, MirType, Module,
         PtrLocation, RawMemoryAccess, Terminator, Value, ValueId,
         analysis::{
-            Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, LocationSize,
-            MemoryAddress, MemoryBase, MemoryCallSummaries, MemoryLocation, ModRef, ReadBounds,
+            Access, AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, MemoryAddress,
+            MemoryBase, MemoryCallSummaries, MemoryLocation, ModRef, ReadBounds,
             integers::no_wrap_with,
         },
         memory::EvmMemoryLayout,
@@ -1021,8 +1021,8 @@ impl MemoryStoreEliminator {
     /// an in-range constant read (`mload`/keccak/log/`returndata`/`revert`)
     /// keeps its slots live; a read of unknown extent keeps every word from a
     /// lower bound of its address on, or all memory without one; a call keeps what its callee may
-    /// read; a `return` keeps what the callers may read after their calls; and gas observations
-    /// keep all memory. Each only ever keeps a store, never drops a live one.
+    /// read; and a `return` keeps what the callers may read after their calls. Each only ever keeps
+    /// a store, never drops a live one.
     fn remove_dead_memory_stores(&mut self, func: &mut Function, scratch: &mut BlockScratch) {
         if !func.instructions().any(|inst_id| {
             matches!(func.inst(inst_id).kind, InstKind::Store(addr, _, PtrLocation::Memory) if self.word_aligned_const(func, addr).is_some())
@@ -1211,7 +1211,7 @@ impl MemoryStoreEliminator {
             Self::summarize_live(live);
         }
         // Pure definitions can end an exact range's lifetime, but do not otherwise transfer
-        // memory liveness. `gas` is not pure, so it still reaches the effect transfer below.
+        // memory liveness.
         if func.inst(inst_id).kind.effect_kind() == EffectKind::Pure {
             return;
         }
@@ -1289,14 +1289,9 @@ impl MemoryStoreEliminator {
 
     /// Marks the memory an instruction may read live: a constant range word by word, and any
     /// other from a lower bound of its address on. Writes keep nothing live, so a later store
-    /// that fully overwrites a word still finds an earlier one dead. Reading the gas left observes
-    /// all memory.
+    /// that fully overwrites a word still finds an earlier one dead.
     fn mark_effects(&self, func: &Function, inst_id: InstId, live: &mut MemLive) {
         let effects = self.alias.instruction_mod_ref(func, inst_id);
-        if effects.observes_gas() {
-            live.set_all();
-            return;
-        }
         for &access in effects.reads() {
             match access {
                 Access::Any(AddressSpace::Memory) => {
@@ -1537,7 +1532,10 @@ impl MemoryStoreEliminator {
         if !has_candidate {
             return;
         }
-        if Self::has_frame_observer(func) {
+        // An internal call may read any frame word.
+        if func.instructions().any(|inst_id| {
+            matches!(func.inst(inst_id).kind, InstKind::ICall { function: Callee::Function(_), .. })
+        }) {
             return;
         }
 
@@ -1677,7 +1675,9 @@ impl MemoryStoreEliminator {
                 InstKind::Call { args_offset, args_size, .. }
                 | InstKind::CallCode { args_offset, args_size, .. }
                 | InstKind::StaticCall { args_offset, args_size, .. }
-                | InstKind::DelegateCall { args_offset, args_size, .. } => {
+                | InstKind::DelegateCall { args_offset, args_size, .. }
+                    if !AliasAnalysis::needs_expanded_memory(func, &inst.kind) =>
+                {
                     // A call reads its whole input, but it only copies
                     // `min(ret_size, returndatasize())` bytes into the output
                     // area. The rest remains unchanged, so the output cannot
@@ -1750,8 +1750,7 @@ impl MemoryStoreEliminator {
             return;
         }
         let effects = self.alias.instruction_mod_ref(func, inst_id);
-        if effects.observes_gas()
-            || effects.reads_anywhere(AddressSpace::Memory)
+        if effects.reads_anywhere(AddressSpace::Memory)
             || effects.writes_anywhere(AddressSpace::Memory)
         {
             overwritten.clear();
@@ -1943,7 +1942,7 @@ impl MemoryStoreEliminator {
     }
 
     /// The first full-word memory store reached from one end of a block, with its address, unless
-    /// a memory or gas observer comes first.
+    /// a memory observer comes first.
     fn first_cross_block_store<'a>(
         &self,
         func: &Function,
@@ -1956,8 +1955,7 @@ impl MemoryStoreEliminator {
             _ => {
                 let effects = self.alias.instruction_mod_ref(func, inst_id);
                 (effects.reads_space(AddressSpace::Memory)
-                    || effects.writes_space(AddressSpace::Memory)
-                    || effects.observes_gas())
+                    || effects.writes_space(AddressSpace::Memory))
                 .then_some(None)
             }
         })?
@@ -2324,16 +2322,6 @@ impl MemoryStoreEliminator {
         overwritten.contains(&key)
     }
 
-    fn has_frame_observer(func: &Function) -> bool {
-        func.instructions().any(|inst_id| {
-            func.inst(inst_id).kind.observes_gas()
-                || matches!(
-                    func.inst(inst_id).kind,
-                    InstKind::ICall { function: Callee::Function(_), .. }
-                )
-        })
-    }
-
     fn internal_frame_read_ranges(&self, func: &Function) -> Option<Vec<(u64, u64)>> {
         let mut reads = Vec::new();
 
@@ -2414,8 +2402,6 @@ impl MemoryStoreEliminator {
     /// ignores them.
     /// The allocation stays, until `dce` finds it unused: later passes size and place it, and the
     /// address arithmetic feeding the store dies with it.
-    ///
-    /// Removing a write can lower memory expansion, so functions observing gas keep their stores.
     fn remove_dead_allocation_stores(&mut self, func: &mut Function, scratch: &mut BlockScratch) {
         let allocations: Vec<_> = func
             .instructions()
@@ -2463,10 +2449,6 @@ impl MemoryStoreEliminator {
         }
 
         let cfg = &*self.cfg;
-        if GasObservations::any(func, cfg, &self.alias) {
-            return;
-        }
-
         let mut heap_reads = Vec::new();
         let mut wrapping_writes = false;
         if candidates.iter().any(|&(_, _, exposed)| exposed) {

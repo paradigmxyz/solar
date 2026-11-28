@@ -19,7 +19,10 @@
 //! operands in either order, and a comparison may become its mirror, `gt` for `lt` with swapped
 //! operands. Moves are priced by the target cost model under the objective, so when optimizing for
 //! gas a schedule is taken when it saves gas, or the same gas in fewer bytes, and when optimizing
-//! for size when it saves bytes, or the same bytes in less gas.
+//! for size when it saves bytes, or the same bytes in less gas. A zero pushed before the block's
+//! first call, in a block no call precedes, is priced as the `RETURNDATASIZE` that the late
+//! `returndata-zero` pass turns it into before Shanghai, so a schedule does not keep a zero on the
+//! stack to copy it where pushing it again costs a byte less.
 //!
 //! A run continues through a branch to a block that aborts without reading the stack, the
 //! `PUSH target; JUMPI` of an overflow check or a guard: the pair takes only its condition, so it
@@ -27,12 +30,11 @@
 //! continues needs it, but never above it, so the aborting path spends no more gas than before
 //! and still reaches its revert. Such a block reaches its `REVERT` or `INVALID` without a branch,
 //! within at most [`MAX_ABORT_JUMPS`] blocks linked by direct jumps, as tail merging shares the
-//! ends of reverts, and without an operation that depends on the gas left, such as a `GAS` reading
-//! in its payload, which could tell where the work ran. A block that returns or stops is a normal
-//! exit and ends the run. A longer run gives the search more freedom but can exhaust its budget
-//! where the runs between its checks would not, so those are scheduled separately as well, split
-//! after each operation that depends on the gas left too, and the cheaper result is kept. A run
-//! with more operations than one search takes is cut into windows after its checks.
+//! ends of reverts. A block that returns or stops is a normal exit and ends the run. A longer run
+//! gives the search more freedom but can exhaust its budget where the runs between its checks
+//! would not, so those are scheduled separately as well, split after each `SSTORE` too, and the
+//! cheaper result is kept. A run with more operations than one search takes is cut into windows
+//! after its checks.
 //!
 //! The remaining cost of a state is bounded below by one copy for every missing use of a word
 //! and one pop for every surplus copy, and by one swap more when those counted moves cannot bring
@@ -80,19 +82,20 @@
 //! keeps memory and storage accesses in order, and leaves the same words in the same stack
 //! slots, so the code after the run observes no difference; a schedule whose replay does not
 //! reproduce the run is discarded. A check keeps its order with every access and its pushed
-//! target right before its `JUMPI`. The gas left is observable as well: no operation moves above
-//! a check or an operation that depends on it, such as an `SSTORE` with its 2,300-gas sentry,
-//! and a schedule that would spend more gas before one of them keeps the original code, so each
-//! sees at least the gas it saw before within its window. When optimizing for size, a schedule
-//! that saves bytes may spend more gas, and a check or access after its window then sees less,
-//! as with other size optimizations. A run that ends in a label push keeps it last, so the jump
-//! after the run still sees its target pushed right before it. Runs end at every other instruction,
-//! including `GAS`, calls, other branches and an instruction glued to the next one. Performed
-//! operations and the original pushes keep their debug metadata, while the new stack operations
-//! carry none, which is marked as intentionally dropped, and the origins of the replaced stack
-//! operations go with them. The function entry of a run without a guard moves to its first
-//! instruction and its exit to its last; a run with one keeps them where they are. Debug metadata
-//! decides nothing, so requesting it leaves the code unchanged.
+//! target right before its `JUMPI`. No operation moves above a check, and a schedule that would
+//! spend more gas before one keeps the original code, so the aborting path spends no more than
+//! before within its window. No operation moves above an `SSTORE` either, but only to narrow the
+//! search: one free to move work there ran out of budget sooner and kept costlier schedules. The
+//! gas left is not preserved otherwise: an `SSTORE` with its 2,300-gas sentry, or a `GAS` reading
+//! or a call after the run, may see a different amount, as with other optimizations. A run that
+//! ends in a label push keeps it last, so the jump after the run still sees its target pushed
+//! right before it. Runs end at every other instruction, including `GAS`, calls, other branches
+//! and an instruction glued to the next one. Performed operations and the original pushes keep
+//! their debug metadata, while the new stack operations carry none, which is marked as
+//! intentionally dropped, and the origins of the replaced stack operations go with them. The
+//! function entry of a run without a guard moves to its first instruction and its exit to its last;
+//! a run with one keeps them where they are. Debug metadata decides nothing, so requesting it
+//! leaves the code unchanged.
 //!
 //! The pass runs after the late push compaction, so it sees the final pushes, and before the
 //! last stack cleanup and loop layout.
@@ -105,7 +108,10 @@ use super::{
 use crate::{
     backend::evm::{
         CodegenState,
-        ir::{BlockId, BlockTarget, Instruction, Module, TerminatorKind},
+        ir::{
+            BlockId, BlockTarget, Instruction, Module, ModuleTarget, TerminatorKind,
+            verify::Verifier,
+        },
         op::{self, StackOp},
     },
     target::{Cost, Target},
@@ -206,9 +212,22 @@ impl EvmPass for StackReschedule {
         let mut buffers = Buffers::default();
         let mut placed = DenseBitSet::new_empty(0);
         let shared = &gcx.codegen_state::<CodegenState>().schedules;
+        // Blocks a call or create may precede, where `returndata-zero` leaves zero pushes alone.
+        let returndata_set = module
+            .runtime_target(gcx)
+            .returndata_zero()
+            .map(|_| Verifier::blocks_after_returndata_set(module));
         let mut changed = false;
-        for block in &mut module.blocks {
+        for (id, block) in module.blocks.iter_mut_enumerated() {
             let target = &block.target(gcx, optimization, code_follows);
+            let first_call = match &returndata_set {
+                Some(set) if !set.contains(id) => block
+                    .instructions
+                    .iter()
+                    .position(|inst| inst.as_evm_opcode().is_some_and(op::sets_returndata))
+                    .unwrap_or(block.instructions.len()),
+                _ => 0,
+            };
             let budget = if block.in_hot_loop() {
                 LOOP_BUDGET
             } else if target.optimization().is_size() {
@@ -223,6 +242,8 @@ impl EvmPass for StackReschedule {
                 buffers: &mut buffers,
                 placed: &mut placed,
                 shared,
+                first_call,
+                before_call: false,
             };
             changed |= rescheduler.reschedule_block(&mut block.instructions);
         }
@@ -251,7 +272,7 @@ struct Operation {
     swapped: Option<u8>,
     /// The operations that have to run before this one, as a mask: the producers of its operands,
     /// and the previous check, memory or storage access for one of those, or the last check or
-    /// gas-dependent access for any other.
+    /// `SSTORE` for any other.
     needs: u16,
 }
 
@@ -354,6 +375,11 @@ struct Rescheduler<'a> {
     /// The positions of a run that `emit` has placed, reused across runs.
     placed: &'a mut DenseBitSet<usize>,
     shared: &'a SharedSchedules,
+    /// How many of the block's first instructions run with the frame's empty return data buffer.
+    first_call: usize,
+    /// Whether the run being scheduled lies before `first_call`, where `returndata-zero` will
+    /// read its zeros from `RETURNDATASIZE`.
+    before_call: bool,
 }
 
 impl Rescheduler<'_> {
@@ -409,6 +435,7 @@ impl Rescheduler<'_> {
                     operations(window_start, cut) <= self.budget.operations
                 });
                 let window_end = cuts[later + fitting.saturating_sub(1)];
+                self.before_call = window_end <= self.first_call;
                 if let Some(replacement) =
                     self.best_schedule(&instructions[window_start..window_end])
                 {
@@ -446,8 +473,7 @@ impl Rescheduler<'_> {
         for candidate in [self.schedule(window), self.split_schedule(window)].into_iter().flatten()
         {
             let candidate_price = self.price(&candidate);
-            if candidate_price < best_price
-                && self.spends_no_more_before_observations(window, &candidate)
+            if candidate_price < best_price && self.spends_no_more_before_checks(window, &candidate)
             {
                 best_price = candidate_price;
                 best = Some(candidate);
@@ -468,16 +494,13 @@ impl Rescheduler<'_> {
             scheduled.push(last.clone());
             return Some(scheduled);
         }
-        let summary = summarize(run, self.target, self.budget, self.halts)?;
+        let summary = summarize(run, self.target, self.before_call, self.budget, self.halts)?;
         let moves = search(&summary, self.target, self.budget, self.buffers, self.shared)?;
         emit(run, &summary, &moves, self.placed)
     }
 
-    /// Schedules the runs between a window's checks and gas-dependent accesses separately, keeping
-    /// each check in place; `None` when the window has neither or no run improves.
-    ///
-    /// A run that ends at an access spends no more gas before it than the original whenever its
-    /// schedule costs no more gas, as nothing of the original ran after the access.
+    /// Schedules the runs between a window's checks and storage writes separately, keeping each
+    /// check in place; `None` when the window has neither or no run improves.
     fn split_schedule(&mut self, window: &[Instruction]) -> Option<Vec<Instruction>> {
         let mut rebuilt = Vec::new();
         let mut improved = false;
@@ -485,16 +508,16 @@ impl Rescheduler<'_> {
         let mut index = 0;
         while index < window.len() {
             let branch = is_branch_pair(window, index, self.halts);
-            if !branch && !observes_gas(&window[index]) {
+            if !branch && window[index].opcode != op::SSTORE {
                 index += 1;
                 continue;
             }
-            // The only split is an access that ends the window: its run is the window itself.
+            // The only split is a store that ends the window: its run is the window itself.
             if start == 0 && !branch && index + 1 == window.len() {
                 return None;
             }
             // run; push target; jumpi -> schedule; push target; jumpi
-            // run; access -> schedule ending in access
+            // run; sstore -> schedule ending in sstore
             improved |= self.extend_scheduled(&mut rebuilt, &window[start..=index]);
             start = index + 1;
             if branch {
@@ -523,18 +546,17 @@ impl Rescheduler<'_> {
         let cost = instructions
             .iter()
             .filter(|inst| !is_operation(inst))
-            .map(|inst| instruction_cost(inst, self.target))
+            .map(|inst| instruction_cost(inst, self.target, self.before_call))
             .sum::<Cost>();
         scalar(cost, self.target)
     }
 
-    /// Whether a schedule spends at most the original's gas before each check and each operation
-    /// that depends on the gas left, so the path that aborts at the check and the operation see at
-    /// least the gas they saw before.
+    /// Whether a schedule spends at most the original's gas before each check, so the path that
+    /// aborts at the check spends no more than before.
     ///
-    /// The same operations run before each of them, or fewer, as none moves above one, so comparing
+    /// The same operations run before each check, or fewer, as none moves above one, so comparing
     /// the static gas of the instructions before it is enough.
-    fn spends_no_more_before_observations(
+    fn spends_no_more_before_checks(
         &self,
         original: &[Instruction],
         schedule: &[Instruction],
@@ -543,10 +565,10 @@ impl Rescheduler<'_> {
             let mut spent = 0u64;
             let mut before = SmallVec::<[u64; 8]>::new();
             for inst in instructions {
-                if is_operation(inst) && (inst.opcode == op::JUMPI || observes_gas(inst)) {
+                if inst.opcode == op::JUMPI {
                     before.push(spent);
                 }
-                spent += u64::from(instruction_cost(inst, self.target).gas);
+                spent += u64::from(instruction_cost(inst, self.target, self.before_call).gas);
             }
             before
         };
@@ -696,23 +718,22 @@ fn constant(inst: &Instruction) -> Option<Constant> {
         .or_else(|| inst.pushed_block().map(Constant::Block))
 }
 
-/// Price of a push as assembly encodes it: the narrowest `PUSH` of its value.
-fn push_cost(inst: &Instruction, target: &Target) -> Cost {
+/// Price of a push as the final code encodes it: the narrowest `PUSH` of its value, or the
+/// `RETURNDATASIZE` that reads a zero before the frame's first call.
+fn push_cost(inst: &Instruction, target: &Target, before_call: bool) -> Cost {
     match inst.concrete_immediate() {
-        Some(value) if value.is_zero() && target.evm_version().has_push0() => {
-            target.opcode(op::PUSH0)
-        }
-        Some(value) => target.opcode(op::push(value.byte_len().max(1) as u8)),
+        Some(value) if before_call => target.encoded_push_before_call(value),
+        Some(value) => target.encoded_push(value),
         None => target.label_push(),
     }
 }
 
 /// Price of an instruction a run holds.
-fn instruction_cost(inst: &Instruction, target: &Target) -> Cost {
+fn instruction_cost(inst: &Instruction, target: &Target, before_call: bool) -> Cost {
     if let Some(stack_op) = inst.as_stack_op() {
         target.opcode(stack_op.single_byte_evm_opcode().expect("runs hold one-byte stack ops"))
     } else if inst.is_encoded_push() {
-        push_cost(inst, target)
+        push_cost(inst, target, before_call)
     } else {
         target.opcode(inst.opcode)
     }
@@ -740,6 +761,7 @@ fn scalar(cost: Cost, target: &Target) -> u64 {
 fn summarize(
     run: &[Instruction],
     target: &Target,
+    before_call: bool,
     budget: Budget,
     halts: &DenseBitSet<BlockId>,
 ) -> Option<Run> {
@@ -751,8 +773,8 @@ fn summarize(
     let mut keys = SmallVec::<[Constant; 8]>::new();
     let mut cost = Cost::ZERO;
     let mut last_ordered = None;
-    // The last check or gas-dependent access: the operations after it stay after it.
-    let mut last_observed = None;
+    // The last check or `SSTORE`: the operations after it stay after it.
+    let mut last_barrier = None;
     let mut peak = 0usize;
     let deepen = |stack: &mut SmallVec<[Word; 24]>, entry: &mut usize, depth: usize| {
         while stack.len() < depth {
@@ -768,25 +790,25 @@ fn summarize(
         if let Some(stack_op) = inst.as_stack_op() {
             deepen(&mut stack, &mut entry, stack_op.required_depth())?;
             apply(&mut stack, stack_op);
-            cost += instruction_cost(inst, target);
+            cost += instruction_cost(inst, target, before_call);
         } else if inst.is_encoded_push() && !branch {
             let key = constant(inst)?;
             let index = keys.iter().position(|&existing| existing == key).unwrap_or_else(|| {
                 keys.push(key);
                 pushes.push(SmallVec::new());
-                constant_costs.push(scalar(push_cost(inst, target), target));
+                constant_costs.push(scalar(push_cost(inst, target, before_call), target));
                 keys.len() - 1
             });
             pushes[index].push(position);
             stack.insert(0, Word::Constant(u8::try_from(index).ok()?));
-            cost += push_cost(inst, target);
+            cost += push_cost(inst, target, before_call);
         } else {
             if operations.len() >= budget.operations {
                 return None;
             }
-            // A branch takes its condition, is ordered with every access and observes the gas.
-            let (inputs, outputs, ordered, observes, swapped) = if branch {
-                (1, 0, true, true, None)
+            // A branch takes its condition and is ordered with every access.
+            let (inputs, outputs, ordered, swapped) = if branch {
+                (1, 0, true, None)
             } else {
                 let definition = inst.definition()?;
                 let (inputs, outputs) = definition.stack_io?;
@@ -794,14 +816,13 @@ fn summarize(
                     inputs,
                     outputs,
                     !op::reads_only_operands_or_calldata(definition.opcode),
-                    definition.observes_gas(),
                     op::swapped_binary_opcode(definition.opcode),
                 )
             };
             deepen(&mut stack, &mut entry, usize::from(inputs))?;
             let operands = stack.drain(..usize::from(inputs)).collect::<SmallVec<[Word; 3]>>();
             let index = u8::try_from(operations.len()).ok()?;
-            let after = if ordered { last_ordered } else { last_observed };
+            let after = if ordered { last_ordered } else { last_barrier };
             let needs =
                 operands.iter().fold(after.map_or(0, |after| 1u16 << after), |mask, word| {
                     mask | if let Word::Result(producer) = word { 1 << producer } else { 0 }
@@ -816,8 +837,8 @@ fn summarize(
             if ordered {
                 last_ordered = Some(index);
             }
-            if observes {
-                last_observed = Some(index);
+            if branch || inst.opcode == op::SSTORE {
+                last_barrier = Some(index);
             }
             if outputs == 1 {
                 stack.insert(0, Word::Result(index));
@@ -1405,14 +1426,12 @@ fn is_branch_pair(
         && !jumpi.keeps_with_next()
 }
 
-/// Whether a block aborts without reading a word that was on the stack when it was entered, and
-/// without anything that tells how much work ran before the branch into it. The abort may end in
-/// a block that a few direct jumps reach.
+/// Whether a block aborts without reading a word that was on the stack when it was entered. The
+/// abort may end in a block that a few direct jumps reach.
 ///
 /// A run may move work below a branch to such a block: the work then runs only on the path that
 /// continues, which is the one that needs it. A block that returns or stops is a normal exit, and
-/// so is one that may branch elsewhere before its end. A `GAS` reading, a call or an `SSTORE` would
-/// see how much gas the path spent, so a block with one keeps its branch out of runs.
+/// so is one that may branch elsewhere before its end.
 fn aborts_without_stack(module: &Module, mut id: BlockId) -> bool {
     let mut depth = 0usize;
     // Shared tails move the end of an abort into another block, so follow a few direct jumps.
@@ -1420,9 +1439,7 @@ fn aborts_without_stack(module: &Module, mut id: BlockId) -> bool {
         let block = &module.blocks[id];
         for inst in &block.instructions {
             if inst.opcode == op::JUMPI
-                || inst
-                    .definition()
-                    .is_some_and(|definition| definition.is_terminal() || definition.observes_gas())
+                || inst.definition().is_some_and(|definition| definition.is_terminal())
             {
                 return false;
             }
@@ -1478,9 +1495,4 @@ fn search_key(run: &Run, prices: [u64; 4], budget: Budget) -> SmallVec<[u8; 192]
         key.extend(price.to_le_bytes());
     }
     key
-}
-
-/// Whether an instruction depends on the gas left, such as an `SSTORE` with its sentry.
-fn observes_gas(inst: &Instruction) -> bool {
-    inst.definition().is_some_and(|definition| definition.observes_gas())
 }

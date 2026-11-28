@@ -17,22 +17,17 @@
 //! never kills a fact about the other. Reads, possible aliases and unknown call effects kill
 //! facts. Only after convergence are stores erased; the equal-store walk then runs with the
 //! same alias barriers. Run after storage forwarding so packed read-modify-write chains expose
-//! their overwritten stores without discarding preserved fields. A `gas` read clears both
-//! forward and backward facts so measured storage writes remain explicit.
+//! their overwritten stores without discarding preserved fields.
 //! Calls that may terminate the current EVM call clear backward facts because
 //! they can commit earlier writes without reaching the later overwrite.
 //!
 //! The equal-store walk is forward. A store, or an `sload`, tells the word its slot holds until a
-//! write that may alias the slot, a call that may write its space, or a possible `gas`
-//! observation, and a store of that word is removed. A read-modify-write that changes no bit,
-//! such as `x = sload s; sstore s, x ^ ((x ^ v) & 0)` once the value simplifies to `x`, thus
-//! loses its store, and DCE then removes the unused load. Facts flow into a block entered from
+//! write that may alias the slot or a call that may write its space, and a store of that word is
+//! removed. A read-modify-write that changes no bit, such as
+//! `x = sload s; sstore s, x ^ ((x ^ v) & 0)` once the value simplifies to `x`, thus loses its
+//! store, and DCE then removes the unused load. Facts flow into a block entered from
 //! one predecessor, whose terminator touches no storage, so a check that lowering splits off
 //! between the load and the store keeps the pair visible; every other block starts with none.
-//! After a possible `gas` observation, which `GasObservations` tracks through every path and
-//! through callees that may return after reading gas, accesses stay explicit, as in
-//! `storage-cse`. A call whose every gas read precedes a revert starts no such interval, but
-//! the backward facts still end at it, since the read follows the stores before it.
 //!
 //! Removing a store of the word its slot holds changes behavior only where the store itself
 //! would fail: in a static context, where it reverts, and, for an `SSTORE`, with at most 2,300
@@ -42,10 +37,7 @@
 use crate::mir::{
     BlockId, Function, FunctionId, InstId, InstKind, Module, PtrLocation, StorageAlias, Terminator,
     ValueId,
-    analysis::{
-        Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Location, ModRef,
-        returning_blocks,
-    },
+    analysis::{Access, AddressSpace, AliasAnalysis, CfgInfo, Location, ModRef, returning_blocks},
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
 };
@@ -254,7 +246,6 @@ impl StorageStoreEliminator<'_> {
     /// visible; every other block starts with none.
     fn remove_equal_stores(&self, func: &mut Function, dead: &mut DenseBitSet<InstId>) -> bool {
         let cfg = &*self.cfg;
-        let gas = GasObservations::new(func, cfg, &self.alias);
         dead.clear();
         // Each exit is kept with the number of successors still waiting for it, and the last one
         // takes it.
@@ -271,7 +262,7 @@ impl StorageStoreEliminator<'_> {
                 },
                 _ => StoredValues::default(),
             };
-            self.remove_block_equal_stores(func, block, &gas, &mut stored_values, dead);
+            self.remove_block_equal_stores(func, block, &mut stored_values, dead);
             let waiting = cfg
                 .successors(block)
                 .iter()
@@ -289,21 +280,11 @@ impl StorageStoreEliminator<'_> {
         &self,
         func: &Function,
         block_id: BlockId,
-        gas: &GasObservations,
         stored_values: &mut StoredValues,
         dead: &mut DenseBitSet<InstId>,
     ) {
         let aa = &*self.alias;
-        // After a gas read, storage accesses stay, so a later read observes their cost.
-        if gas.at_entry(block_id) {
-            stored_values.clear();
-            return;
-        }
         for &inst_id in &func.blocks[block_id].instructions {
-            if gas.observes(inst_id) {
-                stored_values.clear();
-                return;
-            }
             match func.inst(inst_id).kind {
                 InstKind::Store(
                     slot,
@@ -352,11 +333,6 @@ impl StorageStoreEliminator<'_> {
     }
 
     fn apply_reverse_effects(aa: &AliasAnalysis, effects: &ModRef, later_writes: &mut Overwritten) {
-        if effects.observes_gas() {
-            later_writes.clear();
-            return;
-        }
-
         for space in AddressSpace::SLOTS {
             if effects.reads_anywhere(space) || effects.writes_anywhere(space) {
                 later_writes.facts_mut(space).clear();
@@ -380,10 +356,6 @@ impl StorageStoreEliminator<'_> {
         effects: &ModRef,
         stored_values: &mut StoredValues,
     ) {
-        if effects.observes_gas() {
-            stored_values.clear();
-            return;
-        }
         for &access in effects.writes() {
             match access {
                 Access::Any(space) => {

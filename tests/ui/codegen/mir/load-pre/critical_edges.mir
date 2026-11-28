@@ -41,25 +41,6 @@ fn @switch_edges(arg0: i1, arg1: i256, arg2: i256) -> i256 {
     ret 99
 }
 
-// CHECK-LABEL: fn @gas_barrier
-// CHECK-NOT: {{^[+-]}}
-fn @gas_barrier(arg0: i1, arg1: i1) -> i256 {
-  bb0:
-    jumpi arg0, bb1, bb2
-  bb1:
-    v0 = sload 5
-    jump bb3
-  bb2:
-    jumpi arg1, bb3, bb4
-  bb3:
-    v1 = gas
-    v2 = sload 5
-    v3 = add v1, v2
-    ret v3
-  bb4:
-    ret 99
-}
-
 // CHECK-LABEL: fn @cheap_memory
 // CHECK-NOT: {{^[+-]}}
 fn @cheap_memory(arg0: i1, arg1: i1) -> i256 {

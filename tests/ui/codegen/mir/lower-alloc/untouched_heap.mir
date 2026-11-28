@@ -215,19 +215,6 @@ fn @after_allocator() -> i256 {
     ret v3
 }
 
-// A function that observes gas keeps its fills, which pay for the memory they expand.
-// CHECK-LABEL: {{^[ +].*}}fn @observes_gas{{[( ]}}
-// CHECK: {{^ +}}memory_zero {{v[0-9]+}}, 64
-fn @observes_gas() -> i256 {
-  bb0:
-    v0 = gas
-    v1 = alloc 64
-    memory_zero v1, 64
-    v2 = ptrtoint ptr<memory> v1 to i256
-    v3 = add v0, v2
-    ret v3
-}
-
 // A function that another function calls after a write keeps its fills.
 // CHECK-LABEL: {{^[ +].*}}fn @shared_callee{{[( ]}}
 // CHECK: {{^ +}}memory_zero {{v[0-9]+}}, 64
@@ -445,28 +432,6 @@ fn @after_tail_stager() -> i256 {
     ret v1
 }
 
-// A function that calls a gas-observing caller's callee keeps its fills: the caller may measure
-// the gas of the call.
-// CHECK-LABEL: {{^[ +].*}}fn @measured{{[( ]}}
-// CHECK: {{^ +}}memory_zero {{v[0-9]+}}, 64
-fn @measured() -> i256 {
-  bb0:
-    v0 = alloc 64
-    memory_zero v0, 64
-    v1 = ptrtoint ptr<memory> v0 to i256
-    ret v1
-}
-
-// CHECK-LABEL: {{^[ +].*}}fn @measures{{[( ]}}
-fn @measures() -> i256 {
-  bb0:
-    v0 = gas
-    v1 = icall @measured
-    v2 = gas
-    v3 = sub v0, v2
-    ret v3
-}
-
 // A copy of bytes ends where the padding fill starts, and a loop of copies does not: the
 // padding may lie where an earlier, longer copy wrote.
 // CHECK-LABEL: {{^[ +].*}}fn @tail_in_loop{{[( ]}}
@@ -495,26 +460,6 @@ fn @tail_in_loop() {
     stop
 }
 
-// A tail call to a function that reads gas observes it too.
-// CHECK-LABEL: {{^[ +].*}}fn @observer{{[( ]}}
-fn @observer() {
-  bb0:
-    v0 = gas
-    mstore 0, v0
-    stop
-}
-
-// CHECK-LABEL: {{^[ +].*}}fn @tail_observes{{[( ]}}
-// CHECK: {{^ +}}memory_zero {{v[0-9]+}}, 64
-fn @tail_observes() {
-  bb0:
-    v0 = alloc 64
-    memory_zero v0, 64
-    tail_call @observer
-}
-
-// The dispatch entry's tail calls observe nothing: an entry that reads gas does not make its
-// sibling keep its fill.
 fn @dispatch() -> i256 [entry] {
   bb0:
     v0 = calldatasize
@@ -525,9 +470,7 @@ fn @dispatch() -> i256 [entry] {
   bb2:
     v2 = calldataload 0
     v3 = shr v2, 224
-    switch v3, default bb3, [0x30000001 => bb4, 0x3000001f => bb5, 0x30000002 => bb6, 0x30000003 => bb7, 0x30000004 => bb8, 0x30000005 => bb9, 0x30000006 => bb10, 0x30000007 => bb11, 0x30000008 => bb12, 0x30000009 => bb13, 0x3000000a => bb14, 0x3000000b => bb15, 0x3000000c => bb16, 0x3000000d => bb17, 0x3000000e => bb18, 0x3000000f => bb19, 0x30000010 => bb20, 0x30000011 => bb21, 0x30000012 => bb22, 0x30000013 => bb23, 0x30000014 => bb24, 0x30000015 => bb25, 0x30000016 => bb26, 0x30000017 => bb27, 0x30000018 => bb28, 0x30000019 => bb29, 0x3000001a => bb30, 0x3000001b => bb31, 0x3000001c => bb32, 0x3000001d => bb33, 0x3000001e => bb34, 0x30000022 => bb35]
-  bb3:
-    tail_call @sibling_reads_gas
+    switch v3, default bb1, [0x30000001 => bb4, 0x3000001f => bb5, 0x30000002 => bb6, 0x30000003 => bb7, 0x30000004 => bb8, 0x30000005 => bb9, 0x30000006 => bb10, 0x30000007 => bb11, 0x30000008 => bb12, 0x30000009 => bb13, 0x3000000a => bb14, 0x3000000b => bb15, 0x3000000c => bb16, 0x3000000e => bb18, 0x3000000f => bb19, 0x30000010 => bb20, 0x30000011 => bb21, 0x30000012 => bb22, 0x30000013 => bb23, 0x30000014 => bb24, 0x30000015 => bb25, 0x30000016 => bb26, 0x30000017 => bb27, 0x30000018 => bb28, 0x30000019 => bb29, 0x3000001b => bb31, 0x3000001d => bb33, 0x30000022 => bb35]
   bb4:
     tail_call @entry_zeroed
   bb5:
@@ -554,8 +497,6 @@ fn @dispatch() -> i256 [entry] {
     tail_call @after_stager
   bb16:
     tail_call @after_allocator
-  bb17:
-    tail_call @observes_gas
   bb18:
     tail_call @calls_shared_clean
   bb19:
@@ -580,16 +521,10 @@ fn @dispatch() -> i256 [entry] {
     tail_call @calls_recursive
   bb29:
     tail_call @after_tail_stager
-  bb30:
-    tail_call @measures
   bb31:
     tail_call @tail_in_loop
-  bb32:
-    tail_call @tail_observes
   bb33:
     tail_call @sibling_fills
-  bb34:
-    tail_call @sibling_reads_gas
   bb35:
     tail_call @tail_after_allocator
 }
@@ -600,14 +535,6 @@ fn @sibling_fills() {
   bb0:
     v0 = alloc 64
     memory_zero v0, 64
-    stop
-}
-
-// CHECK-LABEL: {{^[ +].*}}fn @sibling_reads_gas{{[( ]}}
-fn @sibling_reads_gas() {
-  bb0:
-    v0 = gas
-    mstore 0, v0
     stop
 }
 

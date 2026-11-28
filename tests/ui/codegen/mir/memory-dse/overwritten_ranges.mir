@@ -58,18 +58,6 @@ fn @keep_read_fill() -> i256 {
     ret v0
 }
 
-// CHECK-LABEL: @keep_gas_observer
-// CHECK: {{^[ +].*}}memory_zero 256, 64
-// CHECK: {{^[ +].*}}v0 = gas
-fn @keep_gas_observer() -> i256 {
-  bb0:
-    memory_zero 256, 64
-    mstore 256, 7
-    v0 = gas
-    mstore 288, 9
-    ret v0
-}
-
 // CHECK-LABEL: @keep_expansion_observer
 // CHECK: {{^[ +].*}}calldatacopy 256, 0, 64
 // CHECK: {{^[ +].*}}v0 = msize
@@ -80,6 +68,22 @@ fn @keep_expansion_observer() -> i256 {
     v0 = msize
     mstore 288, 9
     ret v0
+}
+
+// A call that withholds a pre-EIP-150 reserve from the gas left pays its own memory expansion
+// out of the few gas the reserve leaves, so the writes that expand memory before it stay.
+// CHECK-LABEL: @keep_expansion_for_call_reserve
+// CHECK: {{^[ +].*}}calldatacopy 256, 0, 64
+// CHECK: {{^[ +].*}}call v1, 1, 0, 0, 0, 0, 0
+fn @keep_expansion_for_call_reserve() -> i1 {
+  bb0:
+    calldatacopy 256, 0, 64
+    mstore 256, 7
+    v0 = gas
+    v1 = sub v0, 50
+    v2 = call v1, 1, 0, 0, 0, 0, 0
+    mstore 288, 9
+    ret v2
 }
 
 // CHECK-LABEL: @keep_returndata_bounds_check

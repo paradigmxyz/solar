@@ -58,11 +58,6 @@
 //! nor return data, and reads memory only on paths that revert depends
 //! on its arguments alone, so its result is reused like pure arithmetic, across dominating blocks
 //! and after any write. Such calls still never sink, which would move their revert.
-//! After a `gas` read, state-dependent expressions remain explicit so a later
-//! `gas` read observes their dynamically priced execution. A forward CFG may-observe
-//! analysis includes observations in non-dominating branches and loop backedges.
-//! Internal calls carry the callee's transitive gas-observation summary, and start an observation
-//! only when the callee may return after reading gas (see `GasObservations`).
 //!
 //! A word store or a semantic length store also seeds the cache with the stored
 //! value under the written location, so a later load of that exact word forwards
@@ -93,8 +88,8 @@ use crate::{
         BlockId, Builtin, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId, InstId,
         InstKind, Instruction, MirType, Module, OpTraits, PtrLocation, Value, ValueId,
         analysis::{
-            Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
-            Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
+            Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Liveness, Location,
+            LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryBase, MemoryCallSummaries,
             MemoryLocation, returning_blocks,
         },
         memory::EvmMemoryLayout,
@@ -212,8 +207,6 @@ struct CommonSubexprEliminator {
     /// Number of eliminations the rest of the dominator-scoped pass already sees, which call
     /// for another fixpoint round only through phi sinking.
     eliminated_settled: usize,
-    /// Gas observations and their forward CFG closure, including backedges.
-    gas: Option<GasObservations>,
     alias: Option<AliasAnalysis>,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
     /// Pure leaf functions whose calls depend on their arguments alone, per
@@ -384,10 +377,6 @@ impl ExprCache {
 
     fn clear(&mut self) {
         Rc::make_mut(&mut self.pure).clear();
-        self.clear_stateful();
-    }
-
-    fn clear_stateful(&mut self) {
         Rc::make_mut(&mut self.stateful).clear();
     }
 
@@ -419,8 +408,6 @@ type SideEffectClobbers = FxHashMap<InstId, (usize, Range<usize>)>;
 /// A single effect that invalidates state-dependent cached expressions.
 #[derive(Clone, Copy, Debug)]
 enum Clobber {
-    /// A direct or interprocedural gas observation.
-    GasObservation,
     /// A write to one location or to an entire address space.
     Write(Access),
     /// An effect that may change account balances or deployed code.
@@ -446,10 +433,6 @@ impl CommonSubexprEliminator {
 
     fn alias(&self) -> &AliasAnalysis {
         self.alias.as_ref().expect("CSE alias snapshot is initialized")
-    }
-
-    fn gas(&self) -> &GasObservations {
-        self.gas.as_ref().expect("CSE gas observations are initialized")
     }
 
     fn run_with_cfg(&mut self, func: &mut Function, cfg: &CfgInfo, scratch: &mut Scratch) {
@@ -483,7 +466,6 @@ impl CommonSubexprEliminator {
         // alias analysis after every productive round.
         self.refresh_alias(func);
         self.zero_word = (!self.storage_only).then(|| Self::zero_word(func)).flatten();
-        self.gas = Some(GasObservations::new(func, cfg, self.alias()));
         let mut scratch = Scratch {
             removed: DenseBitSet::new_empty(0),
             replacements: FxHashMap::default(),
@@ -686,21 +668,12 @@ impl CommonSubexprEliminator {
         let mut worklist = Vec::new();
         worklist.push((BlockId::ENTRY, ExprCache::default()));
         while let Some((block_id, mut cache)) = worklist.pop() {
-            let mut gas_observed = self.gas().at_entry(block_id);
             for (inst_idx, &inst_id) in func.blocks[block_id].instructions.iter().enumerate() {
                 let kind = &func.inst(inst_id).kind;
-                if self.gas().observes(inst_id) {
-                    cache.clear_stateful();
-                    gas_observed = true;
-                }
-                if matches!(kind, InstKind::Gas) {
-                    continue;
-                }
                 let candidate = self
                     .make_expr_key(func, inst_id, kind, ctx.replacements)
                     // Restoring-call reuse is local: its read footprint must not cross CFG edges.
                     .filter(|key| !matches!(key, ExprKey::RestoringCall(..)))
-                    .filter(|key| !gas_observed || !Self::is_path_sensitive_expr(key))
                     .zip(func.inst_result_value(inst_id));
                 if let Some((key, result)) = &candidate
                     && let Some(cached) = cache.get(key)
@@ -908,9 +881,6 @@ impl CommonSubexprEliminator {
             spans.clear();
             for &inst_id in &block.instructions {
                 let kind = &func.inst(inst_id).kind;
-                if self.gas().observes(inst_id) {
-                    clobbers.push(Clobber::GasObservation);
-                }
                 if kind.has_side_effects() {
                     let start = clobbers.len();
                     self.side_effect_clobbers(func, inst_id, kind, &no_replacements, &mut clobbers);
@@ -1033,25 +1003,14 @@ impl CommonSubexprEliminator {
         expr_cache.clear();
         replacements.clear();
 
-        let mut gas_observed = self.gas().at_entry(block_id);
-
         let instruction_count = func.blocks[block_id].instructions.len();
         for index in 0..instruction_count {
             let inst_id = func.blocks[block_id].instructions[index];
             let inst = func.inst(inst_id);
             let kind = &inst.kind;
 
-            if self.gas().observes(inst_id) {
-                expr_cache.clear_stateful();
-                gas_observed = true;
-            }
-            if matches!(kind, InstKind::Gas) {
-                continue;
-            }
-
             let candidate = self
                 .make_expr_key(func, inst_id, kind, replacements)
-                .filter(|key| !gas_observed || !Self::is_path_sensitive_expr(key))
                 .zip(func.inst_result_value(inst_id));
             if let Some((key, result)) = &candidate
                 && let Some(&cached_value) = expr_cache.get(key)
@@ -1171,10 +1130,12 @@ impl CommonSubexprEliminator {
     }
 
     /// Whether forwarding `cached` to the read `key` would only stretch the live range of a loaded
-    /// word: it is a storage or transient read of the same slot that nothing at or after `inst_idx`
-    /// uses. The later read stays and takes over the cache entry. A stored word is always
-    /// forwarded, since the store already holds it live. Only the storage-only mode keeps such
-    /// reads; the full pass merges them, as it always has.
+    /// word: it is a read of the same slot, or of the same word at a constant memory address, that
+    /// nothing at or after `inst_idx` uses. The later read stays and takes over the cache entry. A
+    /// stored word is always forwarded, since the store already holds it live. Only the
+    /// storage-only mode keeps storage and transient reads; the full pass merges them, as it always
+    /// has, but keeps a constant-address memory read from an earlier block, which a push and an
+    /// `mload` rebuild for no more gas than a `DUP` and the swaps around a word carried this far.
     fn reload_shortens_life(
         &self,
         func: &Function,
@@ -1184,15 +1145,21 @@ impl CommonSubexprEliminator {
         block: BlockId,
         inst_idx: usize,
     ) -> bool {
-        if !self.storage_only {
-            return false;
-        }
         let Value::Inst(def) = *func.value(cached) else { return false };
         let loaded = match (key, &func.inst(def).kind) {
             (
                 ExprKey::SlotLoad(read),
                 InstKind::Load(slot, location @ (PtrLocation::Storage | PtrLocation::Transient)),
-            ) => Location::slot(*location, func.storage_alias(def, *slot)) == Some(*read),
+            ) => {
+                self.storage_only
+                    && Location::slot(*location, func.storage_alias(def, *slot)) == Some(*read)
+            }
+            (ExprKey::MLoad(read), InstKind::Load(address, PtrLocation::Memory)) => {
+                !self.storage_only
+                    && matches!(read.address.base, MemoryBase::Absolute)
+                    && func.value_u256(*address) == Some(U256::from(read.address.offset))
+                    && !func.blocks[block].instructions.contains(&def)
+            }
             _ => false,
         };
         loaded
@@ -1434,7 +1401,6 @@ impl CommonSubexprEliminator {
     /// Removes cache entries invalidated by a single clobbering effect.
     fn apply_clobber(&self, func: &Function, expr_cache: &mut ExprCache, clobber: &Clobber) {
         match *clobber {
-            Clobber::GasObservation => expr_cache.clear_stateful(),
             Clobber::Write(write) => {
                 expr_cache.retain_stateful(|key, _| self.survives(func, key, write))
             }
@@ -1660,9 +1626,9 @@ impl CommonSubexprEliminator {
 /// Pure leaf functions whose calls CSE may reuse: a call's result depends on its arguments alone.
 ///
 /// Every instruction depends on its operands, memory, or the call frame alone, which keeps out
-/// immutable reads and the return data, which an external call between two calls replaces. The
-/// memory summary proves that the function never touches storage or transient storage, writes no
-/// memory a caller sees, and never observes gas, and no block that can still return reads memory:
+/// gas and immutable reads and the return data, which an external call between two calls
+/// replaces. The memory summary proves that the function never touches storage or transient
+/// storage and writes no memory a caller sees, and no block that can still return reads memory:
 /// a revert path may read the error data it staged, but whether a call returns, and what, then
 /// depends on its arguments alone. A repeated call with the same arguments returns the same word,
 /// and when it would revert the dominating call already reverted. A leaf calls no other function,
@@ -1683,7 +1649,6 @@ fn pure_leaf_functions(
             || func.internal_frame_size != 0
             || !untouched
             || summary.writes(AddressSpace::Memory)
-            || summary.may_observe_gas()
             || !func
                 .instructions()
                 .all(|inst| is_frame_function_of_arguments(&func.inst(inst).kind))

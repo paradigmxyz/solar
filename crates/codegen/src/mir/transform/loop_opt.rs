@@ -17,8 +17,7 @@
 //! argument) reads allocated memory and needs no execution guarantee. Fixed-width slot hashes
 //! move with their scratch writes only when nothing else in the function touches scratch.
 //! Environment reads that calls or creates change (balances, code size and hash, return data
-//! size) stay in loops that call or create, and nothing moves out of a loop that reads the
-//! remaining gas. Frame loads and the free memory pointer never move.
+//! size) stay in loops that call or create. Frame loads and the free memory pointer never move.
 //!
 //! In gas mode, a loop without a computable trip count counts as running
 //! `2^MAX_TRIP_COUNT_BITS` times, so scalar evolution still bounds its affine offsets, far below
@@ -54,8 +53,7 @@
 //! divides by `x`, becomes `x <= MAX / y - (y == 0)`, with the bound computed once in the
 //! preheader. A nonzero `y` keeps the product below `2^256`
 //! exactly when `x <= MAX / y`. A zero `y` turns the bound into `0 - 1 = MAX`, which every
-//! `x` meets. Each iteration then compares instead of dividing. The rewrite is skipped in loops
-//! that check the gas left, since the bound runs first.
+//! `x` meets. Each iteration then compares instead of dividing.
 //!
 //! When the check only feeds its branch, the comparison becomes the branch condition itself, with
 //! the edges swapped, so no `iszero` follows it and `merge-aborts` can join it with a following
@@ -231,17 +229,13 @@ impl LoopOptimizer {
         let loops = loop_info.loops.values().cloned().collect::<Vec<_>>();
         let mut scratch = Scratch::new();
         for loop_data in &loops {
-            // The product's limit runs before the loop, so whatever in the loop checks the gas
-            // left would see what the limit cost before the first check paid for it.
-            if !self.loop_checks_gas_left(func, loop_data) {
-                self.hoisted += reduce_product_checks(
-                    func,
-                    loop_data,
-                    &loops,
-                    self.hoist_cheap,
-                    &mut scratch.values,
-                );
-            }
+            self.hoisted += reduce_product_checks(
+                func,
+                loop_data,
+                &loops,
+                self.hoist_cheap,
+                &mut scratch.values,
+            );
         }
         let inst_blocks = func.inst_block_table();
         let mut carried = loops
@@ -386,9 +380,7 @@ impl LoopOptimizer {
         scratch: &mut Scratch,
     ) {
         let Some(preheader) = loop_data.preheader else { return };
-        if loop_data.invariant_insts.is_empty()
-            || self.loop_contains(func, loop_data, InstKind::observes_gas)
-        {
+        if loop_data.invariant_insts.is_empty() {
             return;
         }
 
@@ -785,20 +777,6 @@ impl LoopOptimizer {
             && func.inst_result_value(inst_id).is_some()
     }
 
-    /// Whether the loop checks the gas left: a `gas` reading or a call that observes it, or a
-    /// persistent storage write, which fails when its sentry finds 2300 gas or less.
-    fn loop_checks_gas_left(&self, func: &Function, loop_data: &Loop) -> bool {
-        let aa = &self.alias;
-        loop_data.blocks.iter().any(|block_id| {
-            func.blocks[block_id].instructions.iter().any(|&inst_id| {
-                let mod_ref = aa.instruction_mod_ref(func, inst_id);
-                func.inst(inst_id).kind.observes_gas()
-                    || mod_ref.observes_gas()
-                    || mod_ref.writes_space(AddressSpace::Storage)
-            })
-        })
-    }
-
     fn loop_may_mutate_memory_range(
         &self,
         func: &Function,
@@ -1158,11 +1136,8 @@ impl LoopOptimizer {
             MemoryAddress::absolute(0),
             LocationSize::Const(crate::mir::memory::EvmMemoryLayout::FMP_SLOT),
         ));
-        let private = |effects: ModRef| {
-            !effects.observes_gas()
-                && !effects.may_read(aa, scratch)
-                && !effects.may_write(aa, scratch)
-        };
+        let private =
+            |effects: ModRef| !effects.may_read(aa, scratch) && !effects.may_write(aa, scratch);
         func.instructions()
             .filter(|&inst| inst != candidate)
             .all(|inst| private(aa.instruction_mod_ref(func, inst)))

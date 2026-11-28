@@ -22,10 +22,12 @@
 //! outlining, block CSE and tail copying merge, move and copy blocks across call sites, and the
 //! passes that match an empty revert or a common tail know the zero as `push 0`. A
 //! `RETURNDATASIZE` placed earlier could end up in a block that a call reaches, or hide a merge.
-//! Estimates before this pass, the immediate selector's and the scheduler's, price the zero as the
-//! literal push, which bounds the final price from above; `Target::returndata_zero` prices what
-//! this pass emits. The pass also runs at `-O none`. A rewritten instruction keeps its metadata,
-//! and block layout does not change.
+//! The immediate selector and the stack scheduler price the zero as the literal push, which
+//! bounds the final price from above; `Target::returndata_zero` prices what this pass emits. The
+//! late stack rescheduler prices it that way too in code no call precedes, as this pass will find
+//! it, so it does not trade repeated zeros for copies that cost more once they are rewritten. The
+//! pass also runs at `-O none`. A rewritten instruction keeps its metadata, and block layout does
+//! not change.
 
 use super::EvmPass;
 use crate::backend::evm::{

@@ -15,7 +15,7 @@
 //! operand copies. The old cost includes only removable, single-use producers;
 //! shared producers and ABI validation instructions earn no deletion credit.
 //! Removed producers must belong to the current segment, so no work moves across
-//! effects, block edges or gas observations. Recipe and producer-cone sizes are
+//! effects or block edges. Recipe and producer-cone sizes are
 //! bounded independently of function size. This is a local tree estimate, not
 //! a proof of scheduled cost; gas and size corpus measurements remain required.
 //! An enabling recipe is accepted without being cheaper: its rule guard shows that it pays for
@@ -467,11 +467,8 @@ fn run(func: &mut Function, target: &Target, pass: &WordSequence) -> bool {
             if !removable(func, func.inst(inst), target) {
                 let instruction = func.inst(inst);
                 // Spelling a test moves no read: it adds pure operations at the test, so only a
-                // write, a call or an observation of the execution ends the segment, and the
-                // remaining gas is one.
-                let reads_only = instruction.kind.effect_kind().is_read_only()
-                    && !instruction.kind.observes_gas();
-                if !(spelling && reads_only)
+                // write or a call ends the segment.
+                if !(spelling && instruction.kind.effect_kind().is_read_only())
                     && (!is_pure(instruction) || !instruction.kind.effects().can_speculate())
                 {
                     seen.clear();

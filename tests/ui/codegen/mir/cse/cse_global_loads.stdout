@@ -65,3 +65,39 @@
       ret v2
   }
   
+  fn @reload_constant_word_in_dominated_block(arg0: i1) -> i256 {
+    bb0:
+      v0 = mload 16
+      v1 = add v0, 1
+      jumpi arg0, bb1, bb2
+    bb2:                                            ; preds = bb0
+      ret v1
+    bb1:                                            ; preds = bb0
+      v2 = mload 16
+      v3 = add v2, v1
+      ret v3
+  }
+  
+  fn @merge_constant_word_in_one_block() -> i256 {
+    bb0:
+      v0 = mload 16
+      v1 = add v0, 1
+-     v2 = mload 16
+-     v3 = add v2, v1
++     v3 = add v0, v1
+      ret v3
+  }
+  
+  fn @forward_stored_word_to_dominated_block(arg0: i1) -> i256 {
+    bb0:
+      v0 = mload 32
+      mstore 16, v0
+      jumpi arg0, bb1, bb2
+    bb2:                                            ; preds = bb0
+      ret 0
+    bb1:                                            ; preds = bb0
+-     v1 = mload 16
+-     ret v1
++     ret v0
+  }
+  

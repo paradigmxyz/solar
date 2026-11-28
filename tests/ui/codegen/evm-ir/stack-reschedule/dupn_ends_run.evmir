@@ -2,7 +2,7 @@
 //@ filecheck:
 @module module
 
-// A `DUPN` ends the run, so the `pop` after the `SSTORE` cannot move above its gas sentry.
+// A `DUPN` ends the run, so the `pop` after the `SSTORE` cannot move above the store.
 // CHECK-LABEL: {{^[ +].*}}bb0 [stack=16]:
 // CHECK: sstore
 // CHECK: pop

@@ -71,19 +71,6 @@ contract NoopStores {
         return m[i];
     }
 
-    // Between two gas reads, the accesses stay for the second read to observe.
-    // CHECK-LABEL: fn @measured()
-    // CHECK: = gas
-    // CHECK: sload
-    // CHECK: sstore
-    // CHECK: = gas
-    function measured() external returns (uint256) {
-        uint256 g = gasleft();
-        uint256 x = s;
-        s = x;
-        return g - gasleft();
-    }
-
     function staticTouch() external view returns (bool ok) {
         (ok,) = address(this).staticcall(abi.encodeCall(this.touch, (1, 9)));
     }

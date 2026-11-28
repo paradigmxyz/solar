@@ -38,6 +38,13 @@ fn @stored(arg0: i256) -> i256 {
     ret v0
 }
 
+fn @gas_left(arg0: i256) -> i256 {
+  bb0:
+    v0 = gas
+    v1 = add v0, arg0
+    ret v1
+}
+
 fn @hash_slot(arg0: i256) -> i256 {
   bb0:
     mstore 0, arg0
@@ -79,11 +86,12 @@ fn @dominated(arg0: i256, arg1: i1) -> i256 {
 
 // A pure function reading memory on its returning path can see a write between
 // the calls, one reading the return data can see an external call replace it,
-// and a view function can see storage change.
+// a view function can see storage change, and each read of the gas left is a new value.
 // CHECK-LABEL: {{^[ +].*}}fn @not_pure_leaves{{[( ]}}
 // CHECK-COUNT-2: {{^[ +].*}} = icall @read_word, arg0
 // CHECK-COUNT-2: {{^[ +].*}} = icall @returned_size, arg0
 // CHECK-COUNT-2: {{^[ +].*}} = icall @stored, arg0
+// CHECK-COUNT-2: {{^[ +].*}} = icall @gas_left, arg0
 fn @not_pure_leaves(arg0: i256) -> i256 {
   bb0:
     v0 = icall @read_word, arg0
@@ -95,12 +103,16 @@ fn @not_pure_leaves(arg0: i256) -> i256 {
     v2 = icall @stored, arg0
     sstore arg0, 7
     v3 = icall @stored, arg0
+    v12 = icall @gas_left, arg0
+    v13 = icall @gas_left, arg0
     v4 = add v0, v1
     v5 = add v2, v3
     v6 = add v4, v5
     v10 = add v7, v9
     v11 = add v6, v10
-    ret v11
+    v14 = add v12, v13
+    v15 = add v11, v14
+    ret v15
 }
 
 // Words that fix for the call frame, calldata and the caller, do not tie a leaf to one call; an

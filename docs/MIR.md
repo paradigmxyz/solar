@@ -291,11 +291,9 @@ may be deferred. Checked arithmetic and ABI validation can revert even when
 their result is unused. Keep those checks as semantic effects until proved
 redundant. Low-level calls and precompiles retain their gas, returndata, and
 failure behavior. `extcall`s carry external-call effects before expansion, so
-loop motion cannot reuse an older return-data size across them. Gas observations also include the implicit reads
-in precompiles and `extcall`s without an explicit gas argument. LICM
-respects those reads before expansion. Solidity's checked division and Yul's
-division by zero must not share a folding rule that changes their distinct
-semantics.
+loop motion cannot reuse an older return-data size across them. Solidity's
+checked division and Yul's division by zero must not share a folding rule that
+changes their distinct semantics.
 
 Aim for one typed body per source function, with external entries represented
 by interface declarations. ABI lowering owns decoding, validation, encoding,
@@ -404,7 +402,14 @@ termination. Compute them only for called functions, including tail-call targets
 uncalled bodies need no interprocedural summary. DCE removes unused calls only
 when these summaries prove normal termination and no observable effects. Recursive calls and possible CFG cycles
 remain conservative. `msize` is an opaque memory read: it is never commoned or moved, DSE keeps the
-writes it may see, and it promises no exact value.
+writes it may see, and it promises no exact value. A gas read, `gas` or the implicit read of
+a precompile or an `extcall` without a gas argument, is never commoned, speculated, or moved and
+stays in order with other gas reads. It holds back no memory or storage access: DSE, CSE, load
+PRE, and LICM delete, forward, merge, and hoist them across it, so it promises no exact value
+either; only instruction scheduling still keeps work on its side. Storage promotion skips a loop
+that reads gas, since the loop may stop on it and a deferred store could then run out of gas.
+Before EIP-150, a call that forwards the gas left pays its own memory expansion out of a small
+reserve, so like `msize` it keeps the writes before it.
 As in solc, unused storage/account reads and normally returning calls containing
 only those reads may disappear, including their implicit access-list warming.
 Optimization preserves required effects rather than exact gas consumption.
@@ -701,8 +706,9 @@ diverge. Availability on one predecessor does not make it safe to execute a load
 before the check guarding its original path. A value already available on every
 incoming path can still replace a redundant load without inserting an access.
 
-CSE and load PRE avoid extending a load from an allocation base across blocks
-solely to eliminate a cheap reload. They can reuse a value already live across
+CSE and load PRE avoid extending a load from an allocation base or a constant
+address across blocks solely to eliminate a cheap reload; a stored word is
+still forwarded. They can reuse a value already live across
 the edge, and load PRE prefers an equivalent constant or already-live value.
 The EVM revert pass removes an existing branch inversion around a cold payload
 when success can fall through after layout; it preserves the payload's target.

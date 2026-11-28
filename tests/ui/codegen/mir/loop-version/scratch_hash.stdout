@@ -89,17 +89,17 @@ fn @_level(arg0: i256) -> i256 [may_return_memory] {
     v1 = shr v0, 1
     v9 = add v1, 1
     v11 = shl v9, 5
-    v150 = shr v9, 251
-    v12 = ne v150, 0
+    v147 = shr v9, 251
+    v12 = ne v147, 0
     jumpi v12, bb8, bb9
   bb9:                                            ; preds = bb0
     v131 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v132 = add v131, v11 !metadata(alloc_ptr)
-    v152 = shr v132, 64
+    v149 = shr v132, 64
     v133 = lt v132, v131
-    v154 = zext i1 v133 to i256
-    v155 = or v152, v154
-    v135 = ne v155, 0
+    v151 = zext i1 v133 to i256
+    v152 = or v149, v151
+    v135 = ne v152, 0
     jumpi v135, bb8, bb16
   bb16:                                           ; preds = bb9
     mstore 64, v132 !metadata(memory=scratch)
@@ -120,9 +120,9 @@ fn @_level(arg0: i256) -> i256 [may_return_memory] {
     v87 = zext i1 v86 to i256
     v88 = or v84, v87
     v72 = or v131, v1
-    v157 = shr v72, 64
-    v159 = or v157, v88
-    v91 = eq v159, 0
+    v154 = shr v72, 64
+    v156 = or v154, v88
+    v91 = eq v156, 0
     jumpi v91, bb6, bb7
   bb7:                                            ; preds = bb16
     v138 = add arg0, 32
@@ -162,12 +162,10 @@ fn @_level(arg0: i256) -> i256 [may_return_memory] {
     jump bb1
   bb6:                                            ; preds = bb16
     v144 = add arg0, 32
-    v147 = add v131, 32
     jump bb4
   bb4:                                            ; preds = bb6, bb15
     v44 = phi [bb6: 0], [bb15: v67]
     v145 = phi [bb6: v144], [bb15: v146]
-    v148 = phi [bb6: v147], [bb15: v149]
     v46 = lt v44, v1
     jumpi v46, bb5, bb2
   bb2:                                            ; preds = bb1, bb4
@@ -191,10 +189,12 @@ fn @_level(arg0: i256) -> i256 [may_return_memory] {
     mstore 0, v53 !metadata(memory=scratch)
     mstore 32, v60 !metadata(memory=scratch)
     v94 = keccak256 0, 64 !metadata(memory=scratch)
-    mstore v148, v94
+    v64 = shl v44, 5
+    v123 = add v131, v64
+    v124 = add v123, 32
+    mstore v124, v94
     v67 = add v44, 1
     v146 = add v145, 64
-    v149 = add v148, 32
     jump bb4
   bb8 [cold]:                                     ; preds = bb0, bb9
     mstore 32, 65 !metadata(memory=scratch)

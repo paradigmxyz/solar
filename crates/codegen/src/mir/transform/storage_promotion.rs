@@ -8,6 +8,8 @@
 //! - promote only exact storage aliases that are loop-invariant
 //! - promote multiple slots only when they are pairwise provably disjoint
 //! - reject loops with calls, storage accesses the rewrite cannot update, or non-isolated exits
+//! - reject loops that read the gas left: they may stop on it, and a store deferred past that check
+//!   could run out of gas where the unoptimized loop finishes
 //! - use shared read/write effects to detect storage traffic inside semantic operations
 //! - flush dirty promoted values before any clean observable exit
 //! - skip the flush on revert exits: `revert`/`invalid` roll back every storage write of the frame,
@@ -190,16 +192,14 @@ fn exit_rolls_back(func: &Function, exit: BlockId) -> bool {
     func.blocks[exit].terminator.as_ref().is_some_and(Terminator::reverts)
 }
 
-/// A rollback exit must not contain calls (a callee could observe the
-/// unflushed slot and leak that observation into the revert data) or
-/// other instructions whose results escape the rolled-back frame.
+/// A rollback exit must not contain calls: a callee could observe the
+/// unflushed slot and leak that observation into the revert data.
 fn rollback_exit_has_no_observable_effects(func: &Function, exit: BlockId) -> bool {
     func.blocks[exit].instructions.iter().all(|&inst_id| {
-        let kind = &func.inst(inst_id).kind;
         !matches!(
-            kind.effect_kind(),
+            func.inst(inst_id).kind.effect_kind(),
             EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
-        ) && !kind.observes_gas()
+        )
     })
 }
 
@@ -213,18 +213,19 @@ fn promotion_block_ids(func: &Function, loop_data: &Loop) -> Vec<BlockId> {
     blocks
 }
 
+/// Whether promotion may move the loop's storage accesses: nothing else in it touches storage
+/// or calls out. A loop that reads the gas left may stop on it, as a gas-bounded batch does.
+/// Promotion would move its stores past that check, where the last iteration's gas has to pay for
+/// them, so a loop that finishes unoptimized could run out of gas.
 fn promotion_effects_are_safe(func: &Function, loop_data: &Loop) -> bool {
     let alias = AliasAnalysis::new(func);
     for block_id in promotion_block_ids(func, loop_data) {
         for &inst_id in &func.blocks[block_id].instructions {
-            let inst = func.inst(inst_id);
-            if inst.kind.observes_gas() {
-                return false;
-            }
-            match &inst.kind {
+            match &func.inst(inst_id).kind {
                 InstKind::Load(_, PtrLocation::Storage)
                 | InstKind::Store(_, _, PtrLocation::Storage) => {}
-                InstKind::Store(_, _, PtrLocation::Transient)
+                InstKind::Gas
+                | InstKind::Store(_, _, PtrLocation::Transient)
                 | InstKind::Call { .. }
                 | InstKind::CallCode { .. }
                 | InstKind::StaticCall { .. }
@@ -323,7 +324,7 @@ fn preheader_tail_is_safe(func: &Function, preheader: BlockId, candidates: &[Can
             | InstKind::Store8(..)
             | InstKind::Copy(_, _, _, PtrLocation::Memory)
             | InstKind::DataCopy(_, _, _) => {}
-            kind if kind.has_side_effects() || kind.observes_gas() => return false,
+            kind if kind.has_side_effects() => return false,
             _ => {}
         }
     }

@@ -199,3 +199,28 @@ fn @promote_with_unrelated_preheader_store() [selector=0x01020304] {
   bb4:
     stop
 }
+
+// A loop that may stop on the gas left keeps its stores in the body: deferred past the check,
+// they would have to be paid out of the gas the check leaves.
+// CHECK-LABEL: @reject_gas_bounded_loop
+// CHECK-NOT: mstore
+// CHECK: = gas
+// CHECK-NOT: mstore
+// CHECK: {{^[ +] *}}sstore 0, v3
+// CHECK-NOT: mstore
+// CHECK: {{^ *}}}
+fn @reject_gas_bounded_loop() [selector=0x01020304] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = gas
+    v1 = gt v0, 50000
+    jumpi v1, bb2, bb3
+  bb2:
+    v2 = sload 0
+    v3 = add v2, 1
+    sstore 0, v3
+    jump bb1
+  bb3:
+    stop
+}

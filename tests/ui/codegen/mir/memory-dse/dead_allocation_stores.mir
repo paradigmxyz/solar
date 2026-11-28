@@ -188,18 +188,6 @@ fn @observes_msize(arg0: i256) {
     returndata 0, 32
 }
 
-// A function observing gas keeps the stores, since they pay for memory expansion.
-// CHECK-LABEL: {{^[ +].*}}fn @observes_gas{{[( ]}}
-// CHECK: {{^ +}}mstore v0, arg0
-fn @observes_gas(arg0: i256) {
-  bb0:
-    v0 = alloc 64
-    mstore v0, arg0
-    v1 = gas
-    mstore 0, v1
-    returndata 0, 32
-}
-
 // An unrelated pointer may be rebuilt from the free-memory pointer, so its read keeps the store.
 // CHECK-LABEL: {{^[ +].*}}fn @unrelated_read{{[( ]}}
 // CHECK: {{^ +}}mstore v0, arg0

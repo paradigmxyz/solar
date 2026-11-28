@@ -1,0 +1,170 @@
+; === ROOT/tests/ui/codegen/mir/storage-dse/packed_writes_across_gas.sol:PackedWritesAcrossGas ===
+@module PackedWritesAcrossGas
+@phase lowered
+; backend-memory-v1
+; backend-entry 4 0x80
+
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:                                            ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x112d0e70 => bb2, 0x23549856 => bb3, 0x9ae22eae => bb4, 0x9c6d4c69 => bb5]
+  bb5:                                            ; preds = bb1
+    tail_call @helperReturn
+  bb4:                                            ; preds = bb1
+    tail_call @split
+  bb3:                                            ; preds = bb1
+    tail_call @recursiveReturn
+  bb2:                                            ; preds = bb1
+    tail_call @nestedReturn
+  bb6 [cold]:                                     ; preds = bb0, bb1
+    revert 0, 0
+}
+
+; function helperReturn(uint256 h) external returns (uint256) [selector 0x9c6d4c69]
+fn @helperReturn() {
+  bb0:
+    v18 = calldatasize
+    v19 = lt v18, 36
+    jumpi v19, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v20 = calldataload 4
+    icall @readThenReturn
+    mstore 0, v20 !metadata(memory=scratch)
+    mstore 32, 0 !metadata(memory=scratch)
+    v23 = keccak256 0, 64 !metadata(memory=scratch)
+    sstore v23, 0x10000000000000000000000000000010001
+    v13 = gas
+    sstore 1, v13 !metadata(storage=slot(1))
+    v16 = sload v23
+    mstore 0, v16 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}
+
+; function split(uint256 h, bool f) external returns (uint256) [selector 0x9ae22eae]
+fn @split() {
+  bb0:
+    v18 = calldatasize
+    v19 = lt v18, 68
+    v21 = calldataload 36
+    v22 = gt v21, 1
+    v29 = or v19, v22
+    jumpi v29, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v31 = calldataload 36
+    v28 = ne v31, 0
+    v30 = calldataload 4
+    mstore 0, v30 !metadata(memory=scratch)
+    mstore 32, 0 !metadata(memory=scratch)
+    v26 = keccak256 0, 64 !metadata(memory=scratch)
+    icall @readThenRevert, v28
+    sstore v26, 0x10000000000000000000000000000010001
+    v13 = gas
+    sstore 1, v13 !metadata(storage=slot(1))
+    v16 = sload v26
+    mstore 0, v16 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}
+
+; function nestedReturn(uint256 h) external returns (uint256) [selector 0x112d0e70]
+fn @nestedReturn() {
+  bb0:
+    v18 = calldatasize
+    v19 = lt v18, 36
+    jumpi v19, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v20 = calldataload 4
+    icall @outer
+    mstore 0, v20 !metadata(memory=scratch)
+    mstore 32, 0 !metadata(memory=scratch)
+    v23 = keccak256 0, 64 !metadata(memory=scratch)
+    sstore v23, 0x10000000000000000000000000000010001
+    v13 = gas
+    sstore 1, v13 !metadata(storage=slot(1))
+    v16 = sload v23
+    mstore 0, v16 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}
+
+; function recursiveReturn(uint256 h, uint256 depth) external returns (uint256) [selector 0x23549856]
+fn @recursiveReturn() {
+  bb0:
+    v18 = calldatasize
+    v19 = lt v18, 68
+    jumpi v19, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v20 = calldataload 4
+    v21 = calldataload 36
+    icall @recurse, v21
+    mstore 0, v20 !metadata(memory=scratch)
+    mstore 32, 0 !metadata(memory=scratch)
+    v24 = keccak256 0, 64 !metadata(memory=scratch)
+    sstore v24, 0x10000000000000000000000000000010001
+    v13 = gas
+    sstore 1, v13 !metadata(storage=slot(1))
+    v16 = sload v24
+    mstore 0, v16 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}
+
+; function readThenReturn() internal view
+fn @readThenReturn() {
+  bb0:
+    v0 = gas
+    v1 = lt v0, 10
+    jumpi v1, bb1, bb2
+  bb2:                                            ; preds = bb0
+    ret
+  bb1 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}
+
+; function readThenRevert(bool f) internal view
+fn @readThenRevert(arg0: i1) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:                                            ; preds = bb0
+    v0 = gas
+    v1 = eq v0, 0
+    jumpi v1, bb2, bb3
+  bb3 [cold]:                                     ; preds = bb1
+    revert 0, 0
+  bb2:                                            ; preds = bb0, bb1
+    ret
+}
+
+; function outer() internal view
+fn @outer() {
+  bb0:
+    icall @readThenReturn
+    ret
+}
+
+; function recurse(uint256 depth) internal view
+fn @recurse(arg0: i256) {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v1 = sub arg0, 1
+    icall @recurse, v1
+    jump bb3
+  bb1:                                            ; preds = bb0
+    icall @readThenReturn
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    ret
+}

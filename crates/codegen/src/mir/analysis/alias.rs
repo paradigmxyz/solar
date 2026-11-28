@@ -323,9 +323,6 @@ impl Access {
 pub(crate) struct ModRef {
     reads: SmallVec<[Access; 4]>,
     writes: SmallVec<[Access; 4]>,
-    observes_gas: bool,
-    /// Whether the operation may observe remaining gas and then continue after it.
-    continues_after_gas: bool,
 }
 
 impl ModRef {
@@ -339,19 +336,6 @@ impl ModRef {
     #[must_use]
     pub(crate) fn writes(&self) -> &[Access] {
         &self.writes
-    }
-
-    /// Returns whether the operation observes remaining gas.
-    #[must_use]
-    pub(crate) const fn observes_gas(&self) -> bool {
-        self.observes_gas
-    }
-
-    /// Returns whether the operation may observe remaining gas on a path that continues after it.
-    /// A call whose every gas read precedes a revert observes gas but never continues after it.
-    #[must_use]
-    pub(crate) const fn continues_after_gas(&self) -> bool {
-        self.continues_after_gas
     }
 
     /// Returns whether any access reads `space`.
@@ -1488,7 +1472,7 @@ impl AliasAnalysis {
                 effects.write(Access::Location(Location::Immutable(id)));
             }
             InstKind::ExtCall { policy, input, .. } => {
-                if input.is_some() {
+                if input.is_some() || Self::needs_expanded_memory(func, kind) {
                     effects.read_any(AddressSpace::Memory);
                 }
                 effects.read_any(AddressSpace::Storage);
@@ -1502,7 +1486,11 @@ impl AliasAnalysis {
             | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::DelegateCall { args_offset, args_size, ret_offset, ret_size, .. } => {
-                read_memory(&mut effects, args_offset, SizeOperand::Value(args_size));
+                if Self::needs_expanded_memory(func, kind) {
+                    effects.read_any(AddressSpace::Memory);
+                } else {
+                    read_memory(&mut effects, args_offset, SizeOperand::Value(args_size));
+                }
                 write_memory(&mut effects, ret_offset, SizeOperand::Value(ret_size));
                 effects.read_any(AddressSpace::Storage);
                 effects.read_any(AddressSpace::Transient);
@@ -1528,14 +1516,10 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
-                    effects.observes_gas = summary.may_observe_gas();
-                    effects.continues_after_gas = summary.may_return_after_gas();
                     let args =
                         kind.operands().into_iter().map(resolve).collect::<SmallVec<[_; 8]>>();
                     effects.merge_call_summary(summary, func, self, &args);
                 } else {
-                    effects.observes_gas = true;
-                    effects.continues_after_gas = true;
                     effects.read_write_any(AddressSpace::ALL);
                 }
 
@@ -1556,8 +1540,6 @@ impl AliasAnalysis {
             }
             _ => {}
         }
-        effects.observes_gas |= kind.observes_gas();
-        effects.continues_after_gas |= kind.observes_gas();
         effects
     }
 
@@ -1579,10 +1561,8 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
-                    effects.observes_gas = summary.may_observe_gas();
                     effects.merge_call_summary(summary, func, self, &terminator.operands());
                 } else {
-                    effects.observes_gas = true;
                     effects.read_write_any(AddressSpace::ALL);
                 }
             }
@@ -1596,6 +1576,25 @@ impl AliasAnalysis {
             | Terminator::SelfDestruct { .. } => {}
         }
         effects
+    }
+
+    /// Whether `kind` is a call whose `gas` operand withholds a reserve from the gas left, as a
+    /// call that forwards the gas left does before EIP-150.
+    ///
+    /// Such a call pays its own memory expansion out of the few gas the reserve leaves, so it
+    /// depends on the memory size every earlier write and fill reached, the way `msize` does.
+    #[must_use]
+    pub(crate) fn needs_expanded_memory(func: &Function, kind: &InstKind) -> bool {
+        let gas = match *kind {
+            InstKind::ExtCall { gas: Some(gas), .. }
+            | InstKind::Call { gas, .. }
+            | InstKind::CallCode { gas, .. }
+            | InstKind::StaticCall { gas, .. }
+            | InstKind::DelegateCall { gas, .. } => gas,
+            _ => return false,
+        };
+        matches!(func.value_inst_kind(gas), Some(&InstKind::Sub(left, _))
+            if matches!(func.value_inst_kind(left), Some(InstKind::Gas)))
     }
 
     /// Returns the canonical free-memory-pointer word location.

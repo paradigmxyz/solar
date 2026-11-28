@@ -26,8 +26,13 @@
 //! A rewrite pays when the operations it removes from every iteration, the
 //! index duplication, scaling, base duplication and additions, outweigh the one
 //! duplication per pointer use, two per sibling use, the latch update, and the
-//! extra carried word it adds. The pass runs on the semantic MIR and once more
-//! in gas mode after memory lowering, where element addresses become explicit.
+//! extra carried word it adds. Each pointer the loop takes on counts as a
+//! carried word for the next. Families that scale the counter by the same
+//! stride share one scaling, which only goes when all of them step pointers,
+//! so they are weighed as a group: as pointers, three arrays read at one index
+//! in a loop that already carries four words saved no gas and cost bytes. The
+//! pass runs on the semantic MIR and once more in gas mode after memory
+//! lowering, where element addresses become explicit.
 //!
 //! When the header's exit test compares the counter with an invariant bound
 //! and the counter has no other use than the addresses being replaced, the
@@ -240,6 +245,9 @@ struct AddressKey {
 }
 
 impl AddressKey {
+    /// Operations one scaling of the counter costs: a push and a `shl` or `mul`.
+    const SCALING_COST: usize = 2;
+
     /// The key without its constant: addresses sharing it walk in step and can
     /// share one pointer.
     fn family(&self) -> Self {
@@ -253,7 +261,7 @@ impl AddressKey {
     /// the add, and often not even that when the loop shares the sum with a
     /// bounds check.
     fn use_cost(&self, offset_shared: bool) -> usize {
-        let scaling = if self.scale.unsigned_abs() == 1 { 0 } else { 2 };
+        let scaling = if self.scale.unsigned_abs() == 1 { 0 } else { Self::SCALING_COST };
         let base = if self.base.is_some() { 2 } else { 0 };
         let invariants = self
             .invariants
@@ -585,12 +593,49 @@ impl IndVarSimplifier {
         let mut replacements = FxHashMap::default();
         let mut siblings = Vec::new();
         let mut test_pointer = None;
+        // Each pointer this loop takes on deepens the words the later ones are weighed against.
+        let mut carried = carried;
+        // Families that scale the counter by the same factor share one scaling, which only goes
+        // once all of them step pointers: such a group is weighed as a whole, and a family of a
+        // group that does not pay is weighed without the scaling, which stays for the others.
+        // NOTE: families that scale different expressions of the counter alike, such as `i` and
+        // `i + 1`, are grouped too; that only ever withholds a reduction.
+        let scale_of = |members: &[(AddressKey, Vec<ValueId>)]| members[0].0.scale;
+        let shares_scaling = |scale: i128| {
+            scale.unsigned_abs() != 1
+                && families.iter().filter(|members| scale_of(members) == scale).count() > 1
+        };
+        let mut group_pays = FxHashMap::<i128, bool>::default();
         for (index, members) in families.iter().enumerate() {
             let (primary, primary_values) = &members[0];
             // ptr = phi [preheader: start], [latch: ptr + delta]
             // costs one update per iteration plus a carried word the scheduler
             // must keep resident; a sibling offset costs an add at its definition.
-            let pays = reduce_all || Self::reduction_pays_off(members, &offset_shared, carried);
+            let scale = scale_of(members);
+            let pays = reduce_all
+                || if shares_scaling(scale) {
+                    let group = *group_pays.entry(scale).or_insert_with(|| {
+                        let group = families[index..].iter().filter(|m| scale_of(m) == scale);
+                        let before = group
+                            .clone()
+                            .map(|m| {
+                                Self::family_cost_before(m, &offset_shared) - Self::scaling_cost(m)
+                            })
+                            .sum::<usize>()
+                            + AddressKey::SCALING_COST;
+                        let after = group
+                            .enumerate()
+                            .map(|(depth, m)| Self::family_cost_after(m, carried + depth))
+                            .sum::<usize>();
+                        before > after
+                    });
+                    group
+                        || Self::family_cost_before(members, &offset_shared)
+                            - Self::scaling_cost(members)
+                            > Self::family_cost_after(members, carried)
+                } else {
+                    Self::reduction_pays_off(members, &offset_shared, carried)
+                };
             if !pays {
                 continue;
             }
@@ -599,6 +644,7 @@ impl IndVarSimplifier {
             else {
                 continue;
             };
+            carried += 1;
             if reduce_all
                 && let Some((test_index, exit)) = test_family
                 && test_index == index
@@ -1396,6 +1442,16 @@ impl IndVarSimplifier {
                 values.iter().map(move |value| key.use_cost(offset_shared.contains(value)))
             })
             .sum::<usize>()
+    }
+
+    /// Operations a family's addresses spend scaling the counter, which
+    /// [`AddressKey::use_cost`] charges to every use.
+    fn scaling_cost(members: &[(AddressKey, Vec<ValueId>)]) -> usize {
+        members
+            .iter()
+            .filter(|(key, _)| key.scale.unsigned_abs() != 1)
+            .map(|(_, values)| AddressKey::SCALING_COST * values.len())
+            .sum()
     }
 
     /// Operations a family's pointer costs per iteration: one duplication per

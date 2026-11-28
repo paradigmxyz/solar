@@ -92,18 +92,6 @@ fn @memory_copy_reads_source(arg0: i256, arg1: i256, arg2: i256) {
     returndata arg0, arg1
 }
 
-// Exact writes cannot erase a gas observation.
-// CHECK-LABEL: {{^[ +].*}}fn @gas_barrier{{[( ]}}
-// CHECK: {{^ +}}mstore 0x1000, 42
-fn @gas_barrier(arg0: i256, arg1: i256) {
-  bb0:
-    mstore 4096, 42
-    v0 = gas
-    calldatacopy arg0, 0, arg1
-    mstore 0, v0
-    returndata 0, 32
-}
-
 // The phi denotes a different address on each iteration. A copy in the previous iteration
 // cannot satisfy a read through the new phi, and the loop may also exit before any copy.
 // CHECK-LABEL: {{^[ +].*}}fn @loop_carried_range{{[( ]}}

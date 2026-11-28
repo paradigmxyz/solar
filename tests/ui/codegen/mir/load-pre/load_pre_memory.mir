@@ -137,7 +137,7 @@ fn @mload_loop_header(arg0: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @staticcall_zero_return_preserves_memory{{[( ]}}
 // CHECK: {{^[ +].*}}[[LOAD:v[0-9]+]] = mload 128
 // CHECK: {{^[ +].*}}staticcall
-// CHECK: + ret [[LOAD]]
+// CHECK: + {{v[0-9]+}} = add [[LOAD]], [[LOAD]]
 fn @staticcall_zero_return_preserves_memory(arg0: i1, arg1: i256) -> i256 {
   bb0:
     v1 = mload 128
@@ -149,7 +149,8 @@ fn @staticcall_zero_return_preserves_memory(arg0: i1, arg1: i256) -> i256 {
     jump bb3
   bb3:
     v3 = mload 128
-    ret v3
+    v4 = add v3, v1
+    ret v4
   bb4:
     ret v1
 }
@@ -177,7 +178,7 @@ fn @msize_does_not_block_memory(arg0: i1) -> i256 {
     ret v6
 }
 
-// Implicit gas observations constrain partial-redundancy insertion.
+// An external call constrains partial-redundancy insertion.
 // CHECK-LABEL: {{^[ +].*}}fn @default_gas_call_blocks_prefix{{[( ]}}
 // CHECK: {{^[ +] *}}bb2:
 // CHECK-NEXT: {{^[ +] *}}jump bb3
@@ -201,7 +202,7 @@ fn @default_gas_call_blocks_prefix(arg0: i1, arg1: ptr<memory>) -> i256 {
     ret v4
 }
 
-// Implicit gas observations constrain partial-redundancy insertion.
+// An external call constrains partial-redundancy insertion.
 // CHECK-LABEL: {{^[ +].*}}fn @default_gas_call_blocks_reload{{[( ]}}
 // CHECK: {{^[ +] *}}bb2:
 // CHECK-NEXT: {{^[ +] *}}jump bb3
@@ -247,4 +248,42 @@ fn @explicit_gas_call_blocks_pre(arg0: i1, arg1: ptr<memory>) -> i256 {
     v3 = mload 128
     v4 = add v2, v3
     ret v4
+}
+
+// A word loaded from a constant address is cheaper to load again after the join than to carry
+// there from above the branch.
+// CHECK-LABEL: {{^[ +].*}}fn @reload_constant_word_after_join{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+// CHECK: {{^ *}}}
+fn @reload_constant_word_after_join(arg0: i1) -> i256 {
+  bb0:
+    v0 = mload 16
+    v1 = add v0, 1
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v2 = mload 16
+    v3 = add v2, v1
+    ret v3
+}
+
+// A stored word is forwarded after the join even when it is a load result, which can leave the
+// store dead.
+// CHECK-LABEL: {{^[ +].*}}fn @forward_stored_word_after_join{{[( ]}}
+// CHECK: {{^-}}{{.*}} = mload 16
+fn @forward_stored_word_after_join(arg0: i1) -> i256 {
+  bb0:
+    v0 = sload 7
+    mstore 16, v0
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v2 = mload 16
+    ret v2
 }

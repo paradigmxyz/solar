@@ -98,64 +98,6 @@ fn @copy_observes_store(arg0: i256, arg1: i256) -> ptr<memory> {
     ret v0
 }
 
-// Remaining gas observes the first store even though the second overwrites it.
-// CHECK-LABEL: {{^[ +].*}}fn @keep_store_observed_by_gas{{[( ]}}
-// CHECK: + sstore 0, 1
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = gas
-// CHECK: + sstore 0, 2
-fn @keep_store_observed_by_gas() -> i256 {
-  bb0:
-    v0 = gas
-    sstore 0, 1
-    v1 = gas
-    sstore 0, 2
-    v2 = sub v0, v1
-    ret v2
-}
-
-// A gas observation in the successor also blocks all-path overwrite facts.
-// CHECK-LABEL: {{^[ +].*}}fn @keep_cross_block_store_observed_by_gas{{[( ]}}
-// CHECK: + sstore 0, 1
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = gas
-// CHECK: + sstore 0, 2
-fn @keep_cross_block_store_observed_by_gas() -> i256 {
-  bb0:
-    v0 = gas
-    sstore 0, 1
-    jump bb1
-  bb1:
-    v1 = gas
-    sstore 0, 2
-    v2 = sub v0, v1
-    ret v2
-}
-
-// A transitive gas read observes the first store even when its call summary
-// reports no reads or writes to storage.
-// CHECK-LABEL: fn @keep_store_observed_by_callee
-// CHECK: {{^[ +].*}}sstore 0, 1
-// CHECK: icall @observe_indirect
-// CHECK: {{^[ +].*}}sstore 0, 2
-fn @keep_store_observed_by_callee() -> i256 {
-  bb0:
-    sstore 0, 1
-    v0 = icall @observe_indirect
-    sstore 0, 2
-    ret v0
-}
-
-fn @observe_indirect() -> i256 {
-  bb0:
-    v0 = icall @observe_gas
-    ret v0
-}
-
-fn @observe_gas() -> i256 {
-  bb0:
-    v0 = gas
-    ret v0
-}
-
 // CHECK-LABEL: fn @keep_before_halt
 // CHECK: + sstore 0, 1
 // CHECK: icall @halt_indirect

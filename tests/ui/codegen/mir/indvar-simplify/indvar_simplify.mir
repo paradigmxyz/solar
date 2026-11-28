@@ -738,3 +738,77 @@ fn @rebuild_counter_on_conditional_edge(arg0: i256, arg1: i256, arg2: i256, arg3
     v11 = phi [bb5: v4], [bb6: 7]
     ret v11
 }
+
+// Three arrays read at one index share the scaling `shl i, 5`, which only goes once every family
+// steps a pointer. In a loop that already carries four words, the three pointers cost more than
+// the scaling and the sums they save, so the addresses stay.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_families_sharing_scaling{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+// CHECK: {{^ *}}}
+fn @keep_families_sharing_scaling(arg0: ptr<memory>, arg1: ptr<memory>, arg2: ptr<memory>) {
+  bb0:
+    v20 = ptrtoint ptr<memory> arg0 to i256
+    v21 = ptrtoint ptr<memory> arg1 to i256
+    v22 = ptrtoint ptr<memory> arg2 to i256
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v10]
+    v1 = mload v20
+    v2 = lt v0, v1
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = shl v0, 5
+    v4 = add v20, v3
+    v5 = add v4, 32
+    v6 = mload v5
+    v7 = add v21, v3
+    v8 = add v7, 32
+    v9 = mload v8
+    v11 = add v22, v3
+    v12 = add v11, 32
+    v13 = mload v12
+    v14 = add v6, v9
+    v15 = add v14, v13
+    mstore 0, v15
+    v10 = add v0, 1
+    jump bb1
+  bb3:
+    stop
+}
+
+// `b[n - i]` scales `n - i`, not the `i` that `a[i]` scales, so the two families share no scaling
+// and `b` steps a pointer of its own even where both together would not pay.
+// CHECK-LABEL: {{^[ +].*}}fn @reduce_family_with_own_scaling{{[( ]}}
+// CHECK: {{^\+}}{{.*}} = sub {{v[0-9]+}}, 32
+fn @reduce_family_with_own_scaling(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) {
+  bb0:
+    v20 = ptrtoint ptr<memory> arg0 to i256
+    v21 = ptrtoint ptr<memory> arg1 to i256
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v10]
+    v40 = phi [bb0: 0], [bb2: v50]
+    v41 = phi [bb0: 0], [bb2: v51]
+    v42 = phi [bb0: 0], [bb2: v52]
+    v1 = mload v20
+    v2 = lt v0, v1
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = shl v0, 5
+    v4 = add v20, v3
+    v5 = add v4, 32
+    v6 = mload v5
+    v30 = sub arg2, v0
+    v31 = shl v30, 5
+    v7 = add v21, v31
+    v9 = mload v7
+    v14 = add v6, v9
+    mstore 0, v14
+    v50 = add v40, v6
+    v51 = add v41, v6
+    v52 = add v42, v6
+    v10 = add v0, 1
+    jump bb1
+  bb3:
+    stop
+}

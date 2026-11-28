@@ -48,23 +48,6 @@
 +     ret v2
   }
   
-  fn @gas_barrier(arg0: i1, arg1: i1) -> i256 {
-    bb0:
-      jumpi arg0, bb1, bb2
-    bb2:                                            ; preds = bb0
-      jumpi arg1, bb3, bb4
-    bb4:                                            ; preds = bb2
-      ret 99
-    bb1:                                            ; preds = bb0
-      v0 = sload 5
-      jump bb3
-    bb3:                                            ; preds = bb1, bb2
-      v1 = gas
-      v2 = sload 5
-      v3 = add v1, v2
-      ret v3
-  }
-  
   fn @cheap_memory(arg0: i1, arg1: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
