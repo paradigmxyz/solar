@@ -79,7 +79,8 @@ Difference: contract metadata names the compiler as
 `"compiler": {"name": "solar", "version": "0.8.39+commit.d9f23fbe.solar.0.3.0"}`,
 where solc writes only `"version": "0.8.28+commit.7893614a"`. The version is
 the solc-compatible form that `SOLC_WRAPPER=1 solar --version` prints: the
-emulated solc version, then the Solar commit and version as build metadata.
+emulated solc version, which `--solc-version` selects, then the Solar commit and
+version as build metadata.
 The CBOR auxdata carries a `solar` entry instead of `solc`: three version
 bytes for releases, and the long Solar version as text
 (`0.3.0-dev+commit.d9f23fbe`) for other builds, as solc does for prereleases.
@@ -1472,45 +1473,6 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `copy_recursive_struct_*source_contains_target*` tests and
   `copy_recursive_struct_overlap_push_self_parent`, and
   `copy_recursive_struct_disjoint_copy_memory_growth` expects no growth.
-
-### CODEGEN-032: Packed results store their length before copying the sources
-
-- ID: CODEGEN-032
-- Status: intentional
-- Difference: `abi.encodePacked`, `bytes.concat` and `string.concat` allocate
-  the result and store its length word before they copy the dynamic sources.
-  `solc` copies first and stores the length last. When inline assembly gives a
-  memory `bytes` a length that reaches 32 or more bytes past the free memory
-  pointer, the result's length word lies inside the source's declared bytes and
-  `solar` copies it into the result. With a source of length 77 and a zeroed
-  32-byte allocation that ends at the free memory pointer, byte 63 of the
-  result is `0x4d` in `solar` and `0x00` in `solc`. `abi.encode` of the same
-  source matches `solc`.
-- Rationale: the source claims memory past the free memory pointer, which the
-  Solidity documentation does not reserve for it, so any allocation may
-  overwrite it. In `solc` too, a `new bytes(1)` between the assembly and the use
-  writes into byte 63 of the source. Storing the length last would not make
-  such a source safe, because every other fresh allocation assumes that it
-  overlaps no live object.
-- Coverage: `tests/ui/codegen/run-call/assembly/packed_forged_length_source.sol`.
-
-### CODEGEN-033: `abi.encodeWithSelector` stores a clean selector
-
-- ID: CODEGEN-033
-- Status: intentional
-- Difference: `abi.encodeWithSelector` cleans a `bytes4` to its type before it
-  stores the selector word, and `solc` with `--via-ir` stores the raw word.
-  After `bytes4 sel; assembly { sel := not(0) }`, `abi.encodeWithSelector(sel)`
-  has length 4 and starts with `0xffffffff` in both compilers. The word that
-  `mload(add(r, 0x20))` reads is `0xffffffff` followed by 28 zero bytes in
-  `solar` and all `0xff` in `solc` with `--via-ir`.
-- Rationale: only assembly that forges the selector sees it, by reading past
-  the length of the result, or by pointing an argument at the result's own
-  memory so that the encoder copies the dirty bytes. Calldata validation,
-  storage reads and conversions all clean a `bytes4`, so ordinary Solidity
-  cannot produce a dirty one, and an argument elsewhere overwrites the bytes
-  after the selector.
-- Coverage: `tests/ui/codegen/run-call/assembly/abi_encode_selector_forged_bits.sol`.
 
 ### CODEGEN-032: Packed results store their length before copying the sources
 

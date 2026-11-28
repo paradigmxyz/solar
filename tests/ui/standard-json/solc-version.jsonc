@@ -1,6 +1,7 @@
 // `settings.solar.solcVersion` selects the language rules and the reported version.
 // CHECK-NOT: "errorCode": "5333"
 // CHECK: \"compiler\":{\"name\":\"solar\",\"version\":\"0.9.0+commit.
+// CHECK-SAME: \"solar\":{\"solcVersion\":\"0.9.0\"}
 {
   "language": "Solidity",
   "sources": {

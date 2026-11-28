@@ -1050,7 +1050,10 @@ fn override_index<'gcx>(gcx: Gcx<'gcx>) -> &'gcx OverrideIndex<'gcx> {
 
         for f_id in gcx.hir.function_ids() {
             let f = gcx.hir.function(f_id);
-            if f.body.is_none() {
+            // In 0.9, the parser rejects modifiers without implementation.
+            if f.body.is_none()
+                && !(f.kind.is_modifier() && gcx.sess.opts.solc_version >= SolcVersion::V0_9_0)
+            {
                 unimplemented_functions.push(f_id);
             }
             if f.is_yul || f.kind.is_constructor() {

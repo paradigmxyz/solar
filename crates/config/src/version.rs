@@ -96,14 +96,9 @@ pub fn solar_version() -> &'static str {
 /// Returns [`SOLC_COMPAT_VERSION`] with `solc` as its semver core, or a fixed commit and
 /// [`TEST_SEMVER_VERSION`] under [`TEST_VERSION_ENV`].
 #[cfg(feature = "version")]
-pub fn solc_compat_version(solc: SolcVersion) -> &'static str {
-    static OTHER: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+pub fn solc_compat_version(solc: SolcVersion) -> String {
     let version = if test_version() { TEST_SOLC_COMPAT_VERSION } else { SOLC_COMPAT_VERSION };
-    if solc == SolcVersion::default() {
-        version
-    } else {
-        OTHER.get_or_init(|| version.replacen(SOLC_SEMVER_VERSION, solc.to_str(), 1))
-    }
+    version.replacen(SOLC_SEMVER_VERSION, solc.to_str(), 1)
 }
 
 /// The solc-compatible version that compiler output reports under [`TEST_VERSION_ENV`].

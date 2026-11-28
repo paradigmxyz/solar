@@ -231,7 +231,7 @@ pub(crate) fn make_ethdebug_compilation(
     // different artifact accidentally.
     append_length_prefixed(
         &mut identity,
-        solar_config::version::solc_compat_version(gcx.sess.opts.solc_version),
+        &solar_config::version::solc_compat_version(gcx.sess.opts.solc_version),
     );
     append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.language));
     append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.evm_version));

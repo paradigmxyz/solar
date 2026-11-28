@@ -38,7 +38,7 @@ struct CombinedJson<'a, 'gcx> {
     sources: BTreeMap<String, CombinedJsonSource<'a, 'gcx>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     ethdebug: Option<EthdebugOutput>,
-    version: &'static str,
+    version: String,
 }
 
 #[derive(serde::Serialize)]
@@ -281,8 +281,10 @@ fn emit_mir_input_artifacts(gcx: Gcx<'_>, file: &str, mut module: Module) -> Res
     if !emit_contract {
         return Ok(());
     }
-    let mut output =
-        CombinedJson { version: solar_config::version::SEMVER_VERSION, ..Default::default() };
+    let mut output = CombinedJson {
+        version: solar_config::version::SEMVER_VERSION.into(),
+        ..Default::default()
+    };
     let contract = output.contracts.entry(name).or_default();
     if emit_abi {
         contract.abi = Some(&[]);
